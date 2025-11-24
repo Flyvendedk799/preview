@@ -104,6 +104,11 @@ export async function fetchApi<T>(
   const baseUrl = getApiBaseUrl()
   const url = `${baseUrl}${endpoint}`
 
+  // Log API calls in development
+  if (import.meta.env.DEV) {
+    console.log(`[API] ${options?.method || 'GET'} ${url}`)
+  }
+
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options?.headers as Record<string, string> || {}),
@@ -123,17 +128,30 @@ export async function fetchApi<T>(
     }
   }
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  })
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers,
+    })
 
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => 'Unknown error')
-    throw new Error(`API error: ${response.status} ${response.statusText} - ${errorText}`)
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unknown error')
+      const errorMessage = `API error: ${response.status} ${response.statusText} - ${errorText}`
+      console.error(`[API Error] ${url}:`, errorMessage)
+      throw new Error(errorMessage)
+    }
+
+    return response.json()
+  } catch (error) {
+    // Handle network errors (connection refused, etc.)
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      const errorMessage = `Failed to connect to API at ${url}. Please check that the backend is running and VITE_API_BASE_URL is set correctly.`
+      console.error(`[API Connection Error] ${url}:`, errorMessage)
+      console.error(`[API Config] Base URL: ${baseUrl}, Endpoint: ${endpoint}`)
+      throw new Error(errorMessage)
+    }
+    throw error
   }
-
-  return response.json()
 }
 
 // Auth endpoints

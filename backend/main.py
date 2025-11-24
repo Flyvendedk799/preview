@@ -46,7 +46,23 @@ app = FastAPI(
 @app.on_event("startup")
 def on_startup():
     """Initialize database tables on application startup."""
-    create_tables()
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info("=" * 60)
+    logger.info("Starting Preview SaaS API")
+    logger.info(f"Environment: {os.getenv('ENV', 'development')}")
+    logger.info(f"API Version: {settings.APP_VERSION}")
+    logger.info(f"Debug Mode: {settings.DEBUG if hasattr(settings, 'DEBUG') else False}")
+    logger.info(f"CORS Origins: {settings.CORS_ALLOWED_ORIGINS if settings.CORS_ALLOWED_ORIGINS else 'All origins (dev mode)'}")
+    logger.info("=" * 60)
+    
+    try:
+        create_tables()
+        logger.info("Database tables initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize database tables: {e}", exc_info=True)
+        raise
 
 
 # Configure CORS
@@ -169,7 +185,10 @@ if os.getenv("ENV", "development").lower() != "production":
 @app.get("/health")
 def health_check():
     """Health check endpoint."""
-    return {"status": "ok"}
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info("Health check endpoint called")
+    return {"status": "ok", "version": settings.APP_VERSION}
 
 
 @app.get("/")
