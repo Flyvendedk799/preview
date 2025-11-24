@@ -197,3 +197,62 @@ The application uses JWT-based authentication:
 - **Phase 5**: SQLAlchemy database integration
 - **Phase 6**: JWT authentication system (current)
 
+## Troubleshooting
+
+### Frontend Can't Connect to Backend (ERR_CONNECTION_REFUSED)
+
+**Symptoms:**
+- Browser console shows `ERR_CONNECTION_REFUSED` when making API calls
+- Signup/login fails with "Failed to fetch"
+- Frontend is trying to connect to `localhost:8000` instead of Railway backend
+
+**Solution:**
+1. **Check Environment Variables**: Ensure `VITE_API_BASE_URL` is set in your Railway frontend service
+   - Go to Railway dashboard → Your frontend service → Variables
+   - Add: `VITE_API_BASE_URL=https://your-backend-service.railway.app/api/v1`
+   - **Important**: Include `/api/v1` in the URL
+
+2. **Rebuild Frontend**: After setting the variable, Railway will automatically rebuild
+   - Check build logs to confirm the variable is being used
+   - Look for `[App Startup] API Base URL:` in browser console
+
+3. **Verify Backend is Running**: 
+   - Check Railway backend service logs
+   - Look for startup message: `Starting Preview SaaS API`
+   - Test backend health: `curl https://your-backend-service.railway.app/health`
+
+4. **Check CORS Settings**:
+   - Ensure `CORS_ALLOWED_ORIGINS` in backend includes your frontend URL
+   - Format: `https://your-frontend.railway.app` (comma-separated if multiple)
+
+### Backend Not Starting
+
+**Check Logs:**
+- Railway logs will show startup errors
+- Look for database connection errors
+- Verify all required environment variables are set
+
+**Common Issues:**
+- Missing `DATABASE_URL` → Backend can't connect to PostgreSQL
+- Missing `SECRET_KEY` → JWT signing fails
+- Missing `REDIS_URL` → Job queue won't work
+- Missing `OPENAI_API_KEY` → AI preview generation fails
+
+### Debugging Tips
+
+1. **Frontend Console Logs**: Open browser DevTools → Console
+   - Look for `[App Startup]` messages showing API URL
+   - Check for `[API]` logs showing request URLs
+   - Check for `[API Error]` logs showing connection failures
+
+2. **Backend Logs**: Check Railway backend service logs
+   - Startup logs show environment and configuration
+   - Request logs show all API calls with request IDs
+   - Error logs show detailed stack traces
+
+3. **Health Check**: Test backend health endpoint
+   ```bash
+   curl https://your-backend-service.railway.app/health
+   ```
+   Should return: `{"status": "ok", "version": "1.0.0"}`
+
