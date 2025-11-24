@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from secrets import token_urlsafe
 from backend.db.session import get_db
-from backend.core.deps import get_current_user, get_current_org, get_org_member_role, role_required
+from backend.core.deps import get_current_user, get_current_org, get_org_member_role, role_required, get_org_from_path
 from backend.models.user import User
 from backend.models.organization import Organization
 from backend.models.organization_member import OrganizationMember, OrganizationRole
@@ -91,12 +91,11 @@ def list_organizations(
 def get_organization(
     org_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    current_org: Organization = Depends(get_org_from_path)
 ):
     """Get organization details."""
-    # Use get_current_org to verify membership
-    org = get_current_org(current_user=current_user, org_id=org_id, db=db)
-    return org
+    return current_org
 
 
 @router.put("/{org_id}", response_model=OrganizationPublic)
@@ -105,16 +104,11 @@ def update_organization(
     org_update: OrganizationUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    current_org: Organization = Depends(get_current_org),
+    current_org: Organization = Depends(get_org_from_path),
     current_role: OrganizationRole = Depends(role_required([OrganizationRole.OWNER, OrganizationRole.ADMIN])),
     request: Request = None
 ):
     """Update organization (owner/admin only)."""
-    if current_org.id != org_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Organization ID mismatch"
-        )
     
     if org_update.name:
         current_org.name = org_update.name
@@ -138,16 +132,11 @@ def create_invite(
     invite_in: OrganizationInviteCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    current_org: Organization = Depends(get_current_org),
+    current_org: Organization = Depends(get_org_from_path),
     current_role: OrganizationRole = Depends(role_required([OrganizationRole.OWNER, OrganizationRole.ADMIN])),
     request: Request = None
 ):
     """Create an invite link for the organization (owner/admin only)."""
-    if current_org.id != org_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Organization ID mismatch"
-        )
     
     # Generate invite token
     invite_token = token_urlsafe(32)
@@ -246,14 +235,9 @@ def list_members(
     org_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    current_org: Organization = Depends(get_current_org)
+    current_org: Organization = Depends(get_org_from_path)
 ):
     """List all members of an organization."""
-    if current_org.id != org_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Organization ID mismatch"
-        )
     
     members = db.query(OrganizationMember).filter(
         OrganizationMember.organization_id == org_id
@@ -281,16 +265,11 @@ def update_member_role(
     new_role: OrganizationRole = Query(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    current_org: Organization = Depends(get_current_org),
+    current_org: Organization = Depends(get_org_from_path),
     current_role: OrganizationRole = Depends(role_required([OrganizationRole.OWNER, OrganizationRole.ADMIN])),
     request: Request = None
 ):
     """Update a member's role (owner/admin only)."""
-    if current_org.id != org_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Organization ID mismatch"
-        )
     
     membership = db.query(OrganizationMember).filter(
         OrganizationMember.id == member_id,
@@ -354,16 +333,11 @@ def remove_member(
     member_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    current_org: Organization = Depends(get_current_org),
+    current_org: Organization = Depends(get_org_from_path),
     current_role: OrganizationRole = Depends(role_required([OrganizationRole.OWNER, OrganizationRole.ADMIN])),
     request: Request = None
 ):
     """Remove a member from the organization (owner/admin only)."""
-    if current_org.id != org_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Organization ID mismatch"
-        )
     
     membership = db.query(OrganizationMember).filter(
         OrganizationMember.id == member_id,

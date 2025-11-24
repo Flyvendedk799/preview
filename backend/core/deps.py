@@ -1,5 +1,5 @@
 """Shared dependencies for FastAPI routes."""
-from fastapi import Depends, HTTPException, status, Query, Header
+from fastapi import Depends, HTTPException, status, Query, Header, Path
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from typing import Optional, List
@@ -84,7 +84,7 @@ def get_admin_user(
 
 def get_current_org(
     current_user: User = Depends(get_current_user),
-    org_id: Optional[int] = Query(None, description="Organization ID (optional, defaults to user's first org)"),
+    org_id_query: Optional[int] = Query(None, description="Organization ID (optional, defaults to user's first org)"),
     x_organization_id: Optional[str] = Header(None, alias="X-Organization-ID"),
     db: Session = Depends(get_db)
 ) -> Organization:
@@ -97,10 +97,12 @@ def get_current_org(
     3. User's first organization membership
     4. User's owned organization
     
+    Note: When org_id is a path parameter, it should be passed explicitly to this function.
+    
     Raises 404 if no organization found or user is not a member.
     """
-    # Try query param first
-    target_org_id = org_id
+    # Use query param
+    target_org_id = org_id_query
     
     # Try header if no query param
     if target_org_id is None and x_organization_id:
@@ -136,6 +138,49 @@ def get_current_org(
     # Verify organization exists and is not deleted
     org = db.query(Organization).filter(
         Organization.id == target_org_id,
+        Organization.is_deleted == False
+    ).first()
+    if not org:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Organization not found or is deleted"
+        )
+    
+    # Verify user is a member (or owner)
+    is_owner = org.owner_user_id == current_user.id
+    membership = db.query(OrganizationMember).filter(
+        OrganizationMember.organization_id == org.id,
+        OrganizationMember.user_id == current_user.id
+    ).first()
+    
+    if not is_owner and not membership:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not a member of this organization"
+        )
+    
+    return org
+
+
+def get_org_from_path(
+    org_id: int = Path(..., description="Organization ID from path"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+) -> Organization:
+    """
+    Get organization by path parameter org_id and verify user access.
+    
+    Usage:
+        @router.put("/{org_id}")
+        def update_org(
+            org_id: int,
+            current_org: Organization = Depends(get_org_from_path)
+        ):
+            ...
+    """
+    # Verify organization exists and is not deleted
+    org = db.query(Organization).filter(
+        Organization.id == org_id,
         Organization.is_deleted == False
     ).first()
     if not org:
