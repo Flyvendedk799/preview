@@ -147,9 +147,29 @@ export async function fetchApi<T>(
     })
 
     if (!response.ok) {
-      const errorText = await response.text().catch(() => 'Unknown error')
-      const errorMessage = `API error: ${response.status} ${response.statusText} - ${errorText}`
-      console.error(`[API Error] ${url}:`, errorMessage)
+      // Try to parse JSON error response
+      let errorMessage = `Server error (${response.status})`
+      try {
+        const errorData = await response.json().catch(() => null)
+        if (errorData?.detail) {
+          errorMessage = errorData.detail
+        } else if (typeof errorData === 'string') {
+          errorMessage = errorData
+        } else {
+          const errorText = await response.text().catch(() => 'Unknown error')
+          errorMessage = errorText || `Server error (${response.status})`
+        }
+      } catch {
+        // If JSON parsing fails, try text
+        const errorText = await response.text().catch(() => 'Unknown error')
+        errorMessage = errorText || `Server error (${response.status})`
+      }
+      
+      console.error(`[API Error] ${url}:`, {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorMessage
+      })
       throw new Error(errorMessage)
     }
 
