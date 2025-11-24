@@ -177,8 +177,11 @@ def sync_subscription_status(
                 trial_ends_at=None
             )
         
-        # Get the most recent subscription
-        subscription = subscriptions.data[0]
+        # Get the most recent subscription ID
+        subscription_id = subscriptions.data[0].id
+        
+        # Retrieve the subscription individually to get expanded items
+        subscription = stripe.Subscription.retrieve(subscription_id)
         status_str = subscription.status
         plan_name = None
         
