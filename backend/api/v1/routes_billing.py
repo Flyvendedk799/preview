@@ -52,6 +52,13 @@ def create_checkout(
     
     Returns checkout URL that user should be redirected to.
     """
+    # Validate price_id is not empty
+    if not request.price_id or not request.price_id.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Price ID is required and cannot be empty"
+        )
+    
     try:
         # Update org stripe_customer_id if needed
         if not current_org.stripe_customer_id:

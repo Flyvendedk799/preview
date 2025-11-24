@@ -45,6 +45,10 @@ def create_checkout_session(org: Organization, price_id: str) -> Dict[str, str]:
     Returns:
         Dictionary with checkout_url
     """
+    # Validate price_id is not empty
+    if not price_id or not price_id.strip():
+        raise ValueError("Price ID is required and cannot be empty")
+    
     try:
         # Get owner email for customer creation
         from backend.db.session import SessionLocal

@@ -39,6 +39,10 @@ export default function Billing() {
   }
 
   const handleUpgrade = async (priceId: string) => {
+    if (!priceId || priceId.trim() === '') {
+      setError('Price ID is missing. Please contact support.')
+      return
+    }
     try {
       setIsProcessing(true)
       setError(null)
@@ -209,11 +213,11 @@ export default function Billing() {
                   </ul>
                   <Button
                     onClick={() => handleUpgrade(import.meta.env.VITE_STRIPE_PRICE_TIER_BASIC || '')}
-                    disabled={isProcessing}
+                    disabled={isProcessing || !import.meta.env.VITE_STRIPE_PRICE_TIER_BASIC}
                     className="w-full"
                     variant="secondary"
                   >
-                    {isProcessing ? 'Processing...' : 'Upgrade to Basic'}
+                    {isProcessing ? 'Processing...' : !import.meta.env.VITE_STRIPE_PRICE_TIER_BASIC ? 'Price ID not configured' : 'Upgrade to Basic'}
                   </Button>
                 </div>
 
@@ -232,10 +236,10 @@ export default function Billing() {
                   </ul>
                   <Button
                     onClick={() => handleUpgrade(import.meta.env.VITE_STRIPE_PRICE_TIER_PRO || '')}
-                    disabled={isProcessing}
+                    disabled={isProcessing || !import.meta.env.VITE_STRIPE_PRICE_TIER_PRO}
                     className="w-full"
                   >
-                    {isProcessing ? 'Processing...' : 'Upgrade to Pro'}
+                    {isProcessing ? 'Processing...' : !import.meta.env.VITE_STRIPE_PRICE_TIER_PRO ? 'Price ID not configured' : 'Upgrade to Pro'}
                   </Button>
                 </div>
 
@@ -251,11 +255,11 @@ export default function Billing() {
                   </ul>
                   <Button
                     onClick={() => handleUpgrade(import.meta.env.VITE_STRIPE_PRICE_TIER_AGENCY || '')}
-                    disabled={isProcessing}
+                    disabled={isProcessing || !import.meta.env.VITE_STRIPE_PRICE_TIER_AGENCY}
                     className="w-full"
                     variant="secondary"
                   >
-                    {isProcessing ? 'Processing...' : 'Upgrade to Agency'}
+                    {isProcessing ? 'Processing...' : !import.meta.env.VITE_STRIPE_PRICE_TIER_AGENCY ? 'Price ID not configured' : 'Upgrade to Agency'}
                   </Button>
                 </div>
               </div>
