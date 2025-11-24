@@ -39,7 +39,10 @@ Frontend is trying to connect to `localhost:8000` instead of your Railway backen
 
 | Variable | Value Example | Required |
 |----------|--------------|----------|
-| `VITE_API_BASE_URL` | `https://your-backend.railway.app/api/v1` | ✅ Yes |
+| `VITE_API_BASE_URL` | `https://your-backend.railway.app` | ✅ Yes |
+| `VITE_STRIPE_PRICE_TIER_BASIC` | `price_xxxxx` (from Stripe Dashboard) | ⚠️ For billing |
+| `VITE_STRIPE_PRICE_TIER_PRO` | `price_xxxxx` (from Stripe Dashboard) | ⚠️ For billing |
+| `VITE_STRIPE_PRICE_TIER_AGENCY` | `price_xxxxx` (from Stripe Dashboard) | ⚠️ For billing |
 
 ### Backend Service Variables
 
@@ -59,6 +62,9 @@ Frontend is trying to connect to `localhost:8000` instead of your Railway backen
 | `R2_PUBLIC_BASE_URL` | Cloudflare R2 public URL | ✅ Yes |
 | `STRIPE_SECRET_KEY` | Stripe secret key | ✅ Yes |
 | `STRIPE_WEBHOOK_SECRET` | Stripe webhook secret | ✅ Yes |
+| `STRIPE_PRICE_TIER_BASIC` | Stripe Price ID for Basic plan (e.g., `price_xxxxx`) | ⚠️ For billing |
+| `STRIPE_PRICE_TIER_PRO` | Stripe Price ID for Pro plan (e.g., `price_xxxxx`) | ⚠️ For billing |
+| `STRIPE_PRICE_TIER_AGENCY` | Stripe Price ID for Agency plan (e.g., `price_xxxxx`) | ⚠️ For billing |
 
 ## Verifying Backend is Running
 
@@ -96,6 +102,14 @@ Frontend is trying to connect to `localhost:8000` instead of your Railway backen
 - Check backend logs for missing environment variables
 - Verify all required variables are set (see checklist above)
 - Check database and Redis connections are working
+
+### Issue: "Upgrade to Pro" button doesn't work / Stripe checkout fails
+**Solution**:
+- Ensure Stripe Price IDs are set in both frontend and backend services
+- Frontend: `VITE_STRIPE_PRICE_TIER_BASIC`, `VITE_STRIPE_PRICE_TIER_PRO`, `VITE_STRIPE_PRICE_TIER_AGENCY`
+- Backend: `STRIPE_PRICE_TIER_BASIC`, `STRIPE_PRICE_TIER_PRO`, `STRIPE_PRICE_TIER_AGENCY`
+- Get Price IDs from Stripe Dashboard → Products → Select Product → Pricing → Copy Price ID
+- Buttons will be disabled if price IDs are not configured
 
 ## Testing the Connection
 
