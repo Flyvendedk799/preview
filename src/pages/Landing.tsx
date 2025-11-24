@@ -361,10 +361,6 @@ export default function Landing() {
               <div 
                 key={item.step} 
                 className="group relative bg-white rounded-3xl p-10 border border-gray-100/50 hover:border-gray-200 transition-all duration-500 hover:scale-105 hover:shadow-2xl shadow-gray-900/5 backdrop-blur-sm"
-                style={{ 
-                  animationDelay: `${index * 100}ms`,
-                  opacity: 0
-                }}
               >
                 {/* Background gradient on hover */}
                 <div className={`absolute inset-0 bg-gradient-to-br ${item.bgGradient} rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 -z-10`} />
@@ -442,10 +438,6 @@ export default function Landing() {
               <div 
                 key={index} 
                 className="group relative bg-white rounded-3xl p-10 border border-gray-100/50 hover:border-gray-200 transition-all duration-500 hover:scale-[1.02] hover:shadow-2xl shadow-gray-900/5 backdrop-blur-sm"
-                style={{ 
-                  animationDelay: `${index * 50}ms`,
-                  opacity: 0
-                }}
               >
                 {/* Hover background */}
                 <div className={`absolute inset-0 bg-gradient-to-br ${feature.bgGradient} rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 -z-10`} />
@@ -468,7 +460,7 @@ export default function Landing() {
       >
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
-            <div className="space-y-10" style={{ opacity: 0 }}>
+            <div className="space-y-10">
               <div className="space-y-6">
                 <h2 className="text-6xl lg:text-7xl font-extrabold text-gray-900 tracking-[-0.02em] leading-tight">
                   Beautiful previews,{' '}
@@ -497,7 +489,7 @@ export default function Landing() {
             </div>
             
             {/* Premium Device Mockups */}
-            <div className="relative" style={{ opacity: 0 }}>
+            <div className="relative">
               <div className="relative">
                 {/* Desktop Mockup */}
                 <div className="relative bg-gray-900 rounded-t-3xl p-3 shadow-2xl transform hover:scale-105 transition-transform duration-500">
@@ -642,10 +634,6 @@ export default function Landing() {
                     ? `${plan.borderColor} shadow-2xl shadow-blue-500/20 scale-105` 
                     : `${plan.borderColor} shadow-xl shadow-gray-900/5 hover:border-gray-300`
                 }`}
-                style={{ 
-                  animationDelay: `${index * 100}ms`,
-                  opacity: 0
-                }}
               >
                 {plan.highlighted && (
                   <div className="absolute -top-5 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-5 py-2 text-xs font-bold rounded-full shadow-xl">
@@ -702,7 +690,7 @@ export default function Landing() {
           }} />
         </div>
         
-        <div className="max-w-5xl mx-auto text-center space-y-10 relative z-10" style={{ opacity: 0 }}>
+        <div className="max-w-5xl mx-auto text-center space-y-10 relative z-10">
           <h2 className="text-6xl lg:text-7xl font-extrabold tracking-[-0.02em] leading-tight">
             Ready to transform your link previews?
           </h2>
@@ -770,7 +758,6 @@ export default function Landing() {
               <div 
                 key={index}
                 className="group relative bg-white rounded-3xl p-10 border border-gray-100/50 hover:border-gray-200 transition-all duration-500 hover:scale-105 hover:shadow-2xl shadow-gray-900/5 backdrop-blur-sm"
-                style={{ opacity: 0 }}
               >
                 <div className={`w-16 h-16 bg-gradient-to-br ${doc.gradient} rounded-2xl flex items-center justify-center mb-8 shadow-lg group-hover:scale-110 group-hover:rotate-3 transition-all duration-500`}>
                   <CodeBracketIcon className="w-8 h-8 text-white" />
