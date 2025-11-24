@@ -21,23 +21,8 @@ export class AppErrorBoundary extends Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('Uncaught error:', error, errorInfo)
-    
-    // Optionally send to backend error endpoint
-    try {
-      fetch('/api/v1/errors', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: error.message,
-          stack: error.stack,
-          component_stack: errorInfo.componentStack,
-        }),
-      }).catch(() => {
-        // Ignore if error reporting fails
-      })
-    } catch {
-      // Ignore if fetch fails
-    }
+    // Error reporting can be added later if needed
+    // For now, errors are logged to console only
   }
 
   public render() {

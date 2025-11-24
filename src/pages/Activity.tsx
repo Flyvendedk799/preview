@@ -63,7 +63,10 @@ function formatAction(action: string): string {
     .join(' ')
 }
 
-function getActionDescription(action: string, metadata: Record<string, any>): string {
+function getActionDescription(action: string, metadata: Record<string, any> | null): string {
+  if (!metadata) {
+    return formatAction(action)
+  }
   if (action === 'user.login' || action === 'user.signup') {
     return `User ${action === 'user.login' ? 'logged in' : 'signed up'}`
   }
@@ -179,7 +182,7 @@ export default function Activity() {
                           </span>
                         </div>
                         <p className="text-sm text-gray-600">{getActionDescription(log.action, log.metadata)}</p>
-                        {Object.keys(log.metadata).length > 0 && (
+                        {log.metadata && Object.keys(log.metadata).length > 0 && (
                           <details className="mt-2">
                             <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-700">
                               View metadata

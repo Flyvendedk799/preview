@@ -183,7 +183,7 @@ export interface SystemOverview {
 export interface ActivityLog {
   id: number
   action: string
-  metadata: Record<string, any>
+  metadata: Record<string, any> | null
   created_at: string
 }
 
