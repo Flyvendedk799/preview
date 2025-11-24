@@ -3,7 +3,7 @@ import { CheckCircleIcon, XCircleIcon, ClockIcon, CreditCardIcon } from '@heroic
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import EmptyState from '../components/ui/EmptyState'
-import { createCheckoutSession, createBillingPortal, getBillingStatus } from '../api/client'
+import { createCheckoutSession, createBillingPortal, getBillingStatus, syncSubscriptionStatus } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import { useOrganization } from '../hooks/useOrganization'
 
@@ -23,6 +23,15 @@ export default function Billing() {
 
   useEffect(() => {
     loadBillingStatus()
+    
+    // Auto-sync subscription status if returning from Stripe checkout
+    const urlParams = new URLSearchParams(window.location.search)
+    if (urlParams.get('success') === 'true') {
+      // Wait a moment for Stripe webhook to process, then sync
+      setTimeout(() => {
+        handleSyncSubscription()
+      }, 2000)
+    }
   }, [])
 
   const loadBillingStatus = async () => {
@@ -64,6 +73,21 @@ export default function Billing() {
       window.location.href = result.portal_url
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create billing portal session')
+      setIsProcessing(false)
+    }
+  }
+
+  const handleSyncSubscription = async () => {
+    try {
+      setIsProcessing(true)
+      setError(null)
+      const status = await syncSubscriptionStatus()
+      setBillingStatus(status)
+      // Remove success parameter from URL
+      window.history.replaceState({}, '', window.location.pathname)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to sync subscription status')
+    } finally {
       setIsProcessing(false)
     }
   }
@@ -187,13 +211,16 @@ export default function Billing() {
                 </div>
               )}
 
-              {billingStatus?.subscription_status === 'active' && (
-                <div className="pt-4 border-t border-gray-200">
+              <div className="pt-4 border-t border-gray-200 flex items-center justify-between">
+                {billingStatus?.subscription_status === 'active' && (
                   <Button onClick={handleManageBilling} disabled={isProcessing} variant="secondary">
                     {isProcessing ? 'Loading...' : 'Manage Billing'}
                   </Button>
-                </div>
-              )}
+                )}
+                <Button onClick={handleSyncSubscription} disabled={isProcessing} variant="secondary" className="ml-auto">
+                  {isProcessing ? 'Syncing...' : 'Sync Status'}
+                </Button>
+              </div>
             </div>
           </Card>
 

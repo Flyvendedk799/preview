@@ -1,4 +1,5 @@
 """Stripe webhook handler."""
+import logging
 import stripe
 from fastapi import APIRouter, Request, HTTPException, status, Header, Depends
 from sqlalchemy.orm import Session
@@ -7,6 +8,8 @@ from backend.core.config import settings
 from backend.db.session import get_db
 from backend.services.stripe_service import update_subscription_status
 from backend.services.activity_logger import log_activity
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
@@ -25,6 +28,8 @@ async def stripe_webhook(
     
     Verifies webhook signature and processes subscription events.
     """
+    logger.info("Stripe webhook received")
+    
     if not stripe_signature:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -55,6 +60,8 @@ async def stripe_webhook(
     # Handle different event types
     event_type = event['type']
     event_data = event['data']['object']
+    
+    logger.info(f"Processing Stripe webhook event: {event_type}")
     
     if event_type == 'customer.subscription.created':
         # New subscription created

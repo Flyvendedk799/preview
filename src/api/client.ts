@@ -371,6 +371,16 @@ export async function getBillingStatus(): Promise<{
   return fetchApi('/api/v1/billing/status')
 }
 
+export async function syncSubscriptionStatus(): Promise<{
+  subscription_status: string
+  subscription_plan?: string | null
+  trial_ends_at?: string | null
+}> {
+  return fetchApi('/api/v1/billing/sync', {
+    method: 'POST',
+  })
+}
+
 // Admin endpoints
 
 export async function fetchAdminUsers(): Promise<AdminUserSummary[]> {

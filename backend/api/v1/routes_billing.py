@@ -1,11 +1,15 @@
 """Billing routes for Stripe integration."""
+import logging
+import stripe
 from typing import Optional
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from backend.models.user import User
 from backend.db.session import get_db
 from backend.core.deps import get_current_user, get_current_org, role_required
+from backend.core.config import settings
 from backend.models.organization import Organization
 from backend.models.organization_member import OrganizationRole
 from backend.services.stripe_service import (
@@ -13,6 +17,11 @@ from backend.services.stripe_service import (
     create_billing_portal,
     update_subscription_status
 )
+
+logger = logging.getLogger(__name__)
+
+# Initialize Stripe
+stripe.api_key = settings.STRIPE_SECRET_KEY
 
 router = APIRouter(prefix="/billing", tags=["billing"])
 
@@ -124,4 +133,99 @@ def get_billing_status(
         subscription_plan=current_org.subscription_plan,
         trial_ends_at=current_org.trial_ends_at.isoformat() if current_org.trial_ends_at else None
     )
+
+
+@router.post("/sync", response_model=BillingStatusResponse)
+def sync_subscription_status(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    current_org: Organization = Depends(get_current_org),
+    current_role: OrganizationRole = Depends(role_required([OrganizationRole.OWNER, OrganizationRole.ADMIN]))
+):
+    """
+    Manually sync subscription status from Stripe (owner/admin only).
+    
+    This is useful when webhooks haven't been configured yet or to force a refresh.
+    """
+    if not current_org.stripe_customer_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Organization does not have a Stripe customer ID"
+        )
+    
+    try:
+        # Get customer's subscriptions from Stripe
+        subscriptions = stripe.Subscription.list(
+            customer=current_org.stripe_customer_id,
+            status='all',
+            limit=1
+        )
+        
+        if not subscriptions.data:
+            # No active subscription found
+            update_subscription_status(
+                db=db,
+                organization_id=current_org.id,
+                status='inactive',
+                plan=None,
+                subscription_id=None
+            )
+            db.refresh(current_org)
+            return BillingStatusResponse(
+                subscription_status='inactive',
+                subscription_plan=None,
+                trial_ends_at=None
+            )
+        
+        # Get the most recent subscription
+        subscription = subscriptions.data[0]
+        status_str = subscription.status
+        plan_name = None
+        
+        # Extract plan name from subscription items
+        if subscription.items.data:
+            price_id = subscription.items.data[0].price.id
+            if price_id == settings.STRIPE_PRICE_TIER_BASIC:
+                plan_name = 'basic'
+            elif price_id == settings.STRIPE_PRICE_TIER_PRO:
+                plan_name = 'pro'
+            elif price_id == settings.STRIPE_PRICE_TIER_AGENCY:
+                plan_name = 'agency'
+        
+        # Get trial end if exists
+        trial_ends_at = None
+        if subscription.trial_end:
+            trial_ends_at = datetime.fromtimestamp(subscription.trial_end)
+        
+        # Update organization subscription status
+        update_subscription_status(
+            db=db,
+            organization_id=current_org.id,
+            status=status_str,
+            plan=plan_name,
+            subscription_id=subscription.id,
+            trial_ends_at=trial_ends_at
+        )
+        
+        db.refresh(current_org)
+        
+        logger.info(f"Synced subscription status for org {current_org.id}: {status_str}, plan: {plan_name}")
+        
+        return BillingStatusResponse(
+            subscription_status=current_org.subscription_status,
+            subscription_plan=current_org.subscription_plan,
+            trial_ends_at=current_org.trial_ends_at.isoformat() if current_org.trial_ends_at else None
+        )
+    except stripe.error.StripeError as e:
+        logger.error(f"Stripe error syncing subscription: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to sync subscription status: {str(e)}"
+        )
+    except Exception as e:
+        logger.error(f"Error syncing subscription: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to sync subscription status: {str(e)}"
+        )
 
