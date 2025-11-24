@@ -447,7 +447,6 @@ export default function Previews() {
                 )
               })}
             </div>
-          )}
         </>
       )}
 

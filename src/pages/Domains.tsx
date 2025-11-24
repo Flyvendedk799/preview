@@ -249,8 +249,7 @@ export default function Domains() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {
-                  domains.map((domain) => (
+                {domains.map((domain) => (
                     <tr key={domain.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">{domain.name}</div>
@@ -285,8 +284,7 @@ export default function Domains() {
                         </div>
                       </td>
                     </tr>
-                  ))
-                )}
+                  ))}
               </tbody>
             </table>
           </div>

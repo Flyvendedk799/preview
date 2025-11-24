@@ -161,8 +161,7 @@ export default function Activity() {
         </Card>
       ) : (
         <>
-          {
-            <div className="space-y-4">
+          <div className="space-y-4">
               {logs.map((log) => {
                 const Icon = ACTION_ICONS[log.action] || ClockIcon
                 const color = ACTION_COLORS[log.action] || 'text-gray-500'
@@ -196,7 +195,6 @@ export default function Activity() {
                 )
               })}
             </div>
-          )}
 
           {/* Pagination */}
           <div className="flex items-center justify-between mt-6">
