@@ -13,7 +13,7 @@ class ActivityLog(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     organization_id = Column(Integer, nullable=True, index=True)  # For future team accounts
     action = Column(String, nullable=False, index=True)
-    metadata = Column(JSON, nullable=False, default=dict)
+    extra_metadata = Column("metadata", JSON, nullable=False, default=dict)  # Database column name kept as "metadata" for compatibility
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
     ip_address = Column(String, nullable=True)
     user_agent = Column(String, nullable=True)

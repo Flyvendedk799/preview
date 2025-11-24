@@ -72,7 +72,7 @@ def log_activity(
             user_id=user_id,
             organization_id=organization_id,
             action=action,
-            metadata=metadata or {},
+            extra_metadata=metadata or {},
             ip_address=ip_address,
             user_agent=user_agent
         )

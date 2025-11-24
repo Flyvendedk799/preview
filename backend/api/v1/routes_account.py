@@ -143,7 +143,7 @@ def export_user_data(
     for log in activity_logs:
         export_data["activity_logs"].append({
             "action": log.action,
-            "metadata": log.metadata,
+            "metadata": log.extra_metadata,
             "created_at": log.created_at.isoformat() if log.created_at else None,
             "ip_address": log.ip_address,  # Include for user transparency
         })

@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 class ActivityLogBase(BaseModel):
     """Base activity log schema."""
     action: str = Field(..., description="Action type (e.g., 'user.login', 'domain.created')")
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata as JSON")
+    metadata: Dict[str, Any] = Field(default_factory=dict, alias="extra_metadata", description="Additional metadata as JSON")
 
 
 class ActivityLogCreate(ActivityLogBase):
@@ -22,10 +22,10 @@ class ActivityLogPublic(ActivityLogBase):
     """Public activity log schema (user-facing)."""
     id: int
     created_at: datetime
-    metadata: Dict[str, Any]
 
     class Config:
         from_attributes = True
+        populate_by_name = True
 
 
 class AdminActivityLogDetail(ActivityLogPublic):
