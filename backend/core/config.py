@@ -1,0 +1,93 @@
+"""Configuration settings for the FastAPI backend."""
+import os
+import secrets
+from typing import List
+
+# Check if we're in production mode
+ENV = os.getenv("ENV", "development").lower()
+
+# Import production settings if in production
+if ENV == "production":
+    try:
+        from backend.settings.production import production_settings
+        _use_production = True
+    except ImportError:
+        _use_production = False
+else:
+    _use_production = False
+
+
+class Settings:
+    """Application settings."""
+    
+    # Database URL - defaults to SQLite for local development
+    DATABASE_URL: str = os.getenv(
+        "DATABASE_URL",
+        "sqlite:///./app.db"  # SQLite file in project root
+    )
+    
+    # Security settings
+    SECRET_KEY: str = os.getenv(
+        "SECRET_KEY",
+        secrets.token_urlsafe(32) if ENV != "production" else ""  # No fallback in production
+    )
+    ALGORITHM: str = "HS256"
+    # Production: 7 days, Development: 60 minutes
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 7 * 24 * 60 if ENV == "production" else 60
+    
+    # CORS allowed origins
+    ALLOWED_ORIGINS: List[str] = [
+        "http://localhost:5173",  # Vite default dev server
+        "http://localhost:3000",  # Alternative React dev server
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:3000",
+    ]
+    
+    # API version
+    API_V1_PREFIX: str = "/api/v1"
+    
+    # Application metadata
+    APP_NAME: str = "Preview SaaS API"
+    APP_VERSION: str = "1.0.0"
+    
+    # OpenAI API configuration
+    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+    
+    # Redis configuration for job queue
+    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    
+    # Cloudflare R2 configuration
+    R2_ACCOUNT_ID: str = os.getenv("R2_ACCOUNT_ID", "")
+    R2_ACCESS_KEY_ID: str = os.getenv("R2_ACCESS_KEY_ID", "")
+    R2_SECRET_ACCESS_KEY: str = os.getenv("R2_SECRET_ACCESS_KEY", "")
+    R2_BUCKET_NAME: str = os.getenv("R2_BUCKET_NAME", "")
+    R2_PUBLIC_BASE_URL: str = os.getenv("R2_PUBLIC_BASE_URL", "")
+    
+    # Screenshot system uses Playwright (no API key needed)
+    
+    # Placeholder image fallback
+    PLACEHOLDER_IMAGE_URL: str = os.getenv("PLACEHOLDER_IMAGE_URL", "https://via.placeholder.com/1200x630/2979FF/FFFFFF?text=Preview+Not+Available")
+    
+    # Stripe configuration
+    STRIPE_SECRET_KEY: str = os.getenv("STRIPE_SECRET_KEY", "")
+    STRIPE_WEBHOOK_SECRET: str = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+    STRIPE_PRICE_TIER_BASIC: str = os.getenv("STRIPE_PRICE_TIER_BASIC", "")
+    STRIPE_PRICE_TIER_PRO: str = os.getenv("STRIPE_PRICE_TIER_PRO", "")
+    STRIPE_PRICE_TIER_AGENCY: str = os.getenv("STRIPE_PRICE_TIER_AGENCY", "")
+    
+    # Frontend URL for invite links
+    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:5173")
+    
+    # CORS allowed origins (comma-separated list)
+    CORS_ALLOWED_ORIGINS: str = os.getenv("CORS_ALLOWED_ORIGINS", "")
+    
+    # Maximum request body size (in bytes, default 10MB)
+    MAX_REQUEST_SIZE: int = int(os.getenv("MAX_REQUEST_SIZE", "10485760"))  # 10MB
+
+
+# Use production settings if available, otherwise use default Settings
+if _use_production:
+    settings = production_settings
+else:
+    settings = Settings()
+

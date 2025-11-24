@@ -1,0 +1,225 @@
+import { Routes, Route, Navigate } from 'react-router-dom'
+import Landing from '../pages/Landing'
+import Login from '../pages/Login'
+import Signup from '../pages/Signup'
+import Dashboard from '../pages/Dashboard'
+import Domains from '../pages/Domains'
+import Brand from '../pages/Brand'
+import Previews from '../pages/Previews'
+import Analytics from '../pages/Analytics'
+import Billing from '../pages/Billing'
+import Activity from '../pages/Activity'
+import ProtectedRoute from './ProtectedRoute'
+import PaidRoute from './PaidRoute'
+import AdminRoute from './AdminRoute'
+import AdminDashboard from '../pages/admin/AdminDashboard'
+import AdminUsers from '../pages/admin/AdminUsers'
+import AdminDomains from '../pages/admin/AdminDomains'
+import AdminPreviews from '../pages/admin/AdminPreviews'
+import AdminSystem from '../pages/admin/AdminSystem'
+import AdminActivity from '../pages/admin/AdminActivity'
+import AdminAnalytics from '../pages/admin/AdminAnalytics'
+import AdminErrors from '../pages/admin/AdminErrors'
+import Organizations from '../pages/Organizations'
+import OrganizationMembers from '../pages/OrganizationMembers'
+import OrganizationSettings from '../pages/OrganizationSettings'
+import JoinOrganization from '../pages/JoinOrganization'
+import AccountSettings from '../pages/AccountSettings'
+
+export default function Router() {
+  return (
+    <Routes>
+      {/* Public routes */}
+      <Route path="/" element={<Landing />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/signup" element={<Signup />} />
+
+      {/* Protected routes */}
+      <Route
+        path="/app"
+        element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/app/domains"
+        element={
+          <ProtectedRoute>
+            <Domains />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/app/brand"
+        element={
+          <ProtectedRoute>
+            <Brand />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/app/previews"
+        element={
+          <ProtectedRoute>
+            <PaidRoute>
+              <Previews />
+            </PaidRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/app/analytics"
+        element={
+          <ProtectedRoute>
+            <PaidRoute>
+              <Analytics />
+            </PaidRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/app/billing"
+        element={
+          <ProtectedRoute>
+            <Billing />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/app/account"
+        element={
+          <ProtectedRoute>
+            <AccountSettings />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/app/activity"
+        element={
+          <ProtectedRoute>
+            <Activity />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/app/organizations"
+        element={
+          <ProtectedRoute>
+            <Organizations />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/app/organizations/:orgId/members"
+        element={
+          <ProtectedRoute>
+            <OrganizationMembers />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/app/organizations/:orgId"
+        element={
+          <ProtectedRoute>
+            <OrganizationSettings />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/join"
+        element={
+          <ProtectedRoute>
+            <JoinOrganization />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Admin routes */}
+      <Route
+        path="/app/admin"
+        element={
+          <ProtectedRoute>
+            <AdminRoute>
+              <AdminDashboard />
+            </AdminRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/app/admin/users"
+        element={
+          <ProtectedRoute>
+            <AdminRoute>
+              <AdminUsers />
+            </AdminRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/app/admin/domains"
+        element={
+          <ProtectedRoute>
+            <AdminRoute>
+              <AdminDomains />
+            </AdminRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/app/admin/previews"
+        element={
+          <ProtectedRoute>
+            <AdminRoute>
+              <AdminPreviews />
+            </AdminRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/app/admin/system"
+        element={
+          <ProtectedRoute>
+            <AdminRoute>
+              <AdminSystem />
+            </AdminRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/app/admin/activity"
+        element={
+          <ProtectedRoute>
+            <AdminRoute>
+              <AdminActivity />
+            </AdminRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/app/admin/analytics"
+        element={
+          <ProtectedRoute>
+            <AdminRoute>
+              <AdminAnalytics />
+            </AdminRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/app/admin/errors"
+        element={
+          <ProtectedRoute>
+            <AdminRoute>
+              <AdminErrors />
+            </AdminRoute>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  )
+}
+

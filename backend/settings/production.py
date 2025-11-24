@@ -1,0 +1,104 @@
+"""Production settings for Railway deployment."""
+import os
+from typing import List
+
+
+class ProductionSettings:
+    """Production-specific settings with strict environment variable requirements."""
+    
+    # Debug mode - MUST be False in production
+    DEBUG: bool = False
+    
+    # Allowed hosts for production (Railway provides domain)
+    ALLOWED_HOSTS: List[str] = [
+        os.getenv("RAILWAY_PUBLIC_DOMAIN", ""),
+        os.getenv("API_DOMAIN", ""),
+    ]
+    # Filter out empty strings
+    ALLOWED_HOSTS = [host for host in ALLOWED_HOSTS if host]
+    
+    # Database URL - REQUIRED in production (PostgreSQL on Railway)
+    DATABASE_URL: str = os.getenv("DATABASE_URL")
+    if not DATABASE_URL:
+        raise ValueError("DATABASE_URL environment variable is required in production")
+    
+    # Security settings - REQUIRED in production
+    SECRET_KEY: str = os.getenv("SECRET_KEY")
+    if not SECRET_KEY:
+        raise ValueError("SECRET_KEY environment variable is required in production")
+    
+    ALGORITHM: str = "HS256"
+    # Production: 7 days token expiry (more user-friendly)
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 7 * 24 * 60  # 7 days
+    
+    # CORS - REQUIRED in production
+    CORS_ALLOWED_ORIGINS: str = os.getenv("CORS_ALLOWED_ORIGINS", "")
+    if not CORS_ALLOWED_ORIGINS:
+        raise ValueError("CORS_ALLOWED_ORIGINS environment variable is required in production")
+    
+    # Parse CORS origins
+    ALLOWED_ORIGINS: List[str] = [
+        origin.strip() 
+        for origin in CORS_ALLOWED_ORIGINS.split(",") 
+        if origin.strip()
+    ]
+    
+    # API version
+    API_V1_PREFIX: str = "/api/v1"
+    
+    # Application metadata
+    APP_NAME: str = "Preview SaaS API"
+    APP_VERSION: str = "1.0.0"
+    
+    # OpenAI API - REQUIRED in production
+    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+    if not OPENAI_API_KEY:
+        raise ValueError("OPENAI_API_KEY environment variable is required in production")
+    
+    # Redis - REQUIRED in production
+    REDIS_URL: str = os.getenv("REDIS_URL", "")
+    if not REDIS_URL:
+        raise ValueError("REDIS_URL environment variable is required in production")
+    
+    # Cloudflare R2 - REQUIRED in production
+    R2_ACCOUNT_ID: str = os.getenv("R2_ACCOUNT_ID", "")
+    R2_ACCESS_KEY_ID: str = os.getenv("R2_ACCESS_KEY_ID", "")
+    R2_SECRET_ACCESS_KEY: str = os.getenv("R2_SECRET_ACCESS_KEY", "")
+    R2_BUCKET_NAME: str = os.getenv("R2_BUCKET_NAME", "")
+    R2_PUBLIC_BASE_URL: str = os.getenv("R2_PUBLIC_BASE_URL", "")
+    
+    if not all([R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME, R2_PUBLIC_BASE_URL]):
+        raise ValueError("All R2 environment variables are required in production: R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME, R2_PUBLIC_BASE_URL")
+    
+    # Screenshot system uses Playwright (no API key needed)
+    
+    # Placeholder image fallback
+    PLACEHOLDER_IMAGE_URL: str = os.getenv(
+        "PLACEHOLDER_IMAGE_URL", 
+        "https://via.placeholder.com/1200x630/2979FF/FFFFFF?text=Preview+Not+Available"
+    )
+    
+    # Stripe - REQUIRED in production
+    STRIPE_SECRET_KEY: str = os.getenv("STRIPE_SECRET_KEY", "")
+    STRIPE_WEBHOOK_SECRET: str = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+    STRIPE_PRICE_TIER_BASIC: str = os.getenv("STRIPE_PRICE_TIER_BASIC", "")
+    STRIPE_PRICE_TIER_PRO: str = os.getenv("STRIPE_PRICE_TIER_PRO", "")
+    STRIPE_PRICE_TIER_AGENCY: str = os.getenv("STRIPE_PRICE_TIER_AGENCY", "")
+    
+    if not STRIPE_SECRET_KEY:
+        raise ValueError("STRIPE_SECRET_KEY environment variable is required in production")
+    if not STRIPE_WEBHOOK_SECRET:
+        raise ValueError("STRIPE_WEBHOOK_SECRET environment variable is required in production")
+    
+    # Frontend URL - REQUIRED in production
+    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "")
+    if not FRONTEND_URL:
+        raise ValueError("FRONTEND_URL environment variable is required in production")
+    
+    # Maximum request body size (10MB)
+    MAX_REQUEST_SIZE: int = int(os.getenv("MAX_REQUEST_SIZE", "10485760"))
+
+
+# Export settings instance
+production_settings = ProductionSettings()
+

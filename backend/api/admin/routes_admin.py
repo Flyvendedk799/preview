@@ -1,0 +1,744 @@
+"""Admin routes for system-wide management."""
+from datetime import datetime, timedelta, date
+from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+from sqlalchemy.orm import Session
+from sqlalchemy import func, desc
+from pydantic import BaseModel
+from backend.db.session import get_db
+from backend.core.deps import get_admin_user
+from backend.models.user import User
+from backend.models.domain import Domain
+from backend.models.preview import Preview
+from backend.models.preview_variant import PreviewVariant
+from backend.models.error import Error
+from backend.models.analytics_event import AnalyticsEvent
+from backend.models.preview_job_failure import PreviewJobFailure
+from backend.queue.queue_connection import get_redis_connection
+from backend.services.activity_logger import log_activity
+from backend.jobs.analytics_aggregation import aggregate_daily_analytics
+from rq import Queue
+
+router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+# Response schemas
+class AdminUserSummary(BaseModel):
+    """Summary of user for admin list."""
+    id: int
+    email: str
+    is_active: bool
+    subscription_status: str
+    subscription_plan: Optional[str]
+    created_at: str
+    domains_count: int
+    previews_count: int
+
+
+class AdminUserDetail(BaseModel):
+    """Detailed user profile for admin."""
+    id: int
+    email: str
+    is_active: bool
+    is_admin: bool
+    subscription_status: str
+    subscription_plan: Optional[str]
+    trial_ends_at: Optional[str]
+    created_at: str
+    domains_count: int
+    previews_count: int
+    total_clicks: int
+    stripe_customer_id: Optional[str]
+
+
+class AdminDomain(BaseModel):
+    """Domain info for admin."""
+    id: int
+    name: str
+    environment: str
+    status: str
+    verification_method: Optional[str]
+    verified_at: Optional[str]
+    user_email: str
+    user_id: int
+    created_at: str
+    monthly_clicks: int
+
+
+class AdminPreview(BaseModel):
+    """Preview info for admin."""
+    id: int
+    url: str
+    domain: str
+    title: str
+    type: str
+    user_email: str
+    user_id: int
+    created_at: str
+    monthly_clicks: int
+
+
+class SystemOverview(BaseModel):
+    """System overview metrics."""
+    total_users: int
+    active_subscribers: int
+    total_domains: int
+    verified_domains: int
+    previews_generated_24h: int
+    jobs_running: int
+    errors_past_24h: int
+    redis_queue_length: int
+
+
+class AdminAnalyticsOverview(BaseModel):
+    """Admin analytics overview."""
+    total_users: int
+    active_subscribers: int
+    total_domains: int
+    total_previews: int
+    total_impressions_24h: int
+    total_clicks_24h: int
+    total_impressions_30d: int
+    total_clicks_30d: int
+
+
+class AdminAnalyticsUserItem(BaseModel):
+    """Admin analytics user item."""
+    user_id: int
+    email: str
+    impressions_30d: int
+    clicks_30d: int
+    active_domains: int
+    active_previews: int
+
+
+@router.get("/users", response_model=List[AdminUserSummary])
+def list_users(
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(get_admin_user)
+):
+    """Get all users with summary information."""
+    users = db.query(User).order_by(User.created_at.desc()).all()
+    
+    result = []
+    for user in users:
+        domains_count = db.query(func.count(Domain.id)).filter(
+            Domain.user_id == user.id
+        ).scalar() or 0
+        
+        previews_count = db.query(func.count(Preview.id)).filter(
+            Preview.user_id == user.id
+        ).scalar() or 0
+        
+        result.append(AdminUserSummary(
+            id=user.id,
+            email=user.email,
+            is_active=user.is_active,
+            subscription_status=user.subscription_status,
+            subscription_plan=user.subscription_plan,
+            created_at=user.created_at.isoformat(),
+            domains_count=domains_count,
+            previews_count=previews_count
+        ))
+    
+    return result
+
+
+@router.get("/users/{user_id}", response_model=AdminUserDetail)
+def get_user_detail(
+    user_id: int,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(get_admin_user)
+):
+    """Get full user profile with activity summary."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    domains_count = db.query(func.count(Domain.id)).filter(
+        Domain.user_id == user.id
+    ).scalar() or 0
+    
+    previews_count = db.query(func.count(Preview.id)).filter(
+        Preview.user_id == user.id
+    ).scalar() or 0
+    
+    total_clicks = db.query(func.sum(Preview.monthly_clicks)).filter(
+        Preview.user_id == user.id
+    ).scalar() or 0
+    
+    return AdminUserDetail(
+        id=user.id,
+        email=user.email,
+        is_active=user.is_active,
+        is_admin=user.is_admin,
+        subscription_status=user.subscription_status,
+        subscription_plan=user.subscription_plan,
+        trial_ends_at=user.trial_ends_at.isoformat() if user.trial_ends_at else None,
+        created_at=user.created_at.isoformat(),
+        domains_count=domains_count,
+        previews_count=previews_count,
+        total_clicks=int(total_clicks),
+        stripe_customer_id=user.stripe_customer_id
+    )
+
+
+@router.post("/users/{user_id}/toggle-active")
+def toggle_user_active(
+    user_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(get_admin_user)
+):
+    """Activate or deactivate a user account."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    if user.id == admin_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot deactivate your own account"
+        )
+    
+    old_status = user.is_active
+    user.is_active = not user.is_active
+    db.commit()
+    db.refresh(user)
+    
+    # Log admin action
+    log_activity(
+        db,
+        user_id=admin_user.id,
+        action="admin.user.toggled",
+        metadata={"target_user_id": user_id, "target_email": user.email, "old_status": old_status, "new_status": user.is_active},
+        request=request
+    )
+    
+    return {
+        "id": user.id,
+        "email": user.email,
+        "is_active": user.is_active,
+        "message": f"User {'activated' if user.is_active else 'deactivated'}"
+    }
+
+
+@router.get("/domains", response_model=List[AdminDomain])
+def list_domains(
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(get_admin_user)
+):
+    """Get all domains across the system."""
+    # Optimize: Use joinedload to avoid N+1 queries
+    from sqlalchemy.orm import joinedload
+    domains = db.query(Domain).options(
+        joinedload(Domain.user)
+    ).join(User, Domain.user_id == User.id).order_by(Domain.created_at.desc()).all()
+    
+    result = []
+    for domain in domains:
+        result.append(AdminDomain(
+            id=domain.id,
+            name=domain.name,
+            environment=domain.environment,
+            status=domain.status,
+            verification_method=domain.verification_method,
+            verified_at=domain.verified_at.isoformat() if domain.verified_at else None,
+            user_email=domain.user.email if domain.user else "Unknown",
+            user_id=domain.user_id,
+            created_at=domain.created_at.isoformat(),
+            monthly_clicks=domain.monthly_clicks
+        ))
+    
+    return result
+
+
+@router.delete("/domains/{domain_id}")
+def delete_domain(
+    domain_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(get_admin_user)
+):
+    """Force delete any domain in the system."""
+    domain = db.query(Domain).filter(Domain.id == domain_id).first()
+    if not domain:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Domain not found"
+        )
+    
+    domain_name = domain.name
+    domain_owner_id = domain.user_id
+    db.delete(domain)
+    db.commit()
+    
+    # Log admin action
+    log_activity(
+        db,
+        user_id=admin_user.id,
+        action="admin.domain.deleted",
+        metadata={"domain_id": domain_id, "domain_name": domain_name, "owner_user_id": domain_owner_id},
+        request=request
+    )
+    
+    return {"message": f"Domain {domain_name} deleted successfully"}
+
+
+@router.get("/previews", response_model=List[AdminPreview])
+def list_previews(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(get_admin_user)
+):
+    """Get latest previews from all users with pagination."""
+    # Optimize: Use joinedload to avoid N+1 queries
+    from sqlalchemy.orm import joinedload
+    previews = db.query(Preview).options(
+        joinedload(Preview.user)
+    ).join(User, Preview.user_id == User.id).order_by(
+        desc(Preview.created_at)
+    ).offset(skip).limit(limit).all()
+    
+    result = []
+    for preview in previews:
+        result.append(AdminPreview(
+            id=preview.id,
+            url=preview.url,
+            domain=preview.domain,
+            title=preview.title,
+            type=preview.type,
+            user_email=preview.user.email if preview.user else "Unknown",
+            user_id=preview.user_id,
+            created_at=preview.created_at.isoformat(),
+            monthly_clicks=preview.monthly_clicks
+        ))
+    
+    return result
+
+
+@router.delete("/previews/{preview_id}")
+def delete_preview(
+    preview_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(get_admin_user)
+):
+    """Moderation delete of a preview."""
+    preview = db.query(Preview).filter(Preview.id == preview_id).first()
+    if not preview:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Preview not found"
+        )
+    
+    preview_title = preview.title
+    preview_url = preview.url
+    preview_owner_id = preview.user_id
+    db.delete(preview)
+    db.commit()
+    
+    # Log admin action
+    log_activity(
+        db,
+        user_id=admin_user.id,
+        action="admin.preview.deleted",
+        metadata={"preview_id": preview_id, "preview_title": preview_title, "preview_url": preview_url, "owner_user_id": preview_owner_id},
+        request=request
+    )
+    
+    return {"message": f"Preview {preview_title} deleted successfully"}
+
+
+@router.get("/previews/{preview_id}/variants")
+def list_preview_variants(
+    preview_id: int,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(get_admin_user)
+):
+    """List all variants for a preview (admin only)."""
+    preview = db.query(Preview).filter(Preview.id == preview_id).first()
+    if not preview:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Preview not found"
+        )
+    
+    variants = db.query(PreviewVariant).filter(
+        PreviewVariant.preview_id == preview_id
+    ).all()
+    
+    return [
+        {
+            "id": v.id,
+            "preview_id": v.preview_id,
+            "variant_key": v.variant_key,
+            "title": v.title,
+            "description": v.description,
+            "tone": v.tone,
+            "keywords": v.keywords,
+            "image_url": v.image_url,
+            "created_at": v.created_at.isoformat()
+        }
+        for v in variants
+    ]
+
+
+@router.delete("/preview-variants/{variant_id}")
+def delete_preview_variant(
+    variant_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(get_admin_user)
+):
+    """Delete a preview variant (admin only)."""
+    variant = db.query(PreviewVariant).filter(PreviewVariant.id == variant_id).first()
+    if not variant:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Variant not found"
+        )
+    
+    variant_key = variant.variant_key
+    preview_id = variant.preview_id
+    db.delete(variant)
+    db.commit()
+    
+    # Log admin action
+    log_activity(
+        db,
+        user_id=admin_user.id,
+        action="admin.preview_variant.deleted",
+        metadata={"variant_id": variant_id, "preview_id": preview_id, "variant_key": variant_key},
+        request=request
+    )
+    
+    return {"message": f"Variant {variant_key} deleted successfully"}
+
+
+@router.get("/system/overview", response_model=SystemOverview)
+def get_system_overview(
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(get_admin_user)
+):
+    """Get system-wide overview metrics."""
+    # Total users
+    total_users = db.query(func.count(User.id)).scalar() or 0
+    
+    # Active subscribers
+    active_subscribers = db.query(func.count(User.id)).filter(
+        User.subscription_status.in_(['active', 'trialing'])
+    ).scalar() or 0
+    
+    # Total domains
+    total_domains = db.query(func.count(Domain.id)).scalar() or 0
+    
+    # Verified domains
+    verified_domains = db.query(func.count(Domain.id)).filter(
+        Domain.verified_at.isnot(None)
+    ).scalar() or 0
+    
+    # Previews generated in last 24 hours
+    twenty_four_hours_ago = datetime.utcnow() - timedelta(hours=24)
+    previews_generated_24h = db.query(func.count(Preview.id)).filter(
+        Preview.created_at >= twenty_four_hours_ago
+    ).scalar() or 0
+    
+    # Jobs running (stub - would need actual job tracking)
+    jobs_running = 0  # TODO: Implement actual job tracking
+    
+    # Errors in past 24 hours
+    errors_past_24h = db.query(func.count(Error.id)).filter(
+        Error.timestamp >= twenty_four_hours_ago
+    ).scalar() or 0
+    
+    # Redis queue length
+    redis_queue_length = 0
+    try:
+        redis_conn = get_redis_connection()
+        if redis_conn:
+            # RQ stores jobs in 'rq:queue:preview_generation' key
+            queue_key = 'rq:queue:preview_generation'
+            redis_queue_length = redis_conn.llen(queue_key) or 0
+    except Exception:
+        pass  # Redis not available or error
+    
+    return SystemOverview(
+        total_users=total_users,
+        active_subscribers=active_subscribers,
+        total_domains=total_domains,
+        verified_domains=verified_domains,
+        previews_generated_24h=previews_generated_24h,
+        jobs_running=jobs_running,
+        errors_past_24h=errors_past_24h,
+        redis_queue_length=redis_queue_length
+    )
+
+
+@router.get("/analytics/overview", response_model=AdminAnalyticsOverview)
+def get_admin_analytics_overview(
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(get_admin_user)
+):
+    """Get admin analytics overview."""
+    twenty_four_hours_ago = datetime.utcnow() - timedelta(hours=24)
+    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+    
+    # Total users
+    total_users = db.query(func.count(User.id)).scalar() or 0
+    
+    # Active subscribers
+    active_subscribers = db.query(func.count(User.id)).filter(
+        User.subscription_status.in_(['active', 'trialing'])
+    ).scalar() or 0
+    
+    # Total domains
+    total_domains = db.query(func.count(Domain.id)).scalar() or 0
+    
+    # Total previews
+    total_previews = db.query(func.count(Preview.id)).scalar() or 0
+    
+    # Impressions 24h
+    total_impressions_24h = db.query(func.count(AnalyticsEvent.id)).filter(
+        AnalyticsEvent.event_type == "impression",
+        AnalyticsEvent.created_at >= twenty_four_hours_ago
+    ).scalar() or 0
+    
+    # Clicks 24h
+    total_clicks_24h = db.query(func.count(AnalyticsEvent.id)).filter(
+        AnalyticsEvent.event_type == "click",
+        AnalyticsEvent.created_at >= twenty_four_hours_ago
+    ).scalar() or 0
+    
+    # Impressions 30d
+    total_impressions_30d = db.query(func.count(AnalyticsEvent.id)).filter(
+        AnalyticsEvent.event_type == "impression",
+        AnalyticsEvent.created_at >= thirty_days_ago
+    ).scalar() or 0
+    
+    # Clicks 30d
+    total_clicks_30d = db.query(func.count(AnalyticsEvent.id)).filter(
+        AnalyticsEvent.event_type == "click",
+        AnalyticsEvent.created_at >= thirty_days_ago
+    ).scalar() or 0
+    
+    return AdminAnalyticsOverview(
+        total_users=total_users,
+        active_subscribers=active_subscribers,
+        total_domains=total_domains,
+        total_previews=total_previews,
+        total_impressions_24h=total_impressions_24h,
+        total_clicks_24h=total_clicks_24h,
+        total_impressions_30d=total_impressions_30d,
+        total_clicks_30d=total_clicks_30d
+    )
+
+
+@router.get("/analytics/users", response_model=List[AdminAnalyticsUserItem])
+def get_admin_analytics_users(
+    limit: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(get_admin_user)
+):
+    """Get top users by analytics usage."""
+    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+    
+    # Get all users
+    users = db.query(User).all()
+    
+    result = []
+    for user in users:
+        # Impressions 30d
+        impressions_30d = db.query(func.count(AnalyticsEvent.id)).filter(
+            AnalyticsEvent.user_id == user.id,
+            AnalyticsEvent.event_type == "impression",
+            AnalyticsEvent.created_at >= thirty_days_ago
+        ).scalar() or 0
+        
+        # Clicks 30d
+        clicks_30d = db.query(func.count(AnalyticsEvent.id)).filter(
+            AnalyticsEvent.user_id == user.id,
+            AnalyticsEvent.event_type == "click",
+            AnalyticsEvent.created_at >= thirty_days_ago
+        ).scalar() or 0
+        
+        # Active domains (domains with events in last 30 days)
+        active_domains = db.query(func.count(func.distinct(AnalyticsEvent.domain_id))).filter(
+            AnalyticsEvent.user_id == user.id,
+            AnalyticsEvent.created_at >= thirty_days_ago,
+            AnalyticsEvent.domain_id.isnot(None)
+        ).scalar() or 0
+        
+        # Active previews (previews with events in last 30 days)
+        active_previews = db.query(func.count(func.distinct(AnalyticsEvent.preview_id))).filter(
+            AnalyticsEvent.user_id == user.id,
+            AnalyticsEvent.created_at >= thirty_days_ago,
+            AnalyticsEvent.preview_id.isnot(None)
+        ).scalar() or 0
+        
+        result.append(AdminAnalyticsUserItem(
+            user_id=user.id,
+            email=user.email,
+            impressions_30d=impressions_30d,
+            clicks_30d=clicks_30d,
+            active_domains=active_domains,
+            active_previews=active_previews
+        ))
+    
+    # Sort by impressions descending and limit
+    result.sort(key=lambda x: x.impressions_30d, reverse=True)
+    return result[:limit]
+
+
+@router.post("/analytics/aggregate")
+def trigger_analytics_aggregation(
+    target_date: Optional[str] = Query(None, description="Date to aggregate (YYYY-MM-DD), defaults to yesterday"),
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(get_admin_user)
+):
+    """Trigger analytics aggregation job for a specific date."""
+    try:
+        aggregation_date = None
+        if target_date:
+            aggregation_date = datetime.strptime(target_date, "%Y-%m-%d").date()
+        
+        result = aggregate_daily_analytics(aggregation_date)
+        
+        return {
+            "status": "success",
+            "message": f"Aggregation completed for {result['date']}",
+            "result": result
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to aggregate analytics: {str(e)}"
+        )
+
+
+class WorkerHealthResponse(BaseModel):
+    """Worker health response."""
+    main_queue_length: int
+    dlq_length: int
+    recent_failures_count: int
+    last_successful_job_at: Optional[str]
+    last_failure_at: Optional[str]
+    playwright_available: bool
+
+
+def check_playwright_installed():
+    """Check if Playwright Chromium is installed."""
+    import subprocess
+    try:
+        subprocess.run(
+            ["playwright", "install", "chromium", "--dry-run"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=5,
+        )
+        return True
+    except Exception:
+        return False
+
+
+@router.get("/system/worker-health", response_model=WorkerHealthResponse)
+def get_worker_health(
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(get_admin_user)
+):
+    """Get worker health metrics (admin only)."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        redis_conn = get_redis_connection()
+        
+        # Main queue length
+        queue = Queue('preview_generation', connection=redis_conn)
+        main_queue_length = len(queue)
+        
+        # DLQ length (from database)
+        dlq_length = db.query(func.count(PreviewJobFailure.id)).scalar() or 0
+        
+        # Recent failures (last 24 hours)
+        twenty_four_hours_ago = datetime.utcnow() - timedelta(hours=24)
+        recent_failures_count = db.query(func.count(PreviewJobFailure.id)).filter(
+            PreviewJobFailure.created_at >= twenty_four_hours_ago
+        ).scalar() or 0
+        
+        # Last successful job (from previews table)
+        last_preview = db.query(Preview).order_by(desc(Preview.created_at)).first()
+        last_successful_job_at = last_preview.created_at.isoformat() if last_preview else None
+        
+        # Last failure
+        last_failure = db.query(PreviewJobFailure).order_by(desc(PreviewJobFailure.created_at)).first()
+        last_failure_at = last_failure.created_at.isoformat() if last_failure else None
+        
+        # Check Playwright availability
+        playwright_available = check_playwright_installed()
+        
+    except Exception as e:
+        # Fallback if Redis or DB unavailable
+        logger.error(f"Error getting worker health: {e}", exc_info=True)
+        return WorkerHealthResponse(
+            main_queue_length=0,
+            dlq_length=0,
+            recent_failures_count=0,
+            last_successful_job_at=None,
+            last_failure_at=None,
+            playwright_available=False
+        )
+    
+    return WorkerHealthResponse(
+        main_queue_length=main_queue_length,
+        dlq_length=dlq_length,
+        recent_failures_count=recent_failures_count,
+        last_successful_job_at=last_successful_job_at,
+        last_failure_at=last_failure_at,
+        playwright_available=playwright_available
+    )
+
+
+@router.get("/errors")
+def list_errors(
+    limit: int = Query(50, ge=1, le=100),
+    skip: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(get_admin_user)
+):
+    """List recent errors (admin only)."""
+    import json
+    errors = db.query(Error).order_by(
+        desc(Error.timestamp)
+    ).offset(skip).limit(limit).all()
+    
+    result = []
+    for err in errors:
+        details = {}
+        if err.details:
+            try:
+                details = json.loads(err.details)
+            except:
+                details = {"raw": err.details}
+        
+        result.append({
+            "id": err.id,
+            "path": details.get("path", ""),
+            "method": details.get("method", ""),
+            "user_id": details.get("user_id"),
+            "organization_id": details.get("organization_id"),
+            "error_message": err.message,
+            "stacktrace": details.get("stacktrace"),
+            "request_id": details.get("request_id"),
+            "timestamp": err.timestamp.isoformat(),
+        })
+    
+    return result
+
