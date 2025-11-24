@@ -28,7 +28,7 @@ export default function AdminErrors() {
     try {
       setLoading(true)
       setError(null)
-      const data = await fetchAdminErrors(50, 0)
+      const data = await fetchApi<ErrorRecord[]>('/api/v1/admin/errors?limit=50&skip=0')
       setErrors(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load errors')

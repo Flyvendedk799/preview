@@ -4,7 +4,7 @@ import {
   GlobeAltIcon,
   PhotoIcon,
   ArrowTrendingUpIcon,
-  MouseIcon,
+  CursorArrowRaysIcon,
 } from '@heroicons/react/24/outline'
 import Card from '../../components/ui/Card'
 import {
@@ -134,7 +134,7 @@ export default function AdminAnalytics() {
                   <p className="text-sm text-gray-600 mb-1">Clicks (24h)</p>
                   <p className="text-2xl font-bold text-secondary">{overview.total_clicks_24h.toLocaleString()}</p>
                 </div>
-                <MouseIcon className="w-8 h-8 text-green-500" />
+                <CursorArrowRaysIcon className="w-8 h-8 text-green-500" />
               </div>
             </Card>
 
@@ -154,7 +154,7 @@ export default function AdminAnalytics() {
                   <p className="text-sm text-gray-600 mb-1">Clicks (30d)</p>
                   <p className="text-2xl font-bold text-secondary">{overview.total_clicks_30d.toLocaleString()}</p>
                 </div>
-                <MouseIcon className="w-8 h-8 text-primary" />
+                <CursorArrowRaysIcon className="w-8 h-8 text-primary" />
               </div>
             </Card>
           </div>

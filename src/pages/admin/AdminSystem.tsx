@@ -46,7 +46,7 @@ export default function AdminSystem() {
       // For now, this is a placeholder - Railway handles worker restarts via service restart
       await new Promise((resolve) => setTimeout(resolve, 2000))
       alert('Worker restart initiated (service restart required)')
-      await loadOverview()
+      await loadData()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to restart workers')
     } finally {

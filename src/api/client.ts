@@ -18,7 +18,48 @@ import type {
   AdminAnalyticsOverview,
   AdminAnalyticsUserItem,
   WorkerHealth,
+  ActivityLog,
+  AdminActivityLog,
+  Organization,
+  OrganizationMember,
+  OrganizationInviteResponse,
+  OrganizationRole,
+  SystemOverview,
+  AdminUserSummary,
+  AdminUserDetail,
+  AdminDomain,
 } from './types'
+
+// Re-export types for use in other files
+export type {
+  Domain,
+  DomainCreate,
+  BrandSettings,
+  BrandSettingsUpdate,
+  Preview,
+  PreviewCreate,
+  PreviewUpdate,
+  PreviewVariant,
+  AnalyticsSummary,
+  User,
+  Token,
+  AnalyticsOverview,
+  DomainAnalyticsItem,
+  PreviewAnalyticsItem,
+  AdminAnalyticsOverview,
+  AdminAnalyticsUserItem,
+  WorkerHealth,
+  ActivityLog,
+  AdminActivityLog,
+  Organization,
+  OrganizationMember,
+  OrganizationInviteResponse,
+  OrganizationRole,
+  SystemOverview,
+  AdminUserSummary,
+  AdminUserDetail,
+  AdminDomain,
+}
 
 /**
  * Get the base URL for API requests.
@@ -52,7 +93,7 @@ export function removeAuthToken(): void {
 /**
  * Base fetch wrapper with error handling and auth token injection
  */
-async function fetchApi<T>(
+export async function fetchApi<T>(
   endpoint: string,
   options?: RequestInit,
   requireAuth: boolean = true
@@ -60,9 +101,9 @@ async function fetchApi<T>(
   const baseUrl = getApiBaseUrl()
   const url = `${baseUrl}${endpoint}`
 
-  const headers: HeadersInit = {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...options?.headers,
+    ...(options?.headers as Record<string, string> || {}),
   }
 
   // Add auth token if available and auth is required

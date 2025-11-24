@@ -69,6 +69,7 @@ export interface PreviewCreate {
   title: string
   type: string
   image_url?: string | null
+  description?: string | null
 }
 
 export interface PreviewUpdate {

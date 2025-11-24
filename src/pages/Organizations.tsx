@@ -96,7 +96,7 @@ export default function Organizations() {
             </Card>
           ) : (
             organizations.map((org) => (
-              <Card
+              <div
                 key={org.id}
                 className={`cursor-pointer hover:shadow-lg transition-shadow ${
                   currentOrg?.id === org.id ? 'ring-2 ring-primary' : ''
@@ -105,29 +105,31 @@ export default function Organizations() {
                   navigate(`/app/organizations/${org.id}`)
                 }}
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-2 mb-2">
-                      <BuildingOfficeIcon className="w-5 h-5 text-primary" />
-                      <h3 className="text-lg font-semibold text-secondary">{org.name}</h3>
-                    </div>
-                    <p className="text-sm text-gray-500 mb-4">
-                      Subscription: <span className="font-medium">{org.subscription_status}</span>
-                    </p>
-                    {org.subscription_plan && (
-                      <p className="text-sm text-gray-500">
-                        Plan: <span className="font-medium capitalize">{org.subscription_plan}</span>
+                <Card>
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <BuildingOfficeIcon className="w-5 h-5 text-primary" />
+                        <h3 className="text-lg font-semibold text-secondary">{org.name}</h3>
+                      </div>
+                      <p className="text-sm text-gray-500 mb-4">
+                        Subscription: <span className="font-medium">{org.subscription_status}</span>
                       </p>
-                    )}
+                      {org.subscription_plan && (
+                        <p className="text-sm text-gray-500">
+                          Plan: <span className="font-medium capitalize">{org.subscription_plan}</span>
+                        </p>
+                      )}
+                    </div>
+                    <ArrowRightIcon className="w-5 h-5 text-gray-400" />
                   </div>
-                  <ArrowRightIcon className="w-5 h-5 text-gray-400" />
-                </div>
-                {currentOrg?.id === org.id && (
-                  <div className="mt-4 pt-4 border-t border-gray-200">
-                    <span className="text-xs font-medium text-primary">Current Organization</span>
-                  </div>
-                )}
-              </Card>
+                  {currentOrg?.id === org.id && (
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      <span className="text-xs font-medium text-primary">Current Organization</span>
+                    </div>
+                  )}
+                </Card>
+              </div>
             ))
           )}
         </div>

@@ -167,9 +167,9 @@ export default function Billing() {
                     <div>
                       <p className="text-sm font-medium text-blue-900">Trial Period</p>
                       <p className="text-sm text-blue-700">
-                        {getDaysUntilTrialEnd(billingStatus.trial_ends_at) > 0
+                        {billingStatus.trial_ends_at && getDaysUntilTrialEnd(billingStatus.trial_ends_at) > 0
                           ? `${getDaysUntilTrialEnd(billingStatus.trial_ends_at)} days remaining (ends ${formatTrialEnd(billingStatus.trial_ends_at)})`
-                          : `Trial ended on ${formatTrialEnd(billingStatus.trial_ends_at)}`}
+                          : billingStatus.trial_ends_at ? `Trial ended on ${formatTrialEnd(billingStatus.trial_ends_at)}` : 'No trial period'}
                       </p>
                     </div>
                   </div>
@@ -201,7 +201,7 @@ export default function Billing() {
                     <li>✓ Standard features</li>
                   </ul>
                   <Button
-                    onClick={() => handleUpgrade(import.meta.env.VITE_STRIPE_PRICE_BASIC || '')}
+                    onClick={() => handleUpgrade(import.meta.env.VITE_STRIPE_PRICE_TIER_BASIC || '')}
                     disabled={isProcessing}
                     className="w-full"
                     variant="secondary"
@@ -224,7 +224,7 @@ export default function Billing() {
                     <li>✓ API access</li>
                   </ul>
                   <Button
-                    onClick={() => handleUpgrade(import.meta.env.VITE_STRIPE_PRICE_PRO || '')}
+                    onClick={() => handleUpgrade(import.meta.env.VITE_STRIPE_PRICE_TIER_PRO || '')}
                     disabled={isProcessing}
                     className="w-full"
                   >
@@ -243,7 +243,7 @@ export default function Billing() {
                     <li>✓ Custom integrations</li>
                   </ul>
                   <Button
-                    onClick={() => handleUpgrade(import.meta.env.VITE_STRIPE_PRICE_AGENCY || '')}
+                    onClick={() => handleUpgrade(import.meta.env.VITE_STRIPE_PRICE_TIER_AGENCY || '')}
                     disabled={isProcessing}
                     className="w-full"
                     variant="secondary"
