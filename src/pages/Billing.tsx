@@ -171,6 +171,7 @@ export default function Billing() {
                           ? (() => {
                               const trialEnd = billingStatus.trial_ends_at
                               const daysLeft = getDaysUntilTrialEnd(trialEnd)
+                              if (daysLeft === null) return 'No trial period'
                               return daysLeft > 0
                                 ? `${daysLeft} days remaining (ends ${formatTrialEnd(trialEnd)})`
                                 : `Trial ended on ${formatTrialEnd(trialEnd)}`
