@@ -83,19 +83,19 @@
       transform: translateY(0px) rotate(0deg);
     }
     50% {
-      transform: translateY(-20px) rotate(5deg);
+      transform: translateY(-30px) rotate(5deg);
     }
   }
 
   .animate-float {
-    animation: float 6s ease-in-out infinite;
+    animation: float 8s ease-in-out infinite;
   }
 
   /* Smooth fade-in animation */
   @keyframes fadeInUp {
     from {
       opacity: 0;
-      transform: translateY(30px);
+      transform: translateY(40px);
     }
     to {
       opacity: 1;
@@ -105,6 +105,11 @@
 
   .animate-fade-in-up {
     animation: fadeInUp 0.8s ease-out forwards;
+  }
+
+  /* Smooth scroll */
+  html {
+    scroll-behavior: smooth;
   }
 }
 
