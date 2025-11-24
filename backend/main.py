@@ -110,9 +110,9 @@ app.include_router(
     routes_analytics.router,
     prefix=settings.API_V1_PREFIX,
 )
-    app.include_router(
-        routes_public_preview.router,
-    )
+app.include_router(
+    routes_public_preview.router,
+)
 app.include_router(
     routes_jobs.router,
     prefix=settings.API_V1_PREFIX,
