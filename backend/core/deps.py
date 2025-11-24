@@ -40,6 +40,83 @@ def get_current_user(
     return user
 
 
+def get_current_org(
+    current_user: User = Depends(get_current_user),
+    org_id_query: Optional[int] = Query(None, description="Organization ID (optional, defaults to user's first org)"),
+    x_organization_id: Optional[str] = Header(None, alias="X-Organization-ID"),
+    db: Session = Depends(get_db)
+) -> Organization:
+    """
+    Get the current organization context.
+    
+    Priority:
+    1. org_id query parameter
+    2. X-Organization-ID header
+    3. User's first organization membership
+    4. User's owned organization
+    
+    Note: When org_id is a path parameter, it should be passed explicitly to this function.
+    
+    Raises 404 if no organization found or user is not a member.
+    """
+    # Use query param
+    target_org_id = org_id_query
+    
+    # Try header if no query param
+    if target_org_id is None and x_organization_id:
+        try:
+            target_org_id = int(x_organization_id)
+        except ValueError:
+            pass
+    
+    # If still no org_id, get user's first org membership
+    if target_org_id is None:
+        membership = db.query(OrganizationMember).join(Organization).filter(
+            OrganizationMember.user_id == current_user.id
+        ).first()
+        
+        if membership:
+            target_org_id = membership.organization_id
+        else:
+            # Fallback to owned organization
+            owned_org = db.query(Organization).filter(
+                Organization.owner_user_id == current_user.id
+            ).first()
+            if owned_org:
+                target_org_id = owned_org.id
+    
+    if target_org_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No organization found. Please create or join an organization."
+        )
+    
+    # Verify organization exists
+    org = db.query(Organization).filter(
+        Organization.id == target_org_id
+    ).first()
+    if not org:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Organization not found"
+        )
+    
+    # Verify user is a member (or owner)
+    is_owner = org.owner_user_id == current_user.id
+    membership = db.query(OrganizationMember).filter(
+        OrganizationMember.organization_id == org.id,
+        OrganizationMember.user_id == current_user.id
+    ).first()
+    
+    if not is_owner and not membership:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not a member of this organization"
+        )
+    
+    return org
+
+
 def get_paid_user(
     current_user: User = Depends(get_current_user),
     current_org: Organization = Depends(get_current_org)
