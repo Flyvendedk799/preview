@@ -41,24 +41,25 @@ def get_current_user(
 
 
 def get_paid_user(
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    current_org: Organization = Depends(get_current_org)
 ) -> User:
     """
-    Require user to have an active paid subscription.
+    Require organization to have an active paid subscription.
     
-    Raises 403 if user doesn't have active subscription or trial.
+    Raises 403 if organization doesn't have active subscription or trial.
     """
-    # Allow active subscriptions, trialing, or users within trial period
-    if current_user.subscription_status in ['active', 'trialing']:
+    # Check organization subscription status (subscriptions are org-level)
+    if current_org.subscription_status in ['active', 'trialing']:
         return current_user
     
-    # Check if user is within trial period
-    if current_user.trial_ends_at:
+    # Check if organization is within trial period
+    if current_org.trial_ends_at:
         from datetime import datetime
-        if datetime.utcnow() < current_user.trial_ends_at:
+        if datetime.utcnow() < current_org.trial_ends_at:
             return current_user
     
-    # User doesn't have active subscription
+    # Organization doesn't have active subscription
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
         detail="Active subscription required. Please upgrade your plan."
