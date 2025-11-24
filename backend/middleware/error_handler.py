@@ -98,12 +98,35 @@ async def error_handler_middleware(request: Request, call_next):
             }
         )
         
-        # Return generic error response (don't expose internal details)
-        return JSONResponse(
+        # Get origin from request headers
+        origin = request.headers.get("origin")
+        
+        # Get allowed origins from settings
+        from backend.core.config import settings
+        allowed_origins = []
+        if settings.CORS_ALLOWED_ORIGINS:
+            allowed_origins = [o.strip() for o in settings.CORS_ALLOWED_ORIGINS.split(",") if o.strip()]
+        
+        # Create error response
+        response = JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
                 "detail": "An internal error occurred. Please try again later.",
                 "error_id": request_id if 'request_id' in locals() else None
             }
         )
+        
+        # Add CORS headers to error response
+        if origin and allowed_origins and origin in allowed_origins:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+        elif not allowed_origins:
+            # Development mode - allow all origins
+            if origin:
+                response.headers["Access-Control-Allow-Origin"] = origin
+        
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        
+        return response
 
