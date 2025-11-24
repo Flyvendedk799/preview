@@ -19,8 +19,8 @@ Frontend is trying to connect to `localhost:8000` instead of your Railway backen
    - Go to **Variables** tab
    - Click **+ New Variable**
    - Name: `VITE_API_BASE_URL`
-   - Value: `https://your-backend-service.railway.app/api/v1`
-   - **Important**: Include `/api/v1` at the end
+   - Value: `https://your-backend-service.railway.app`
+   - **Important**: Do NOT include `/api/v1` - just the base URL
    - Click **Add**
 
 3. **Trigger Rebuild**
