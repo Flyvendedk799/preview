@@ -68,8 +68,20 @@ export type {
  * Get the base URL for API requests.
  * Reads from VITE_API_BASE_URL env var or defaults to localhost:8000
  */
+/**
+ * Get the API base URL from environment variables.
+ * 
+ * IMPORTANT: This should be just the base URL (e.g., https://backend.railway.app)
+ * WITHOUT the /api/v1 suffix, as all endpoints already include /api/v1.
+ * 
+ * Examples:
+ * - Development: http://localhost:8000
+ * - Production: https://your-backend-service.railway.app
+ */
 export function getApiBaseUrl(): string {
-  return import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+  const url = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+  // Remove trailing slash if present
+  return url.replace(/\/$/, '')
 }
 
 /**
@@ -161,7 +173,14 @@ export async function login(email: string, password: string): Promise<Token> {
   formData.append('username', email) // OAuth2PasswordRequestForm uses 'username'
   formData.append('password', password)
 
-  const response = await fetch(`${baseUrl}/api/v1/auth/login`, {
+  const url = `${baseUrl}/api/v1/auth/login`
+  
+  // Log API calls in development
+  if (import.meta.env.DEV) {
+    console.log(`[API] POST ${url}`)
+  }
+
+  const response = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -171,7 +190,9 @@ export async function login(email: string, password: string): Promise<Token> {
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => 'Unknown error')
-    throw new Error(`Login failed: ${response.status} ${response.statusText} - ${errorText}`)
+    const errorMessage = `Login failed: ${response.status} ${response.statusText} - ${errorText}`
+    console.error(`[API Error] ${url}:`, errorMessage)
+    throw new Error(errorMessage)
   }
 
   return response.json()
