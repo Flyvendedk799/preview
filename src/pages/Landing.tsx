@@ -314,7 +314,7 @@ export default function Landing() {
       <section 
         id="product" 
         className="py-40 px-6 lg:px-16 bg-white"
-        ref={el => sectionRefs.current[0] = el}
+        ref={el => sectionRefs.current[0] = el as HTMLDivElement | null}
       >
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-24 space-y-5">
@@ -385,7 +385,7 @@ export default function Landing() {
       <section 
         id="features" 
         className="py-40 px-6 lg:px-16 bg-gradient-to-b from-white via-gray-50/30 to-white"
-        ref={el => sectionRefs.current[1] = el}
+        ref={el => sectionRefs.current[1] = el as HTMLDivElement | null}
       >
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-24 space-y-5">
@@ -464,7 +464,7 @@ export default function Landing() {
       {/* Premium Device Mockup Section */}
       <section 
         className="py-40 px-6 lg:px-16 bg-white"
-        ref={el => sectionRefs.current[2] = el}
+        ref={el => sectionRefs.current[2] = el as HTMLDivElement | null}
       >
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
@@ -572,7 +572,7 @@ export default function Landing() {
       <section 
         id="pricing" 
         className="py-40 px-6 lg:px-16 bg-gradient-to-b from-white via-gray-50/30 to-white"
-        ref={el => sectionRefs.current[3] = el}
+        ref={el => sectionRefs.current[3] = el as HTMLDivElement | null}
       >
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-24 space-y-5">
@@ -691,7 +691,7 @@ export default function Landing() {
       {/* Premium CTA Section */}
       <section 
         className="py-40 px-6 lg:px-16 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white relative overflow-hidden"
-        ref={el => sectionRefs.current[4] = el}
+        ref={el => sectionRefs.current[4] = el as HTMLDivElement | null}
       >
         {/* Animated background */}
         <div className="absolute inset-0 opacity-10">
@@ -734,7 +734,7 @@ export default function Landing() {
       <section 
         id="docs" 
         className="py-40 px-6 lg:px-16 bg-white"
-        ref={el => sectionRefs.current[5] = el}
+        ref={el => sectionRefs.current[5] = el as HTMLDivElement | null}
       >
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-24 space-y-5">
