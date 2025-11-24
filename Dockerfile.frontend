@@ -1,6 +1,21 @@
 # Multi-stage build for frontend
 FROM node:20-alpine as builder
 
+# Accept build arguments for Vite environment variables
+# Railway passes environment variables, but we need to explicitly accept them as ARG
+ARG VITE_API_BASE_URL
+ARG VITE_STRIPE_PRICE_TIER_BASIC
+ARG VITE_STRIPE_PRICE_TIER_PRO
+ARG VITE_STRIPE_PRICE_TIER_AGENCY
+ARG VITE_FRONTEND_BASE_URL
+
+# Set as environment variables for the build process
+ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
+ENV VITE_STRIPE_PRICE_TIER_BASIC=${VITE_STRIPE_PRICE_TIER_BASIC}
+ENV VITE_STRIPE_PRICE_TIER_PRO=${VITE_STRIPE_PRICE_TIER_PRO}
+ENV VITE_STRIPE_PRICE_TIER_AGENCY=${VITE_STRIPE_PRICE_TIER_AGENCY}
+ENV VITE_FRONTEND_BASE_URL=${VITE_FRONTEND_BASE_URL}
+
 # Set working directory
 WORKDIR /app
 
