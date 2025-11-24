@@ -1,6 +1,6 @@
 """Stripe webhook handler."""
 import stripe
-from fastapi import APIRouter, Request, HTTPException, status, Header
+from fastapi import APIRouter, Request, HTTPException, status, Header, Depends
 from sqlalchemy.orm import Session
 from datetime import datetime
 from backend.core.config import settings
