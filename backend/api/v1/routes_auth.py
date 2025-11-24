@@ -116,7 +116,35 @@ def login(
 
 
 @router.get("/me", response_model=User)
-def get_current_user_info(current_user: User = Depends(get_current_user)):
-    """Get current authenticated user information."""
+def get_current_user_info(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get current authenticated user information with organization subscription status."""
+    # Get user's primary organization (first owned or first membership)
+    from backend.models.organization import Organization
+    from backend.models.organization_member import OrganizationMember
+    
+    # Try to get owned organization first
+    org = db.query(Organization).filter(
+        Organization.owner_user_id == current_user.id
+    ).first()
+    
+    # If no owned org, get first membership
+    if not org:
+        membership = db.query(OrganizationMember).join(Organization).filter(
+            OrganizationMember.user_id == current_user.id
+        ).first()
+        if membership:
+            org = db.query(Organization).filter(Organization.id == membership.organization_id).first()
+    
+    # If organization found, sync subscription status to user object
+    if org:
+        current_user.subscription_status = org.subscription_status
+        current_user.subscription_plan = org.subscription_plan
+        current_user.trial_ends_at = org.trial_ends_at
+        current_user.stripe_customer_id = org.stripe_customer_id
+        current_user.stripe_subscription_id = org.stripe_subscription_id
+    
     return current_user
 
