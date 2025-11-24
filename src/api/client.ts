@@ -10,7 +10,6 @@ import type {
   PreviewVariant,
   AnalyticsSummary,
   User,
-  UserCreate,
   Token,
   AnalyticsOverview,
   DomainAnalyticsItem,
@@ -21,13 +20,17 @@ import type {
   ActivityLog,
   AdminActivityLog,
   Organization,
+  OrganizationCreate,
+  OrganizationUpdate,
   OrganizationMember,
   OrganizationInviteResponse,
+  OrganizationJoinRequest,
   OrganizationRole,
   SystemOverview,
   AdminUserSummary,
   AdminUserDetail,
   AdminDomain,
+  AdminPreview,
 } from './types'
 
 // Re-export types for use in other files
@@ -310,13 +313,6 @@ export async function getBillingStatus(): Promise<{
 }
 
 // Admin endpoints
-import type {
-  AdminUserSummary,
-  AdminUserDetail,
-  AdminDomain,
-  AdminPreview,
-  SystemOverview,
-} from './types'
 
 export async function fetchAdminUsers(): Promise<AdminUserSummary[]> {
   return fetchApi<AdminUserSummary[]>('/api/v1/admin/users')
@@ -392,7 +388,6 @@ export async function deleteOrganization(orgId: number): Promise<{ success: bool
 }
 
 // Activity endpoints
-import type { ActivityLog, AdminActivityLog } from './types'
 
 export async function fetchUserActivity(skip = 0, limit = 50): Promise<ActivityLog[]> {
   return fetchApi<ActivityLog[]>(`/api/v1/activity?skip=${skip}&limit=${limit}`)
@@ -435,14 +430,6 @@ export async function fetchAdminAnalyticsUsers(limit = 20): Promise<AdminAnalyti
 }
 
 // Organization endpoints
-import type {
-  Organization,
-  OrganizationCreate,
-  OrganizationUpdate,
-  OrganizationMember,
-  OrganizationInviteResponse,
-  OrganizationJoinRequest,
-} from './types'
 
 export async function fetchOrganizations(): Promise<Organization[]> {
   return fetchApi<Organization[]>('/api/v1/organizations')

@@ -167,9 +167,11 @@ export default function Billing() {
                     <div>
                       <p className="text-sm font-medium text-blue-900">Trial Period</p>
                       <p className="text-sm text-blue-700">
-                        {billingStatus.trial_ends_at && getDaysUntilTrialEnd(billingStatus.trial_ends_at) > 0
-                          ? `${getDaysUntilTrialEnd(billingStatus.trial_ends_at)} days remaining (ends ${formatTrialEnd(billingStatus.trial_ends_at)})`
-                          : billingStatus.trial_ends_at ? `Trial ended on ${formatTrialEnd(billingStatus.trial_ends_at)}` : 'No trial period'}
+                        {billingStatus.trial_ends_at
+                          ? (getDaysUntilTrialEnd(billingStatus.trial_ends_at) > 0
+                              ? `${getDaysUntilTrialEnd(billingStatus.trial_ends_at)} days remaining (ends ${formatTrialEnd(billingStatus.trial_ends_at)})`
+                              : `Trial ended on ${formatTrialEnd(billingStatus.trial_ends_at)}`)
+                          : 'No trial period'}
                       </p>
                     </div>
                   </div>

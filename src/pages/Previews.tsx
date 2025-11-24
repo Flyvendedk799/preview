@@ -206,8 +206,8 @@ export default function Previews() {
           if (variantData) {
             await updatePreviewVariant(variantData.id, {
               title: formData.title,
-              description: formData.description || null,
-              image_url: formData.image_url || null,
+              description: formData.description || undefined,
+              image_url: formData.image_url || undefined,
             })
             // Refresh variants
             const variants = await fetchPreviewVariants(editingPreview)
@@ -591,7 +591,7 @@ export default function Previews() {
                 placeholder="Preview description"
                 value={formData.description || ''}
                 onChange={(e) => {
-                  setFormData({ ...formData, description: e.target.value })
+                  setFormData({ ...formData, description: e.target.value || undefined })
                   setFormError(null)
                 }}
                 rows={3}
