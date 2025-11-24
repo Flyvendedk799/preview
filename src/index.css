@@ -17,7 +17,7 @@
 @layer components {
   /* Card component - unified shadow and styling */
   .card {
-    @apply bg-white rounded-lg shadow-card border border-gray-100 p-6 transition-shadow hover:shadow-md;
+    @apply bg-white rounded-lg shadow-sm border border-gray-100 p-6 transition-shadow hover:shadow-md;
   }
   
   /* Button variants - consistent sizing and states */
