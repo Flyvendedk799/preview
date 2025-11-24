@@ -185,16 +185,14 @@ def sync_subscription_status(
         # Extract plan name from subscription items
         # subscription.items is a ListObject with a .data attribute
         try:
-            if hasattr(subscription, 'items') and subscription.items:
-                items_list = subscription.items.data if hasattr(subscription.items, 'data') else list(subscription.items)
-                if items_list and len(items_list) > 0:
-                    price_id = items_list[0].price.id
-                    if price_id == settings.STRIPE_PRICE_TIER_BASIC:
-                        plan_name = 'basic'
-                    elif price_id == settings.STRIPE_PRICE_TIER_PRO:
-                        plan_name = 'pro'
-                    elif price_id == settings.STRIPE_PRICE_TIER_AGENCY:
-                        plan_name = 'agency'
+            if subscription.items and hasattr(subscription.items, 'data') and subscription.items.data:
+                price_id = subscription.items.data[0].price.id
+                if price_id == settings.STRIPE_PRICE_TIER_BASIC:
+                    plan_name = 'basic'
+                elif price_id == settings.STRIPE_PRICE_TIER_PRO:
+                    plan_name = 'pro'
+                elif price_id == settings.STRIPE_PRICE_TIER_AGENCY:
+                    plan_name = 'agency'
         except Exception as e:
             logger.warning(f"Could not extract plan name from subscription: {str(e)}")
             plan_name = None
