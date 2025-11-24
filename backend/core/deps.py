@@ -111,20 +111,18 @@ def get_current_org(
         except ValueError:
             pass
     
-    # If still no org_id, get user's first org membership (not deleted)
+    # If still no org_id, get user's first org membership
     if target_org_id is None:
         membership = db.query(OrganizationMember).join(Organization).filter(
-            OrganizationMember.user_id == current_user.id,
-            Organization.is_deleted == False
+            OrganizationMember.user_id == current_user.id
         ).first()
         
         if membership:
             target_org_id = membership.organization_id
         else:
-            # Fallback to owned organization (not deleted)
+            # Fallback to owned organization
             owned_org = db.query(Organization).filter(
-                Organization.owner_user_id == current_user.id,
-                Organization.is_deleted == False
+                Organization.owner_user_id == current_user.id
             ).first()
             if owned_org:
                 target_org_id = owned_org.id
@@ -135,15 +133,14 @@ def get_current_org(
             detail="No organization found. Please create or join an organization."
         )
     
-    # Verify organization exists and is not deleted
+    # Verify organization exists
     org = db.query(Organization).filter(
-        Organization.id == target_org_id,
-        Organization.is_deleted == False
+        Organization.id == target_org_id
     ).first()
     if not org:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Organization not found or is deleted"
+            detail="Organization not found"
         )
     
     # Verify user is a member (or owner)
@@ -178,15 +175,14 @@ def get_org_from_path(
         ):
             ...
     """
-    # Verify organization exists and is not deleted
+    # Verify organization exists
     org = db.query(Organization).filter(
-        Organization.id == org_id,
-        Organization.is_deleted == False
+        Organization.id == org_id
     ).first()
     if not org:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Organization not found or is deleted"
+            detail="Organization not found"
         )
     
     # Verify user is a member (or owner)
