@@ -10,12 +10,31 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a plain password against a hashed password."""
+    """Verify a plain password against a hashed password.
+    
+    Note: bcrypt has a 72-byte limit. Passwords longer than 72 bytes are truncated
+    to match the hashing behavior.
+    """
+    # Truncate password to 72 bytes (bcrypt limit) to match hashing behavior
+    password_bytes = plain_password.encode('utf-8')
+    if len(password_bytes) > 72:
+        password_bytes = password_bytes[:72]
+        plain_password = password_bytes.decode('utf-8', errors='ignore')
     return pwd_context.verify(plain_password, hashed_password)
 
 
 def get_password_hash(password: str) -> str:
-    """Hash a password."""
+    """Hash a password.
+    
+    Note: bcrypt has a 72-byte limit. Passwords longer than 72 bytes are truncated.
+    This is a bcrypt limitation, not a security issue - the first 72 bytes are sufficient.
+    """
+    # Truncate password to 72 bytes (bcrypt limit)
+    # Encode to bytes to get accurate byte length
+    password_bytes = password.encode('utf-8')
+    if len(password_bytes) > 72:
+        password_bytes = password_bytes[:72]
+        password = password_bytes.decode('utf-8', errors='ignore')
     return pwd_context.hash(password)
 
 
