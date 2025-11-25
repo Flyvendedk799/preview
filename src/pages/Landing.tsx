@@ -105,8 +105,8 @@ export default function Landing() {
 
       {/* Premium Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-2xl border-b border-gray-100/50 transition-all duration-300" style={{ boxShadow: scrollY > 10 ? '0 1px 3px rgba(0,0,0,0.05)' : 'none' }}>
-        <div className="max-w-7xl mx-auto px-6 lg:px-16">
-          <div className="flex items-center justify-between h-24">
+        <div className="max-w-7xl mx-auto px-6 lg:px-12">
+          <div className="flex items-center justify-between h-20">
             <div className="flex items-center space-x-3 group cursor-pointer">
               <div className="relative">
                 <div className="w-12 h-12 bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 rounded-2xl flex items-center justify-center shadow-xl shadow-blue-500/30 group-hover:scale-110 transition-transform duration-300">
@@ -153,20 +153,20 @@ export default function Landing() {
       </nav>
 
       {/* Hero Section - Premium */}
-      <section className="relative pt-48 pb-40 px-6 lg:px-16">
+      <section className="relative pt-32 pb-24 px-6 lg:px-12">
         <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-24 items-center">
-            <div className={`space-y-10 transition-all duration-1000 ease-out ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
-              <div className="space-y-8">
-                <div className="inline-flex items-center space-x-2.5 px-5 py-2.5 bg-gradient-to-r from-blue-50 to-blue-100/50 rounded-full border border-blue-200/50 backdrop-blur-sm w-fit shadow-sm shadow-blue-500/10">
-                  <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse" />
-                  <span className="text-sm font-bold text-blue-700 tracking-wide">AI-Powered Preview Generation</span>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+            <div className={`space-y-8 transition-all duration-1000 ease-out ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
+              <div className="space-y-6">
+                <div className="inline-flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-50 to-blue-100/50 rounded-full border border-blue-200/50 backdrop-blur-sm w-fit shadow-sm shadow-blue-500/10">
+                  <div className="w-1.5 h-1.5 bg-blue-600 rounded-full animate-pulse" />
+                  <span className="text-xs font-bold text-blue-700 tracking-wide">AI-Powered Preview Generation</span>
                 </div>
-                <h1 className="text-7xl lg:text-8xl font-extrabold text-gray-900 leading-[1.05] tracking-[-0.02em]">
+                <h1 className="text-5xl lg:text-6xl font-extrabold text-gray-900 leading-[1.1] tracking-[-0.02em]">
                   Turn every shared link into a{' '}
                   <span className="relative inline-block">
                     <span className="bg-gradient-to-r from-blue-600 via-blue-700 to-blue-800 bg-clip-text text-transparent">high-converting</span>
-                    <svg className="absolute -bottom-2 left-0 w-full h-3" viewBox="0 0 200 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <svg className="absolute -bottom-1 left-0 w-full h-2" viewBox="0 0 200 12" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <path d="M0 8C50 4 100 8 150 4C175 2 200 6 200 6" stroke="url(#gradient)" strokeWidth="2" strokeLinecap="round" />
                       <defs>
                         <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -178,32 +178,32 @@ export default function Landing() {
                   </span>{' '}
                   preview
                 </h1>
-                <p className="text-2xl text-gray-600 leading-relaxed max-w-2xl font-light">
+                <p className="text-lg lg:text-xl text-gray-600 leading-relaxed max-w-xl font-light">
                   AI-powered URL previews that automatically generate beautiful, branded cards for your website. 
                   Increase click-through rates by up to <span className="font-semibold text-gray-900">40%</span> with zero coding required.
                 </p>
               </div>
               
-              <div className="flex flex-col sm:flex-row gap-5">
+              <div className="flex flex-col sm:flex-row gap-4">
                 <Link 
                   to="/app" 
-                  className="group relative px-10 py-5 bg-gray-900 text-white rounded-2xl font-bold text-base hover:bg-gray-800 transition-all duration-300 hover:scale-105 hover:shadow-2xl shadow-gray-900/40 inline-flex items-center justify-center overflow-hidden"
+                  className="group relative px-8 py-4 bg-gray-900 text-white rounded-xl font-bold text-sm hover:bg-gray-800 transition-all duration-300 hover:scale-105 hover:shadow-2xl shadow-gray-900/40 inline-flex items-center justify-center overflow-hidden"
                 >
                   <span className="relative z-10 flex items-center">
                     Start Free Trial
-                    <ArrowRightIcon className="w-5 h-5 ml-3 group-hover:translate-x-1 transition-transform duration-300" />
+                    <ArrowRightIcon className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform duration-300" />
                   </span>
                   <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-blue-700 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                 </Link>
                 <Link 
                   to="/app" 
-                  className="px-10 py-5 bg-white text-gray-900 rounded-2xl font-bold text-base border-2 border-gray-200 hover:border-gray-300 transition-all duration-300 hover:scale-105 hover:shadow-xl shadow-gray-200/50 inline-flex items-center justify-center backdrop-blur-sm"
+                  className="px-8 py-4 bg-white text-gray-900 rounded-xl font-bold text-sm border-2 border-gray-200 hover:border-gray-300 transition-all duration-300 hover:scale-105 hover:shadow-xl shadow-gray-200/50 inline-flex items-center justify-center backdrop-blur-sm"
                 >
                   See Examples
                 </Link>
               </div>
               
-              <div className="flex items-center space-x-8 pt-2">
+              <div className="flex flex-wrap items-center gap-6 pt-2">
                 {[
                   { icon: CheckIcon, text: '14-day free trial' },
                   { icon: CheckIcon, text: 'No credit card' },
@@ -293,9 +293,9 @@ export default function Landing() {
       </section>
 
       {/* Social Proof - Refined */}
-      <section className="py-20 border-y border-gray-100/50 bg-white/50 backdrop-blur-sm">
-        <div className="max-w-7xl mx-auto px-6 lg:px-16">
-          <p className="text-center text-xs font-bold text-gray-400 uppercase tracking-[0.2em] mb-16">Trusted by innovative teams</p>
+      <section className="py-12 border-y border-gray-100/50 bg-white/50 backdrop-blur-sm">
+        <div className="max-w-7xl mx-auto px-6 lg:px-12">
+          <p className="text-center text-xs font-bold text-gray-400 uppercase tracking-[0.2em] mb-8">Trusted by innovative teams</p>
           <div className="flex flex-wrap items-center justify-center gap-16 opacity-30 grayscale hover:grayscale-0 transition-all duration-500">
             {['NordicStore', 'CloudWave', 'TechFlow', 'DataVault', 'StreamLine'].map((name, i) => (
               <div 
@@ -313,13 +313,13 @@ export default function Landing() {
       {/* How It Works - Premium */}
       <section 
         id="product" 
-        className="py-40 px-6 lg:px-16 bg-white"
+        className="py-24 px-6 lg:px-12 bg-white"
         ref={el => sectionRefs.current[0] = el as HTMLDivElement | null}
       >
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-24 space-y-5">
-            <h2 className="text-6xl lg:text-7xl font-extrabold text-gray-900 tracking-[-0.02em]">How it works</h2>
-            <p className="text-2xl text-gray-600 max-w-3xl mx-auto font-light">
+          <div className="text-center mb-16 space-y-3">
+            <h2 className="text-4xl lg:text-5xl font-extrabold text-gray-900 tracking-[-0.02em]">How it works</h2>
+            <p className="text-lg lg:text-xl text-gray-600 max-w-2xl mx-auto font-light">
               Get started in minutes. No technical knowledge required.
             </p>
           </div>
@@ -380,13 +380,13 @@ export default function Landing() {
       {/* Features - Premium */}
       <section 
         id="features" 
-        className="py-40 px-6 lg:px-16 bg-gradient-to-b from-white via-gray-50/30 to-white"
+        className="py-24 px-6 lg:px-12 bg-gradient-to-b from-white via-gray-50/30 to-white"
         ref={el => sectionRefs.current[1] = el as HTMLDivElement | null}
       >
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-24 space-y-5">
-            <h2 className="text-6xl lg:text-7xl font-extrabold text-gray-900 tracking-[-0.02em]">Powerful features</h2>
-            <p className="text-2xl text-gray-600 max-w-3xl mx-auto font-light">
+          <div className="text-center mb-16 space-y-3">
+            <h2 className="text-4xl lg:text-5xl font-extrabold text-gray-900 tracking-[-0.02em]">Powerful features</h2>
+            <p className="text-lg lg:text-xl text-gray-600 max-w-2xl mx-auto font-light">
               Everything you need to create stunning URL previews that drive engagement.
             </p>
           </div>
@@ -455,18 +455,18 @@ export default function Landing() {
 
       {/* Premium Device Mockup Section */}
       <section 
-        className="py-40 px-6 lg:px-16 bg-white"
+        className="py-24 px-6 lg:px-12 bg-white"
         ref={el => sectionRefs.current[2] = el as HTMLDivElement | null}
       >
         <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
-            <div className="space-y-10">
-              <div className="space-y-6">
-                <h2 className="text-6xl lg:text-7xl font-extrabold text-gray-900 tracking-[-0.02em] leading-tight">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            <div className="space-y-6">
+              <div className="space-y-4">
+                <h2 className="text-4xl lg:text-5xl font-extrabold text-gray-900 tracking-[-0.02em] leading-tight">
                   Beautiful previews,{' '}
                   <span className="bg-gradient-to-r from-blue-600 via-blue-700 to-blue-800 bg-clip-text text-transparent">everywhere</span>
                 </h2>
-                <p className="text-2xl text-gray-600 leading-relaxed font-light">
+                <p className="text-lg lg:text-xl text-gray-600 leading-relaxed font-light">
                   Your links look stunning across all platforms—social media, messaging apps, email, and more. 
                   Professional previews that drive engagement.
                 </p>
@@ -563,13 +563,13 @@ export default function Landing() {
       {/* Pricing - Premium */}
       <section 
         id="pricing" 
-        className="py-40 px-6 lg:px-16 bg-gradient-to-b from-white via-gray-50/30 to-white"
+        className="py-24 px-6 lg:px-12 bg-gradient-to-b from-white via-gray-50/30 to-white"
         ref={el => sectionRefs.current[3] = el as HTMLDivElement | null}
       >
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-24 space-y-5">
-            <h2 className="text-6xl lg:text-7xl font-extrabold text-gray-900 tracking-[-0.02em]">Simple, transparent pricing</h2>
-            <p className="text-2xl text-gray-600 max-w-3xl mx-auto font-light">
+          <div className="text-center mb-16 space-y-3">
+            <h2 className="text-4xl lg:text-5xl font-extrabold text-gray-900 tracking-[-0.02em]">Simple, transparent pricing</h2>
+            <p className="text-lg lg:text-xl text-gray-600 max-w-2xl mx-auto font-light">
               Choose the plan that fits your needs. All plans include a 14-day free trial.
             </p>
           </div>
@@ -678,7 +678,7 @@ export default function Landing() {
 
       {/* Premium CTA Section */}
       <section 
-        className="py-40 px-6 lg:px-16 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white relative overflow-hidden"
+        className="py-24 px-6 lg:px-12 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white relative overflow-hidden"
         ref={el => sectionRefs.current[4] = el as HTMLDivElement | null}
       >
         {/* Animated background */}
@@ -690,11 +690,11 @@ export default function Landing() {
           }} />
         </div>
         
-        <div className="max-w-5xl mx-auto text-center space-y-10 relative z-10">
-          <h2 className="text-6xl lg:text-7xl font-extrabold tracking-[-0.02em] leading-tight">
+        <div className="max-w-5xl mx-auto text-center space-y-6 relative z-10">
+          <h2 className="text-4xl lg:text-5xl font-extrabold tracking-[-0.02em] leading-tight">
             Ready to transform your link previews?
           </h2>
-          <p className="text-2xl text-gray-300 max-w-3xl mx-auto font-light leading-relaxed">
+          <p className="text-lg lg:text-xl text-gray-300 max-w-2xl mx-auto font-light leading-relaxed">
             Join thousands of teams using Previewly to create beautiful, high-converting URL previews.
           </p>
           <div className="flex flex-col sm:flex-row gap-5 justify-center pt-6">
@@ -721,13 +721,13 @@ export default function Landing() {
       {/* Docs Section - Premium */}
       <section 
         id="docs" 
-        className="py-40 px-6 lg:px-16 bg-white"
+        className="py-24 px-6 lg:px-12 bg-white"
         ref={el => sectionRefs.current[5] = el as HTMLDivElement | null}
       >
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-24 space-y-5">
-            <h2 className="text-6xl lg:text-7xl font-extrabold text-gray-900 tracking-[-0.02em]">Documentation</h2>
-            <p className="text-2xl text-gray-600 max-w-3xl mx-auto font-light">
+          <div className="text-center mb-16 space-y-3">
+            <h2 className="text-4xl lg:text-5xl font-extrabold text-gray-900 tracking-[-0.02em]">Documentation</h2>
+            <p className="text-lg lg:text-xl text-gray-600 max-w-2xl mx-auto font-light">
               Everything you need to integrate Previewly into your workflow.
             </p>
           </div>
@@ -790,9 +790,9 @@ export default function Landing() {
       </section>
 
       {/* Premium Footer */}
-      <footer className="bg-gray-900 text-white py-20 px-6 lg:px-16">
+      <footer className="bg-gray-900 text-white py-16 px-6 lg:px-12">
         <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-16 mb-16">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-12 mb-12">
             <div>
               <div className="flex items-center space-x-3 mb-6">
                 <div className="w-12 h-12 bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 rounded-2xl flex items-center justify-center shadow-xl">
