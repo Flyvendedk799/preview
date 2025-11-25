@@ -114,7 +114,7 @@ export default function Landing() {
                 </div>
                 <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-blue-600 rounded-2xl opacity-0 group-hover:opacity-100 blur-xl transition-opacity duration-300" />
               </div>
-              <span className="text-2xl font-bold text-gray-900 tracking-tight">Previewly</span>
+              <span className="text-2xl font-bold text-gray-900 tracking-tight">MetaView</span>
             </div>
             <div className="hidden lg:flex items-center space-x-12">
               <a href="#product" className="text-gray-600 hover:text-gray-900 transition-all duration-200 font-medium text-sm relative group">
@@ -695,7 +695,7 @@ export default function Landing() {
             Ready to transform your link previews?
           </h2>
           <p className="text-lg lg:text-xl text-gray-300 max-w-2xl mx-auto font-light leading-relaxed">
-            Join thousands of teams using Previewly to create beautiful, high-converting URL previews.
+            Join thousands of teams using MetaView to create beautiful, high-converting URL previews.
           </p>
           <div className="flex flex-col sm:flex-row gap-5 justify-center pt-6">
             <Link 
@@ -728,7 +728,7 @@ export default function Landing() {
           <div className="text-center mb-16 space-y-3">
             <h2 className="text-4xl lg:text-5xl font-extrabold text-gray-900 tracking-[-0.02em]">Documentation</h2>
             <p className="text-lg lg:text-xl text-gray-600 max-w-2xl mx-auto font-light">
-              Everything you need to integrate Previewly into your workflow.
+              Everything you need to integrate MetaView into your workflow.
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -798,7 +798,7 @@ export default function Landing() {
                 <div className="w-12 h-12 bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 rounded-2xl flex items-center justify-center shadow-xl">
                   <span className="text-white font-bold text-xl">P</span>
                 </div>
-                <span className="text-2xl font-bold">Previewly</span>
+                <span className="text-2xl font-bold">MetaView</span>
               </div>
               <p className="text-gray-400 text-sm leading-relaxed">
                 Beautiful URL previews for every website.
@@ -829,7 +829,7 @@ export default function Landing() {
             </div>
           </div>
           <div className="border-t border-gray-800 pt-8 text-center text-sm text-gray-500">
-            © 2024 Previewly. All rights reserved.
+            © 2024 MetaView. All rights reserved.
           </div>
         </div>
       </footer>

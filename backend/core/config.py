@@ -47,7 +47,7 @@ class Settings:
     API_V1_PREFIX: str = "/api/v1"
     
     # Application metadata
-    APP_NAME: str = "Preview SaaS API"
+    APP_NAME: str = "MetaView API"
     APP_VERSION: str = "1.0.0"
     
     # OpenAI API configuration

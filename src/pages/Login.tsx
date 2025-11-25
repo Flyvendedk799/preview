@@ -38,7 +38,7 @@ export default function Login() {
             <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-xl">P</span>
             </div>
-            <span className="text-2xl font-semibold text-secondary">Previewly</span>
+            <span className="text-2xl font-semibold text-secondary">MetaView</span>
           </div>
           <h1 className="text-3xl font-bold text-secondary mb-2">Welcome back</h1>
           <p className="text-muted">Sign in to your account to manage your URL previews</p>
