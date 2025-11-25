@@ -18,6 +18,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
         <input
           ref={ref}
           className={`input ${error ? 'input-error' : ''} ${className}`}
+          style={{ fontSize: '16px' }} // Prevent zoom on iOS
           {...props}
         />
         {error && (

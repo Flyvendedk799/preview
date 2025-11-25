@@ -41,22 +41,24 @@
     @apply btn bg-red-500 text-white hover:bg-red-600 active:scale-[0.98];
   }
   
-  /* Button sizes */
+  /* Button sizes - ensure minimum touch target of 44x44px */
   .btn-sm {
-    @apply px-3 py-1.5 text-sm;
+    @apply px-3 py-2.5 text-sm min-h-[44px];
   }
   
   .btn-md {
-    @apply px-4 py-2 text-base;
+    @apply px-4 py-3 text-base min-h-[44px];
   }
   
   .btn-lg {
-    @apply px-6 py-3 text-lg;
+    @apply px-6 py-3.5 text-lg min-h-[48px];
   }
   
-  /* Input styles - consistent borders and focus */
+  /* Input styles - consistent borders and focus, mobile-friendly font size */
   .input {
-    @apply block w-full rounded-lg border border-gray-300 px-4 py-2 text-gray-900 placeholder-gray-400 focus:border-primary focus:ring-2 focus:ring-primary focus:ring-offset-0 transition-colors;
+    @apply block w-full rounded-lg border border-gray-300 px-4 py-3 text-base text-gray-900 placeholder-gray-400 focus:border-primary focus:ring-2 focus:ring-primary focus:ring-offset-0 transition-colors;
+    font-size: 16px; /* Prevent zoom on iOS */
+    min-height: 44px; /* Adequate touch target */
   }
   
   .input-error {

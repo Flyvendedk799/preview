@@ -280,9 +280,9 @@ export default function Domains() {
         <p className="text-muted">Manage your connected domains and their preview settings.</p>
       </div>
       
-      <div className="flex items-center justify-between mb-6">
-        <Button onClick={() => setIsModalOpen(true)}>
-          <div className="flex items-center space-x-2">
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
+        <Button onClick={() => setIsModalOpen(true)} className="w-full sm:w-auto">
+          <div className="flex items-center justify-center sm:justify-start space-x-2">
             <PlusIcon className="w-5 h-5" />
             <span>Add Domain</span>
           </div>

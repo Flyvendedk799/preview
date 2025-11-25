@@ -289,9 +289,9 @@ export default function Previews() {
         <p className="text-muted">Browse and manage all your generated URL previews.</p>
       </div>
       
-      <div className="flex items-center justify-between mb-6">
-        <Button onClick={handleOpenCreateModal}>
-          <div className="flex items-center space-x-2">
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
+        <Button onClick={handleOpenCreateModal} className="w-full sm:w-auto">
+          <div className="flex items-center justify-center sm:justify-start space-x-2">
             <PlusIcon className="w-5 h-5" />
             <span>Create Preview</span>
           </div>
@@ -310,7 +310,7 @@ export default function Previews() {
           <button
             key={filter}
             onClick={() => setActiveFilter(filter)}
-            className={`px-4 py-2 rounded-lg font-medium transition-all ${
+            className={`px-4 py-2.5 rounded-lg font-medium transition-all min-h-[44px] ${
               activeFilter === filter
                 ? 'bg-primary text-white shadow-md'
                 : 'bg-white text-gray-700 border border-gray-200 hover:border-primary hover:text-primary'

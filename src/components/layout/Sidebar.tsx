@@ -72,7 +72,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
               <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-lg">P</span>
               </div>
-              <span className="text-xl font-semibold text-secondary">Preview</span>
+              <span className="text-xl font-semibold text-secondary">MetaView</span>
             </div>
             <button
               onClick={onClose}
@@ -144,7 +144,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           {/* Footer */}
           <div className="p-4 border-t border-gray-200">
             <div className="px-4 py-2 text-sm text-gray-500">
-              © 2024 Preview
+              © 2024 MetaView
             </div>
           </div>
         </div>

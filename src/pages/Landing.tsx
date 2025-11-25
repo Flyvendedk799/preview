@@ -12,11 +12,14 @@ import {
   PhotoIcon,
   SparklesIcon,
   ArrowUpRightIcon,
+  Bars3Icon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline'
 
 export default function Landing() {
   const [isVisible, setIsVisible] = useState(false)
   const [scrollY, setScrollY] = useState(0)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const heroRef = useRef<HTMLDivElement>(null)
   const sectionRefs = useRef<(HTMLDivElement | null)[]>([])
 
@@ -105,16 +108,16 @@ export default function Landing() {
 
       {/* Premium Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-2xl border-b border-gray-100/50 transition-all duration-300" style={{ boxShadow: scrollY > 10 ? '0 1px 3px rgba(0,0,0,0.05)' : 'none' }}>
-        <div className="max-w-7xl mx-auto px-6 lg:px-12">
-          <div className="flex items-center justify-between h-20">
-            <div className="flex items-center space-x-3 group cursor-pointer">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12">
+          <div className="flex items-center justify-between h-16 sm:h-20">
+            <div className="flex items-center space-x-2 sm:space-x-3 group cursor-pointer">
               <div className="relative">
-                <div className="w-12 h-12 bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 rounded-2xl flex items-center justify-center shadow-xl shadow-blue-500/30 group-hover:scale-110 transition-transform duration-300">
-                  <span className="text-white font-bold text-xl">P</span>
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-xl shadow-blue-500/30 group-hover:scale-110 transition-transform duration-300">
+                  <span className="text-white font-bold text-lg sm:text-xl">M</span>
                 </div>
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-blue-600 rounded-2xl opacity-0 group-hover:opacity-100 blur-xl transition-opacity duration-300" />
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl sm:rounded-2xl opacity-0 group-hover:opacity-100 blur-xl transition-opacity duration-300" />
               </div>
-              <span className="text-2xl font-bold text-gray-900 tracking-tight">MetaView</span>
+              <span className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight">MetaView</span>
             </div>
             <div className="hidden lg:flex items-center space-x-12">
               <a href="#product" className="text-gray-600 hover:text-gray-900 transition-all duration-200 font-medium text-sm relative group">
@@ -138,31 +141,95 @@ export default function Landing() {
                 <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-gray-900 group-hover:w-full transition-all duration-300" />
               </Link>
             </div>
-            <Link
-              to="/app"
-              className="group relative px-7 py-3 bg-gray-900 text-white rounded-2xl font-semibold text-sm hover:bg-gray-800 transition-all duration-300 hover:scale-105 hover:shadow-2xl shadow-gray-900/20 overflow-hidden"
-            >
-              <span className="relative z-10 flex items-center">
-                Get Started
-                <ArrowUpRightIcon className="w-4 h-4 ml-2 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform duration-300" />
-              </span>
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-blue-700 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-            </Link>
+            <div className="flex items-center space-x-3">
+              <Link
+                to="/app"
+                className="hidden sm:flex group relative px-6 sm:px-7 py-2.5 sm:py-3 bg-gray-900 text-white rounded-xl sm:rounded-2xl font-semibold text-xs sm:text-sm hover:bg-gray-800 transition-all duration-300 hover:scale-105 hover:shadow-2xl shadow-gray-900/20 overflow-hidden min-h-[44px] items-center justify-center"
+              >
+                <span className="relative z-10 flex items-center">
+                  Get Started
+                  <ArrowUpRightIcon className="w-3 h-3 sm:w-4 sm:h-4 ml-1.5 sm:ml-2 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform duration-300" />
+                </span>
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-blue-700 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              </Link>
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="lg:hidden p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+                aria-label="Toggle menu"
+              >
+                {mobileMenuOpen ? (
+                  <XMarkIcon className="w-6 h-6" />
+                ) : (
+                  <Bars3Icon className="w-6 h-6" />
+                )}
+              </button>
+            </div>
           </div>
+          
+          {/* Mobile Menu */}
+          {mobileMenuOpen && (
+            <div className="lg:hidden border-t border-gray-100 py-4">
+              <div className="flex flex-col space-y-1">
+                <a 
+                  href="#product" 
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-gray-900 rounded-lg transition-colors font-medium text-base min-h-[44px] flex items-center"
+                >
+                  Product
+                </a>
+                <a 
+                  href="#features" 
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-gray-900 rounded-lg transition-colors font-medium text-base min-h-[44px] flex items-center"
+                >
+                  Features
+                </a>
+                <a 
+                  href="#pricing" 
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-gray-900 rounded-lg transition-colors font-medium text-base min-h-[44px] flex items-center"
+                >
+                  Pricing
+                </a>
+                <a 
+                  href="#docs" 
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-gray-900 rounded-lg transition-colors font-medium text-base min-h-[44px] flex items-center"
+                >
+                  Docs
+                </a>
+                <Link 
+                  to="/app" 
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="px-4 py-3 text-gray-700 hover:bg-gray-50 hover:text-gray-900 rounded-lg transition-colors font-medium text-base min-h-[44px] flex items-center"
+                >
+                  Login
+                </Link>
+                <Link
+                  to="/app"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="mx-4 mt-2 px-6 py-3 bg-gray-900 text-white rounded-xl font-semibold text-sm hover:bg-gray-800 transition-all duration-300 min-h-[44px] flex items-center justify-center"
+                >
+                  Get Started
+                  <ArrowUpRightIcon className="w-4 h-4 ml-2" />
+                </Link>
+              </div>
+            </div>
+          )}
         </div>
       </nav>
 
       {/* Hero Section - Premium */}
-      <section className="relative pt-32 pb-24 px-6 lg:px-12">
+      <section className="relative pt-24 sm:pt-32 pb-16 sm:pb-24 px-4 sm:px-6 lg:px-12">
         <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 sm:gap-16 items-center">
             <div className={`space-y-8 transition-all duration-1000 ease-out ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
               <div className="space-y-6">
                 <div className="inline-flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-50 to-blue-100/50 rounded-full border border-blue-200/50 backdrop-blur-sm w-fit shadow-sm shadow-blue-500/10">
                   <div className="w-1.5 h-1.5 bg-blue-600 rounded-full animate-pulse" />
                   <span className="text-xs font-bold text-blue-700 tracking-wide">AI-Powered Preview Generation</span>
                 </div>
-                <h1 className="text-5xl lg:text-6xl font-extrabold text-gray-900 leading-[1.1] tracking-[-0.02em]">
+                <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-gray-900 leading-[1.1] tracking-[-0.02em]">
                   Turn every shared link into a{' '}
                   <span className="relative inline-block">
                     <span className="bg-gradient-to-r from-blue-600 via-blue-700 to-blue-800 bg-clip-text text-transparent">high-converting</span>
@@ -178,7 +245,7 @@ export default function Landing() {
                   </span>{' '}
                   preview
                 </h1>
-                <p className="text-lg lg:text-xl text-gray-600 leading-relaxed max-w-xl font-light">
+                <p className="text-base sm:text-lg lg:text-xl text-gray-600 leading-relaxed max-w-xl font-light">
                   AI-powered URL previews that automatically generate beautiful, branded cards for your website. 
                   Increase click-through rates by up to <span className="font-semibold text-gray-900">40%</span> with zero coding required.
                 </p>
@@ -187,7 +254,7 @@ export default function Landing() {
               <div className="flex flex-col sm:flex-row gap-4">
                 <Link 
                   to="/app" 
-                  className="group relative px-8 py-4 bg-gray-900 text-white rounded-xl font-bold text-sm hover:bg-gray-800 transition-all duration-300 hover:scale-105 hover:shadow-2xl shadow-gray-900/40 inline-flex items-center justify-center overflow-hidden"
+                  className="group relative px-6 sm:px-8 py-3.5 sm:py-4 bg-gray-900 text-white rounded-xl font-bold text-sm hover:bg-gray-800 transition-all duration-300 hover:scale-105 hover:shadow-2xl shadow-gray-900/40 inline-flex items-center justify-center overflow-hidden min-h-[48px]"
                 >
                   <span className="relative z-10 flex items-center">
                     Start Free Trial
@@ -197,13 +264,13 @@ export default function Landing() {
                 </Link>
                 <Link 
                   to="/app" 
-                  className="px-8 py-4 bg-white text-gray-900 rounded-xl font-bold text-sm border-2 border-gray-200 hover:border-gray-300 transition-all duration-300 hover:scale-105 hover:shadow-xl shadow-gray-200/50 inline-flex items-center justify-center backdrop-blur-sm"
+                  className="px-6 sm:px-8 py-3.5 sm:py-4 bg-white text-gray-900 rounded-xl font-bold text-sm border-2 border-gray-200 hover:border-gray-300 transition-all duration-300 hover:scale-105 hover:shadow-xl shadow-gray-200/50 inline-flex items-center justify-center backdrop-blur-sm min-h-[48px]"
                 >
                   See Examples
                 </Link>
               </div>
               
-              <div className="flex flex-wrap items-center gap-6 pt-2">
+              <div className="flex flex-wrap items-center gap-4 sm:gap-6 pt-2">
                 {[
                   { icon: CheckIcon, text: '14-day free trial' },
                   { icon: CheckIcon, text: 'No credit card' },
@@ -293,8 +360,8 @@ export default function Landing() {
       </section>
 
       {/* Social Proof - Refined */}
-      <section className="py-12 border-y border-gray-100/50 bg-white/50 backdrop-blur-sm">
-        <div className="max-w-7xl mx-auto px-6 lg:px-12">
+      <section className="py-8 sm:py-12 border-y border-gray-100/50 bg-white/50 backdrop-blur-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12">
           <p className="text-center text-xs font-bold text-gray-400 uppercase tracking-[0.2em] mb-8">Trusted by innovative teams</p>
           <div className="flex flex-wrap items-center justify-center gap-16 opacity-30 grayscale hover:grayscale-0 transition-all duration-500">
             {['NordicStore', 'CloudWave', 'TechFlow', 'DataVault', 'StreamLine'].map((name, i) => (
@@ -313,17 +380,17 @@ export default function Landing() {
       {/* How It Works - Premium */}
       <section 
         id="product" 
-        className="py-24 px-6 lg:px-12 bg-white"
+        className="py-16 sm:py-24 px-4 sm:px-6 lg:px-12 bg-white"
         ref={el => sectionRefs.current[0] = el as HTMLDivElement | null}
       >
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16 space-y-3">
-            <h2 className="text-4xl lg:text-5xl font-extrabold text-gray-900 tracking-[-0.02em]">How it works</h2>
-            <p className="text-lg lg:text-xl text-gray-600 max-w-2xl mx-auto font-light">
+          <div className="text-center mb-12 sm:mb-16 space-y-3">
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-gray-900 tracking-[-0.02em]">How it works</h2>
+            <p className="text-base sm:text-lg lg:text-xl text-gray-600 max-w-2xl mx-auto font-light px-4">
               Get started in minutes. No technical knowledge required.
             </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
             {[
               {
                 step: '01',
@@ -380,17 +447,17 @@ export default function Landing() {
       {/* Features - Premium */}
       <section 
         id="features" 
-        className="py-24 px-6 lg:px-12 bg-gradient-to-b from-white via-gray-50/30 to-white"
+        className="py-16 sm:py-24 px-4 sm:px-6 lg:px-12 bg-gradient-to-b from-white via-gray-50/30 to-white"
         ref={el => sectionRefs.current[1] = el as HTMLDivElement | null}
       >
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16 space-y-3">
-            <h2 className="text-4xl lg:text-5xl font-extrabold text-gray-900 tracking-[-0.02em]">Powerful features</h2>
-            <p className="text-lg lg:text-xl text-gray-600 max-w-2xl mx-auto font-light">
+          <div className="text-center mb-12 sm:mb-16 space-y-3">
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-gray-900 tracking-[-0.02em]">Powerful features</h2>
+            <p className="text-base sm:text-lg lg:text-xl text-gray-600 max-w-2xl mx-auto font-light px-4">
               Everything you need to create stunning URL previews that drive engagement.
             </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
             {[
               {
                 title: 'AI-Powered Semantic Understanding',
@@ -455,14 +522,14 @@ export default function Landing() {
 
       {/* Premium Device Mockup Section */}
       <section 
-        className="py-24 px-6 lg:px-12 bg-white"
+        className="py-16 sm:py-24 px-4 sm:px-6 lg:px-12 bg-white"
         ref={el => sectionRefs.current[2] = el as HTMLDivElement | null}
       >
         <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 sm:gap-12 items-center">
             <div className="space-y-6">
               <div className="space-y-4">
-                <h2 className="text-4xl lg:text-5xl font-extrabold text-gray-900 tracking-[-0.02em] leading-tight">
+                <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-gray-900 tracking-[-0.02em] leading-tight">
                   Beautiful previews,{' '}
                   <span className="bg-gradient-to-r from-blue-600 via-blue-700 to-blue-800 bg-clip-text text-transparent">everywhere</span>
                 </h2>
@@ -563,17 +630,17 @@ export default function Landing() {
       {/* Pricing - Premium */}
       <section 
         id="pricing" 
-        className="py-24 px-6 lg:px-12 bg-gradient-to-b from-white via-gray-50/30 to-white"
+        className="py-16 sm:py-24 px-4 sm:px-6 lg:px-12 bg-gradient-to-b from-white via-gray-50/30 to-white"
         ref={el => sectionRefs.current[3] = el as HTMLDivElement | null}
       >
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16 space-y-3">
-            <h2 className="text-4xl lg:text-5xl font-extrabold text-gray-900 tracking-[-0.02em]">Simple, transparent pricing</h2>
-            <p className="text-lg lg:text-xl text-gray-600 max-w-2xl mx-auto font-light">
+          <div className="text-center mb-12 sm:mb-16 space-y-3">
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-gray-900 tracking-[-0.02em]">Simple, transparent pricing</h2>
+            <p className="text-base sm:text-lg lg:text-xl text-gray-600 max-w-2xl mx-auto font-light px-4">
               Choose the plan that fits your needs. All plans include a 14-day free trial.
             </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8 max-w-6xl mx-auto">
             {[
               {
                 name: 'Starter',
@@ -678,7 +745,7 @@ export default function Landing() {
 
       {/* Premium CTA Section */}
       <section 
-        className="py-24 px-6 lg:px-12 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white relative overflow-hidden"
+        className="py-16 sm:py-24 px-4 sm:px-6 lg:px-12 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white relative overflow-hidden"
         ref={el => sectionRefs.current[4] = el as HTMLDivElement | null}
       >
         {/* Animated background */}
@@ -691,13 +758,13 @@ export default function Landing() {
         </div>
         
         <div className="max-w-5xl mx-auto text-center space-y-6 relative z-10">
-          <h2 className="text-4xl lg:text-5xl font-extrabold tracking-[-0.02em] leading-tight">
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-[-0.02em] leading-tight px-4">
             Ready to transform your link previews?
           </h2>
-          <p className="text-lg lg:text-xl text-gray-300 max-w-2xl mx-auto font-light leading-relaxed">
+          <p className="text-base sm:text-lg lg:text-xl text-gray-300 max-w-2xl mx-auto font-light leading-relaxed px-4">
             Join thousands of teams using MetaView to create beautiful, high-converting URL previews.
           </p>
-          <div className="flex flex-col sm:flex-row gap-5 justify-center pt-6">
+          <div className="flex flex-col sm:flex-row gap-4 sm:gap-5 justify-center pt-4 sm:pt-6 px-4">
             <Link 
               to="/app" 
               className="group relative px-12 py-6 bg-white text-gray-900 rounded-2xl font-bold text-lg hover:bg-gray-100 transition-all duration-300 hover:scale-105 hover:shadow-2xl shadow-white/20 inline-flex items-center justify-center overflow-hidden"
@@ -721,17 +788,17 @@ export default function Landing() {
       {/* Docs Section - Premium */}
       <section 
         id="docs" 
-        className="py-24 px-6 lg:px-12 bg-white"
+        className="py-16 sm:py-24 px-4 sm:px-6 lg:px-12 bg-white"
         ref={el => sectionRefs.current[5] = el as HTMLDivElement | null}
       >
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16 space-y-3">
-            <h2 className="text-4xl lg:text-5xl font-extrabold text-gray-900 tracking-[-0.02em]">Documentation</h2>
-            <p className="text-lg lg:text-xl text-gray-600 max-w-2xl mx-auto font-light">
+          <div className="text-center mb-12 sm:mb-16 space-y-3">
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-gray-900 tracking-[-0.02em]">Documentation</h2>
+            <p className="text-base sm:text-lg lg:text-xl text-gray-600 max-w-2xl mx-auto font-light px-4">
               Everything you need to integrate MetaView into your workflow.
             </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 sm:gap-8">
             {[
               {
                 title: 'API Reference',
@@ -790,9 +857,9 @@ export default function Landing() {
       </section>
 
       {/* Premium Footer */}
-      <footer className="bg-gray-900 text-white py-16 px-6 lg:px-12">
+      <footer className="bg-gray-900 text-white py-12 sm:py-16 px-4 sm:px-6 lg:px-12">
         <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-12 mb-12">
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-8 sm:gap-12 mb-8 sm:mb-12">
             <div>
               <div className="flex items-center space-x-3 mb-6">
                 <div className="w-12 h-12 bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 rounded-2xl flex items-center justify-center shadow-xl">
