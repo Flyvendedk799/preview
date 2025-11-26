@@ -219,6 +219,13 @@ export default function Landing() {
                   }`} />
                 </a>
               ))}
+              <Link 
+                to="/blog" 
+                className="relative py-1 font-semibold text-sm transition-all duration-200 group text-gray-600 hover:text-gray-900"
+              >
+                Blog
+                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-orange-500 group-hover:w-full transition-all duration-300" />
+              </Link>
               <Link to="/app" className="text-gray-600 hover:text-gray-900 transition-all duration-200 font-semibold text-sm relative group py-1">
                 Login
                 <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-orange-500 group-hover:w-full transition-all duration-300" />
@@ -282,6 +289,13 @@ export default function Landing() {
                 >
                   Docs
                 </a>
+                <Link 
+                  to="/blog" 
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="px-4 py-3 text-gray-700 hover:bg-orange-50 hover:text-orange-600 rounded-xl transition-colors font-semibold text-base min-h-[44px] flex items-center"
+                >
+                  Blog
+                </Link>
                 <Link 
                   to="/app" 
                   onClick={() => setMobileMenuOpen(false)}
@@ -1146,6 +1160,7 @@ export default function Landing() {
                 <li><a href="#pricing" className="hover:text-orange-400 transition-colors">Pricing</a></li>
                 <li><Link to="/app" className="hover:text-orange-400 transition-colors">Dashboard</Link></li>
                 <li><a href="#docs" className="hover:text-orange-400 transition-colors">Documentation</a></li>
+                <li><Link to="/blog" className="hover:text-orange-400 transition-colors">Blog</Link></li>
               </ul>
             </div>
             <div>

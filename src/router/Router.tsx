@@ -20,11 +20,16 @@ import AdminSystem from '../pages/admin/AdminSystem'
 import AdminActivity from '../pages/admin/AdminActivity'
 import AdminAnalytics from '../pages/admin/AdminAnalytics'
 import AdminErrors from '../pages/admin/AdminErrors'
+import AdminBlog from '../pages/admin/AdminBlog'
+import AdminBlogEditor from '../pages/admin/AdminBlogEditor'
+import AdminBlogCategories from '../pages/admin/AdminBlogCategories'
 import Organizations from '../pages/Organizations'
 import OrganizationMembers from '../pages/OrganizationMembers'
 import OrganizationSettings from '../pages/OrganizationSettings'
 import JoinOrganization from '../pages/JoinOrganization'
 import AccountSettings from '../pages/AccountSettings'
+import Blog from '../pages/Blog'
+import BlogPost from '../pages/BlogPost'
 
 export default function Router() {
   return (
@@ -33,6 +38,10 @@ export default function Router() {
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
+      
+      {/* Public Blog routes */}
+      <Route path="/blog" element={<Blog />} />
+      <Route path="/blog/:slug" element={<BlogPost />} />
 
       {/* Protected routes */}
       <Route
@@ -213,6 +222,46 @@ export default function Router() {
           <ProtectedRoute>
             <AdminRoute>
               <AdminErrors />
+            </AdminRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/app/admin/blog"
+        element={
+          <ProtectedRoute>
+            <AdminRoute>
+              <AdminBlog />
+            </AdminRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/app/admin/blog/new"
+        element={
+          <ProtectedRoute>
+            <AdminRoute>
+              <AdminBlogEditor />
+            </AdminRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/app/admin/blog/categories"
+        element={
+          <ProtectedRoute>
+            <AdminRoute>
+              <AdminBlogCategories />
+            </AdminRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/app/admin/blog/:postId"
+        element={
+          <ProtectedRoute>
+            <AdminRoute>
+              <AdminBlogEditor />
             </AdminRoute>
           </ProtectedRoute>
         }

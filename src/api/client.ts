@@ -585,3 +585,246 @@ export async function deletePreviewVariant(variantId: number): Promise<void> {
   })
 }
 
+// ============================================================================
+// Blog Types
+// ============================================================================
+
+export interface BlogCategory {
+  id: number
+  name: string
+  slug: string
+  description?: string
+  color: string
+  icon?: string
+  is_active: boolean
+  sort_order: number
+  meta_title?: string
+  meta_description?: string
+  created_at: string
+  updated_at: string
+  post_count?: number
+}
+
+export interface BlogPostListItem {
+  id: number
+  title: string
+  slug: string
+  excerpt?: string
+  featured_image?: string
+  author_name?: string
+  author_avatar?: string
+  category?: BlogCategory
+  tags?: string
+  status: string
+  is_featured: boolean
+  is_pinned: boolean
+  read_time_minutes?: number
+  views_count: number
+  published_at?: string
+  created_at: string
+}
+
+export interface BlogPost extends BlogPostListItem {
+  content: string
+  featured_image_alt?: string
+  og_image?: string
+  author_id: number
+  author_bio?: string
+  category_id?: number
+  scheduled_at?: string
+  updated_at: string
+  meta_title?: string
+  meta_description?: string
+  meta_keywords?: string
+  canonical_url?: string
+  no_index: boolean
+  schema_type: string
+  twitter_title?: string
+  twitter_description?: string
+  twitter_image?: string
+  related_post_ids?: string
+}
+
+export interface PaginatedBlogPosts {
+  items: BlogPostListItem[]
+  total: number
+  page: number
+  per_page: number
+  total_pages: number
+  has_next: boolean
+  has_prev: boolean
+}
+
+export interface BlogPostCreate {
+  title: string
+  slug?: string
+  excerpt?: string
+  content: string
+  featured_image?: string
+  featured_image_alt?: string
+  og_image?: string
+  author_name?: string
+  author_bio?: string
+  author_avatar?: string
+  category_id?: number
+  tags?: string
+  status?: 'draft' | 'published' | 'scheduled' | 'archived'
+  is_featured?: boolean
+  is_pinned?: boolean
+  scheduled_at?: string
+  meta_title?: string
+  meta_description?: string
+  meta_keywords?: string
+  canonical_url?: string
+  no_index?: boolean
+  schema_type?: string
+  twitter_title?: string
+  twitter_description?: string
+  twitter_image?: string
+  related_post_ids?: string
+}
+
+export interface BlogPostUpdate extends Partial<BlogPostCreate> {}
+
+export interface BlogCategoryCreate {
+  name: string
+  slug?: string
+  description?: string
+  color?: string
+  icon?: string
+  is_active?: boolean
+  sort_order?: number
+  meta_title?: string
+  meta_description?: string
+}
+
+export interface BlogCategoryUpdate extends Partial<BlogCategoryCreate> {}
+
+// ============================================================================
+// Blog Endpoints (Public)
+// ============================================================================
+
+export async function fetchBlogPosts(options?: {
+  page?: number
+  per_page?: number
+  category?: string
+  tag?: string
+  search?: string
+  featured?: boolean
+}): Promise<PaginatedBlogPosts> {
+  const params = new URLSearchParams()
+  if (options?.page) params.append('page', options.page.toString())
+  if (options?.per_page) params.append('per_page', options.per_page.toString())
+  if (options?.category) params.append('category', options.category)
+  if (options?.tag) params.append('tag', options.tag)
+  if (options?.search) params.append('search', options.search)
+  if (options?.featured !== undefined) params.append('featured', options.featured.toString())
+  
+  const query = params.toString() ? `?${params.toString()}` : ''
+  return fetchApi<PaginatedBlogPosts>(`/api/v1/blog/posts${query}`, undefined, false)
+}
+
+export async function fetchFeaturedBlogPosts(limit: number = 3): Promise<BlogPostListItem[]> {
+  return fetchApi<BlogPostListItem[]>(`/api/v1/blog/posts/featured?limit=${limit}`, undefined, false)
+}
+
+export async function fetchRecentBlogPosts(limit: number = 5, excludeId?: number): Promise<BlogPostListItem[]> {
+  const params = new URLSearchParams({ limit: limit.toString() })
+  if (excludeId) params.append('exclude_id', excludeId.toString())
+  return fetchApi<BlogPostListItem[]>(`/api/v1/blog/posts/recent?${params.toString()}`, undefined, false)
+}
+
+export async function fetchBlogPostBySlug(slug: string): Promise<BlogPost> {
+  return fetchApi<BlogPost>(`/api/v1/blog/posts/${slug}`, undefined, false)
+}
+
+export async function fetchBlogCategories(includeEmpty: boolean = false): Promise<BlogCategory[]> {
+  return fetchApi<BlogCategory[]>(`/api/v1/blog/categories?include_empty=${includeEmpty}`, undefined, false)
+}
+
+export async function fetchBlogCategoryBySlug(slug: string): Promise<BlogCategory> {
+  return fetchApi<BlogCategory>(`/api/v1/blog/categories/${slug}`, undefined, false)
+}
+
+// ============================================================================
+// Blog Endpoints (Admin)
+// ============================================================================
+
+export async function adminFetchBlogPosts(options?: {
+  page?: number
+  per_page?: number
+  status?: string
+  category_id?: number
+  search?: string
+}): Promise<PaginatedBlogPosts> {
+  const params = new URLSearchParams()
+  if (options?.page) params.append('page', options.page.toString())
+  if (options?.per_page) params.append('per_page', options.per_page.toString())
+  if (options?.status) params.append('status', options.status)
+  if (options?.category_id) params.append('category_id', options.category_id.toString())
+  if (options?.search) params.append('search', options.search)
+  
+  const query = params.toString() ? `?${params.toString()}` : ''
+  return fetchApi<PaginatedBlogPosts>(`/api/v1/blog/admin/posts${query}`)
+}
+
+export async function adminFetchBlogPost(postId: number): Promise<BlogPost> {
+  return fetchApi<BlogPost>(`/api/v1/blog/admin/posts/${postId}`)
+}
+
+export async function adminCreateBlogPost(data: BlogPostCreate): Promise<BlogPost> {
+  return fetchApi<BlogPost>('/api/v1/blog/admin/posts', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function adminUpdateBlogPost(postId: number, data: BlogPostUpdate): Promise<BlogPost> {
+  return fetchApi<BlogPost>(`/api/v1/blog/admin/posts/${postId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function adminDeleteBlogPost(postId: number): Promise<void> {
+  await fetchApi(`/api/v1/blog/admin/posts/${postId}`, {
+    method: 'DELETE',
+  })
+}
+
+export async function adminPublishBlogPost(postId: number): Promise<BlogPost> {
+  return fetchApi<BlogPost>(`/api/v1/blog/admin/posts/${postId}/publish`, {
+    method: 'POST',
+  })
+}
+
+export async function adminUnpublishBlogPost(postId: number): Promise<BlogPost> {
+  return fetchApi<BlogPost>(`/api/v1/blog/admin/posts/${postId}/unpublish`, {
+    method: 'POST',
+  })
+}
+
+export async function adminFetchBlogCategories(includeInactive: boolean = true): Promise<BlogCategory[]> {
+  return fetchApi<BlogCategory[]>(`/api/v1/blog/admin/categories?include_inactive=${includeInactive}`)
+}
+
+export async function adminCreateBlogCategory(data: BlogCategoryCreate): Promise<BlogCategory> {
+  return fetchApi<BlogCategory>('/api/v1/blog/admin/categories', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function adminUpdateBlogCategory(categoryId: number, data: BlogCategoryUpdate): Promise<BlogCategory> {
+  return fetchApi<BlogCategory>(`/api/v1/blog/admin/categories/${categoryId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function adminDeleteBlogCategory(categoryId: number): Promise<void> {
+  await fetchApi(`/api/v1/blog/admin/categories/${categoryId}`, {
+    method: 'DELETE',
+  })
+}
+

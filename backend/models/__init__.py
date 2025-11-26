@@ -15,6 +15,7 @@ from backend.models.organization import Organization  # noqa: F401
 from backend.models.organization_member import OrganizationMember, OrganizationRole  # noqa: F401
 from backend.models.preview_variant import PreviewVariant  # noqa: F401
 from backend.models.preview_job_failure import PreviewJobFailure  # noqa: F401
+from backend.models.blog_post import BlogPost, BlogCategory  # noqa: F401
 
-__all__ = ["Base", "User", "Domain", "BrandSettings", "Preview", "Error", "ActivityLog", "AnalyticsEvent", "AnalyticsDailyAggregate", "Organization", "OrganizationMember", "OrganizationRole", "PreviewVariant", "PreviewJobFailure"]
+__all__ = ["Base", "User", "Domain", "BrandSettings", "Preview", "Error", "ActivityLog", "AnalyticsEvent", "AnalyticsDailyAggregate", "Organization", "OrganizationMember", "OrganizationRole", "PreviewVariant", "PreviewJobFailure", "BlogPost", "BlogCategory"]
 
