@@ -85,19 +85,19 @@
       transform: translateY(0px) rotate(0deg);
     }
     50% {
-      transform: translateY(-30px) rotate(5deg);
+      transform: translateY(-20px) rotate(3deg);
     }
   }
 
   .animate-float {
-    animation: float 8s ease-in-out infinite;
+    animation: float 6s ease-in-out infinite;
   }
 
   /* Smooth fade-in animation */
   @keyframes fadeInUp {
     from {
       opacity: 0;
-      transform: translateY(40px);
+      transform: translateY(30px);
     }
     to {
       opacity: 1;
@@ -106,12 +106,32 @@
   }
 
   .animate-fade-in-up {
-    animation: fadeInUp 0.8s ease-out forwards;
+    animation: fadeInUp 0.6s ease-out forwards;
+  }
+
+  /* Subtle glow animation */
+  @keyframes glow {
+    0%, 100% {
+      opacity: 0.5;
+    }
+    50% {
+      opacity: 0.8;
+    }
+  }
+
+  .animate-glow {
+    animation: glow 3s ease-in-out infinite;
   }
 
   /* Smooth scroll */
   html {
     scroll-behavior: smooth;
+  }
+
+  /* Enhanced selection color */
+  ::selection {
+    background-color: rgba(249, 115, 22, 0.2);
+    color: #1f2937;
   }
 }
 
