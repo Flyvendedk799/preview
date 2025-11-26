@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import {
   CheckIcon,
   ArrowRightIcon,
@@ -20,17 +20,71 @@ import {
 } from '@heroicons/react/24/outline'
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid'
 
+// Animated counter hook for stats
+function useCountUp(target: number, duration: number = 2000, startOnView: boolean = true) {
+  const [count, setCount] = useState(0)
+  const [hasStarted, setHasStarted] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!startOnView) {
+      setHasStarted(true)
+    }
+  }, [startOnView])
+
+  useEffect(() => {
+    if (startOnView && ref.current) {
+      const observer = new IntersectionObserver(
+        ([entry]) => {
+          if (entry.isIntersecting && !hasStarted) {
+            setHasStarted(true)
+          }
+        },
+        { threshold: 0.5 }
+      )
+      observer.observe(ref.current)
+      return () => observer.disconnect()
+    }
+  }, [startOnView, hasStarted])
+
+  useEffect(() => {
+    if (!hasStarted) return
+    
+    let startTime: number
+    const animate = (currentTime: number) => {
+      if (!startTime) startTime = currentTime
+      const progress = Math.min((currentTime - startTime) / duration, 1)
+      // Ease out cubic for smooth deceleration
+      const easeOut = 1 - Math.pow(1 - progress, 3)
+      setCount(Math.floor(easeOut * target))
+      if (progress < 1) {
+        requestAnimationFrame(animate)
+      }
+    }
+    requestAnimationFrame(animate)
+  }, [hasStarted, target, duration])
+
+  return { count, ref }
+}
+
 export default function Landing() {
   const [isVisible, setIsVisible] = useState(false)
   const [scrollY, setScrollY] = useState(0)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [activeNavItem, setActiveNavItem] = useState('')
   const heroRef = useRef<HTMLDivElement>(null)
   const sectionRefs = useRef<(HTMLDivElement | null)[]>([])
+  
+  // Animated counters for stats section
+  const stat1 = useCountUp(2000, 2000)
+  const stat2 = useCountUp(40, 1500)
+  const stat3 = useCountUp(10, 1800)
+  const stat4 = useCountUp(99, 2200)
 
   useEffect(() => {
     setIsVisible(true)
     
-    // Scroll handler for parallax and scroll position
+    // Scroll handler for parallax, scroll position, and active nav tracking
     const handleScroll = () => {
       setScrollY(window.pageYOffset)
       
@@ -43,17 +97,37 @@ export default function Landing() {
         const parallaxOffset = (scrolled - heroTop) * 0.3
         hero.style.transform = `translateY(${parallaxOffset}px)`
       }
+      
+      // Track active nav section for visual feedback
+      const sections = ['product', 'features', 'pricing', 'docs']
+      for (const section of sections) {
+        const element = document.getElementById(section)
+        if (element) {
+          const rect = element.getBoundingClientRect()
+          if (rect.top <= 100 && rect.bottom >= 100) {
+            setActiveNavItem(section)
+            break
+          }
+        }
+      }
     }
 
-    // Intersection Observer for fade-in animations
+    // Intersection Observer for staggered fade-in animations
     const observerOptions = {
       threshold: 0.1,
-      rootMargin: '0px 0px -100px 0px'
+      rootMargin: '0px 0px -80px 0px'
     }
 
     const observer = new IntersectionObserver((entries) => {
       entries.forEach(entry => {
         if (entry.isIntersecting) {
+          // Add staggered animation delay based on element index
+          const children = entry.target.querySelectorAll('[data-animate]')
+          children.forEach((child, index) => {
+            setTimeout(() => {
+              child.classList.add('animate-fade-in-up')
+            }, index * 80) // 80ms stagger
+          })
           entry.target.classList.add('animate-fade-in-up')
           observer.unobserve(entry.target)
         }
@@ -126,22 +200,25 @@ export default function Landing() {
               <span className="text-lg sm:text-xl font-black text-gray-900 tracking-tight">MetaView</span>
             </div>
             <div className="hidden lg:flex items-center space-x-10">
-              <a href="#product" className="text-gray-600 hover:text-gray-900 transition-all duration-200 font-semibold text-sm relative group py-1">
-                Product
-                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-orange-500 group-hover:w-full transition-all duration-300" />
-              </a>
-              <a href="#features" className="text-gray-600 hover:text-gray-900 transition-all duration-200 font-semibold text-sm relative group py-1">
-                Features
-                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-orange-500 group-hover:w-full transition-all duration-300" />
-              </a>
-              <a href="#pricing" className="text-gray-600 hover:text-gray-900 transition-all duration-200 font-semibold text-sm relative group py-1">
-                Pricing
-                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-orange-500 group-hover:w-full transition-all duration-300" />
-              </a>
-              <a href="#docs" className="text-gray-600 hover:text-gray-900 transition-all duration-200 font-semibold text-sm relative group py-1">
-                Docs
-                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-orange-500 group-hover:w-full transition-all duration-300" />
-              </a>
+              {[
+                { href: '#product', label: 'Product', id: 'product' },
+                { href: '#features', label: 'Features', id: 'features' },
+                { href: '#pricing', label: 'Pricing', id: 'pricing' },
+                { href: '#docs', label: 'Docs', id: 'docs' },
+              ].map((item) => (
+                <a 
+                  key={item.id}
+                  href={item.href} 
+                  className={`relative py-1 font-semibold text-sm transition-all duration-200 group ${
+                    activeNavItem === item.id ? 'text-orange-600' : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  {item.label}
+                  <span className={`absolute bottom-0 left-0 h-0.5 bg-orange-500 transition-all duration-300 ${
+                    activeNavItem === item.id ? 'w-full' : 'w-0 group-hover:w-full'
+                  }`} />
+                </a>
+              ))}
               <Link to="/app" className="text-gray-600 hover:text-gray-900 transition-all duration-200 font-semibold text-sm relative group py-1">
                 Login
                 <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-orange-500 group-hover:w-full transition-all duration-300" />
@@ -150,12 +227,14 @@ export default function Landing() {
             <div className="flex items-center space-x-3">
               <Link
                 to="/app"
-                className="hidden sm:flex group relative px-5 sm:px-6 py-2.5 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500 text-white rounded-xl font-bold text-xs sm:text-sm transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-orange-500/30 overflow-hidden min-h-[42px] items-center justify-center"
+                className="hidden sm:flex group relative px-5 sm:px-6 py-2.5 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500 text-white rounded-xl font-bold text-xs sm:text-sm transition-all duration-300 hover:scale-[1.04] active:scale-[0.98] hover:shadow-xl hover:shadow-orange-500/30 overflow-hidden min-h-[42px] items-center justify-center select-none"
               >
                 <span className="relative z-10 flex items-center">
                   Get Started Free
                   <ArrowUpRightIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 ml-1.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform duration-300" />
                 </span>
+                {/* Shine effect on hover */}
+                <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
               </Link>
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -260,24 +339,26 @@ export default function Landing() {
                 </p>
               </div>
               
-              {/* CTA Buttons with Strong Visual Hierarchy */}
+              {/* CTA Buttons with Strong Visual Hierarchy & Micro-interactions */}
               <div className="flex flex-col sm:flex-row gap-3">
                 <Link 
                   to="/app" 
-                  className="group relative px-6 sm:px-7 py-3.5 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500 text-white rounded-xl font-bold text-sm transition-all duration-300 hover:scale-[1.03] hover:shadow-xl hover:shadow-orange-500/30 inline-flex items-center justify-center overflow-hidden min-h-[48px]"
+                  className="group relative px-6 sm:px-7 py-3.5 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500 text-white rounded-xl font-bold text-sm transition-all duration-300 hover:scale-[1.03] active:scale-[0.98] hover:shadow-xl hover:shadow-orange-500/30 inline-flex items-center justify-center overflow-hidden min-h-[48px] select-none"
                 >
                   <span className="relative z-10 flex items-center">
                     Start Free Trial
                     <ArrowRightIcon className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform duration-300" />
                   </span>
                   <div className="absolute inset-0 bg-gradient-to-r from-orange-600 via-amber-600 to-orange-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  {/* Shine sweep effect */}
+                  <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
                 </Link>
                 <Link 
                   to="/app" 
-                  className="group px-6 sm:px-7 py-3.5 bg-white text-gray-800 rounded-xl font-bold text-sm border-2 border-gray-200 hover:border-orange-200 hover:bg-orange-50/50 transition-all duration-300 hover:scale-[1.03] hover:shadow-lg inline-flex items-center justify-center min-h-[48px]"
+                  className="group px-6 sm:px-7 py-3.5 bg-white text-gray-800 rounded-xl font-bold text-sm border-2 border-gray-200 hover:border-orange-200 hover:bg-orange-50/50 transition-all duration-300 hover:scale-[1.03] active:scale-[0.98] hover:shadow-lg inline-flex items-center justify-center min-h-[48px] select-none"
                 >
                   Watch Demo
-                  <span className="ml-2 text-xs bg-gray-100 group-hover:bg-orange-100 px-2 py-0.5 rounded-full text-gray-500 group-hover:text-orange-600 transition-colors">2 min</span>
+                  <span className="ml-2 text-xs bg-gray-100 group-hover:bg-orange-100 px-2 py-0.5 rounded-full text-gray-500 group-hover:text-orange-600 transition-colors duration-200">2 min</span>
                 </Link>
               </div>
               
@@ -418,24 +499,35 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Enhanced Social Proof with Stats */}
+      {/* Enhanced Social Proof with Animated Stats */}
       <section className="py-10 sm:py-14 border-y border-gray-100 bg-gradient-to-b from-white to-gray-50/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12">
-          {/* Stats Grid - Key Metrics for Credibility */}
+          {/* Stats Grid - Animated Key Metrics for Credibility */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8 mb-10 sm:mb-12">
-            {[
-              { value: '2,000+', label: 'Active Teams', icon: '👥' },
-              { value: '40%', label: 'Avg. CTR Increase', icon: '📈' },
-              { value: '10M+', label: 'Previews Generated', icon: '🖼️' },
-              { value: '99.9%', label: 'Uptime SLA', icon: '⚡' },
-            ].map((stat, i) => (
-              <div key={i} className="text-center group">
-                <div className="text-2xl sm:text-3xl lg:text-4xl font-black text-gray-900 mb-1 group-hover:text-orange-600 transition-colors duration-300">
-                  {stat.value}
-                </div>
-                <div className="text-xs sm:text-sm text-gray-500 font-medium">{stat.label}</div>
+            <div ref={stat1.ref} className="text-center group cursor-default">
+              <div className="text-2xl sm:text-3xl lg:text-4xl font-black text-gray-900 mb-1 group-hover:text-orange-600 transition-colors duration-300 tabular-nums">
+                {stat1.count.toLocaleString()}+
               </div>
-            ))}
+              <div className="text-xs sm:text-sm text-gray-500 font-medium">Active Teams</div>
+            </div>
+            <div ref={stat2.ref} className="text-center group cursor-default">
+              <div className="text-2xl sm:text-3xl lg:text-4xl font-black text-gray-900 mb-1 group-hover:text-orange-600 transition-colors duration-300 tabular-nums">
+                {stat2.count}%
+              </div>
+              <div className="text-xs sm:text-sm text-gray-500 font-medium">Avg. CTR Increase</div>
+            </div>
+            <div ref={stat3.ref} className="text-center group cursor-default">
+              <div className="text-2xl sm:text-3xl lg:text-4xl font-black text-gray-900 mb-1 group-hover:text-orange-600 transition-colors duration-300 tabular-nums">
+                {stat3.count}M+
+              </div>
+              <div className="text-xs sm:text-sm text-gray-500 font-medium">Previews Generated</div>
+            </div>
+            <div ref={stat4.ref} className="text-center group cursor-default">
+              <div className="text-2xl sm:text-3xl lg:text-4xl font-black text-gray-900 mb-1 group-hover:text-orange-600 transition-colors duration-300 tabular-nums">
+                {stat4.count}.9%
+              </div>
+              <div className="text-xs sm:text-sm text-gray-500 font-medium">Uptime SLA</div>
+            </div>
           </div>
           
           {/* Company Logos */}
@@ -515,11 +607,13 @@ export default function Landing() {
                 },
               ].map((item, index) => (
                 <div 
-                  key={item.step} 
-                  className="group relative bg-white rounded-2xl p-6 sm:p-8 border border-gray-100 hover:border-gray-200 transition-all duration-300 hover:shadow-xl"
+                  key={item.step}
+                  data-animate
+                  className="group relative bg-white rounded-2xl p-6 sm:p-8 border border-gray-100 hover:border-gray-200 transition-all duration-300 hover:shadow-xl hover:-translate-y-1 opacity-0"
+                  style={{ animationDelay: `${index * 120}ms` }}
                 >
                   {/* Step number badge */}
-                  <div className={`relative z-10 w-12 h-12 rounded-xl flex items-center justify-center mb-5 shadow-lg transition-all duration-300 group-hover:scale-110 ${
+                  <div className={`relative z-10 w-12 h-12 rounded-xl flex items-center justify-center mb-5 shadow-lg transition-all duration-300 group-hover:scale-110 group-hover:rotate-6 ${
                     item.color === 'orange' ? 'bg-gradient-to-br from-orange-500 to-amber-500 shadow-orange-500/30' :
                     item.color === 'blue' ? 'bg-gradient-to-br from-blue-500 to-indigo-500 shadow-blue-500/30' :
                     item.color === 'purple' ? 'bg-gradient-to-br from-purple-500 to-violet-500 shadow-purple-500/30' :
@@ -528,11 +622,11 @@ export default function Landing() {
                     <item.icon className="w-6 h-6 text-white" />
                   </div>
                   
-                  <div className={`text-xs font-black uppercase tracking-wider mb-2 ${
-                    item.color === 'orange' ? 'text-orange-500' :
-                    item.color === 'blue' ? 'text-blue-500' :
-                    item.color === 'purple' ? 'text-purple-500' :
-                    'text-emerald-500'
+                  <div className={`text-xs font-black uppercase tracking-wider mb-2 transition-colors duration-300 ${
+                    item.color === 'orange' ? 'text-orange-500 group-hover:text-orange-600' :
+                    item.color === 'blue' ? 'text-blue-500 group-hover:text-blue-600' :
+                    item.color === 'purple' ? 'text-purple-500 group-hover:text-purple-600' :
+                    'text-emerald-500 group-hover:text-emerald-600'
                   }`}>Step {item.step}</div>
                   <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">{item.title}</h3>
                   <p className="text-gray-500 text-sm leading-relaxed">{item.description}</p>
@@ -560,7 +654,7 @@ export default function Landing() {
             </p>
           </div>
           
-          {/* Feature Grid with Visual Interest */}
+          {/* Feature Grid with Visual Interest & Hover Lift */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
             {[
               {
@@ -607,12 +701,14 @@ export default function Landing() {
               },
             ].map((feature, index) => (
               <div 
-                key={index} 
-                className="group relative bg-white rounded-xl p-6 border border-gray-100 hover:border-gray-200 transition-all duration-300 hover:shadow-lg"
+                key={index}
+                data-animate
+                className="group relative bg-white rounded-xl p-6 border border-gray-100 hover:border-gray-200 transition-all duration-300 hover:shadow-xl hover:-translate-y-1 opacity-0"
+                style={{ animationDelay: `${index * 100}ms` }}
               >
                 {/* Badge */}
                 {feature.badge && (
-                  <div className={`absolute -top-2 right-4 text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                  <div className={`absolute -top-2 right-4 text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm ${
                     feature.badge === 'AI-Powered' ? 'bg-orange-100 text-orange-700' :
                     feature.badge === 'Popular' ? 'bg-amber-100 text-amber-700' :
                     'bg-blue-100 text-blue-700'
@@ -621,7 +717,7 @@ export default function Landing() {
                   </div>
                 )}
                 
-                <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-4 transition-all duration-300 group-hover:scale-110 ${
+                <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-4 transition-all duration-300 group-hover:scale-110 group-hover:rotate-3 ${
                   feature.accent === 'orange' ? 'bg-orange-100 text-orange-600' :
                   feature.accent === 'purple' ? 'bg-purple-100 text-purple-600' :
                   feature.accent === 'amber' ? 'bg-amber-100 text-amber-600' :
@@ -631,7 +727,7 @@ export default function Landing() {
                 }`}>
                   <feature.icon className="w-5 h-5" />
                 </div>
-                <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-2">{feature.title}</h3>
+                <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-2 group-hover:text-gray-800 transition-colors">{feature.title}</h3>
                 <p className="text-gray-500 text-sm leading-relaxed">{feature.description}</p>
               </div>
             ))}
@@ -684,72 +780,72 @@ export default function Landing() {
               </Link>
             </div>
             
-            {/* Platform Preview Grid */}
+            {/* Platform Preview Grid with Enhanced Interactions */}
             <div className="relative order-1 lg:order-2">
               <div className="grid grid-cols-2 gap-4">
                 {/* Twitter Preview */}
-                <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-lg hover:shadow-xl transition-shadow">
+                <div className="group bg-white rounded-xl border border-gray-200 p-4 shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-default">
                   <div className="flex items-center space-x-2 mb-3">
-                    <div className="w-6 h-6 bg-gray-900 rounded-full flex items-center justify-center">
+                    <div className="w-6 h-6 bg-gray-900 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
                       <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
                     </div>
                     <span className="text-xs font-bold text-gray-600">X / Twitter</span>
                   </div>
-                  <div className="bg-gray-50 rounded-lg p-3 space-y-2">
-                    <div className="h-16 bg-gradient-to-br from-orange-100 to-amber-100 rounded-md" />
+                  <div className="bg-gray-50 rounded-lg p-3 space-y-2 overflow-hidden relative">
+                    <div className="h-16 bg-gradient-to-br from-orange-100 to-amber-100 rounded-md group-hover:scale-[1.02] transition-transform duration-300" />
                     <div className="h-2.5 bg-gray-300 rounded w-3/4" />
                     <div className="h-2 bg-gray-200 rounded w-full" />
                   </div>
                 </div>
                 
                 {/* LinkedIn Preview */}
-                <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-lg hover:shadow-xl transition-shadow">
+                <div className="group bg-white rounded-xl border border-gray-200 p-4 shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-default" style={{ animationDelay: '100ms' }}>
                   <div className="flex items-center space-x-2 mb-3">
-                    <div className="w-6 h-6 bg-blue-600 rounded flex items-center justify-center">
+                    <div className="w-6 h-6 bg-blue-600 rounded flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
                       <svg className="w-3.5 h-3.5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452z"/></svg>
                     </div>
                     <span className="text-xs font-bold text-gray-600">LinkedIn</span>
                   </div>
-                  <div className="bg-gray-50 rounded-lg p-3 space-y-2">
-                    <div className="h-16 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-md" />
+                  <div className="bg-gray-50 rounded-lg p-3 space-y-2 overflow-hidden">
+                    <div className="h-16 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-md group-hover:scale-[1.02] transition-transform duration-300" />
                     <div className="h-2.5 bg-gray-300 rounded w-4/5" />
                     <div className="h-2 bg-gray-200 rounded w-full" />
                   </div>
                 </div>
                 
                 {/* Slack Preview */}
-                <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-lg hover:shadow-xl transition-shadow">
+                <div className="group bg-white rounded-xl border border-gray-200 p-4 shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-default" style={{ animationDelay: '200ms' }}>
                   <div className="flex items-center space-x-2 mb-3">
-                    <div className="w-6 h-6 bg-purple-600 rounded flex items-center justify-center">
+                    <div className="w-6 h-6 bg-purple-600 rounded flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
                       <span className="text-white text-xs font-bold">#</span>
                     </div>
                     <span className="text-xs font-bold text-gray-600">Slack</span>
                   </div>
-                  <div className="bg-gray-50 rounded-lg p-3 space-y-2">
-                    <div className="h-16 bg-gradient-to-br from-purple-100 to-violet-100 rounded-md" />
+                  <div className="bg-gray-50 rounded-lg p-3 space-y-2 overflow-hidden">
+                    <div className="h-16 bg-gradient-to-br from-purple-100 to-violet-100 rounded-md group-hover:scale-[1.02] transition-transform duration-300" />
                     <div className="h-2.5 bg-gray-300 rounded w-2/3" />
                     <div className="h-2 bg-gray-200 rounded w-full" />
                   </div>
                 </div>
                 
                 {/* Email Preview */}
-                <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-lg hover:shadow-xl transition-shadow">
+                <div className="group bg-white rounded-xl border border-gray-200 p-4 shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-default" style={{ animationDelay: '300ms' }}>
                   <div className="flex items-center space-x-2 mb-3">
-                    <div className="w-6 h-6 bg-emerald-500 rounded flex items-center justify-center">
+                    <div className="w-6 h-6 bg-emerald-500 rounded flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
                       <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
                     </div>
                     <span className="text-xs font-bold text-gray-600">Email</span>
                   </div>
-                  <div className="bg-gray-50 rounded-lg p-3 space-y-2">
-                    <div className="h-16 bg-gradient-to-br from-emerald-100 to-teal-100 rounded-md" />
+                  <div className="bg-gray-50 rounded-lg p-3 space-y-2 overflow-hidden">
+                    <div className="h-16 bg-gradient-to-br from-emerald-100 to-teal-100 rounded-md group-hover:scale-[1.02] transition-transform duration-300" />
                     <div className="h-2.5 bg-gray-300 rounded w-5/6" />
                     <div className="h-2 bg-gray-200 rounded w-full" />
                   </div>
                 </div>
               </div>
               
-              {/* Floating badge */}
-              <div className="absolute -top-4 -right-4 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg">
+              {/* Floating badge with subtle animation */}
+              <div className="absolute -top-4 -right-4 bg-gradient-to-r from-orange-500 to-amber-500 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg animate-pulse hover:scale-110 transition-transform cursor-default">
                 +40% CTR
               </div>
             </div>
@@ -822,18 +918,20 @@ export default function Landing() {
                 cta: 'Contact Sales',
                 highlighted: false,
               },
-            ].map((plan) => (
+            ].map((plan, index) => (
               <div
                 key={plan.name}
-                className={`group relative rounded-2xl p-6 sm:p-8 transition-all duration-300 ${
+                data-animate
+                className={`group relative rounded-2xl p-6 sm:p-8 transition-all duration-300 opacity-0 ${
                   plan.highlighted 
-                    ? 'bg-gradient-to-br from-orange-500 via-amber-500 to-orange-500 text-white shadow-2xl shadow-orange-500/30 scale-[1.02] md:scale-105' 
-                    : 'bg-white border border-gray-200 hover:border-gray-300 hover:shadow-xl'
+                    ? 'bg-gradient-to-br from-orange-500 via-amber-500 to-orange-500 text-white shadow-2xl shadow-orange-500/30 scale-[1.02] md:scale-105 hover:shadow-orange-500/40' 
+                    : 'bg-white border border-gray-200 hover:border-gray-300 hover:shadow-xl hover:-translate-y-1'
                 }`}
+                style={{ animationDelay: `${index * 150}ms` }}
               >
                 {/* Popular badge */}
                 {plan.highlighted && (
-                  <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-4 py-1 text-xs font-bold rounded-full shadow-lg">
+                  <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-4 py-1 text-xs font-bold rounded-full shadow-lg animate-pulse">
                     ⭐ Most Popular
                   </div>
                 )}
@@ -842,15 +940,15 @@ export default function Landing() {
                   <h3 className={`text-xl font-bold mb-1 ${plan.highlighted ? 'text-white' : 'text-gray-900'}`}>{plan.name}</h3>
                   <p className={`text-sm mb-4 ${plan.highlighted ? 'text-orange-100' : 'text-gray-500'}`}>{plan.description}</p>
                   <div className="flex items-baseline">
-                    <span className={`text-4xl sm:text-5xl font-black ${plan.highlighted ? 'text-white' : 'text-gray-900'}`}>{plan.price}</span>
+                    <span className={`text-4xl sm:text-5xl font-black tabular-nums ${plan.highlighted ? 'text-white' : 'text-gray-900'}`}>{plan.price}</span>
                     <span className={`ml-1 text-sm ${plan.highlighted ? 'text-orange-100' : 'text-gray-500'}`}>{plan.period}</span>
                   </div>
                 </div>
                 
                 <ul className="space-y-3 mb-6">
                   {plan.features.map((feature, idx) => (
-                    <li key={idx} className="flex items-center text-sm">
-                      <CheckIcon className={`w-4 h-4 mr-2 flex-shrink-0 ${plan.highlighted ? 'text-orange-100' : 'text-emerald-500'}`} />
+                    <li key={idx} className="flex items-center text-sm group/item">
+                      <CheckIcon className={`w-4 h-4 mr-2 flex-shrink-0 transition-transform duration-200 group-hover/item:scale-110 ${plan.highlighted ? 'text-orange-100' : 'text-emerald-500'}`} />
                       <span className={plan.highlighted ? 'text-white' : 'text-gray-700'}>{feature}</span>
                     </li>
                   ))}
@@ -858,9 +956,9 @@ export default function Landing() {
                 
                 <Link
                   to="/app"
-                  className={`block w-full text-center py-3 rounded-xl font-bold text-sm transition-all duration-300 hover:scale-[1.02] ${
+                  className={`block w-full text-center py-3 rounded-xl font-bold text-sm transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] select-none ${
                     plan.highlighted
-                      ? 'bg-white text-orange-600 hover:bg-gray-50 shadow-lg'
+                      ? 'bg-white text-orange-600 hover:bg-gray-50 shadow-lg hover:shadow-xl'
                       : 'bg-gray-900 text-white hover:bg-gray-800'
                   }`}
                 >
@@ -1078,23 +1176,25 @@ export default function Landing() {
       </footer>
 
       <style>{`
+        /* Floating animation with subtle movement */
         @keyframes float {
           0%, 100% {
             transform: translateY(0px) rotate(0deg);
           }
           50% {
-            transform: translateY(-30px) rotate(5deg);
+            transform: translateY(-20px) rotate(3deg);
           }
         }
         
         .animate-float {
-          animation: float 8s ease-in-out infinite;
+          animation: float 6s ease-in-out infinite;
         }
 
+        /* Fade in up animation */
         @keyframes fadeInUp {
           from {
             opacity: 0;
-            transform: translateY(40px);
+            transform: translateY(30px);
           }
           to {
             opacity: 1;
@@ -1103,12 +1203,71 @@ export default function Landing() {
         }
         
         .animate-fade-in-up {
-          animation: fadeInUp 0.8s ease-out forwards;
+          animation: fadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+
+        /* Subtle pulse for badges */
+        @keyframes subtlePulse {
+          0%, 100% {
+            opacity: 1;
+          }
+          50% {
+            opacity: 0.85;
+          }
+        }
+
+        /* Shine sweep animation for CTAs */
+        @keyframes shine {
+          from {
+            transform: translateX(-100%);
+          }
+          to {
+            transform: translateX(100%);
+          }
         }
 
         /* Smooth scroll behavior */
         html {
           scroll-behavior: smooth;
+        }
+
+        /* Better text rendering */
+        body {
+          -webkit-font-smoothing: antialiased;
+          -moz-osx-font-smoothing: grayscale;
+          text-rendering: optimizeLegibility;
+        }
+
+        /* Tabular numbers for stats */
+        .tabular-nums {
+          font-variant-numeric: tabular-nums;
+        }
+
+        /* Selection color */
+        ::selection {
+          background-color: rgba(249, 115, 22, 0.15);
+          color: inherit;
+        }
+
+        /* Custom scrollbar for webkit */
+        ::-webkit-scrollbar {
+          width: 10px;
+        }
+        ::-webkit-scrollbar-track {
+          background: #f1f1f1;
+        }
+        ::-webkit-scrollbar-thumb {
+          background: #d1d5db;
+          border-radius: 5px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+          background: #9ca3af;
+        }
+
+        /* Focus visible for keyboard navigation */
+        *:focus-visible {
+          outline: 2px solid rgba(249, 115, 22, 0.5);
+          outline-offset: 2px;
         }
       `}</style>
     </div>
