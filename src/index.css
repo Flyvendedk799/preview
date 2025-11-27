@@ -133,5 +133,102 @@
     background-color: rgba(249, 115, 22, 0.2);
     color: #1f2937;
   }
+
+  /* Article typography styles */
+  .article-body {
+    font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  .article-body p {
+    hanging-punctuation: first last;
+  }
+
+  .article-body h2,
+  .article-body h3,
+  .article-body h4 {
+    scroll-margin-top: 100px;
+  }
+
+  /* Smooth link transitions in articles */
+  .article-body a {
+    transition: all 0.2s ease;
+  }
+
+  .article-body a:hover {
+    text-decoration-thickness: 2px;
+  }
+
+  /* Code block scrollbar styling */
+  .article-body pre::-webkit-scrollbar {
+    height: 8px;
+  }
+
+  .article-body pre::-webkit-scrollbar-track {
+    background: #374151;
+    border-radius: 4px;
+  }
+
+  .article-body pre::-webkit-scrollbar-thumb {
+    background: #6b7280;
+    border-radius: 4px;
+  }
+
+  .article-body pre::-webkit-scrollbar-thumb:hover {
+    background: #9ca3af;
+  }
+
+  /* Figure and image styling */
+  .article-body figure {
+    margin: 2rem 0;
+  }
+
+  .article-body figure img {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+
+  .article-body figure img:hover {
+    transform: scale(1.01);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+  }
+
+  /* Blockquote animation */
+  .article-body blockquote {
+    position: relative;
+    transition: transform 0.2s ease;
+  }
+
+  .article-body blockquote:hover {
+    transform: translateX(4px);
+  }
+
+  /* List item animations */
+  .article-body li {
+    transition: transform 0.2s ease;
+  }
+
+  .article-body li:hover {
+    transform: translateX(4px);
+  }
+
+  /* Inline code hover effect */
+  .article-body code:not(pre code) {
+    transition: background-color 0.2s ease;
+  }
+
+  .article-body code:not(pre code):hover {
+    background-color: #f3f4f6;
+  }
+
+  /* Hide scrollbar but keep functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
 }
 

@@ -20,103 +20,195 @@ import {
   type BlogCategory,
 } from '../api/client'
 
-// Simple markdown-like renderer (for basic formatting)
-function renderContent(content: string) {
-  // This is a simple renderer - in production you'd use a proper markdown library
-  const lines = content.split('\n')
-  const elements: JSX.Element[] = []
-  let currentList: string[] = []
-  let listType: 'ul' | 'ol' | null = null
-  
-  const flushList = () => {
-    if (currentList.length > 0 && listType) {
-      const ListTag = listType
-      elements.push(
-        <ListTag key={elements.length} className={`mb-4 ${listType === 'ul' ? 'list-disc' : 'list-decimal'} list-inside space-y-1`}>
-          {currentList.map((item, i) => (
-            <li key={i} className="text-gray-700">{item}</li>
-          ))}
-        </ListTag>
-      )
-      currentList = []
-      listType = null
-    }
+// Enhanced markdown renderer with beautiful typography
+function renderContent(content: string): JSX.Element {
+  // Process inline formatting
+  const processInline = (text: string): string => {
+    return text
+      // Bold
+      .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-gray-900">$1</strong>')
+      // Italic
+      .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
+      // Inline code
+      .replace(/`([^`]+)`/g, '<code class="px-1.5 py-0.5 bg-gray-100 text-orange-600 rounded text-[0.9em] font-mono">$1</code>')
+      // Links
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-orange-600 hover:text-orange-700 underline decoration-orange-300 underline-offset-2 transition-colors" target="_blank" rel="noopener noreferrer">$1</a>')
+      // Images in content
+      .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '</p><figure class="my-8"><img src="$2" alt="$1" class="w-full rounded-xl shadow-lg" /><figcaption class="text-center text-sm text-gray-500 mt-3">$1</figcaption></figure><p class="text-lg text-gray-700 leading-relaxed mb-6">')
   }
+
+  // Split into blocks
+  const blocks: string[] = []
+  let currentBlock = ''
+  let inCodeBlock = false
+  let codeLanguage = ''
   
-  lines.forEach((line, index) => {
-    const trimmedLine = line.trim()
-    
-    // Headers
-    if (trimmedLine.startsWith('### ')) {
-      flushList()
-      elements.push(
-        <h3 key={index} className="text-xl font-bold text-gray-900 mt-8 mb-4">
-          {trimmedLine.slice(4)}
-        </h3>
+  content.split('\n').forEach((line) => {
+    if (line.trim().startsWith('```')) {
+      if (!inCodeBlock) {
+        if (currentBlock.trim()) blocks.push(currentBlock.trim())
+        currentBlock = ''
+        inCodeBlock = true
+        codeLanguage = line.trim().slice(3)
+        currentBlock = `\`\`\`${codeLanguage}\n`
+      } else {
+        currentBlock += '```'
+        blocks.push(currentBlock)
+        currentBlock = ''
+        inCodeBlock = false
+        codeLanguage = ''
+      }
+    } else if (inCodeBlock) {
+      currentBlock += line + '\n'
+    } else if (line.trim() === '') {
+      if (currentBlock.trim()) {
+        blocks.push(currentBlock.trim())
+        currentBlock = ''
+      }
+    } else {
+      currentBlock += (currentBlock ? '\n' : '') + line
+    }
+  })
+  if (currentBlock.trim()) blocks.push(currentBlock.trim())
+
+  let isFirstParagraph = true
+  
+  const elements = blocks.map((block, index) => {
+    // Code blocks
+    if (block.startsWith('```')) {
+      const lines = block.split('\n')
+      const lang = lines[0].slice(3)
+      const code = lines.slice(1, -1).join('\n')
+      return (
+        <div key={index} className="my-8 rounded-xl overflow-hidden shadow-lg">
+          {lang && (
+            <div className="bg-gray-800 px-4 py-2 text-xs font-mono text-gray-400 border-b border-gray-700">
+              {lang}
+            </div>
+          )}
+          <pre className="bg-gray-900 p-4 overflow-x-auto">
+            <code className="text-sm font-mono text-gray-100 leading-relaxed">{code}</code>
+          </pre>
+        </div>
       )
-    } else if (trimmedLine.startsWith('## ')) {
-      flushList()
-      elements.push(
-        <h2 key={index} className="text-2xl font-bold text-gray-900 mt-10 mb-4">
-          {trimmedLine.slice(3)}
+    }
+
+    // Headings
+    if (block.startsWith('# ')) {
+      return (
+        <h2 key={index} className="text-3xl sm:text-4xl font-bold text-gray-900 mt-16 mb-6 leading-tight">
+          {block.slice(2)}
         </h2>
       )
-    } else if (trimmedLine.startsWith('# ')) {
-      flushList()
-      elements.push(
-        <h1 key={index} className="text-3xl font-bold text-gray-900 mt-10 mb-4">
-          {trimmedLine.slice(2)}
-        </h1>
+    }
+    if (block.startsWith('## ')) {
+      return (
+        <h2 key={index} className="text-2xl sm:text-3xl font-bold text-gray-900 mt-14 mb-5 leading-tight">
+          {block.slice(3)}
+        </h2>
       )
     }
+    if (block.startsWith('### ')) {
+      return (
+        <h3 key={index} className="text-xl sm:text-2xl font-bold text-gray-900 mt-12 mb-4 leading-tight">
+          {block.slice(4)}
+        </h3>
+      )
+    }
+    if (block.startsWith('#### ')) {
+      return (
+        <h4 key={index} className="text-lg sm:text-xl font-semibold text-gray-900 mt-10 mb-3 leading-tight">
+          {block.slice(5)}
+        </h4>
+      )
+    }
+
     // Blockquotes
-    else if (trimmedLine.startsWith('> ')) {
-      flushList()
-      elements.push(
-        <blockquote key={index} className="border-l-4 border-orange-500 pl-4 py-2 my-6 bg-orange-50 rounded-r-lg italic text-gray-700">
-          {trimmedLine.slice(2)}
+    if (block.startsWith('>')) {
+      const quoteContent = block.split('\n').map(l => l.replace(/^>\s?/, '')).join(' ')
+      return (
+        <blockquote key={index} className="my-8 relative">
+          <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-orange-500 to-amber-500 rounded-full" />
+          <div className="pl-6 py-2">
+            <p 
+              className="text-xl italic text-gray-700 leading-relaxed"
+              dangerouslySetInnerHTML={{ __html: processInline(quoteContent) }}
+            />
+          </div>
         </blockquote>
       )
     }
-    // Code blocks (simple)
-    else if (trimmedLine.startsWith('```')) {
-      flushList()
-      // Skip code block markers for now
-    }
-    // Unordered lists
-    else if (trimmedLine.startsWith('- ') || trimmedLine.startsWith('* ')) {
-      if (listType !== 'ul') flushList()
-      listType = 'ul'
-      currentList.push(trimmedLine.slice(2))
-    }
-    // Ordered lists
-    else if (/^\d+\.\s/.test(trimmedLine)) {
-      if (listType !== 'ol') flushList()
-      listType = 'ol'
-      currentList.push(trimmedLine.replace(/^\d+\.\s/, ''))
-    }
-    // Regular paragraphs
-    else if (trimmedLine) {
-      flushList()
-      // Handle inline formatting
-      let formattedLine = trimmedLine
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-        .replace(/\*(.*?)\*/g, '<em>$1</em>')
-        .replace(/`(.*?)`/g, '<code class="bg-gray-100 px-1.5 py-0.5 rounded text-sm font-mono text-orange-600">$1</code>')
-        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-orange-600 hover:text-orange-700 underline">$1</a>')
-      
-      elements.push(
-        <p 
-          key={index} 
-          className="text-gray-700 leading-relaxed mb-4"
-          dangerouslySetInnerHTML={{ __html: formattedLine }}
-        />
+
+    // Horizontal rule
+    if (block === '---' || block === '***' || block === '___') {
+      return (
+        <hr key={index} className="my-12 border-none h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent" />
       )
     }
+
+    // Unordered lists
+    if (block.split('\n').every(line => line.trim().startsWith('- ') || line.trim().startsWith('* '))) {
+      const items = block.split('\n').map(line => line.trim().slice(2))
+      return (
+        <ul key={index} className="my-6 space-y-3">
+          {items.map((item, i) => (
+            <li key={i} className="flex items-start gap-3">
+              <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-orange-500 mt-2.5" />
+              <span 
+                className="text-lg text-gray-700 leading-relaxed"
+                dangerouslySetInnerHTML={{ __html: processInline(item) }}
+              />
+            </li>
+          ))}
+        </ul>
+      )
+    }
+
+    // Ordered lists
+    if (block.split('\n').every(line => /^\d+\.\s/.test(line.trim()))) {
+      const items = block.split('\n').map(line => line.trim().replace(/^\d+\.\s/, ''))
+      return (
+        <ol key={index} className="my-6 space-y-3 counter-reset-item">
+          {items.map((item, i) => (
+            <li key={i} className="flex items-start gap-4">
+              <span className="flex-shrink-0 w-7 h-7 rounded-full bg-orange-100 text-orange-600 font-semibold text-sm flex items-center justify-center mt-0.5">
+                {i + 1}
+              </span>
+              <span 
+                className="text-lg text-gray-700 leading-relaxed flex-1"
+                dangerouslySetInnerHTML={{ __html: processInline(item) }}
+              />
+            </li>
+          ))}
+        </ol>
+      )
+    }
+
+    // Regular paragraphs
+    const processedContent = processInline(block.replace(/\n/g, ' '))
+    
+    // Drop cap for first paragraph
+    if (isFirstParagraph && !block.startsWith('#') && !block.startsWith('>')) {
+      isFirstParagraph = false
+      const firstChar = block.charAt(0)
+      const restContent = processInline(block.slice(1).replace(/\n/g, ' '))
+      return (
+        <p key={index} className="text-lg sm:text-xl text-gray-700 leading-relaxed mb-6 first-letter:text-5xl first-letter:font-bold first-letter:text-orange-600 first-letter:float-left first-letter:mr-3 first-letter:mt-1">
+          <span dangerouslySetInnerHTML={{ __html: firstChar + restContent }} />
+        </p>
+      )
+    }
+
+    return (
+      <p 
+        key={index} 
+        className="text-lg text-gray-700 leading-relaxed mb-6"
+        dangerouslySetInnerHTML={{ __html: processedContent }}
+      />
+    )
   })
-  
-  flushList()
-  return elements
+
+  return <div className="article-content">{elements}</div>
 }
 
 export default function BlogPost() {
@@ -473,7 +565,7 @@ export default function BlogPost() {
         {/* Article Content */}
         <article className="px-4 sm:px-6 pb-16">
           <div className="max-w-3xl mx-auto">
-            <div className="prose prose-lg max-w-none">
+            <div className="article-body">
               {renderContent(post.content)}
             </div>
             
