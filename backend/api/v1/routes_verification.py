@@ -104,6 +104,70 @@ def start_verification(
     )
 
 
+class VerificationDebugResponse(BaseModel):
+    """Debug response for DNS verification."""
+    domain: str
+    expected_value: str
+    found_records: list
+    is_verified: bool
+    error: str | None
+
+
+@router.get("/{domain_id}/verification/debug", response_model=VerificationDebugResponse)
+def debug_verification(
+    domain_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    current_org: Organization = Depends(get_current_org),
+    current_role: OrganizationRole = Depends(role_required([OrganizationRole.OWNER, OrganizationRole.ADMIN]))
+):
+    """
+    Debug endpoint to see what DNS records are found for a domain.
+    """
+    import dns.resolver
+    
+    domain = db.query(DomainModel).filter(
+        DomainModel.id == domain_id,
+        DomainModel.organization_id == current_org.id
+    ).first()
+    
+    if not domain:
+        raise HTTPException(status_code=404, detail="Domain not found")
+    
+    if not domain.verification_token:
+        raise HTTPException(status_code=400, detail="No verification in progress")
+    
+    expected_value = f"preview-verification={domain.verification_token}"
+    found_records = []
+    error = None
+    is_verified = False
+    
+    try:
+        answers = dns.resolver.resolve(domain.name, 'TXT')
+        for answer in answers:
+            for txt_string in answer.strings:
+                txt_str = txt_string.decode('utf-8') if isinstance(txt_string, bytes) else str(txt_string)
+                found_records.append(txt_str)
+                if expected_value in txt_str or domain.verification_token in txt_str:
+                    is_verified = True
+    except dns.resolver.NXDOMAIN:
+        error = "Domain does not exist in DNS"
+    except dns.resolver.NoAnswer:
+        error = "No TXT records found for this domain"
+    except dns.resolver.Timeout:
+        error = "DNS query timed out"
+    except Exception as e:
+        error = f"DNS error: {str(e)}"
+    
+    return VerificationDebugResponse(
+        domain=domain.name,
+        expected_value=expected_value,
+        found_records=found_records,
+        is_verified=is_verified,
+        error=error
+    )
+
+
 @router.get("/{domain_id}/verification/check", response_model=Domain)
 def check_verification(
     domain_id: int,

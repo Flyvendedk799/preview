@@ -349,6 +349,16 @@ export async function checkDomainVerification(domainId: number): Promise<Domain>
   return fetchApi<Domain>(`/api/v1/domains/${domainId}/verification/check`)
 }
 
+export async function debugDomainVerification(domainId: number): Promise<{
+  domain: string
+  expected_value: string
+  found_records: string[]
+  is_verified: boolean
+  error: string | null
+}> {
+  return fetchApi(`/api/v1/domains/${domainId}/verification/debug`)
+}
+
 // Billing endpoints
 export async function createCheckoutSession(priceId: string): Promise<{ checkout_url: string }> {
   return fetchApi<{ checkout_url: string }>('/api/v1/billing/checkout', {

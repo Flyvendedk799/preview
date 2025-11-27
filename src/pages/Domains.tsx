@@ -18,10 +18,18 @@ import Modal from '../components/ui/Modal'
 import EmptyState from '../components/ui/EmptyState'
 import { SkeletonList } from '../components/ui/Skeleton'
 import { useDomains } from '../hooks/useDomains'
-import { startDomainVerification, checkDomainVerification } from '../api/client'
+import { startDomainVerification, checkDomainVerification, debugDomainVerification } from '../api/client'
 import type { Domain } from '../api/types'
 
 type VerificationStep = 'method' | 'instructions' | 'verifying' | 'success'
+
+interface DebugInfo {
+  domain: string
+  expected_value: string
+  found_records: string[]
+  is_verified: boolean
+  error: string | null
+}
 
 export default function Domains() {
   const { domains, loading, error: apiError, addDomain, removeDomain, refetch } = useDomains()
@@ -44,6 +52,8 @@ export default function Domains() {
   const [copiedField, setCopiedField] = useState<string | null>(null)
   const [autoCheckEnabled, setAutoCheckEnabled] = useState(true)
   const [checkAttempts, setCheckAttempts] = useState(0)
+  const [debugInfo, setDebugInfo] = useState<DebugInfo | null>(null)
+  const [isDebugging, setIsDebugging] = useState(false)
 
   // Auto-check verification every 10 seconds if enabled
   useEffect(() => {
@@ -186,6 +196,21 @@ export default function Domains() {
       }
     } finally {
       setIsCheckingVerification(false)
+    }
+  }
+
+  const handleDebugVerification = async () => {
+    if (!verifyingDomain) return
+    
+    try {
+      setIsDebugging(true)
+      setDebugInfo(null)
+      const result = await debugDomainVerification(verifyingDomain.id)
+      setDebugInfo(result)
+    } catch (err) {
+      setVerificationError(err instanceof Error ? err.message : 'Failed to debug verification')
+    } finally {
+      setIsDebugging(false)
     }
   }
 
@@ -808,6 +833,54 @@ export default function Domains() {
                     <ExclamationTriangleIcon className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
                     <p className="text-sm text-red-800">{verificationError}</p>
                   </div>
+                </div>
+              )}
+
+              {/* Debug Section for DNS */}
+              {verificationMethod === 'dns' && (
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-sm font-medium text-gray-700">DNS Debug Tool</h4>
+                    <Button 
+                      variant="secondary" 
+                      size="sm" 
+                      onClick={handleDebugVerification}
+                      disabled={isDebugging}
+                    >
+                      {isDebugging ? 'Checking...' : 'Check DNS Records'}
+                    </Button>
+                  </div>
+                  {debugInfo && (
+                    <div className="mt-3 space-y-2 text-xs font-mono bg-white p-3 rounded border">
+                      <p><span className="text-gray-500">Domain:</span> {debugInfo.domain}</p>
+                      <p><span className="text-gray-500">Expected:</span> <span className="text-green-600">{debugInfo.expected_value}</span></p>
+                      <div>
+                        <span className="text-gray-500">Found TXT Records:</span>
+                        {debugInfo.found_records.length > 0 ? (
+                          <ul className="mt-1 pl-4">
+                            {debugInfo.found_records.map((record, i) => (
+                              <li key={i} className={record.includes('preview-verification') ? 'text-green-600' : 'text-gray-700'}>
+                                {record}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <span className="ml-2 text-orange-600">None found</span>
+                        )}
+                      </div>
+                      {debugInfo.error && (
+                        <p className="text-red-600"><span className="text-gray-500">Error:</span> {debugInfo.error}</p>
+                      )}
+                      <p className="pt-2 border-t">
+                        <span className="text-gray-500">Status:</span>{' '}
+                        {debugInfo.is_verified ? (
+                          <span className="text-green-600 font-semibold">✓ Token found!</span>
+                        ) : (
+                          <span className="text-orange-600">Token not found yet</span>
+                        )}
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
 
