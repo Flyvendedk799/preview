@@ -214,15 +214,25 @@ def sync_subscription_status(
                 if items_data and len(items_data) > 0:
                     item = items_data[0]
                     logger.info(f"First item type: {type(item)}")
-                    logger.info(f"Item has price: {hasattr(item, 'price')}")
                     
-                    if hasattr(item, 'price'):
-                        price_id = item.price.id if hasattr(item.price, 'id') else None
+                    # Access price from item (could be dict or object)
+                    price_id = None
+                    price_obj = None
+                    
+                    if isinstance(item, dict):
+                        # Item is a dictionary
+                        if 'price' in item:
+                            price_obj = item['price']
+                            price_id = price_obj.get('id') if isinstance(price_obj, dict) else (price_obj.id if hasattr(price_obj, 'id') else None)
+                    elif hasattr(item, 'price'):
+                        # Item is an object with price attribute
                         price_obj = item.price
-                        
-                        logger.info(f"Extracted price_id from subscription: {price_id}")
-                        logger.info(f"Configured price IDs - Basic: '{settings.STRIPE_PRICE_TIER_BASIC}', Pro: '{settings.STRIPE_PRICE_TIER_PRO}', Agency: '{settings.STRIPE_PRICE_TIER_AGENCY}'")
-                        
+                        price_id = price_obj.id if hasattr(price_obj, 'id') else None
+                    
+                    logger.info(f"Extracted price_id: {price_id}")
+                    logger.info(f"Configured price IDs - Basic: '{settings.STRIPE_PRICE_TIER_BASIC}', Pro: '{settings.STRIPE_PRICE_TIER_PRO}', Agency: '{settings.STRIPE_PRICE_TIER_AGENCY}'")
+                    
+                    if price_id and price_obj:
                         # Check if price IDs are configured
                         if not settings.STRIPE_PRICE_TIER_BASIC and not settings.STRIPE_PRICE_TIER_PRO and not settings.STRIPE_PRICE_TIER_AGENCY:
                             logger.warning("No Stripe price tier IDs are configured in environment variables. Plan name extraction will rely on fallback methods.")
@@ -236,9 +246,15 @@ def sync_subscription_status(
                             plan_name = 'agency'
                         else:
                             # Second try: Extract from price nickname
-                            if hasattr(price_obj, 'nickname') and price_obj.nickname:
-                                nickname_lower = price_obj.nickname.lower()
-                                logger.info(f"Found price nickname: {price_obj.nickname}")
+                            nickname = None
+                            if isinstance(price_obj, dict):
+                                nickname = price_obj.get('nickname')
+                            elif hasattr(price_obj, 'nickname'):
+                                nickname = price_obj.nickname
+                            
+                            if nickname:
+                                nickname_lower = nickname.lower()
+                                logger.info(f"Found price nickname: {nickname}")
                                 if 'basic' in nickname_lower:
                                     plan_name = 'basic'
                                 elif 'pro' in nickname_lower:
@@ -247,34 +263,63 @@ def sync_subscription_status(
                                     plan_name = 'agency'
                             
                             # Third try: Extract from price metadata
-                            if not plan_name and hasattr(price_obj, 'metadata') and price_obj.metadata:
-                                logger.info(f"Price metadata: {price_obj.metadata}")
-                                if 'plan' in price_obj.metadata:
-                                    plan_name = price_obj.metadata['plan'].lower()
+                            if not plan_name:
+                                metadata = None
+                                if isinstance(price_obj, dict):
+                                    metadata = price_obj.get('metadata')
+                                elif hasattr(price_obj, 'metadata'):
+                                    metadata = price_obj.metadata
+                                
+                                if metadata:
+                                    logger.info(f"Price metadata: {metadata}")
+                                    if isinstance(metadata, dict) and 'plan' in metadata:
+                                        plan_name = metadata['plan'].lower()
                             
                             # Fourth try: Extract from product name
-                            if not plan_name and hasattr(price_obj, 'product'):
-                                # Product might be a string ID or an object
-                                product_id = price_obj.product if isinstance(price_obj.product, str) else price_obj.product.id
-                                try:
-                                    product = stripe.Product.retrieve(product_id)
-                                    if hasattr(product, 'name') and product.name:
-                                        product_name_lower = product.name.lower()
-                                        logger.info(f"Found product name: {product.name}")
-                                        if 'basic' in product_name_lower:
-                                            plan_name = 'basic'
-                                        elif 'pro' in product_name_lower:
-                                            plan_name = 'pro'
-                                        elif 'agency' in product_name_lower:
-                                            plan_name = 'agency'
-                                except Exception as product_err:
-                                    logger.warning(f"Could not retrieve product {product_id}: {str(product_err)}")
+                            if not plan_name:
+                                product_id = None
+                                if isinstance(price_obj, dict):
+                                    product_id = price_obj.get('product')
+                                elif hasattr(price_obj, 'product'):
+                                    product_id = price_obj.product
+                                
+                                if product_id:
+                                    # Product might be a string ID or an object
+                                    if isinstance(product_id, str):
+                                        product_id_str = product_id
+                                    elif isinstance(product_id, dict) and 'id' in product_id:
+                                        product_id_str = product_id['id']
+                                    elif hasattr(product_id, 'id'):
+                                        product_id_str = product_id.id
+                                    else:
+                                        product_id_str = None
+                                    
+                                    if product_id_str:
+                                        try:
+                                            product = stripe.Product.retrieve(product_id_str)
+                                            product_name = None
+                                            if isinstance(product, dict):
+                                                product_name = product.get('name')
+                                            elif hasattr(product, 'name'):
+                                                product_name = product.name
+                                            
+                                            if product_name:
+                                                product_name_lower = product_name.lower()
+                                                logger.info(f"Found product name: {product_name}")
+                                                if 'basic' in product_name_lower:
+                                                    plan_name = 'basic'
+                                                elif 'pro' in product_name_lower:
+                                                    plan_name = 'pro'
+                                                elif 'agency' in product_name_lower:
+                                                    plan_name = 'agency'
+                                        except Exception as product_err:
+                                            logger.warning(f"Could not retrieve product {product_id_str}: {str(product_err)}")
                             
                             if not plan_name:
                                 logger.warning(f"Price ID {price_id} does not match any configured price IDs and no fallback metadata found")
                                 plan_name = None
                     else:
-                        logger.warning("Item does not have price attribute")
+                        logger.warning("Could not extract price_id or price_obj from item")
                 else:
                     logger.warning("Subscription items.data is empty or None")
             else:
