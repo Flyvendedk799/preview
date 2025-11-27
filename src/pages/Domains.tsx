@@ -54,21 +54,57 @@ export default function Domains() {
   const [checkAttempts, setCheckAttempts] = useState(0)
   const [debugInfo, setDebugInfo] = useState<DebugInfo | null>(null)
   const [isDebugging, setIsDebugging] = useState(false)
+  const [autoCheckStatus, setAutoCheckStatus] = useState<'checking' | 'found' | 'not_found' | null>(null)
+  const [lastAutoCheckTime, setLastAutoCheckTime] = useState<Date | null>(null)
 
-  // Auto-check verification every 10 seconds if enabled
+  // Auto-check verification every 15 seconds on the instructions step
   useEffect(() => {
-    if (autoCheckEnabled && verificationStep === 'verifying' && verifyingDomain && verificationData) {
-      const interval = setInterval(async () => {
-        if (checkAttempts < 12) { // Max 12 attempts (2 minutes)
-          await handleCheckVerification(true)
-          setCheckAttempts(prev => prev + 1)
-        } else {
+    if (autoCheckEnabled && verificationStep === 'instructions' && verifyingDomain && verificationData) {
+      const runAutoCheck = async () => {
+        if (checkAttempts >= 24) { // Max 24 attempts (6 minutes)
           setAutoCheckEnabled(false)
+          return
         }
-      }, 10000)
-      return () => clearInterval(interval)
+        
+        setAutoCheckStatus('checking')
+        try {
+          const updatedDomain = await checkDomainVerification(verifyingDomain.id)
+          setLastAutoCheckTime(new Date())
+          
+          if (updatedDomain.status === 'verified') {
+            setAutoCheckStatus('found')
+            setVerificationStep('success')
+            setSuccessMessage(`Domain ${updatedDomain.name} has been verified successfully!`)
+            setAutoCheckEnabled(false)
+            setTimeout(async () => {
+              setIsVerificationModalOpen(false)
+              setVerifyingDomain(null)
+              setVerificationMethod(null)
+              setVerificationData(null)
+              setVerificationStep('method')
+              await refetch()
+            }, 2000)
+            setTimeout(() => setSuccessMessage(''), 5000)
+          } else {
+            setAutoCheckStatus('not_found')
+            setCheckAttempts(prev => prev + 1)
+          }
+        } catch {
+          setAutoCheckStatus('not_found')
+          setCheckAttempts(prev => prev + 1)
+        }
+      }
+      
+      // Run immediately on mount, then every 15 seconds
+      const timeoutId = setTimeout(runAutoCheck, 1000) // Initial check after 1 second
+      const interval = setInterval(runAutoCheck, 15000)
+      
+      return () => {
+        clearTimeout(timeoutId)
+        clearInterval(interval)
+      }
     }
-  }, [autoCheckEnabled, verificationStep, verifyingDomain, verificationData, checkAttempts])
+  }, [autoCheckEnabled, verificationStep, verifyingDomain?.id, verificationData, checkAttempts])
 
   const validateDomain = (domain: string): { valid: boolean; error?: string } => {
     const trimmed = domain.trim().toLowerCase()
@@ -143,6 +179,9 @@ export default function Domains() {
     setCopiedField(null)
     setAutoCheckEnabled(true)
     setCheckAttempts(0)
+    setAutoCheckStatus(null)
+    setLastAutoCheckTime(null)
+    setDebugInfo(null)
     setIsVerificationModalOpen(true)
   }
 
@@ -164,15 +203,18 @@ export default function Domains() {
     }
   }
 
-  const handleCheckVerification = async (silent = false) => {
+  const handleCheckVerification = async () => {
     if (!verifyingDomain) return
 
     try {
       setIsCheckingVerification(true)
-      if (!silent) setVerificationError('')
+      setVerificationStep('verifying')
+      setVerificationError('')
       const updatedDomain = await checkDomainVerification(verifyingDomain.id)
+      setLastAutoCheckTime(new Date())
       
       if (updatedDomain.status === 'verified') {
+        setAutoCheckStatus('found')
         setVerificationStep('success')
         setSuccessMessage(`Domain ${updatedDomain.name} has been verified successfully!`)
         setAutoCheckEnabled(false)
@@ -186,14 +228,15 @@ export default function Domains() {
         }, 2000)
         setTimeout(() => setSuccessMessage(''), 5000)
       } else {
-        if (!silent) {
-          setVerificationError('Verification not yet complete. Please ensure you have completed the steps above. DNS changes may take 30-60 seconds to propagate.')
-        }
+        setAutoCheckStatus('not_found')
+        setVerificationError('Record not found yet. DNS changes can take a few minutes to propagate. Auto-check will keep trying.')
+        // Go back to instructions so auto-check can continue
+        setTimeout(() => setVerificationStep('instructions'), 1500)
       }
     } catch (err) {
-      if (!silent) {
-        setVerificationError(err instanceof Error ? err.message : 'Failed to check verification')
-      }
+      setAutoCheckStatus('not_found')
+      setVerificationError(err instanceof Error ? err.message : 'Failed to check verification')
+      setTimeout(() => setVerificationStep('instructions'), 1500)
     } finally {
       setIsCheckingVerification(false)
     }
@@ -884,20 +927,61 @@ export default function Domains() {
                 </div>
               )}
 
+              {/* Auto-check Status Indicator */}
+              {autoCheckEnabled && (
+                <div className={`flex items-center justify-between p-3 rounded-lg border ${
+                  autoCheckStatus === 'found' 
+                    ? 'bg-green-50 border-green-200' 
+                    : autoCheckStatus === 'not_found'
+                    ? 'bg-orange-50 border-orange-200'
+                    : 'bg-blue-50 border-blue-200'
+                }`}>
+                  <div className="flex items-center space-x-3">
+                    <div className={`w-3 h-3 rounded-full ${
+                      autoCheckStatus === 'found'
+                        ? 'bg-green-500'
+                        : autoCheckStatus === 'not_found'
+                        ? 'bg-orange-500'
+                        : 'bg-blue-500 animate-pulse'
+                    }`} />
+                    <div>
+                      <p className={`text-sm font-medium ${
+                        autoCheckStatus === 'found'
+                          ? 'text-green-800'
+                          : autoCheckStatus === 'not_found'
+                          ? 'text-orange-800'
+                          : 'text-blue-800'
+                      }`}>
+                        {autoCheckStatus === 'checking' && 'Checking DNS records...'}
+                        {autoCheckStatus === 'found' && '✓ Verification record found!'}
+                        {autoCheckStatus === 'not_found' && 'Record not found yet'}
+                        {!autoCheckStatus && 'Auto-check starting...'}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {lastAutoCheckTime && `Last checked: ${lastAutoCheckTime.toLocaleTimeString()}`}
+                        {!lastAutoCheckTime && 'Checking every 15 seconds'}
+                        {autoCheckStatus === 'not_found' && ` • Attempt ${checkAttempts}/24`}
+                      </p>
+                    </div>
+                  </div>
+                  {autoCheckStatus === 'not_found' && (
+                    <button
+                      onClick={() => setAutoCheckEnabled(false)}
+                      className="text-xs text-gray-500 hover:text-gray-700"
+                    >
+                      Stop
+                    </button>
+                  )}
+                </div>
+              )}
+
               <div className="flex items-center justify-between pt-4 border-t border-gray-200">
                 <Button variant="secondary" onClick={() => setVerificationStep('method')}>
                   Back
                 </Button>
                 <div className="flex items-center space-x-3">
-                  {autoCheckEnabled && (
-                    <div className="flex items-center space-x-2 text-sm text-gray-600">
-                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                      <span>Auto-checking...</span>
-                    </div>
-                  )}
                   <Button 
                     onClick={() => {
-                      setVerificationStep('verifying')
                       handleCheckVerification()
                     }} 
                     disabled={isCheckingVerification}
@@ -919,22 +1003,18 @@ export default function Domains() {
             </div>
           )}
 
-          {/* Verifying State */}
+          {/* Verifying State (manual check in progress) */}
           {verificationStep === 'verifying' && (
             <div className="text-center py-8">
               <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Verifying your domain...</h3>
               <p className="text-sm text-gray-600 mb-4">
-                This may take a few moments. We're checking your verification settings.
+                Checking your DNS records now...
               </p>
-              {autoCheckEnabled && (
-                <p className="text-xs text-gray-500">
-                  Auto-checking every 10 seconds ({checkAttempts}/12 attempts)
-                </p>
-              )}
               {verificationError && (
-                <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-4">
-                  <p className="text-sm text-red-800">{verificationError}</p>
+                <div className="mt-4 bg-orange-50 border border-orange-200 rounded-lg p-4">
+                  <p className="text-sm text-orange-800">{verificationError}</p>
+                  <p className="text-xs text-gray-500 mt-2">DNS propagation can take a few minutes. The auto-check will keep trying.</p>
                 </div>
               )}
               <Button 
