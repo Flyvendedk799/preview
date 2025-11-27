@@ -181,19 +181,42 @@ def sync_subscription_status(
         subscription_id = subscriptions.data[0].id
         
         # Retrieve the subscription individually to get expanded items
-        subscription = stripe.Subscription.retrieve(subscription_id)
+        # Use expand to get full item details
+        subscription = stripe.Subscription.retrieve(
+            subscription_id,
+            expand=['items.data.price.product']
+        )
         status_str = subscription.status
         plan_name = None
         
         logger.info(f"Retrieved subscription {subscription_id}, status: {status_str}")
-        logger.info(f"Subscription items type: {type(subscription.items)}")
-        logger.info(f"Has items.data: {hasattr(subscription.items, 'data')}")
         
         # Extract plan name from subscription items
-        # subscription.items is a ListObject with a .data attribute
+        # In Stripe Python SDK, subscription.items is a ListObject
         try:
-            if subscription.items and hasattr(subscription.items, 'data'):
-                items_data = subscription.items.data
+            # Access items - it might be a property or need to be accessed differently
+            # Try accessing as attribute first
+            items_list = getattr(subscription, 'items', None)
+            
+            # If items is callable (a method), call it
+            if callable(items_list):
+                logger.info("Items is callable, calling it...")
+                items_list = items_list()
+            
+            logger.info(f"Subscription items type: {type(items_list)}")
+            
+            # Get the data from the ListObject
+            if items_list:
+                # Try accessing as attribute
+                if hasattr(items_list, 'data'):
+                    items_data = items_list.data
+                # Try accessing as dictionary
+                elif isinstance(items_list, dict) and 'data' in items_list:
+                    items_data = items_list['data']
+                else:
+                    # If items_list itself is a list, use it directly
+                    items_data = items_list if isinstance(items_list, list) else None
+                
                 logger.info(f"Items data length: {len(items_data) if items_data else 0}")
                 
                 if items_data and len(items_data) > 0:
