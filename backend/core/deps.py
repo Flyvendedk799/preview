@@ -159,6 +159,9 @@ def get_admin_user(
     
     return current_user
 
+# Alias for backwards compatibility
+get_current_admin = get_admin_user
+
 
 def get_org_from_path(
     org_id: int = Path(..., description="Organization ID from path"),
