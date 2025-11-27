@@ -1091,7 +1091,7 @@ export default function Landing() {
                 </p>
                 <div className="flex flex-col sm:flex-row gap-3">
                   <a
-                    href={`${getApiBaseUrl()}/docs`}
+                    href="/docs"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="group relative px-6 py-3.5 bg-white text-orange-600 rounded-xl font-bold text-sm transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] hover:shadow-xl inline-flex items-center justify-center overflow-hidden"
@@ -1136,7 +1136,7 @@ export default function Landing() {
               {
                 title: 'API Reference',
                 description: 'Complete API documentation with authentication, endpoints, and examples.',
-                link: `${getApiBaseUrl()}/docs`,
+                link: '/docs',
                 external: true,
                 icon: CodeBracketIcon,
                 color: 'blue',
