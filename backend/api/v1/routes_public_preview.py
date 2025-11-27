@@ -16,6 +16,14 @@ from backend.services.cache import (
 )
 from backend.services.rate_limiter import check_rate_limit, get_rate_limit_key_for_ip
 from backend.services.activity_logger import get_client_ip
+from backend.utils.crawler_detection import (
+    detect_crawler,
+    log_crawler_detection,
+    get_crawler_metadata
+)
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/public", tags=["public"])
 
@@ -33,6 +41,11 @@ def get_public_preview(
     
     If variant is provided, returns variant metadata instead of main preview.
     """
+    # Detect and log crawler user agents (prep work for future server-side interception)
+    user_agent = request.headers.get("user-agent") if request else None
+    crawler_name, platform = detect_crawler(user_agent)
+    log_crawler_detection(user_agent, full_url, crawler_name, platform)
+    
     # Rate limiting: 200 requests per 5 minutes per IP
     client_ip = get_client_ip(request)
     rate_limit_key = get_rate_limit_key_for_ip(client_ip, "public_preview")
@@ -52,11 +65,29 @@ def get_public_preview(
             detail=str(e)
         )
     
-    return _get_preview_logic(full_url, db, variant)
+    return _get_preview_logic(full_url, db, variant, crawler_name)
 
 
-def _get_preview_logic(full_url: str, db: Session, variant: str = None) -> PublicPreview:
-    """Core logic for getting preview metadata."""
+def _normalize_url_for_matching(url: str) -> str:
+    """
+    Normalize URL for deterministic matching.
+    
+    This ensures the same URL always matches the same preview,
+    regardless of query params, fragments, or trailing slashes.
+    """
+    parsed = urlparse(url)
+    # Normalize: scheme + netloc + path (ignore query and fragment for matching)
+    normalized = f"{parsed.scheme}://{parsed.netloc}{parsed.path}".rstrip('/')
+    return normalized
+
+
+def _get_preview_logic(full_url: str, db: Session, variant: str = None, crawler_name: str = None) -> PublicPreview:
+    """
+    Core logic for getting preview metadata.
+    
+    This function is deterministic: the same URL always returns the same preview
+    (or fallback) for reliability and caching.
+    """
     try:
         parsed = urlparse(full_url)
         hostname = parsed.netloc or parsed.path.split('/')[0]
@@ -92,7 +123,8 @@ def _get_preview_logic(full_url: str, db: Session, variant: str = None) -> Publi
                 title=hostname or "Untitled Page",
                 description="Preview not configured yet.",
                 image_url=settings.PLACEHOLDER_IMAGE_URL,
-                site_name=hostname
+                site_name=hostname,
+                status="fallback"
             )
         
         # Domain found - check if verified
@@ -104,7 +136,8 @@ def _get_preview_logic(full_url: str, db: Session, variant: str = None) -> Publi
                 description="Domain not verified.",
                 image_url=settings.PLACEHOLDER_IMAGE_URL,
                 site_name=hostname,
-                type=None
+                type=None,
+                status="fallback"
             )
         
         # Domain found - get organization_id
@@ -117,23 +150,34 @@ def _get_preview_logic(full_url: str, db: Session, variant: str = None) -> Publi
                 title=hostname or "Untitled Page",
                 description="Preview not configured yet.",
                 image_url=settings.PLACEHOLDER_IMAGE_URL,
-                site_name=hostname
+                site_name=hostname,
+                status="fallback"
             )
         
         # Try cache first for preview metadata
         preview = None
         preview_cache_key = None
         
+        # Normalize URL for deterministic matching
+        normalized_url = _normalize_url_for_matching(full_url)
+        
         # Try to find a matching preview for this organization and URL
-        # Match on exact URL or path-only
+        # Match on normalized URL first (most deterministic)
         preview = db.query(PreviewModel).filter(
             PreviewModel.organization_id == organization_id,
-            PreviewModel.url == full_url
+            PreviewModel.url == normalized_url
         ).first()
         
-        # If no exact match, try matching on path only
+        # If no normalized match, try exact URL match
+        if not preview:
+            preview = db.query(PreviewModel).filter(
+                PreviewModel.organization_id == organization_id,
+                PreviewModel.url == full_url
+            ).first()
+        
+        # If still no match, try matching on path only (for legacy URLs)
         if not preview and parsed.path:
-            path_only = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
+            path_only = f"{parsed.scheme}://{parsed.netloc}{parsed.path}".rstrip('/')
             preview = db.query(PreviewModel).filter(
                 PreviewModel.organization_id == organization_id,
                 PreviewModel.url == path_only
@@ -158,24 +202,32 @@ def _get_preview_logic(full_url: str, db: Session, variant: str = None) -> Publi
                 
                 if variant_obj:
                     # Use variant data
+                    # Determine status: fully_generated if has AI content, otherwise pending_ai
+                    preview_status = "fully_generated" if preview.ai_reasoning else "pending_ai"
                     return PublicPreview(
                         url=full_url,
                         title=variant_obj.title,
                         description=variant_obj.description if variant_obj.description else "No preview description available.",
                         image_url=variant_obj.image_url or preview.highlight_image_url or preview.image_url or settings.PLACEHOLDER_IMAGE_URL,
                         site_name=domain.name,
-                        type=preview.type
+                        type=preview.type,
+                        status=preview_status,
+                        version=variant_obj.variant_key  # Use variant key as version for A/B testing
                     )
                 # Variant not found, fall through to main preview
             
             # Use main preview data
+            # Determine status: fully_generated if has AI content, otherwise pending_ai
+            preview_status = "fully_generated" if preview.ai_reasoning else "pending_ai"
             return PublicPreview(
                 url=full_url,
                 title=preview.title,
                 description=preview.description if preview.description else "No preview description available.",
                 image_url=preview.image_url if preview.image_url else settings.PLACEHOLDER_IMAGE_URL,
                 site_name=domain.name,
-                type=preview.type
+                type=preview.type,
+                status=preview_status,
+                version="main"  # Main preview version
             )
         else:
             # Domain exists but no preview found - return fallback with placeholder
@@ -185,16 +237,19 @@ def _get_preview_logic(full_url: str, db: Session, variant: str = None) -> Publi
                 title=hostname or "Untitled Page",
                 description="Preview not generated yet.",
                 image_url=settings.PLACEHOLDER_IMAGE_URL,
-                site_name=hostname
+                site_name=hostname,
+                status="fallback"
             )
             
     except Exception as e:
         # On any error, return a safe fallback with placeholder
+        logger.error(f"Error generating preview for {full_url}: {e}", exc_info=True)
         return PublicPreview(
             url=full_url,
             title="Untitled Page",
             description="Preview not available.",
             image_url=settings.PLACEHOLDER_IMAGE_URL,
-            site_name=None
+            site_name=None,
+            status="fallback"
         )
 
