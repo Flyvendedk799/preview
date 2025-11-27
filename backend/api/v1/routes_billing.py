@@ -189,10 +189,14 @@ def sync_subscription_status(
         # subscription.items is a ListObject with a .data attribute
         try:
             if subscription.items and hasattr(subscription.items, 'data') and subscription.items.data:
-                price_id = subscription.items.data[0].price.id
+                item = subscription.items.data[0]
+                price_id = item.price.id
+                price_obj = item.price
+                
                 logger.info(f"Extracted price_id from subscription: {price_id}")
                 logger.info(f"Configured price IDs - Basic: {settings.STRIPE_PRICE_TIER_BASIC}, Pro: {settings.STRIPE_PRICE_TIER_PRO}, Agency: {settings.STRIPE_PRICE_TIER_AGENCY}")
                 
+                # First try: Match against configured price IDs
                 if price_id == settings.STRIPE_PRICE_TIER_BASIC:
                     plan_name = 'basic'
                 elif price_id == settings.STRIPE_PRICE_TIER_PRO:
@@ -200,14 +204,43 @@ def sync_subscription_status(
                 elif price_id == settings.STRIPE_PRICE_TIER_AGENCY:
                     plan_name = 'agency'
                 else:
-                    # Try to extract plan name from price metadata or nickname
-                    price_obj = subscription.items.data[0].price
+                    # Second try: Extract from price nickname
                     if hasattr(price_obj, 'nickname') and price_obj.nickname:
-                        plan_name = price_obj.nickname.lower()
-                    elif hasattr(price_obj, 'metadata') and price_obj.metadata and 'plan' in price_obj.metadata:
-                        plan_name = price_obj.metadata['plan'].lower()
-                    else:
-                        logger.warning(f"Price ID {price_id} does not match any configured price IDs and no metadata found")
+                        nickname_lower = price_obj.nickname.lower()
+                        logger.info(f"Found price nickname: {price_obj.nickname}")
+                        if 'basic' in nickname_lower:
+                            plan_name = 'basic'
+                        elif 'pro' in nickname_lower:
+                            plan_name = 'pro'
+                        elif 'agency' in nickname_lower:
+                            plan_name = 'agency'
+                    
+                    # Third try: Extract from price metadata
+                    if not plan_name and hasattr(price_obj, 'metadata') and price_obj.metadata:
+                        logger.info(f"Price metadata: {price_obj.metadata}")
+                        if 'plan' in price_obj.metadata:
+                            plan_name = price_obj.metadata['plan'].lower()
+                    
+                    # Fourth try: Extract from product name
+                    if not plan_name and hasattr(price_obj, 'product'):
+                        # Product might be a string ID or an object
+                        product_id = price_obj.product if isinstance(price_obj.product, str) else price_obj.product.id
+                        try:
+                            product = stripe.Product.retrieve(product_id)
+                            if hasattr(product, 'name') and product.name:
+                                product_name_lower = product.name.lower()
+                                logger.info(f"Found product name: {product.name}")
+                                if 'basic' in product_name_lower:
+                                    plan_name = 'basic'
+                                elif 'pro' in product_name_lower:
+                                    plan_name = 'pro'
+                                elif 'agency' in product_name_lower:
+                                    plan_name = 'agency'
+                        except Exception as product_err:
+                            logger.warning(f"Could not retrieve product {product_id}: {str(product_err)}")
+                    
+                    if not plan_name:
+                        logger.warning(f"Price ID {price_id} does not match any configured price IDs and no fallback metadata found")
                         plan_name = None
         except Exception as e:
             logger.error(f"Could not extract plan name from subscription: {str(e)}", exc_info=True)
