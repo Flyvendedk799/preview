@@ -34,6 +34,7 @@ export default function Billing() {
     }
   }, [])
 
+
   const loadBillingStatus = async () => {
     try {
       setLoading(true)
@@ -146,6 +147,53 @@ export default function Billing() {
     return diffDays > 0 ? diffDays : 0
   }
 
+  const getPlanDetails = (planName: string | null | undefined) => {
+    if (!planName) return null
+    
+    const planLower = planName.toLowerCase()
+    const plans = {
+      basic: {
+        name: 'Basic',
+        price: '$9',
+        period: '/mo',
+        features: [
+          '100 previews/month',
+          'Basic support',
+          'Standard features',
+        ],
+      },
+      pro: {
+        name: 'Pro',
+        price: '$29',
+        period: '/mo',
+        features: [
+          '1,000 previews/month',
+          'Priority support',
+          'Advanced features',
+          'API access',
+        ],
+      },
+      agency: {
+        name: 'Agency',
+        price: '$99',
+        period: '/mo',
+        features: [
+          'Unlimited previews',
+          'Dedicated support',
+          'White-label options',
+          'Custom integrations',
+        ],
+      },
+    }
+    
+    return plans[planLower as keyof typeof plans] || null
+  }
+
+  const formatPlanName = (planName: string | null | undefined) => {
+    if (!planName) return null
+    return planName.charAt(0).toUpperCase() + planName.slice(1).toLowerCase()
+  }
+
   return (
     <div>
       <div className="mb-6">
@@ -182,13 +230,43 @@ export default function Billing() {
                 </div>
                 <div className="text-right">
                   <p className="text-sm text-gray-600">Plan</p>
-                  <p className="mt-1 text-lg font-semibold text-gray-900 capitalize">
+                  <p className="mt-1 text-lg font-semibold text-gray-900">
                     {billingStatus?.subscription_status === 'active' 
-                      ? (billingStatus?.subscription_plan || 'Active Subscription')
-                      : (billingStatus?.subscription_plan || 'Free')}
+                      ? (formatPlanName(billingStatus?.subscription_plan) || 'Active Subscription')
+                      : (formatPlanName(billingStatus?.subscription_plan) || 'Free')}
                   </p>
                 </div>
               </div>
+
+              {/* Current Plan Benefits */}
+              {billingStatus?.subscription_status === 'active' && getPlanDetails(billingStatus?.subscription_plan) && (
+                <div className="bg-primary/5 border border-primary/20 rounded-lg p-6 mt-4">
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <h3 className="text-lg font-semibold text-secondary mb-1">
+                        {getPlanDetails(billingStatus?.subscription_plan)?.name} Plan
+                      </h3>
+                      <p className="text-2xl font-bold text-primary">
+                        {getPlanDetails(billingStatus?.subscription_plan)?.price}
+                        <span className="text-base text-gray-600 font-normal">
+                          {getPlanDetails(billingStatus?.subscription_plan)?.period}
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-700 mb-3">Your plan includes:</p>
+                    <ul className="space-y-2">
+                      {getPlanDetails(billingStatus?.subscription_plan)?.features.map((feature, index) => (
+                        <li key={index} className="flex items-center text-sm text-gray-600">
+                          <CheckCircleIcon className="w-5 h-5 text-primary mr-2 flex-shrink-0" />
+                          {feature}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
 
               {billingStatus?.trial_ends_at && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
