@@ -1,0 +1,291 @@
+"""
+Preview caching service for AI visual focus system.
+
+Provides URL-based caching to:
+- Avoid redundant AI calls for the same URL
+- Reduce costs and latency
+- Provide consistent results for identical URLs
+"""
+import json
+import hashlib
+import logging
+from typing import Optional, Dict, Any, Tuple
+from datetime import datetime, timedelta
+import redis
+from backend.core.config import settings
+
+logger = logging.getLogger("preview_worker")
+
+
+# =============================================================================
+# CACHE CONFIGURATION
+# =============================================================================
+
+class CacheConfig:
+    """Cache configuration settings."""
+    # Cache TTL (time to live)
+    DEFAULT_TTL_HOURS: int = 24
+    MAX_TTL_HOURS: int = 168  # 7 days
+    
+    # Cache key prefixes
+    PREVIEW_PREFIX: str = "preview:focus:"
+    ANALYSIS_PREFIX: str = "preview:analysis:"
+    
+    # Size limits
+    MAX_CACHED_ANALYSIS_SIZE: int = 10000  # bytes
+
+
+# =============================================================================
+# CACHE KEY GENERATION
+# =============================================================================
+
+def generate_cache_key(url: str, prefix: str = CacheConfig.PREVIEW_PREFIX) -> str:
+    """
+    Generate a deterministic cache key for a URL.
+    
+    Uses MD5 hash for consistent, fixed-length keys.
+    """
+    url_normalized = url.lower().strip().rstrip('/')
+    url_hash = hashlib.md5(url_normalized.encode()).hexdigest()
+    return f"{prefix}{url_hash}"
+
+
+# =============================================================================
+# REDIS CLIENT
+# =============================================================================
+
+_redis_client: Optional[redis.Redis] = None
+
+
+def get_redis_client() -> Optional[redis.Redis]:
+    """Get or create Redis client."""
+    global _redis_client
+    
+    if _redis_client is not None:
+        return _redis_client
+    
+    if not settings.REDIS_URL:
+        logger.warning("REDIS_URL not configured, caching disabled")
+        return None
+    
+    try:
+        _redis_client = redis.from_url(
+            settings.REDIS_URL,
+            decode_responses=True,
+            socket_timeout=5,
+            socket_connect_timeout=5
+        )
+        # Test connection
+        _redis_client.ping()
+        logger.info("Redis cache connected")
+        return _redis_client
+    except Exception as e:
+        logger.warning(f"Redis connection failed, caching disabled: {e}")
+        return None
+
+
+# =============================================================================
+# CACHE OPERATIONS
+# =============================================================================
+
+def get_cached_analysis(url: str) -> Optional[Dict[str, Any]]:
+    """
+    Get cached AI analysis for a URL.
+    
+    Returns:
+        Cached analysis dict or None if not found/expired
+    """
+    client = get_redis_client()
+    if client is None:
+        return None
+    
+    try:
+        key = generate_cache_key(url, CacheConfig.ANALYSIS_PREFIX)
+        data = client.get(key)
+        
+        if data:
+            cached = json.loads(data)
+            logger.debug(f"Cache hit for URL analysis: {url[:50]}...")
+            return cached
+        
+        return None
+        
+    except Exception as e:
+        logger.warning(f"Cache read error: {e}")
+        return None
+
+
+def cache_analysis(
+    url: str, 
+    analysis: Dict[str, Any],
+    ttl_hours: int = CacheConfig.DEFAULT_TTL_HOURS
+) -> bool:
+    """
+    Cache AI analysis for a URL.
+    
+    Args:
+        url: Source URL
+        analysis: Analysis result to cache
+        ttl_hours: Cache TTL in hours
+        
+    Returns:
+        True if cached successfully
+    """
+    client = get_redis_client()
+    if client is None:
+        return False
+    
+    try:
+        key = generate_cache_key(url, CacheConfig.ANALYSIS_PREFIX)
+        
+        # Add cache metadata
+        cache_data = {
+            **analysis,
+            "_cached_at": datetime.utcnow().isoformat(),
+            "_url_hash": key.split(":")[-1]
+        }
+        
+        data = json.dumps(cache_data)
+        
+        # Check size limit
+        if len(data) > CacheConfig.MAX_CACHED_ANALYSIS_SIZE:
+            logger.warning(f"Analysis too large to cache: {len(data)} bytes")
+            return False
+        
+        # Set with TTL
+        ttl_seconds = min(ttl_hours, CacheConfig.MAX_TTL_HOURS) * 3600
+        client.setex(key, ttl_seconds, data)
+        
+        logger.debug(f"Cached analysis for URL: {url[:50]}...")
+        return True
+        
+    except Exception as e:
+        logger.warning(f"Cache write error: {e}")
+        return False
+
+
+def get_cached_preview_urls(url: str) -> Optional[Tuple[str, str]]:
+    """
+    Get cached preview image URLs for a source URL.
+    
+    Returns:
+        Tuple of (main_image_url, highlight_image_url) or None
+    """
+    client = get_redis_client()
+    if client is None:
+        return None
+    
+    try:
+        key = generate_cache_key(url, CacheConfig.PREVIEW_PREFIX)
+        data = client.get(key)
+        
+        if data:
+            cached = json.loads(data)
+            logger.debug(f"Cache hit for preview URLs: {url[:50]}...")
+            return (cached.get("main_url"), cached.get("highlight_url"))
+        
+        return None
+        
+    except Exception as e:
+        logger.warning(f"Cache read error: {e}")
+        return None
+
+
+def cache_preview_urls(
+    url: str,
+    main_url: str,
+    highlight_url: str,
+    ttl_hours: int = CacheConfig.DEFAULT_TTL_HOURS
+) -> bool:
+    """
+    Cache preview image URLs for a source URL.
+    
+    Args:
+        url: Source URL
+        main_url: Main screenshot URL
+        highlight_url: Highlight image URL
+        ttl_hours: Cache TTL in hours
+        
+    Returns:
+        True if cached successfully
+    """
+    client = get_redis_client()
+    if client is None:
+        return False
+    
+    try:
+        key = generate_cache_key(url, CacheConfig.PREVIEW_PREFIX)
+        
+        cache_data = {
+            "main_url": main_url,
+            "highlight_url": highlight_url,
+            "cached_at": datetime.utcnow().isoformat()
+        }
+        
+        data = json.dumps(cache_data)
+        ttl_seconds = min(ttl_hours, CacheConfig.MAX_TTL_HOURS) * 3600
+        client.setex(key, ttl_seconds, data)
+        
+        logger.debug(f"Cached preview URLs for: {url[:50]}...")
+        return True
+        
+    except Exception as e:
+        logger.warning(f"Cache write error: {e}")
+        return False
+
+
+def invalidate_cache(url: str) -> bool:
+    """
+    Invalidate all cache entries for a URL.
+    
+    Call this when a preview needs to be regenerated.
+    """
+    client = get_redis_client()
+    if client is None:
+        return False
+    
+    try:
+        keys = [
+            generate_cache_key(url, CacheConfig.PREVIEW_PREFIX),
+            generate_cache_key(url, CacheConfig.ANALYSIS_PREFIX)
+        ]
+        
+        deleted = client.delete(*keys)
+        logger.info(f"Invalidated {deleted} cache entries for: {url[:50]}...")
+        return True
+        
+    except Exception as e:
+        logger.warning(f"Cache invalidation error: {e}")
+        return False
+
+
+# =============================================================================
+# CACHE STATISTICS
+# =============================================================================
+
+def get_cache_stats() -> Dict[str, Any]:
+    """Get cache statistics for monitoring."""
+    client = get_redis_client()
+    if client is None:
+        return {"enabled": False}
+    
+    try:
+        info = client.info("stats")
+        keyspace = client.info("keyspace")
+        
+        # Count preview-related keys
+        preview_keys = len(list(client.scan_iter(f"{CacheConfig.PREVIEW_PREFIX}*", count=1000)))
+        analysis_keys = len(list(client.scan_iter(f"{CacheConfig.ANALYSIS_PREFIX}*", count=1000)))
+        
+        return {
+            "enabled": True,
+            "preview_entries": preview_keys,
+            "analysis_entries": analysis_keys,
+            "total_hits": info.get("keyspace_hits", 0),
+            "total_misses": info.get("keyspace_misses", 0),
+            "memory_used": info.get("used_memory_human", "unknown")
+        }
+        
+    except Exception as e:
+        return {"enabled": True, "error": str(e)}
+

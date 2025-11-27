@@ -9,7 +9,7 @@ from backend.middleware.security_headers import SecurityHeadersMiddleware
 from backend.middleware.request_id import RequestIDMiddleware
 from backend.middleware.request_logging import RequestLoggingMiddleware
 from backend.utils.logger import setup_logging
-from backend.api.v1 import routes_auth, routes_domains, routes_brand, routes_previews, routes_analytics, routes_public_preview, routes_jobs, routes_verification, routes_billing, routes_webhooks, routes_activity, routes_tracking, routes_analytics_extended, routes_organizations, routes_preview_variants, routes_account, routes_blog
+from backend.api.v1 import routes_auth, routes_domains, routes_brand, routes_previews, routes_analytics, routes_public_preview, routes_jobs, routes_verification, routes_billing, routes_webhooks, routes_activity, routes_tracking, routes_analytics_extended, routes_organizations, routes_preview_variants, routes_account, routes_blog, routes_preview_debug
 from backend.api.admin import routes_admin
 
 # DEV ONLY: Testing endpoints (disabled in production)
@@ -175,6 +175,10 @@ app.include_router(
 )
 app.include_router(
     routes_blog.router,
+    prefix=settings.API_V1_PREFIX,
+)
+app.include_router(
+    routes_preview_debug.router,
     prefix=settings.API_V1_PREFIX,
 )
 
