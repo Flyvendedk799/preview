@@ -46,7 +46,12 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 # nginx:alpine automatically processes .template files in /etc/nginx/templates/
 # and substitutes ${VAR} environment variables using envsubst at container startup
 # Set BACKEND_API_URL environment variable in Railway to your backend Railway domain
+# Or it will be auto-derived from VITE_API_BASE_URL if available
 COPY nginx.conf /etc/nginx/templates/default.conf.template
+
+# Copy custom entrypoint script
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint-custom.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint-custom.sh
 
 # Expose port
 EXPOSE 80
@@ -55,6 +60,7 @@ EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD wget --quiet --tries=1 --spider http://localhost/ || exit 1
 
-# Start nginx
+# Use custom entrypoint that sets BACKEND_API_URL before nginx starts
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint-custom.sh"]
 CMD ["nginx", "-g", "daemon off;"]
 
