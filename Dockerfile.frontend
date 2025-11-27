@@ -43,9 +43,10 @@ FROM nginx:alpine
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Copy nginx configuration template
+# nginx:alpine automatically processes .template files in /etc/nginx/templates/
+# and substitutes ${VAR} environment variables using envsubst at container startup
+# Set BACKEND_API_URL environment variable in Railway to your backend Railway domain
 COPY nginx.conf /etc/nginx/templates/default.conf.template
-
-# nginx will use envsubst to substitute environment variables at runtime
 
 # Expose port
 EXPOSE 80
