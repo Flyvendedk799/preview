@@ -618,30 +618,83 @@ export default function Previews() {
             </select>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Image URL (optional)
-            </label>
-            <input
-              type="url"
-              placeholder="https://example.com/image.jpg"
-              value={formData.image_url || ''}
-              onChange={(e) => {
-                setFormData({ ...formData, image_url: e.target.value || null })
-                setFormError(null)
-              }}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
-            />
-            <p className="text-xs text-gray-500 mt-1">Leave empty for now. AI generation coming soon.</p>
-          </div>
+          {/* Only show image URL for editing, not for new previews using AI */}
+          {editingPreview !== null && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Image URL (optional)
+              </label>
+              <input
+                type="url"
+                placeholder="https://example.com/image.jpg"
+                value={formData.image_url || ''}
+                onChange={(e) => {
+                  setFormData({ ...formData, image_url: e.target.value || null })
+                  setFormError(null)
+                }}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
+              />
+              <p className="text-xs text-gray-500 mt-1">Override the AI-generated image with a custom URL.</p>
+            </div>
+          )}
+
+          {/* AI Generation Status */}
+          {isGeneratingAI && jobStatus && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-center space-x-3">
+                <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                <div>
+                  <p className="text-sm font-medium text-blue-800">
+                    {jobStatus === 'queued' && 'Queued - Waiting to process...'}
+                    {jobStatus === 'started' && 'Processing - Capturing screenshot & analyzing with AI...'}
+                    {jobStatus === 'finished' && 'Complete!'}
+                    {jobStatus === 'failed' && 'Failed - Please try again'}
+                  </p>
+                  <p className="text-xs text-blue-600 mt-1">
+                    AI is capturing a screenshot, detecting the focal region, and generating optimized preview content.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="flex items-center justify-end space-x-3 pt-4">
-            <Button variant="secondary" onClick={handleCloseModal} disabled={isSubmitting}>
+            <Button variant="secondary" onClick={handleCloseModal} disabled={isSubmitting || isGeneratingAI}>
               Cancel
             </Button>
-            <Button onClick={handleSubmit} disabled={isSubmitting}>
-              {isSubmitting ? 'Saving...' : editingPreview !== null ? 'Update Preview' : 'Create Preview'}
-            </Button>
+            {editingPreview !== null ? (
+              <Button onClick={handleSubmit} disabled={isSubmitting || isGeneratingAI}>
+                {isSubmitting ? 'Saving...' : 'Update Preview'}
+              </Button>
+            ) : (
+              <>
+                <Button 
+                  variant="secondary" 
+                  onClick={handleSubmit} 
+                  disabled={isSubmitting || isGeneratingAI}
+                >
+                  {isSubmitting ? 'Saving...' : 'Create Manually'}
+                </Button>
+                <Button 
+                  onClick={handleGenerateWithAI} 
+                  disabled={isSubmitting || isGeneratingAI || !formData.url || !formData.domain}
+                >
+                  {isGeneratingAI ? (
+                    <div className="flex items-center space-x-2">
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Generating...</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center space-x-2">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                      <span>Generate with AI</span>
+                    </div>
+                  )}
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </Modal>
