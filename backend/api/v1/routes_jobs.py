@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request
 from pydantic import BaseModel
 from rq import Queue
 from rq.job import Job
-from backend.queue.queue_connection import get_redis_connection
+from backend.queue.queue_connection import get_rq_redis_connection
 from backend.models.domain import Domain as DomainModel
 from backend.models.user import User
 from backend.db.session import get_db
@@ -84,7 +84,7 @@ def create_preview_job(
     
     # Enqueue job (pass organization_id to worker)
     try:
-        redis_conn = get_redis_connection()
+        redis_conn = get_rq_redis_connection()
         queue = Queue("preview_generation", connection=redis_conn)
         job = queue.enqueue(
             generate_preview_job,
@@ -126,7 +126,7 @@ def get_job_status(
         - error: Error message if failed, None otherwise
     """
     try:
-        redis_conn = get_redis_connection()
+        redis_conn = get_rq_redis_connection()
         job = Job.fetch(job_id, connection=redis_conn)
         
         # Check if job belongs to current user (security check)
@@ -147,9 +147,18 @@ def get_job_status(
         error = None
         
         if job_status == 'finished':
-            result = job.result
+            try:
+                result = job.result
+            except Exception as result_error:
+                # Handle cases where result can't be deserialized
+                logger.error(f"Failed to deserialize job result for {job_id}: {result_error}")
+                error = "Job completed but result could not be retrieved"
+                job_status = 'failed'
         elif job_status == 'failed':
-            error = str(job.exc_info) if job.exc_info else "Job failed"
+            try:
+                error = str(job.exc_info) if job.exc_info else "Job failed"
+            except Exception:
+                error = "Job failed (error details unavailable)"
         
         return JobStatusResponse(
             status=job_status,
@@ -158,6 +167,9 @@ def get_job_status(
         )
     except Exception as e:
         # Job not found or other error
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error fetching job {job_id}: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Job not found: {str(e)}"

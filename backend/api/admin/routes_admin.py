@@ -14,7 +14,7 @@ from backend.models.preview_variant import PreviewVariant
 from backend.models.error import Error
 from backend.models.analytics_event import AnalyticsEvent
 from backend.models.preview_job_failure import PreviewJobFailure
-from backend.queue.queue_connection import get_redis_connection
+from backend.queue.queue_connection import get_redis_connection, get_rq_redis_connection
 from backend.services.activity_logger import log_activity
 from backend.jobs.analytics_aggregation import aggregate_daily_analytics
 from rq import Queue
@@ -462,7 +462,7 @@ def get_system_overview(
     # Redis queue length
     redis_queue_length = 0
     try:
-        redis_conn = get_redis_connection()
+        redis_conn = get_rq_redis_connection()
         if redis_conn:
             # RQ stores jobs in 'rq:queue:preview_generation' key
             queue_key = 'rq:queue:preview_generation'
@@ -658,7 +658,7 @@ def get_worker_health(
     logger = logging.getLogger(__name__)
     
     try:
-        redis_conn = get_redis_connection()
+        redis_conn = get_rq_redis_connection()
         
         # Main queue length
         queue = Queue('preview_generation', connection=redis_conn)

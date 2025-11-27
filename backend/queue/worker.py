@@ -3,7 +3,7 @@ import logging
 import time
 from rq import Worker, Queue
 from rq.job import Job
-from backend.queue.queue_connection import get_redis_connection
+from backend.queue.queue_connection import get_rq_redis_connection
 from backend.utils.logger import setup_logging
 
 # Setup structured logging for worker
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 def create_worker():
     """Create and return RQ worker instance."""
-    redis_conn = get_redis_connection()
+    redis_conn = get_rq_redis_connection()
     queue = Queue("preview_generation", connection=redis_conn)
     worker = Worker([queue], connection=redis_conn)
     return worker
