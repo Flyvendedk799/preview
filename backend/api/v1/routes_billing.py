@@ -194,7 +194,11 @@ def sync_subscription_status(
                 price_obj = item.price
                 
                 logger.info(f"Extracted price_id from subscription: {price_id}")
-                logger.info(f"Configured price IDs - Basic: {settings.STRIPE_PRICE_TIER_BASIC}, Pro: {settings.STRIPE_PRICE_TIER_PRO}, Agency: {settings.STRIPE_PRICE_TIER_AGENCY}")
+                logger.info(f"Configured price IDs - Basic: '{settings.STRIPE_PRICE_TIER_BASIC}', Pro: '{settings.STRIPE_PRICE_TIER_PRO}', Agency: '{settings.STRIPE_PRICE_TIER_AGENCY}'")
+                
+                # Check if price IDs are configured
+                if not settings.STRIPE_PRICE_TIER_BASIC and not settings.STRIPE_PRICE_TIER_PRO and not settings.STRIPE_PRICE_TIER_AGENCY:
+                    logger.warning("No Stripe price tier IDs are configured in environment variables. Plan name extraction will rely on fallback methods.")
                 
                 # First try: Match against configured price IDs
                 if price_id == settings.STRIPE_PRICE_TIER_BASIC:
