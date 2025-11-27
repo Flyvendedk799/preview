@@ -30,7 +30,15 @@ function renderContent(content: string): JSX.Element {
       .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-orange-600 hover:text-orange-700 underline decoration-orange-300 underline-offset-2 transition-colors font-medium" target="_blank" rel="noopener noreferrer">$1</a>')
   }
 
-  const lines = content.split('\n')
+  // Pre-process content to clean up common paste artifacts
+  let cleanedContent = content
+    .replace(/\*{4,}/g, '') // Remove 4+ asterisks
+    .replace(/\*{3}/g, '**') // Convert *** to **
+    .replace(/\*\*\s*\*\*/g, '') // Remove empty bold markers
+    .replace(/^\s*[-•]\s*$/gm, '') // Remove standalone bullets on their own line
+    .replace(/\n{3,}/g, '\n\n') // Max 2 consecutive newlines
+
+  const lines = cleanedContent.split('\n')
   const blocks: { type: string; content: string; lines?: string[] }[] = []
   let i = 0
 
@@ -80,14 +88,30 @@ function renderContent(content: string): JSX.Element {
       continue
     }
 
+    // Skip standalone dashes or asterisks (broken list artifacts)
+    if (trimmed === '-' || trimmed === '*' || trimmed === '•') {
+      i++
+      continue
+    }
+
     // Bullet lists
-    if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+    if (trimmed.startsWith('- ') || trimmed.startsWith('* ') || trimmed.startsWith('• ')) {
       const listItems: string[] = []
-      while (i < lines.length && (lines[i].trim().startsWith('- ') || lines[i].trim().startsWith('* '))) {
-        listItems.push(lines[i].trim().slice(2))
-        i++
+      while (i < lines.length) {
+        const currentLine = lines[i].trim()
+        if (currentLine.startsWith('- ') || currentLine.startsWith('* ') || currentLine.startsWith('• ')) {
+          listItems.push(currentLine.replace(/^[-*•]\s+/, ''))
+          i++
+        } else if (currentLine === '' || currentLine === '-' || currentLine === '*') {
+          // Skip empty lines and standalone dashes within list context
+          i++
+        } else {
+          break
+        }
       }
-      blocks.push({ type: 'ul', content: '', lines: listItems })
+      if (listItems.length > 0) {
+        blocks.push({ type: 'ul', content: '', lines: listItems })
+      }
       continue
     }
 
@@ -186,13 +210,15 @@ function renderContent(content: string): JSX.Element {
         )
 
       case 'numbered-section':
+        // Clean up any stray asterisks from the title
+        const cleanTitle = block.content.replace(/\*+$/, '').replace(/^\*+/, '').trim()
         return (
           <div key={index} className="mt-10 mb-4 flex items-start gap-4">
             <span className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-amber-500 text-white font-bold text-sm flex items-center justify-center shadow-lg shadow-orange-500/20">
               {block.lines?.[0]}
             </span>
             <h3 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight pt-0.5">
-              {block.content}
+              {cleanTitle}
             </h3>
           </div>
         )
