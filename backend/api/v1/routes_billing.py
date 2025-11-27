@@ -185,10 +185,18 @@ def sync_subscription_status(
         status_str = subscription.status
         plan_name = None
         
+        logger.info(f"Retrieved subscription {subscription_id}, status: {status_str}")
+        logger.info(f"Subscription items type: {type(subscription.items)}")
+        logger.info(f"Has items.data: {hasattr(subscription.items, 'data')}")
+        
         # Extract plan name from subscription items
         # subscription.items is a ListObject with a .data attribute
         try:
-            if subscription.items and hasattr(subscription.items, 'data') and subscription.items.data:
+            if subscription.items and hasattr(subscription.items, 'data'):
+                items_data = subscription.items.data
+                logger.info(f"Items data length: {len(items_data) if items_data else 0}")
+                
+                if items_data and len(items_data) > 0:
                 item = subscription.items.data[0]
                 price_id = item.price.id
                 price_obj = item.price
@@ -243,9 +251,15 @@ def sync_subscription_status(
                         except Exception as product_err:
                             logger.warning(f"Could not retrieve product {product_id}: {str(product_err)}")
                     
-                    if not plan_name:
-                        logger.warning(f"Price ID {price_id} does not match any configured price IDs and no fallback metadata found")
-                        plan_name = None
+                        if not plan_name:
+                            logger.warning(f"Price ID {price_id} does not match any configured price IDs and no fallback metadata found")
+                            plan_name = None
+                    else:
+                        logger.warning("Item does not have price attribute")
+                else:
+                    logger.warning("Subscription items.data is empty or None")
+            else:
+                logger.warning("Subscription does not have items or items.data attribute")
         except Exception as e:
             logger.error(f"Could not extract plan name from subscription: {str(e)}", exc_info=True)
             plan_name = None
