@@ -1,4 +1,4 @@
-"""Screenshot generation job module."""
+"""Screenshot generation job module with AI-driven visual focus."""
 from uuid import uuid4
 import cv2
 import numpy as np
@@ -15,7 +15,13 @@ logger = logging.getLogger("preview_worker")
 
 def generate_screenshot(url: str) -> tuple[str, str]:
     """
-    Capture screenshot and upload to R2, also generate highlight image.
+    Capture screenshot and upload to R2, generate AI-focused highlight image.
+    
+    Uses AI visual analysis to determine the optimal focal region based on:
+    - Visual hierarchy and CTA prominence
+    - Typography weight and headline detection
+    - F-pattern / Z-pattern scanning behavior
+    - Color contrast and whitespace patterns
     
     Args:
         url: URL to capture screenshot of
@@ -33,14 +39,24 @@ def generate_screenshot(url: str) -> tuple[str, str]:
         main_filename = f"screenshots/{uuid4()}.png"
         main_image_url = upload_file_to_r2(screenshot_bytes, main_filename, "image/png")
         
-        # Generate highlight image
+        # Generate AI-focused highlight image
+        highlight_image_url = main_image_url  # Default fallback
         try:
-            highlight_bytes = generate_highlight_image(screenshot_bytes)
+            highlight_bytes, analysis = generate_ai_highlight_image(screenshot_bytes)
             highlight_filename = f"screenshots/{uuid4()}_highlight.png"
             highlight_image_url = upload_file_to_r2(highlight_bytes, highlight_filename, "image/png")
+            logger.info(f"AI highlight generated: {analysis.get('primary_element', 'unknown')} (confidence: {analysis.get('confidence', 0):.2f})")
         except Exception as e:
-            logger.warning(f"Highlight generation failed, using main image: {e}")
-            highlight_image_url = main_image_url  # Fallback to main image
+            logger.warning(f"AI highlight generation failed, trying fallback: {e}")
+            # Fallback to basic highlight generation
+            try:
+                highlight_bytes = generate_basic_highlight_image(screenshot_bytes)
+                highlight_filename = f"screenshots/{uuid4()}_highlight.png"
+                highlight_image_url = upload_file_to_r2(highlight_bytes, highlight_filename, "image/png")
+                logger.info("Used fallback basic highlight generation")
+            except Exception as fallback_e:
+                logger.warning(f"Fallback highlight generation also failed: {fallback_e}")
+                # Keep main image as highlight
         
         return main_image_url, highlight_image_url
     except ScreenshotFailedException as e:
@@ -51,9 +67,26 @@ def generate_screenshot(url: str) -> tuple[str, str]:
         raise ScreenshotFailedException(f"Screenshot generation failed: {str(e)}")
 
 
-def generate_highlight_image(screenshot_bytes: bytes) -> bytes:
+def generate_ai_highlight_image(screenshot_bytes: bytes) -> tuple[bytes, dict]:
     """
-    Detect brightest/most visually dense region and crop 16:9 highlight image.
+    Generate AI-focused highlight image using visual analysis.
+    
+    Args:
+        screenshot_bytes: Original screenshot image bytes
+        
+    Returns:
+        Tuple of (highlight_image_bytes, analysis_metadata)
+    """
+    from backend.services.ai_visual_focus import generate_ai_focused_preview
+    return generate_ai_focused_preview(screenshot_bytes, target_ratio="1.91:1")
+
+
+def generate_basic_highlight_image(screenshot_bytes: bytes) -> bytes:
+    """
+    FALLBACK: Basic highlight detection using brightness and edge density.
+    
+    Used when AI analysis fails. Detects brightest/most visually dense region
+    and crops to 16:9 aspect ratio.
     
     Args:
         screenshot_bytes: Original screenshot image bytes
