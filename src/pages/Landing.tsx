@@ -1056,75 +1056,200 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Docs Section - Clean */}
+      {/* Docs Section - Enhanced & Accessible */}
       <section 
         id="docs" 
-        className="py-14 sm:py-20 px-4 sm:px-6 lg:px-12 bg-gray-50/50"
+        className="py-14 sm:py-20 px-4 sm:px-6 lg:px-12 bg-gradient-to-b from-white via-gray-50/30 to-white"
         ref={el => sectionRefs.current[5] = el as HTMLDivElement | null}
       >
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-10 sm:mb-12 space-y-3">
-            <div className="inline-flex items-center space-x-2 px-3 py-1 bg-gray-100 rounded-full border border-gray-200 mb-3">
-              <span className="text-xs font-bold text-gray-600">RESOURCES</span>
+            <div className="inline-flex items-center space-x-2 px-3 py-1 bg-orange-50 rounded-full border border-orange-100 mb-3">
+              <span className="text-xs font-bold text-orange-600">DOCUMENTATION</span>
             </div>
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-gray-900 tracking-[-0.02em]">Documentation & guides</h2>
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-gray-900 tracking-[-0.02em]">Complete documentation & guides</h2>
             <p className="text-base sm:text-lg text-gray-500 max-w-xl mx-auto px-4">
-              Everything you need to integrate MetaView into your workflow.
+              Everything you need to integrate MetaView into your workflow. Get started in minutes.
             </p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5 sm:gap-6">
+          
+          {/* Prominent CTA Card */}
+          <div className="mb-10 sm:mb-12">
+            <div className="max-w-3xl mx-auto bg-gradient-to-br from-orange-500 via-amber-500 to-orange-500 rounded-2xl p-8 sm:p-10 text-white shadow-2xl shadow-orange-500/30 relative overflow-hidden">
+              <div className="absolute inset-0 opacity-10" style={{
+                backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.3) 1px, transparent 0)',
+                backgroundSize: '32px 32px'
+              }} />
+              <div className="relative z-10">
+                <div className="flex items-center space-x-3 mb-4">
+                  <CodeBracketIcon className="w-8 h-8 text-white" />
+                  <h3 className="text-2xl sm:text-3xl font-black">Interactive API Documentation</h3>
+                </div>
+                <p className="text-orange-50 text-base sm:text-lg mb-6 leading-relaxed">
+                  Explore our complete API with interactive examples. Test endpoints, view schemas, and integrate faster.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <a
+                    href="https://mymetaview.com/docs"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group relative px-6 py-3.5 bg-white text-orange-600 rounded-xl font-bold text-sm transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] hover:shadow-xl inline-flex items-center justify-center overflow-hidden"
+                  >
+                    <span className="relative z-10 flex items-center">
+                      Open API Docs
+                      <ArrowUpRightIcon className="w-4 h-4 ml-2 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                    </span>
+                  </a>
+                  <Link
+                    to="/app"
+                    className="px-6 py-3.5 bg-white/10 text-white rounded-xl font-bold text-sm border-2 border-white/30 hover:bg-white/20 hover:border-white/40 transition-all duration-300 inline-flex items-center justify-center backdrop-blur-sm"
+                  >
+                    Get Started Free
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Documentation Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5 sm:gap-6 mb-8">
             {[
               {
-                title: 'API Reference',
-                description: 'Complete API docs with interactive examples.',
-                link: '/app',
-                external: false,
-                icon: CodeBracketIcon,
-                color: 'blue',
-              },
-              {
-                title: 'Getting Started',
-                description: 'Quick start guide to connect your first domain.',
+                title: 'Quick Start Guide',
+                description: 'Get up and running in 5 minutes. Connect your first domain and generate previews.',
                 link: '/app',
                 external: false,
                 icon: RocketLaunchIcon,
                 color: 'purple',
+                badge: 'Start Here',
               },
               {
                 title: 'Integration Guide',
-                description: 'Step-by-step integration instructions.',
-                link: '#',
+                description: 'Step-by-step instructions for WordPress, React, Vue, and static sites.',
+                link: '/app',
                 external: false,
                 icon: PuzzlePieceIcon,
                 color: 'orange',
+                badge: 'Popular',
+              },
+              {
+                title: 'API Reference',
+                description: 'Complete API documentation with authentication, endpoints, and examples.',
+                link: 'https://mymetaview.com/docs',
+                external: true,
+                icon: CodeBracketIcon,
+                color: 'blue',
+                badge: null,
+              },
+              {
+                title: 'Domain Verification',
+                description: 'Learn how to verify domain ownership using DNS, HTML, or meta tags.',
+                link: '/app',
+                external: false,
+                icon: ShieldCheckIcon,
+                color: 'emerald',
+                badge: null,
+              },
+              {
+                title: 'Brand Customization',
+                description: 'Customize preview colors, fonts, and styling to match your brand.',
+                link: '/app',
+                external: false,
+                icon: SparklesIcon,
+                color: 'pink',
+                badge: null,
+              },
+              {
+                title: 'Analytics & Tracking',
+                description: 'Understand your preview performance with detailed analytics and insights.',
+                link: '/app',
+                external: false,
+                icon: ChartBarIcon,
+                color: 'indigo',
+                badge: null,
               },
             ].map((doc, index) => (
               <div 
                 key={index}
-                className="group relative bg-white rounded-xl p-6 border border-gray-100 hover:border-gray-200 transition-all duration-300 hover:shadow-lg"
+                className="group relative bg-white rounded-xl p-6 border-2 border-gray-100 hover:border-gray-200 transition-all duration-300 hover:shadow-xl hover:-translate-y-1"
               >
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 transition-transform duration-300 group-hover:scale-110 ${
+                {doc.badge && (
+                  <div className={`absolute -top-2 right-4 text-[10px] font-bold px-2.5 py-1 rounded-full shadow-sm ${
+                    doc.badge === 'Start Here' ? 'bg-purple-100 text-purple-700' :
+                    'bg-orange-100 text-orange-700'
+                  }`}>
+                    {doc.badge}
+                  </div>
+                )}
+                <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-4 transition-all duration-300 group-hover:scale-110 group-hover:rotate-3 ${
                   doc.color === 'blue' ? 'bg-blue-100 text-blue-600' :
                   doc.color === 'purple' ? 'bg-purple-100 text-purple-600' :
-                  'bg-orange-100 text-orange-600'
+                  doc.color === 'orange' ? 'bg-orange-100 text-orange-600' :
+                  doc.color === 'emerald' ? 'bg-emerald-100 text-emerald-600' :
+                  doc.color === 'pink' ? 'bg-pink-100 text-pink-600' :
+                  'bg-indigo-100 text-indigo-600'
                 }`}>
                   <doc.icon className="w-5 h-5" />
                 </div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2">{doc.title}</h3>
-                <p className="text-gray-500 text-sm mb-4">{doc.description}</p>
-                <Link
-                  to={doc.link}
-                  className={`inline-flex items-center text-sm font-semibold group-hover:translate-x-1 transition-all duration-300 ${
-                    doc.color === 'blue' ? 'text-blue-600 hover:text-blue-700' :
-                    doc.color === 'purple' ? 'text-purple-600 hover:text-purple-700' :
-                    'text-orange-600 hover:text-orange-700'
-                  }`}
-                >
-                  Learn More
-                  <ArrowRightIcon className="w-4 h-4 ml-1.5" />
-                </Link>
+                <h3 className="text-lg font-bold text-gray-900 mb-2 group-hover:text-gray-800 transition-colors">{doc.title}</h3>
+                <p className="text-gray-500 text-sm mb-4 leading-relaxed">{doc.description}</p>
+                {doc.external ? (
+                  <a
+                    href={doc.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`inline-flex items-center text-sm font-semibold group-hover:translate-x-1 transition-all duration-300 ${
+                      doc.color === 'blue' ? 'text-blue-600 hover:text-blue-700' :
+                      doc.color === 'purple' ? 'text-purple-600 hover:text-purple-700' :
+                      doc.color === 'orange' ? 'text-orange-600 hover:text-orange-700' :
+                      doc.color === 'emerald' ? 'text-emerald-600 hover:text-emerald-700' :
+                      doc.color === 'pink' ? 'text-pink-600 hover:text-pink-700' :
+                      'text-indigo-600 hover:text-indigo-700'
+                    }`}
+                  >
+                    View Docs
+                    <ArrowUpRightIcon className="w-4 h-4 ml-1.5" />
+                  </a>
+                ) : (
+                  <Link
+                    to={doc.link}
+                    className={`inline-flex items-center text-sm font-semibold group-hover:translate-x-1 transition-all duration-300 ${
+                      doc.color === 'blue' ? 'text-blue-600 hover:text-blue-700' :
+                      doc.color === 'purple' ? 'text-purple-600 hover:text-purple-700' :
+                      doc.color === 'orange' ? 'text-orange-600 hover:text-orange-700' :
+                      doc.color === 'emerald' ? 'text-emerald-600 hover:text-emerald-700' :
+                      doc.color === 'pink' ? 'text-pink-600 hover:text-pink-700' :
+                      'text-indigo-600 hover:text-indigo-700'
+                    }`}
+                  >
+                    Get Started
+                    <ArrowRightIcon className="w-4 h-4 ml-1.5" />
+                  </Link>
+                )}
               </div>
             ))}
+          </div>
+
+          {/* Additional Resources */}
+          <div className="text-center">
+            <p className="text-sm text-gray-500 mb-4">Need more help?</p>
+            <div className="flex flex-wrap items-center justify-center gap-4">
+              <Link
+                to="/blog"
+                className="inline-flex items-center text-sm font-semibold text-gray-700 hover:text-orange-600 transition-colors"
+              >
+                <span>Visit our Blog</span>
+                <ArrowRightIcon className="w-4 h-4 ml-1.5" />
+              </Link>
+              <span className="text-gray-300">•</span>
+              <Link
+                to="/app"
+                className="inline-flex items-center text-sm font-semibold text-gray-700 hover:text-orange-600 transition-colors"
+              >
+                <span>Contact Support</span>
+                <ArrowRightIcon className="w-4 h-4 ml-1.5" />
+              </Link>
+            </div>
           </div>
         </div>
       </section>
