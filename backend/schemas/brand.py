@@ -26,6 +26,7 @@ class BrandSettings(BrandSettingsBase):
     id: int
     
     class Config:
+        from_attributes = True  # Pydantic v2: allows reading from SQLAlchemy ORM models
         json_schema_extra = {
             "example": {
                 "id": 1,
