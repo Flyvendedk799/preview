@@ -56,114 +56,96 @@ function generateExcerpt(content: string, maxLength: number = 160): string {
   return cleanContent.substring(0, maxLength - 3).replace(/\s+\S*$/, '') + '...'
 }
 
-// Convert HTML to Markdown (for paste handling)
+// Convert HTML to Markdown using DOM parsing (for paste handling)
 function htmlToMarkdown(html: string): string {
-  let md = html
+  const temp = document.createElement('div')
+  temp.innerHTML = html
   
-  // Remove style, script tags and their content
-  md = md.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-  md = md.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+  // Remove unwanted elements
+  temp.querySelectorAll('script, style, meta, link').forEach(el => el.remove())
   
-  // Remove comments
-  md = md.replace(/<!--[\s\S]*?-->/g, '')
+  function getTextContent(el: Element): string {
+    return (el.textContent || '').replace(/\s+/g, ' ').trim()
+  }
   
-  // Convert headings (clean inner HTML first)
-  md = md.replace(/<h1[^>]*>([\s\S]*?)<\/h1>/gi, (_, content) => `\n## ${cleanInnerHtml(content)}\n`)
-  md = md.replace(/<h2[^>]*>([\s\S]*?)<\/h2>/gi, (_, content) => `\n## ${cleanInnerHtml(content)}\n`)
-  md = md.replace(/<h3[^>]*>([\s\S]*?)<\/h3>/gi, (_, content) => `\n### ${cleanInnerHtml(content)}\n`)
-  md = md.replace(/<h4[^>]*>([\s\S]*?)<\/h4>/gi, (_, content) => `\n### ${cleanInnerHtml(content)}\n`)
+  function processElement(el: Element): string {
+    const tag = el.tagName.toLowerCase()
+    
+    // Handle specific tags
+    switch (tag) {
+      case 'h1':
+      case 'h2':
+        return `\n\n## ${getTextContent(el)}\n\n`
+      case 'h3':
+      case 'h4':
+      case 'h5':
+      case 'h6':
+        return `\n\n### ${getTextContent(el)}\n\n`
+      case 'p':
+        return `\n\n${processChildren(el)}\n\n`
+      case 'br':
+        return '\n'
+      case 'strong':
+      case 'b':
+        return `**${processChildren(el)}**`
+      case 'em':
+      case 'i':
+        return `*${processChildren(el)}*`
+      case 'a': {
+        const href = el.getAttribute('href') || ''
+        return `[${getTextContent(el)}](${href})`
+      }
+      case 'ul': {
+        const items = Array.from(el.children)
+          .filter(c => c.tagName.toLowerCase() === 'li')
+          .map(li => `- ${getTextContent(li)}`)
+        return `\n\n${items.join('\n')}\n\n`
+      }
+      case 'ol': {
+        const items = Array.from(el.children)
+          .filter(c => c.tagName.toLowerCase() === 'li')
+          .map((li, i) => `${i + 1}. ${getTextContent(li)}`)
+        return `\n\n${items.join('\n')}\n\n`
+      }
+      case 'li':
+        return getTextContent(el)
+      case 'blockquote':
+        return `\n\n> ${getTextContent(el)}\n\n`
+      case 'pre':
+        return `\n\n\`\`\`\n${el.textContent || ''}\n\`\`\`\n\n`
+      case 'code':
+        return `\`${el.textContent || ''}\``
+      case 'div':
+      case 'section':
+      case 'article':
+        return `\n${processChildren(el)}\n`
+      default:
+        return processChildren(el)
+    }
+  }
   
-  // Convert unordered lists - handle each list item properly
-  md = md.replace(/<ul[^>]*>([\s\S]*?)<\/ul>/gi, (_, content) => {
-    const items = content.match(/<li[^>]*>[\s\S]*?<\/li>/gi) || []
-    return '\n' + items.map(item => {
-      const text = item.replace(/<li[^>]*>([\s\S]*?)<\/li>/i, '$1')
-      return `- ${cleanInnerHtml(text).trim()}`
-    }).join('\n') + '\n'
-  })
+  function processChildren(el: Element): string {
+    let result = ''
+    el.childNodes.forEach(node => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        result += (node.textContent || '').replace(/\s+/g, ' ')
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        result += processElement(node as Element)
+      }
+    })
+    return result
+  }
   
-  // Convert ordered lists
-  md = md.replace(/<ol[^>]*>([\s\S]*?)<\/ol>/gi, (_, content) => {
-    const items = content.match(/<li[^>]*>[\s\S]*?<\/li>/gi) || []
-    return '\n' + items.map((item, i) => {
-      const text = item.replace(/<li[^>]*>([\s\S]*?)<\/li>/i, '$1')
-      return `${i + 1}. ${cleanInnerHtml(text).trim()}`
-    }).join('\n') + '\n'
-  })
+  let md = processChildren(temp)
   
-  // Convert bold (do this before removing other tags)
-  md = md.replace(/<(strong|b)[^>]*>([\s\S]*?)<\/(strong|b)>/gi, (_, __, content) => `**${cleanInnerHtml(content)}**`)
-  
-  // Convert italic
-  md = md.replace(/<(em|i)[^>]*>([\s\S]*?)<\/(em|i)>/gi, (_, __, content) => `*${cleanInnerHtml(content)}*`)
-  
-  // Convert links
-  md = md.replace(/<a[^>]*href=["']([^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi, (_, href, text) => `[${cleanInnerHtml(text)}](${href})`)
-  
-  // Convert blockquotes
-  md = md.replace(/<blockquote[^>]*>([\s\S]*?)<\/blockquote>/gi, (_, content) => `\n> ${cleanInnerHtml(content).trim()}\n`)
-  
-  // Convert code blocks
-  md = md.replace(/<pre[^>]*><code[^>]*>([\s\S]*?)<\/code><\/pre>/gi, '\n```\n$1\n```\n')
-  md = md.replace(/<code[^>]*>([\s\S]*?)<\/code>/gi, '`$1`')
-  
-  // Convert paragraphs
-  md = md.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, (_, content) => `\n${cleanInnerHtml(content)}\n`)
-  
-  // Convert divs and spans (just extract content)
-  md = md.replace(/<div[^>]*>([\s\S]*?)<\/div>/gi, '\n$1\n')
-  md = md.replace(/<span[^>]*>([\s\S]*?)<\/span>/gi, '$1')
-  
-  // Convert line breaks
-  md = md.replace(/<br\s*\/?>/gi, '\n')
-  
-  // Remove remaining HTML tags
-  md = md.replace(/<[^>]+>/g, '')
-  
-  // Decode HTML entities
-  md = md.replace(/&nbsp;/g, ' ')
-  md = md.replace(/&amp;/g, '&')
-  md = md.replace(/&lt;/g, '<')
-  md = md.replace(/&gt;/g, '>')
-  md = md.replace(/&quot;/g, '"')
-  md = md.replace(/&#39;/g, "'")
-  md = md.replace(/&mdash;/g, '—')
-  md = md.replace(/&ndash;/g, '–')
-  md = md.replace(/&rarr;/g, '→')
-  md = md.replace(/&larr;/g, '←')
-  md = md.replace(/&#\d+;/g, '') // Remove other numeric entities
-  
-  // Clean up markdown artifacts
-  md = md.replace(/\*{3,}/g, '**') // Fix multiple asterisks (***+ → **)
-  md = md.replace(/\*\*\*\*/g, '') // Remove empty bold ****
-  md = md.replace(/\*\*\s*\*\*/g, '') // Remove empty bold with spaces
-  md = md.replace(/\*\s*\*/g, '') // Remove empty italic
-  
-  // Fix list items that got separated (dash on its own line)
-  md = md.replace(/^-\s*$/gm, '') // Remove standalone dashes
-  md = md.replace(/^\d+\.\s*$/gm, '') // Remove standalone numbers
-  
-  // Clean up excessive whitespace
-  md = md.replace(/[ \t]+/g, ' ') // Multiple spaces to single
-  md = md.replace(/\n{3,}/g, '\n\n') // Max 2 newlines
-  md = md.replace(/^\s+|\s+$/gm, '') // Trim each line
+  // Clean up
+  md = md.replace(/\*\*\s*\*\*/g, '')  // Empty bold
+  md = md.replace(/\*\s*\*/g, '')      // Empty italic
+  md = md.replace(/\n{3,}/g, '\n\n')   // Max 2 newlines
+  md = md.replace(/^[ \t]+|[ \t]+$/gm, '') // Trim each line
   md = md.trim()
   
   return md
-}
-
-// Helper to clean inner HTML content
-function cleanInnerHtml(html: string): string {
-  return html
-    .replace(/<[^>]+>/g, '') // Remove tags
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/\s+/g, ' ')
-    .trim()
 }
 
 export default function AdminBlogEditor() {

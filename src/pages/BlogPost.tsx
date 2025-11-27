@@ -30,12 +30,16 @@ function renderContent(content: string): JSX.Element {
       .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-orange-600 hover:text-orange-700 underline decoration-orange-300 underline-offset-2 transition-colors font-medium" target="_blank" rel="noopener noreferrer">$1</a>')
   }
 
-  // Pre-process content to clean up common paste artifacts
+  // Pre-process content to clean up common paste artifacts and recover structure
   let cleanedContent = content
     .replace(/\*{4,}/g, '') // Remove 4+ asterisks
     .replace(/\*{3}/g, '**') // Convert *** to **
     .replace(/\*\*\s*\*\*/g, '') // Remove empty bold markers
     .replace(/^\s*[-•]\s*$/gm, '') // Remove standalone bullets on their own line
+    // Recover structure: add newlines before markdown patterns that are inline
+    .replace(/([.!?])\s*(#{2,3}\s)/g, '$1\n\n$2') // Add newline before ## or ### after sentence
+    .replace(/([.!?])\s*(\d+\.\s+[A-Z])/g, '$1\n\n$2') // Add newline before "1. Title" after sentence
+    .replace(/([.!?])\s*(-\s+[A-Z])/g, '$1\n\n$2') // Add newline before "- Item" after sentence
     .replace(/\n{3,}/g, '\n\n') // Max 2 consecutive newlines
 
   const lines = cleanedContent.split('\n')
