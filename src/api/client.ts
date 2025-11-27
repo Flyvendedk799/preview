@@ -381,13 +381,14 @@ export async function getBillingStatus(): Promise<{
   return fetchApi('/api/v1/billing/status')
 }
 
-export async function syncSubscriptionStatus(): Promise<{
+export async function changeSubscriptionPlan(priceId: string): Promise<{
   subscription_status: string
   subscription_plan?: string | null
   trial_ends_at?: string | null
 }> {
-  return fetchApi('/api/v1/billing/sync', {
+  return fetchApi('/api/v1/billing/change-plan', {
     method: 'POST',
+    body: JSON.stringify({ price_id: priceId }),
   })
 }
 

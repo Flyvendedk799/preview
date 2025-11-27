@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react'
-import { CheckCircleIcon, XCircleIcon, ClockIcon, CreditCardIcon } from '@heroicons/react/24/outline'
+import { CheckCircleIcon, XCircleIcon, ClockIcon, ArrowUpIcon, ArrowDownIcon } from '@heroicons/react/24/outline'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
-import EmptyState from '../components/ui/EmptyState'
-import { createCheckoutSession, createBillingPortal, getBillingStatus, syncSubscriptionStatus } from '../api/client'
+import { createCheckoutSession, createBillingPortal, getBillingStatus, changeSubscriptionPlan } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import { useOrganization } from '../hooks/useOrganization'
 
@@ -12,6 +11,46 @@ interface BillingStatus {
   subscription_plan?: string | null
   trial_ends_at?: string | null
 }
+
+const PLAN_DETAILS = {
+  basic: {
+    name: 'Basic',
+    price: '$9',
+    period: '/mo',
+    priceId: import.meta.env.VITE_STRIPE_PRICE_TIER_BASIC || '',
+    features: [
+      '100 previews/month',
+      'Basic support',
+      'Standard features',
+    ],
+  },
+  pro: {
+    name: 'Pro',
+    price: '$29',
+    period: '/mo',
+    priceId: import.meta.env.VITE_STRIPE_PRICE_TIER_PRO || '',
+    features: [
+      '1,000 previews/month',
+      'Priority support',
+      'Advanced features',
+      'API access',
+    ],
+  },
+  agency: {
+    name: 'Agency',
+    price: '$99',
+    period: '/mo',
+    priceId: import.meta.env.VITE_STRIPE_PRICE_TIER_AGENCY || '',
+    features: [
+      'Unlimited previews',
+      'Dedicated support',
+      'White-label options',
+      'Custom integrations',
+    ],
+  },
+}
+
+const PLAN_ORDER: Array<'basic' | 'pro' | 'agency'> = ['basic', 'pro', 'agency']
 
 export default function Billing() {
   const { user } = useAuth()
@@ -24,16 +63,16 @@ export default function Billing() {
   useEffect(() => {
     loadBillingStatus()
     
-    // Auto-sync subscription status if returning from Stripe checkout
+    // Reload status if returning from Stripe checkout
     const urlParams = new URLSearchParams(window.location.search)
     if (urlParams.get('success') === 'true') {
-      // Wait a moment for Stripe webhook to process, then sync
+      // Wait a moment for Stripe webhook to process, then reload
       setTimeout(() => {
-        handleSyncSubscription()
+        loadBillingStatus()
+        window.history.replaceState({}, '', window.location.pathname)
       }, 2000)
     }
   }, [])
-
 
   const loadBillingStatus = async () => {
     try {
@@ -57,10 +96,28 @@ export default function Billing() {
       setIsProcessing(true)
       setError(null)
       const result = await createCheckoutSession(priceId)
-      // Redirect to Stripe Checkout
       window.location.href = result.checkout_url
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create checkout session')
+      setIsProcessing(false)
+    }
+  }
+
+  const handleChangePlan = async (priceId: string) => {
+    if (!priceId || priceId.trim() === '') {
+      setError('Price ID is missing. Please contact support.')
+      return
+    }
+    try {
+      setIsProcessing(true)
+      setError(null)
+      const status = await changeSubscriptionPlan(priceId)
+      setBillingStatus(status)
+      // Show success message
+      setError(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to change subscription plan')
+    } finally {
       setIsProcessing(false)
     }
   }
@@ -70,25 +127,9 @@ export default function Billing() {
       setIsProcessing(true)
       setError(null)
       const result = await createBillingPortal()
-      // Redirect to Stripe Billing Portal
       window.location.href = result.portal_url
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create billing portal session')
-      setIsProcessing(false)
-    }
-  }
-
-  const handleSyncSubscription = async () => {
-    try {
-      setIsProcessing(true)
-      setError(null)
-      const status = await syncSubscriptionStatus()
-      setBillingStatus(status)
-      // Remove success parameter from URL
-      window.history.replaceState({}, '', window.location.pathname)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to sync subscription status')
-    } finally {
       setIsProcessing(false)
     }
   }
@@ -147,51 +188,17 @@ export default function Billing() {
     return diffDays > 0 ? diffDays : 0
   }
 
-  const getPlanDetails = (planName: string | null | undefined) => {
-    if (!planName) return null
-    
-    const planLower = planName.toLowerCase()
-    const plans = {
-      basic: {
-        name: 'Basic',
-        price: '$9',
-        period: '/mo',
-        features: [
-          '100 previews/month',
-          'Basic support',
-          'Standard features',
-        ],
-      },
-      pro: {
-        name: 'Pro',
-        price: '$29',
-        period: '/mo',
-        features: [
-          '1,000 previews/month',
-          'Priority support',
-          'Advanced features',
-          'API access',
-        ],
-      },
-      agency: {
-        name: 'Agency',
-        price: '$99',
-        period: '/mo',
-        features: [
-          'Unlimited previews',
-          'Dedicated support',
-          'White-label options',
-          'Custom integrations',
-        ],
-      },
-    }
-    
-    return plans[planLower as keyof typeof plans] || null
+  const currentPlan = billingStatus?.subscription_plan?.toLowerCase() as keyof typeof PLAN_DETAILS | undefined
+  const currentPlanIndex = currentPlan ? PLAN_ORDER.indexOf(currentPlan) : -1
+
+  const isUpgrade = (planKey: keyof typeof PLAN_DETAILS) => {
+    if (currentPlanIndex === -1) return false
+    return PLAN_ORDER.indexOf(planKey) > currentPlanIndex
   }
 
-  const formatPlanName = (planName: string | null | undefined) => {
-    if (!planName) return null
-    return planName.charAt(0).toUpperCase() + planName.slice(1).toLowerCase()
+  const isDowngrade = (planKey: keyof typeof PLAN_DETAILS) => {
+    if (currentPlanIndex === -1) return false
+    return PLAN_ORDER.indexOf(planKey) < currentPlanIndex
   }
 
   return (
@@ -230,26 +237,26 @@ export default function Billing() {
                 </div>
                 <div className="text-right">
                   <p className="text-sm text-gray-600">Plan</p>
-                  <p className="mt-1 text-lg font-semibold text-gray-900">
+                  <p className="mt-1 text-lg font-semibold text-gray-900 capitalize">
                     {billingStatus?.subscription_status === 'active' 
-                      ? (formatPlanName(billingStatus?.subscription_plan) || 'Active Subscription')
-                      : (formatPlanName(billingStatus?.subscription_plan) || 'Free')}
+                      ? (currentPlan ? PLAN_DETAILS[currentPlan]?.name || 'Active Subscription' : 'Active Subscription')
+                      : (currentPlan ? PLAN_DETAILS[currentPlan]?.name || 'Free' : 'Free')}
                   </p>
                 </div>
               </div>
 
               {/* Current Plan Benefits */}
-              {billingStatus?.subscription_status === 'active' && getPlanDetails(billingStatus?.subscription_plan) && (
+              {billingStatus?.subscription_status === 'active' && currentPlan && PLAN_DETAILS[currentPlan] && (
                 <div className="bg-primary/5 border border-primary/20 rounded-lg p-6 mt-4">
                   <div className="flex items-start justify-between mb-4">
                     <div>
                       <h3 className="text-lg font-semibold text-secondary mb-1">
-                        {getPlanDetails(billingStatus?.subscription_plan)?.name} Plan
+                        {PLAN_DETAILS[currentPlan].name} Plan
                       </h3>
                       <p className="text-2xl font-bold text-primary">
-                        {getPlanDetails(billingStatus?.subscription_plan)?.price}
+                        {PLAN_DETAILS[currentPlan].price}
                         <span className="text-base text-gray-600 font-normal">
-                          {getPlanDetails(billingStatus?.subscription_plan)?.period}
+                          {PLAN_DETAILS[currentPlan].period}
                         </span>
                       </p>
                     </div>
@@ -257,7 +264,7 @@ export default function Billing() {
                   <div>
                     <p className="text-sm font-medium text-gray-700 mb-3">Your plan includes:</p>
                     <ul className="space-y-2">
-                      {getPlanDetails(billingStatus?.subscription_plan)?.features.map((feature, index) => (
+                      {PLAN_DETAILS[currentPlan].features.map((feature, index) => (
                         <li key={index} className="flex items-center text-sm text-gray-600">
                           <CheckCircleIcon className="w-5 h-5 text-primary mr-2 flex-shrink-0" />
                           {feature}
@@ -291,84 +298,143 @@ export default function Billing() {
                 </div>
               )}
 
-              <div className="pt-4 border-t border-gray-200 flex items-center justify-between">
-                {billingStatus?.subscription_status === 'active' && (
+              {billingStatus?.subscription_status === 'active' && (
+                <div className="pt-4 border-t border-gray-200">
                   <Button onClick={handleManageBilling} disabled={isProcessing} variant="secondary">
                     {isProcessing ? 'Loading...' : 'Manage Billing'}
                   </Button>
-                )}
-                <Button onClick={handleSyncSubscription} disabled={isProcessing} variant="secondary" className="ml-auto">
-                  {isProcessing ? 'Syncing...' : 'Sync Status'}
-                </Button>
-              </div>
+                </div>
+              )}
             </div>
           </Card>
 
-          {/* Upgrade Options */}
-          {billingStatus?.subscription_status !== 'active' && (
+          {/* Plan Comparison & Upgrade/Downgrade Options */}
+          {billingStatus?.subscription_status === 'active' ? (
+            <Card>
+              <h2 className="text-xl font-semibold text-secondary mb-4">Change Your Plan</h2>
+              <p className="text-sm text-gray-600 mb-6">
+                Switch to a different plan. Changes are prorated automatically.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {PLAN_ORDER.map((planKey) => {
+                  const plan = PLAN_DETAILS[planKey]
+                  const isCurrent = currentPlan === planKey
+                  const upgrade = isUpgrade(planKey)
+                  const downgrade = isDowngrade(planKey)
+                  
+                  return (
+                    <div
+                      key={planKey}
+                      className={`border-2 rounded-lg p-6 relative ${
+                        isCurrent
+                          ? 'border-primary bg-primary/5'
+                          : upgrade
+                          ? 'border-green-200 hover:border-green-300'
+                          : downgrade
+                          ? 'border-orange-200 hover:border-orange-300'
+                          : 'border-gray-200'
+                      }`}
+                    >
+                      {isCurrent && (
+                        <span className="absolute top-0 right-0 bg-primary text-white text-xs px-3 py-1 rounded-bl-lg rounded-tr-lg">
+                          Current Plan
+                        </span>
+                      )}
+                      {upgrade && (
+                        <span className="absolute top-0 right-0 bg-green-500 text-white text-xs px-3 py-1 rounded-bl-lg rounded-tr-lg flex items-center">
+                          <ArrowUpIcon className="w-3 h-3 mr-1" />
+                          Upgrade
+                        </span>
+                      )}
+                      {downgrade && (
+                        <span className="absolute top-0 right-0 bg-orange-500 text-white text-xs px-3 py-1 rounded-bl-lg rounded-tr-lg flex items-center">
+                          <ArrowDownIcon className="w-3 h-3 mr-1" />
+                          Downgrade
+                        </span>
+                      )}
+                      
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">{plan.name}</h3>
+                      <p className="text-3xl font-bold text-secondary mb-4">
+                        {plan.price}
+                        <span className="text-lg text-gray-600">/mo</span>
+                      </p>
+                      <ul className="space-y-2 mb-6 text-sm text-gray-600">
+                        {plan.features.map((feature, idx) => (
+                          <li key={idx} className="flex items-center">
+                            <CheckCircleIcon className="w-4 h-4 mr-2 text-green-500 flex-shrink-0" />
+                            <span>{feature}</span>
+                          </li>
+                        ))}
+                      </ul>
+                      <Button
+                        onClick={() => handleChangePlan(plan.priceId)}
+                        disabled={isProcessing || isCurrent || !plan.priceId}
+                        className="w-full"
+                        variant={isCurrent ? 'secondary' : upgrade ? 'primary' : 'secondary'}
+                      >
+                        {isCurrent
+                          ? 'Current Plan'
+                          : isProcessing
+                          ? 'Processing...'
+                          : !plan.priceId
+                          ? 'Price ID not configured'
+                          : upgrade
+                          ? 'Upgrade to ' + plan.name
+                          : 'Switch to ' + plan.name}
+                      </Button>
+                    </div>
+                  )
+                })}
+              </div>
+            </Card>
+          ) : (
             <Card>
               <h2 className="text-xl font-semibold text-secondary mb-4">Upgrade Your Plan</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Basic Plan */}
-                <div className="border border-gray-200 rounded-lg p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Basic</h3>
-                  <p className="text-3xl font-bold text-secondary mb-4">$9<span className="text-lg text-gray-600">/mo</span></p>
-                  <ul className="space-y-2 mb-6 text-sm text-gray-600">
-                    <li>✓ 100 previews/month</li>
-                    <li>✓ Basic support</li>
-                    <li>✓ Standard features</li>
-                  </ul>
-                  <Button
-                    onClick={() => handleUpgrade(import.meta.env.VITE_STRIPE_PRICE_TIER_BASIC || '')}
-                    disabled={isProcessing || !import.meta.env.VITE_STRIPE_PRICE_TIER_BASIC}
-                    className="w-full"
-                    variant="secondary"
-                  >
-                    {isProcessing ? 'Processing...' : !import.meta.env.VITE_STRIPE_PRICE_TIER_BASIC ? 'Price ID not configured' : 'Upgrade to Basic'}
-                  </Button>
-                </div>
-
-                {/* Pro Plan */}
-                <div className="border-2 border-primary rounded-lg p-6 relative">
-                  <span className="absolute top-0 right-0 bg-primary text-white text-xs px-3 py-1 rounded-bl-lg rounded-tr-lg">
-                    Popular
-                  </span>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Pro</h3>
-                  <p className="text-3xl font-bold text-secondary mb-4">$29<span className="text-lg text-gray-600">/mo</span></p>
-                  <ul className="space-y-2 mb-6 text-sm text-gray-600">
-                    <li>✓ 1,000 previews/month</li>
-                    <li>✓ Priority support</li>
-                    <li>✓ Advanced features</li>
-                    <li>✓ API access</li>
-                  </ul>
-                  <Button
-                    onClick={() => handleUpgrade(import.meta.env.VITE_STRIPE_PRICE_TIER_PRO || '')}
-                    disabled={isProcessing || !import.meta.env.VITE_STRIPE_PRICE_TIER_PRO}
-                    className="w-full"
-                  >
-                    {isProcessing ? 'Processing...' : !import.meta.env.VITE_STRIPE_PRICE_TIER_PRO ? 'Price ID not configured' : 'Upgrade to Pro'}
-                  </Button>
-                </div>
-
-                {/* Agency Plan */}
-                <div className="border border-gray-200 rounded-lg p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Agency</h3>
-                  <p className="text-3xl font-bold text-secondary mb-4">$99<span className="text-lg text-gray-600">/mo</span></p>
-                  <ul className="space-y-2 mb-6 text-sm text-gray-600">
-                    <li>✓ Unlimited previews</li>
-                    <li>✓ Dedicated support</li>
-                    <li>✓ White-label options</li>
-                    <li>✓ Custom integrations</li>
-                  </ul>
-                  <Button
-                    onClick={() => handleUpgrade(import.meta.env.VITE_STRIPE_PRICE_TIER_AGENCY || '')}
-                    disabled={isProcessing || !import.meta.env.VITE_STRIPE_PRICE_TIER_AGENCY}
-                    className="w-full"
-                    variant="secondary"
-                  >
-                    {isProcessing ? 'Processing...' : !import.meta.env.VITE_STRIPE_PRICE_TIER_AGENCY ? 'Price ID not configured' : 'Upgrade to Agency'}
-                  </Button>
-                </div>
+                {PLAN_ORDER.map((planKey) => {
+                  const plan = PLAN_DETAILS[planKey]
+                  const isPopular = planKey === 'pro'
+                  
+                  return (
+                    <div
+                      key={planKey}
+                      className={`border-2 rounded-lg p-6 relative ${
+                        isPopular ? 'border-primary' : 'border-gray-200'
+                      }`}
+                    >
+                      {isPopular && (
+                        <span className="absolute top-0 right-0 bg-primary text-white text-xs px-3 py-1 rounded-bl-lg rounded-tr-lg">
+                          Popular
+                        </span>
+                      )}
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">{plan.name}</h3>
+                      <p className="text-3xl font-bold text-secondary mb-4">
+                        {plan.price}
+                        <span className="text-lg text-gray-600">/mo</span>
+                      </p>
+                      <ul className="space-y-2 mb-6 text-sm text-gray-600">
+                        {plan.features.map((feature, idx) => (
+                          <li key={idx} className="flex items-center">
+                            <CheckCircleIcon className="w-4 h-4 mr-2 text-green-500 flex-shrink-0" />
+                            <span>{feature}</span>
+                          </li>
+                        ))}
+                      </ul>
+                      <Button
+                        onClick={() => handleUpgrade(plan.priceId)}
+                        disabled={isProcessing || !plan.priceId}
+                        className="w-full"
+                        variant={isPopular ? 'primary' : 'secondary'}
+                      >
+                        {isProcessing
+                          ? 'Processing...'
+                          : !plan.priceId
+                          ? 'Price ID not configured'
+                          : 'Upgrade to ' + plan.name}
+                      </Button>
+                    </div>
+                  )
+                })}
               </div>
             </Card>
           )}
