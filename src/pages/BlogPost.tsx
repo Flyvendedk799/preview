@@ -91,14 +91,31 @@ function renderContent(content: string): JSX.Element {
       continue
     }
 
-    // Numbered lists
+    // Numbered items - check if it's a list (multiple consecutive) or a section title (single with paragraph after)
     if (/^\d+\.\s/.test(trimmed)) {
-      const listItems: string[] = []
-      while (i < lines.length && /^\d+\.\s/.test(lines[i].trim())) {
-        listItems.push(lines[i].trim().replace(/^\d+\.\s/, ''))
+      // Look ahead to see if next non-empty line is also numbered
+      let j = i + 1
+      while (j < lines.length && !lines[j].trim()) j++
+      const nextLine = j < lines.length ? lines[j].trim() : ''
+      const isNextAlsoNumbered = /^\d+\.\s/.test(nextLine)
+      
+      if (isNextAlsoNumbered) {
+        // It's a true numbered list - collect all items
+        const listItems: string[] = []
+        while (i < lines.length && /^\d+\.\s/.test(lines[i].trim())) {
+          listItems.push(lines[i].trim().replace(/^\d+\.\s/, ''))
+          i++
+          // Skip empty lines between list items
+          while (i < lines.length && !lines[i].trim()) i++
+        }
+        blocks.push({ type: 'ol', content: '', lines: listItems })
+      } else {
+        // It's a numbered section title (like "1. Match the Message")
+        const num = trimmed.match(/^(\d+)\./)?.[1] || ''
+        const title = trimmed.replace(/^\d+\.\s*/, '')
+        blocks.push({ type: 'numbered-section', content: title, lines: [num] })
         i++
       }
-      blocks.push({ type: 'ol', content: '', lines: listItems })
       continue
     }
 
@@ -166,6 +183,18 @@ function renderContent(content: string): JSX.Element {
           <h3 key={index} className="text-xl sm:text-2xl font-bold text-gray-900 mt-10 mb-3 leading-tight">
             {block.content}
           </h3>
+        )
+
+      case 'numbered-section':
+        return (
+          <div key={index} className="mt-10 mb-4 flex items-start gap-4">
+            <span className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-amber-500 text-white font-bold text-sm flex items-center justify-center shadow-lg shadow-orange-500/20">
+              {block.lines?.[0]}
+            </span>
+            <h3 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight pt-0.5">
+              {block.content}
+            </h3>
+          </div>
         )
 
       case 'quote':

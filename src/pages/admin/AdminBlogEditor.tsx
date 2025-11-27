@@ -56,6 +56,74 @@ function generateExcerpt(content: string, maxLength: number = 160): string {
   return cleanContent.substring(0, maxLength - 3).replace(/\s+\S*$/, '') + '...'
 }
 
+// Convert HTML to Markdown (for paste handling)
+function htmlToMarkdown(html: string): string {
+  let md = html
+  
+  // Remove style tags and their content
+  md = md.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+  
+  // Convert headings
+  md = md.replace(/<h1[^>]*>([\s\S]*?)<\/h1>/gi, '\n## $1\n')
+  md = md.replace(/<h2[^>]*>([\s\S]*?)<\/h2>/gi, '\n## $1\n')
+  md = md.replace(/<h3[^>]*>([\s\S]*?)<\/h3>/gi, '\n### $1\n')
+  md = md.replace(/<h4[^>]*>([\s\S]*?)<\/h4>/gi, '\n### $1\n')
+  
+  // Convert bold
+  md = md.replace(/<(strong|b)[^>]*>([\s\S]*?)<\/(strong|b)>/gi, '**$2**')
+  
+  // Convert italic
+  md = md.replace(/<(em|i)[^>]*>([\s\S]*?)<\/(em|i)>/gi, '*$2*')
+  
+  // Convert links
+  md = md.replace(/<a[^>]*href=["']([^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi, '[$2]($1)')
+  
+  // Convert unordered lists
+  md = md.replace(/<ul[^>]*>([\s\S]*?)<\/ul>/gi, (match, content) => {
+    return content.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, '- $1\n')
+  })
+  
+  // Convert ordered lists
+  md = md.replace(/<ol[^>]*>([\s\S]*?)<\/ol>/gi, (match, content) => {
+    let i = 1
+    return content.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, () => `${i++}. `) + '\n'
+  })
+  
+  // Convert blockquotes
+  md = md.replace(/<blockquote[^>]*>([\s\S]*?)<\/blockquote>/gi, '\n> $1\n')
+  
+  // Convert code blocks
+  md = md.replace(/<pre[^>]*><code[^>]*>([\s\S]*?)<\/code><\/pre>/gi, '\n```\n$1\n```\n')
+  md = md.replace(/<code[^>]*>([\s\S]*?)<\/code>/gi, '`$1`')
+  
+  // Convert paragraphs
+  md = md.replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, '\n$1\n')
+  
+  // Convert line breaks
+  md = md.replace(/<br\s*\/?>/gi, '\n')
+  
+  // Remove remaining HTML tags
+  md = md.replace(/<[^>]+>/g, '')
+  
+  // Decode HTML entities
+  md = md.replace(/&nbsp;/g, ' ')
+  md = md.replace(/&amp;/g, '&')
+  md = md.replace(/&lt;/g, '<')
+  md = md.replace(/&gt;/g, '>')
+  md = md.replace(/&quot;/g, '"')
+  md = md.replace(/&#39;/g, "'")
+  md = md.replace(/&mdash;/g, '—')
+  md = md.replace(/&ndash;/g, '–')
+  md = md.replace(/&rarr;/g, '→')
+  md = md.replace(/&larr;/g, '←')
+  
+  // Clean up excessive whitespace
+  md = md.replace(/\n{3,}/g, '\n\n')
+  md = md.trim()
+  
+  return md
+}
+
 export default function AdminBlogEditor() {
   const { postId } = useParams<{ postId: string }>()
   const navigate = useNavigate()
@@ -367,26 +435,149 @@ export default function AdminBlogEditor() {
                   {/* Content */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Content (Markdown)</label>
+                    
+                    {/* Formatting Toolbar */}
+                    <div className="flex items-center gap-1 p-2 bg-gray-50 border border-gray-200 border-b-0 rounded-t-lg">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const textarea = document.getElementById('content-editor') as HTMLTextAreaElement
+                          const start = textarea.selectionStart
+                          const end = textarea.selectionEnd
+                          const text = formData.content
+                          const selected = text.substring(start, end)
+                          const newText = text.substring(0, start) + `**${selected}**` + text.substring(end)
+                          updateFormData('content', newText)
+                          setTimeout(() => {
+                            textarea.focus()
+                            textarea.setSelectionRange(start + 2, end + 2)
+                          }, 0)
+                        }}
+                        className="p-2 hover:bg-gray-200 rounded text-gray-700 font-bold text-sm"
+                        title="Bold (wrap selection)"
+                      >
+                        B
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const textarea = document.getElementById('content-editor') as HTMLTextAreaElement
+                          const start = textarea.selectionStart
+                          const end = textarea.selectionEnd
+                          const text = formData.content
+                          const selected = text.substring(start, end)
+                          const newText = text.substring(0, start) + `*${selected}*` + text.substring(end)
+                          updateFormData('content', newText)
+                          setTimeout(() => {
+                            textarea.focus()
+                            textarea.setSelectionRange(start + 1, end + 1)
+                          }, 0)
+                        }}
+                        className="p-2 hover:bg-gray-200 rounded text-gray-700 italic text-sm"
+                        title="Italic (wrap selection)"
+                      >
+                        I
+                      </button>
+                      <div className="w-px h-5 bg-gray-300 mx-1" />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const textarea = document.getElementById('content-editor') as HTMLTextAreaElement
+                          const start = textarea.selectionStart
+                          const text = formData.content
+                          const lineStart = text.lastIndexOf('\n', start - 1) + 1
+                          const newText = text.substring(0, lineStart) + '## ' + text.substring(lineStart)
+                          updateFormData('content', newText)
+                        }}
+                        className="p-2 hover:bg-gray-200 rounded text-gray-700 text-sm font-semibold"
+                        title="Heading 2"
+                      >
+                        H2
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const textarea = document.getElementById('content-editor') as HTMLTextAreaElement
+                          const start = textarea.selectionStart
+                          const text = formData.content
+                          const lineStart = text.lastIndexOf('\n', start - 1) + 1
+                          const newText = text.substring(0, lineStart) + '### ' + text.substring(lineStart)
+                          updateFormData('content', newText)
+                        }}
+                        className="p-2 hover:bg-gray-200 rounded text-gray-700 text-sm"
+                        title="Heading 3"
+                      >
+                        H3
+                      </button>
+                      <div className="w-px h-5 bg-gray-300 mx-1" />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const textarea = document.getElementById('content-editor') as HTMLTextAreaElement
+                          const start = textarea.selectionStart
+                          const text = formData.content
+                          const lineStart = text.lastIndexOf('\n', start - 1) + 1
+                          const newText = text.substring(0, lineStart) + '- ' + text.substring(lineStart)
+                          updateFormData('content', newText)
+                        }}
+                        className="p-2 hover:bg-gray-200 rounded text-gray-700 text-sm"
+                        title="Bullet point"
+                      >
+                        •
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const textarea = document.getElementById('content-editor') as HTMLTextAreaElement
+                          const start = textarea.selectionStart
+                          const text = formData.content
+                          const lineStart = text.lastIndexOf('\n', start - 1) + 1
+                          const newText = text.substring(0, lineStart) + '> ' + text.substring(lineStart)
+                          updateFormData('content', newText)
+                        }}
+                        className="p-2 hover:bg-gray-200 rounded text-gray-700 text-sm"
+                        title="Blockquote"
+                      >
+                        "
+                      </button>
+                      <div className="flex-1" />
+                      <span className="text-xs text-gray-400 px-2">Paste formatted text - it auto-converts to Markdown!</span>
+                    </div>
+                    
                     <textarea
+                      id="content-editor"
                       value={formData.content}
                       onChange={(e) => updateFormData('content', e.target.value)}
-                      placeholder="Write your post content here... Supports Markdown formatting.
+                      onPaste={(e) => {
+                        const html = e.clipboardData.getData('text/html')
+                        if (html) {
+                          e.preventDefault()
+                          const markdown = htmlToMarkdown(html)
+                          const textarea = e.target as HTMLTextAreaElement
+                          const start = textarea.selectionStart
+                          const end = textarea.selectionEnd
+                          const text = formData.content
+                          const newText = text.substring(0, start) + markdown + text.substring(end)
+                          updateFormData('content', newText)
+                        }
+                      }}
+                      placeholder="Write your post content here or paste formatted text from Word/Google Docs...
 
-## Heading 2
-### Heading 3
+## Section Heading
 
-**Bold text** and *italic text*
+Regular paragraph text goes here. Use **bold** and *italic* for emphasis.
 
-- Bullet point
-1. Numbered list
+- Bullet point one
+- Bullet point two
+- Bullet point three
 
-> Blockquote
+> This is a blockquote for important callouts
 
-`inline code`
+### Subsection Heading
 
-[Link text](https://example.com)"
+More content here..."
                       rows={20}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 font-mono text-sm resize-y min-h-[400px]"
+                      className="w-full px-4 py-3 border border-gray-200 rounded-b-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 font-mono text-sm resize-y min-h-[400px]"
                     />
                     <div className="flex justify-between mt-1">
                       <span className="text-xs text-gray-400">
