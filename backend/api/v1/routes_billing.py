@@ -197,9 +197,13 @@ def sync_subscription_status(
                 logger.info(f"Items data length: {len(items_data) if items_data else 0}")
                 
                 if items_data and len(items_data) > 0:
-                item = subscription.items.data[0]
-                price_id = item.price.id
-                price_obj = item.price
+                    item = items_data[0]
+                    logger.info(f"First item type: {type(item)}")
+                    logger.info(f"Item has price: {hasattr(item, 'price')}")
+                    
+                    if hasattr(item, 'price'):
+                        price_id = item.price.id if hasattr(item.price, 'id') else None
+                        price_obj = item.price
                 
                 logger.info(f"Extracted price_id from subscription: {price_id}")
                 logger.info(f"Configured price IDs - Basic: '{settings.STRIPE_PRICE_TIER_BASIC}', Pro: '{settings.STRIPE_PRICE_TIER_PRO}', Agency: '{settings.STRIPE_PRICE_TIER_AGENCY}'")
