@@ -190,14 +190,27 @@ def sync_subscription_status(
         try:
             if subscription.items and hasattr(subscription.items, 'data') and subscription.items.data:
                 price_id = subscription.items.data[0].price.id
+                logger.info(f"Extracted price_id from subscription: {price_id}")
+                logger.info(f"Configured price IDs - Basic: {settings.STRIPE_PRICE_TIER_BASIC}, Pro: {settings.STRIPE_PRICE_TIER_PRO}, Agency: {settings.STRIPE_PRICE_TIER_AGENCY}")
+                
                 if price_id == settings.STRIPE_PRICE_TIER_BASIC:
                     plan_name = 'basic'
                 elif price_id == settings.STRIPE_PRICE_TIER_PRO:
                     plan_name = 'pro'
                 elif price_id == settings.STRIPE_PRICE_TIER_AGENCY:
                     plan_name = 'agency'
+                else:
+                    # Try to extract plan name from price metadata or nickname
+                    price_obj = subscription.items.data[0].price
+                    if hasattr(price_obj, 'nickname') and price_obj.nickname:
+                        plan_name = price_obj.nickname.lower()
+                    elif hasattr(price_obj, 'metadata') and price_obj.metadata and 'plan' in price_obj.metadata:
+                        plan_name = price_obj.metadata['plan'].lower()
+                    else:
+                        logger.warning(f"Price ID {price_id} does not match any configured price IDs and no metadata found")
+                        plan_name = None
         except Exception as e:
-            logger.warning(f"Could not extract plan name from subscription: {str(e)}")
+            logger.error(f"Could not extract plan name from subscription: {str(e)}", exc_info=True)
             plan_name = None
         
         # Get trial end if exists

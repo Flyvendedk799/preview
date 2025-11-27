@@ -183,7 +183,9 @@ export default function Billing() {
                 <div className="text-right">
                   <p className="text-sm text-gray-600">Plan</p>
                   <p className="mt-1 text-lg font-semibold text-gray-900 capitalize">
-                    {billingStatus?.subscription_plan || 'Free'}
+                    {billingStatus?.subscription_status === 'active' 
+                      ? (billingStatus?.subscription_plan || 'Active Subscription')
+                      : (billingStatus?.subscription_plan || 'Free')}
                   </p>
                 </div>
               </div>
