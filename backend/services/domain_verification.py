@@ -1,9 +1,23 @@
 """Domain verification service for DNS, HTML file, and meta tag methods."""
 import dns.resolver
+import dns.rdatatype
 import requests
 from bs4 import BeautifulSoup
 from typing import Optional, Tuple
 from backend.utils.verification_tokens import create_dns_txt_record, create_html_file_content, create_meta_tag_content
+
+
+def get_fresh_dns_resolver() -> dns.resolver.Resolver:
+    """
+    Create a fresh DNS resolver that bypasses caching.
+    Uses public DNS servers for more reliable results.
+    """
+    resolver = dns.resolver.Resolver(configure=False)
+    # Use public DNS servers (Cloudflare and Google) for fresh lookups
+    resolver.nameservers = ['1.1.1.1', '8.8.8.8', '8.8.4.4', '1.0.0.1']
+    resolver.lifetime = 10  # 10 second timeout
+    resolver.cache = dns.resolver.Cache(cleaning_interval=0)  # Disable caching
+    return resolver
 
 
 def verify_dns(domain: str, token: str) -> Tuple[bool, Optional[str]]:
@@ -21,9 +35,12 @@ def verify_dns(domain: str, token: str) -> Tuple[bool, Optional[str]]:
         txt_record = create_dns_txt_record(domain, token)
         expected_value = f"preview-verification={token}"
         
+        # Create fresh resolver to bypass any caching
+        resolver = get_fresh_dns_resolver()
+        
         # Query TXT records for the domain
         try:
-            answers = dns.resolver.resolve(domain, 'TXT')
+            answers = resolver.resolve(domain, 'TXT')
         except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer, dns.resolver.Timeout):
             return False, "DNS record not found or domain does not exist"
         except Exception as e:

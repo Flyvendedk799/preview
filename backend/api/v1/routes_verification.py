@@ -17,7 +17,7 @@ from backend.utils.verification_tokens import (
     get_html_file_instructions,
     get_meta_tag_instructions
 )
-from backend.services.domain_verification import verify_domain
+from backend.services.domain_verification import verify_domain, get_fresh_dns_resolver
 from backend.services.activity_logger import log_activity
 
 router = APIRouter(prefix="/domains", tags=["verification"])
@@ -70,14 +70,19 @@ def start_verification(
             detail="Domain not found or not owned by this organization"
         )
     
-    # Generate token
-    token = generate_verification_token()
-    
-    # Save token and method to domain
-    domain.verification_method = request.method
-    domain.verification_token = token
-    db.commit()
-    db.refresh(domain)
+    # Check if we should reuse existing token (same method, token already exists)
+    if domain.verification_method == request.method and domain.verification_token:
+        # Reuse existing token - don't regenerate
+        token = domain.verification_token
+    else:
+        # Generate new token (new method or no existing token)
+        token = generate_verification_token()
+        
+        # Save token and method to domain
+        domain.verification_method = request.method
+        domain.verification_token = token
+        db.commit()
+        db.refresh(domain)
     
     # Get instructions based on method
     if request.method == 'dns':
@@ -123,6 +128,7 @@ def debug_verification(
 ):
     """
     Debug endpoint to see what DNS records are found for a domain.
+    Uses fresh DNS resolver to bypass caching.
     """
     import dns.resolver
     
@@ -143,7 +149,9 @@ def debug_verification(
     is_verified = False
     
     try:
-        answers = dns.resolver.resolve(domain.name, 'TXT')
+        # Use fresh resolver to bypass any caching
+        resolver = get_fresh_dns_resolver()
+        answers = resolver.resolve(domain.name, 'TXT')
         for answer in answers:
             for txt_string in answer.strings:
                 txt_str = txt_string.decode('utf-8') if isinstance(txt_string, bytes) else str(txt_string)
