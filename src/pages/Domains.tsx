@@ -380,12 +380,12 @@ export default function Domains() {
           </div>
           <div className="bg-gray-900 rounded-lg p-4 overflow-x-auto">
             <code className="text-sm text-gray-100 font-mono">
-              {`<script src="http://localhost:8000/static/snippet.js"></script>`}
+              {`<script src="https://mymetaview.com/static/snippet.js"></script>`}
             </code>
           </div>
           <p className="text-xs text-gray-500 mt-3 flex items-start space-x-1">
             <InformationCircleIcon className="w-4 h-4 mt-0.5 flex-shrink-0" />
-            <span>Note: Replace <code className="px-1 py-0.5 bg-gray-100 rounded">localhost:8000</code> with your production API URL when deploying.</span>
+            <span>Copy and paste this script tag into your website's <code className="px-1 py-0.5 bg-gray-100 rounded">&lt;head&gt;</code> section. It will automatically generate previews for all pages.</span>
           </p>
         </Card>
       )}
