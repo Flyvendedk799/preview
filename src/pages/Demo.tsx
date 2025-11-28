@@ -1035,6 +1035,31 @@ export default function Demo() {
                                   })()}
                                 </div>
 
+                                {/* Title and Description - Production social embed format */}
+                                {(() => {
+                                  const hasTitle = preview.title && preview.title.trim() && preview.title !== "Untitled"
+                                  const hasDescription = preview.description && preview.description.trim()
+                                  
+                                  if (!hasTitle && !hasDescription) {
+                                    return null
+                                  }
+                                  
+                                  return (
+                                    <div className="px-4 py-3 bg-white border-t border-gray-100 flex-shrink-0">
+                                      {hasTitle && (
+                                        <h3 className="text-[15px] font-bold text-gray-900 leading-tight mb-1.5 line-clamp-2">
+                                          {preview.title}
+                                        </h3>
+                                      )}
+                                      {hasDescription && (
+                                        <p className={`text-[13px] text-gray-600 leading-snug line-clamp-2 ${hasTitle ? '' : 'mt-0'}`}>
+                                          {preview.description}
+                                        </p>
+                                      )}
+                                    </div>
+                                  )
+                                })()}
+
                                 {/* Domain Footer - Always present */}
                                 <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 flex-shrink-0">
                                   <div className="text-[11px] text-gray-600 uppercase tracking-wider font-semibold leading-tight">

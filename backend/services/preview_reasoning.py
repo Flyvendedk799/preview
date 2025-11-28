@@ -694,14 +694,55 @@ def extract_final_content(
         region = region_map[region_id]
         return region.get("image_data")
     
-    # Extract primary identity
-    title = get_region_content(layout_slots.get("identity_slot"), "identity") or "Untitled"
+    # Extract primary identity with comprehensive fallbacks
+    title = get_region_content(layout_slots.get("identity_slot"), "identity")
+    
+    # Fallback: Search all included regions for identity content
+    if not title or title == "Untitled":
+        # Try tagline slot as fallback
+        title = get_region_content(layout_slots.get("tagline_slot"), "tagline")
+        
+        # If still no title, search included regions for identity purpose
+        if not title or title == "Untitled":
+            for region_id, include_flag in included.items():
+                if include_flag and region_id in region_map:
+                    region = region_map[region_id]
+                    if region.get("purpose") == "identity":
+                        title = get_region_content(region_id, "identity")
+                        if title and title != "Untitled":
+                            break
+            
+            # Last resort: find any high-priority text region
+            if not title or title == "Untitled":
+                for region in regions:
+                    if included.get(region["id"], False):
+                        raw = region.get("raw_content", "")
+                        if raw and len(raw.strip()) > 3 and len(raw.strip()) < 100:
+                            # Check if it looks like a title (not too long, has some structure)
+                            cleaned = clean_display_text(raw, "identity")
+                            if cleaned and cleaned != "Untitled":
+                                title = cleaned
+                                break
+    
+    # Final fallback
+    if not title or title == "Untitled":
+        title = "Untitled"
     
     # Extract subtitle/tagline
     subtitle = get_region_content(layout_slots.get("tagline_slot"), "tagline")
     
-    # Extract value/description
+    # Extract value/description with fallback
     description = get_region_content(layout_slots.get("value_slot"), "value_prop")
+    
+    # Fallback: If no description, try to find value_prop purpose in included regions
+    if not description:
+        for region_id, include_flag in included.items():
+            if include_flag and region_id in region_map:
+                region = region_map[region_id]
+                if region.get("purpose") == "value_prop":
+                    description = get_region_content(region_id, "value_prop")
+                    if description:
+                        break
     
     # Extract tags
     tags = []
