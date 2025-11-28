@@ -471,6 +471,109 @@ export default function Demo() {
             </div>
           )}
 
+          {/* Email Popup Modal */}
+          {showEmailPopup && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
+              <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 relative animate-scale-in">
+                {/* Close button */}
+                <button
+                  onClick={() => {
+                    setShowEmailPopup(false)
+                    setEmail('')
+                    setConsentChecked(false)
+                    setEmailError(null)
+                  }}
+                  className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600 transition-colors"
+                  aria-label="Close"
+                >
+                  <XMarkIcon className="w-6 h-6" />
+                </button>
+
+                <div className="text-center mb-6">
+                  <div className="w-16 h-16 bg-gradient-to-br from-orange-500 via-amber-500 to-yellow-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-orange-500/30">
+                    <EnvelopeIcon className="w-8 h-8 text-white" />
+                  </div>
+                  <h3 className="text-2xl font-black text-gray-900 mb-2">Get Updates</h3>
+                  <p className="text-gray-600 text-sm">Stay updated with new features and exclusive tips</p>
+                </div>
+
+                <form onSubmit={handleEmailSubmit} className="space-y-4">
+                  {/* Email Input */}
+                  <div>
+                    <label htmlFor="popup-email" className="block text-sm font-semibold text-gray-900 mb-2">
+                      Email Address
+                    </label>
+                    <input
+                      id="popup-email"
+                      type="email"
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value)
+                        setEmailError(null)
+                      }}
+                      placeholder="your@email.com"
+                      className={`w-full px-4 py-3 rounded-xl border-2 transition-all duration-200 focus:outline-none focus:ring-2 text-base ${
+                        emailError
+                          ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
+                          : 'border-gray-200 focus:border-orange-500 focus:ring-orange-200'
+                      }`}
+                      disabled={isSubmittingEmail || isGeneratingPreview}
+                      autoFocus
+                    />
+                  </div>
+
+                  {/* Consent Checkbox */}
+                  <div className="flex items-start space-x-3">
+                    <input
+                      type="checkbox"
+                      id="popup-consent"
+                      checked={consentChecked}
+                      onChange={(e) => {
+                        setConsentChecked(e.target.checked)
+                        setEmailError(null)
+                      }}
+                      className="mt-1 w-5 h-5 rounded border-gray-300 text-orange-500 focus:ring-orange-500 focus:ring-2 cursor-pointer"
+                      disabled={isSubmittingEmail || isGeneratingPreview}
+                      required
+                    />
+                    <label htmlFor="popup-consent" className="flex-1 text-sm text-gray-700 cursor-pointer">
+                      I agree to receive newsletter updates and marketing emails from MetaView
+                    </label>
+                  </div>
+
+                  {emailError && (
+                    <div className="flex items-center space-x-2 text-sm text-red-600 bg-red-50 p-3 rounded-lg animate-shake">
+                      <ExclamationCircleIcon className="w-5 h-5 flex-shrink-0" />
+                      <span>{emailError}</span>
+                    </div>
+                  )}
+
+                  {/* Submit Button */}
+                  <button
+                    type="submit"
+                    disabled={isSubmittingEmail || isGeneratingPreview || !email.trim() || !consentChecked}
+                    className="w-full py-4 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500 text-white rounded-xl font-bold text-base transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] hover:shadow-2xl hover:shadow-orange-500/40 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 relative overflow-hidden group"
+                  >
+                    {isSubmittingEmail || isGeneratingPreview ? (
+                      <>
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span>{isSubmittingEmail ? 'Subscribing...' : 'Generating Preview...'}</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="relative z-10 flex items-center">
+                          <CheckIcon className="w-5 h-5 mr-2" />
+                          <span>Continue</span>
+                        </span>
+                        <div className="absolute inset-0 bg-gradient-to-r from-orange-600 via-amber-600 to-orange-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                      </>
+                    )}
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+
           {/* Preview Step */}
           {step === 'preview' && preview && (
             <div className="space-y-12">
