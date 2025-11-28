@@ -937,21 +937,11 @@ export default function Demo() {
                               <div className="w-1 h-1 bg-white rounded-full"></div>
                             </div>
 
-                            {/* Preview Content - Actual Reconstructed Preview */}
-                            <div className="p-2 space-y-2 bg-white">
-                              {/* Avatar/Profile */}
-                              <div className="flex items-center space-x-2 mb-2">
-                                <div className={`w-7 h-7 bg-gradient-to-r ${platform.color} rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0`}>
-                                  {platform.icon}
-                                </div>
-                                <div className="text-[10px] font-semibold text-gray-900 truncate flex-1">
-                                  {preview.title.length > 20 ? preview.title.substring(0, 20) + '...' : preview.title}
-                                </div>
-                              </div>
-
+                            {/* Link Preview Card - What shows when URL is shared */}
+                            <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
                               {/* Preview Image */}
                               {(preview.primary_image_base64 || preview.screenshot_url) ? (
-                                <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden mb-2">
+                                <div className="aspect-[1.91/1] bg-gray-100 overflow-hidden">
                                   {preview.primary_image_base64 ? (
                                     <img
                                       src={`data:image/png;base64,${preview.primary_image_base64}`}
@@ -968,82 +958,50 @@ export default function Demo() {
                                 </div>
                               ) : (
                                 <div 
-                                  className="aspect-video rounded-lg mb-2 flex items-center justify-center"
+                                  className="aspect-[1.91/1] flex items-center justify-center"
                                   style={{ 
                                     background: `linear-gradient(135deg, ${preview.blueprint.primary_color}20, ${preview.blueprint.secondary_color}20)` 
                                   }}
                                 >
-                                  <span className="text-2xl opacity-30">📷</span>
+                                  <span className="text-3xl opacity-30">📷</span>
                                 </div>
                               )}
 
-                              {/* Preview Text - Actual Content */}
-                              <div className="space-y-1.5 px-1">
+                              {/* Link Preview Content */}
+                              <div className="p-3 space-y-1.5">
+                                {/* Domain */}
+                                <div className="text-[9px] text-gray-500 uppercase tracking-wide font-medium">
+                                  {(() => {
+                                    try {
+                                      const url = new URL(preview.url)
+                                      return url.hostname.replace('www.', '')
+                                    } catch {
+                                      return 'website.com'
+                                    }
+                                  })()}
+                                </div>
+
                                 {/* Title */}
                                 <h4 className="text-[11px] font-bold text-gray-900 leading-tight line-clamp-2">
                                   {preview.title}
                                 </h4>
-                                
-                                {/* Subtitle */}
-                                {preview.subtitle && (
-                                  <p className="text-[10px] text-gray-600 leading-tight line-clamp-1">
-                                    {preview.subtitle}
-                                  </p>
-                                )}
-                                
+
                                 {/* Description */}
-                                {preview.description && (
-                                  <p className="text-[9px] text-gray-500 leading-tight line-clamp-2">
-                                    {preview.description}
+                                {(preview.description || preview.subtitle) && (
+                                  <p className="text-[10px] text-gray-600 leading-tight line-clamp-2">
+                                    {preview.description || preview.subtitle}
                                   </p>
                                 )}
-                                
-                                {/* Tags */}
-                                {preview.tags.length > 0 && (
-                                  <div className="flex flex-wrap gap-1 mt-1">
-                                    {preview.tags.slice(0, 2).map((tag, i) => (
-                                      <span 
-                                        key={i}
-                                        className="text-[8px] px-1.5 py-0.5 rounded-full font-medium"
-                                        style={{ 
-                                          backgroundColor: `${preview.blueprint.primary_color}15`,
-                                          color: preview.blueprint.primary_color
-                                        }}
-                                      >
-                                        {tag.length > 12 ? tag.substring(0, 12) + '...' : tag}
-                                      </span>
-                                    ))}
-                                  </div>
-                                )}
-                                
-                                {/* CTA Button */}
+
+                                {/* CTA Button (if available) */}
                                 {preview.cta_text && (
                                   <button 
-                                    className="mt-1.5 w-full text-[9px] font-bold py-1.5 rounded-md text-white transition-opacity hover:opacity-90"
+                                    className="mt-2 w-full text-[9px] font-bold py-1.5 rounded text-white transition-opacity hover:opacity-90"
                                     style={{ backgroundColor: preview.blueprint.accent_color || preview.blueprint.primary_color }}
                                   >
-                                    {preview.cta_text.length > 25 ? preview.cta_text.substring(0, 25) + '...' : preview.cta_text}
+                                    {preview.cta_text.length > 30 ? preview.cta_text.substring(0, 30) + '...' : preview.cta_text}
                                   </button>
                                 )}
-                              </div>
-
-                              {/* Actions Bar */}
-                              <div className="flex items-center justify-between pt-1.5 border-t border-gray-100 px-1">
-                                <div className="flex items-center space-x-3">
-                                  <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                                  </svg>
-                                  <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                                  </svg>
-                                  <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342c0 .401.08.805.24 1.18l.09.27-.218-2.773A2.25 2.25 0 0110.5 9.75h4.5a2.25 2.25 0 012.25 2.25v.09l-.27-.09a2.25 2.25 0 00-1.18-.24c-.401 0-.805.08-1.18.24l-.27.09v-.09a2.25 2.25 0 00-2.25-2.25h-4.5zM15 13.5a2.25 2.25 0 100-4.5 2.25 2.25 0 000 4.5z" />
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.25 9.75h4.5a2.25 2.25 0 012.25 2.25v4.5a2.25 2.25 0 01-2.25 2.25h-4.5a2.25 2.25 0 01-2.25-2.25v-4.5a2.25 2.25 0 012.25-2.25z" />
-                                  </svg>
-                                </div>
-                                <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
-                                </svg>
                               </div>
                             </div>
 
