@@ -241,17 +241,23 @@ Return your response as valid JSON with these exact keys:
         ai_data = json.loads(content)
         
         # Step 5: Return AI result with variants (image_url will be handled by screenshot generation in pipeline)
+        # Use priority content as fallback if AI didn't use it properly
+        priority_title = priority_content.get("primary_title") or metadata.get("priority_title")
+        priority_desc = priority_content.get("primary_description") or metadata.get("priority_description")
+        priority_image = priority_content.get("visual_elements", [])
+        priority_image_url = priority_image[0] if priority_image else None
+        
         return {
-            "title": ai_data.get("title") or metadata.get("priority_title") or "Untitled Page",
-            "description": ai_data.get("description") or metadata.get("priority_description") or None,
+            "title": ai_data.get("title") or priority_title or "Untitled Page",
+            "description": ai_data.get("description") or priority_desc or None,
             "keywords": ai_data.get("keywords", []),
             "tone": ai_data.get("tone", "neutral"),
-            "type": ai_data.get("type", "unknown"),
+            "type": priority_content.get("page_type", ai_data.get("type", "unknown")),
             "reasoning": ai_data.get("reasoning", ""),
             "variant_a": ai_data.get("variant_a", {}),
             "variant_b": ai_data.get("variant_b", {}),
             "variant_c": ai_data.get("variant_c", {}),
-            "image_url": metadata.get("og_image") or "",  # Fallback, will be replaced by screenshot
+            "image_url": priority_image_url or metadata.get("og_image") or "",  # Priority image first
         }
         
     except json.JSONDecodeError as e:
