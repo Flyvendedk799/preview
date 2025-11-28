@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowRightIcon,
@@ -21,6 +21,7 @@ import {
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid'
 import { subscribeToNewsletter, generateDemoPreview, type DemoPreviewResponse } from '../api/client'
 import ReconstructedPreview from '../components/ReconstructedPreview'
+import GenerationProgress from '../components/GenerationProgress'
 
 type Step = 'input' | 'preview'
 
@@ -45,6 +46,9 @@ export default function Demo() {
   const [consentChecked, setConsentChecked] = useState(false)
   const [generationStatus, setGenerationStatus] = useState<string>('')
   const [generationProgress, setGenerationProgress] = useState<number>(0)
+  const [currentStage, setCurrentStage] = useState<number>(0)
+  const [estimatedTimeRemaining, setEstimatedTimeRemaining] = useState<number>(0)
+  const [showCompletionCelebration, setShowCompletionCelebration] = useState(false)
 
   const heroRef = useRef<HTMLDivElement>(null)
 
@@ -153,60 +157,98 @@ export default function Demo() {
     await generatePreviewWithUrl(pendingUrl)
   }
 
-  const generatePreviewWithUrl = async (urlToProcess: string) => {
+  // AI Generation stages aligned with backend workflow
+  const GENERATION_STAGES = [
+    { id: 'capture', progress: 10, time: 3, message: 'Capturing page screenshot...' },
+    { id: 'analyze', progress: 30, time: 8, message: 'Analyzing visual structure...' },
+    { id: 'prioritize', progress: 50, time: 5, message: 'Identifying key elements...' },
+    { id: 'compose', progress: 70, time: 4, message: 'Designing optimal layout...' },
+    { id: 'validate', progress: 85, time: 3, message: 'Running quality checks...' },
+    { id: 'render', progress: 95, time: 2, message: 'Rendering final preview...' },
+  ]
+
+  const generatePreviewWithUrl = useCallback(async (urlToProcess: string) => {
     setIsGeneratingPreview(true)
-    setGenerationStatus('Analyzing page...')
-    setGenerationProgress(10)
+    setCurrentStage(0)
+    setGenerationProgress(5)
+    setGenerationStatus('Initializing AI analysis...')
+    setEstimatedTimeRemaining(30)
+    setPreviewError(null)
+    
+    // Start stage progression
+    let stageIndex = 0
+    const totalEstimatedTime = GENERATION_STAGES.reduce((sum, s) => sum + s.time, 0)
+    let elapsedTime = 0
+    
+    const stageInterval = setInterval(() => {
+      if (stageIndex < GENERATION_STAGES.length) {
+        const stage = GENERATION_STAGES[stageIndex]
+        setCurrentStage(stageIndex)
+        setGenerationProgress(stage.progress)
+        setGenerationStatus(stage.message)
+        
+        // Update estimated time remaining
+        elapsedTime += stage.time
+        const remaining = Math.max(0, totalEstimatedTime - elapsedTime)
+        setEstimatedTimeRemaining(remaining)
+        
+        stageIndex++
+      }
+    }, 4000) // Advance stage every 4 seconds (tuned for typical API response time)
+    
+    // Smooth progress animation between stages
+    const progressInterval = setInterval(() => {
+      setGenerationProgress((prev) => {
+        const currentStageData = GENERATION_STAGES[Math.min(stageIndex, GENERATION_STAGES.length - 1)]
+        const nextStageData = GENERATION_STAGES[Math.min(stageIndex + 1, GENERATION_STAGES.length - 1)]
+        const targetProgress = currentStageData?.progress || prev
+        
+        if (prev >= 95) return prev // Don't exceed 95 until complete
+        if (prev >= targetProgress) return prev
+        
+        return Math.min(prev + 0.5, targetProgress)
+      })
+    }, 100)
     
     try {
-      // Simulate progress updates
-      const progressInterval = setInterval(() => {
-        setGenerationProgress((prev) => {
-          if (prev >= 90) return prev
-          return prev + Math.random() * 10
-        })
-      }, 500)
-
-      const statusMessages = [
-        { progress: 20, message: 'Capturing screenshot...' },
-        { progress: 40, message: 'Analyzing visual design...' },
-        { progress: 60, message: 'Extracting content...' },
-        { progress: 80, message: 'Generating preview...' },
-      ]
-
-      let statusIndex = 0
-      const statusInterval = setInterval(() => {
-        if (statusIndex < statusMessages.length) {
-          setGenerationStatus(statusMessages[statusIndex].message)
-          setGenerationProgress(statusMessages[statusIndex].progress)
-          statusIndex++
-        }
-      }, 3000)
-
       const result = await generateDemoPreview(urlToProcess)
       
+      // Clear intervals
+      clearInterval(stageInterval)
       clearInterval(progressInterval)
-      clearInterval(statusInterval)
       
-      setGenerationStatus('Finalizing...')
+      // Complete all stages
+      setCurrentStage(GENERATION_STAGES.length)
       setGenerationProgress(100)
+      setGenerationStatus('Preview complete!')
+      setEstimatedTimeRemaining(0)
       
-      // Small delay to show completion
-      await new Promise(resolve => setTimeout(resolve, 500))
+      // Show celebration animation
+      setShowCompletionCelebration(true)
+      await new Promise(resolve => setTimeout(resolve, 1200))
       
       setPreview(result)
       setStep('preview')
+      setShowCompletionCelebration(false)
+      
+      // Reset state
       setGenerationStatus('')
       setGenerationProgress(0)
+      setCurrentStage(0)
     } catch (error) {
+      clearInterval(stageInterval)
+      clearInterval(progressInterval)
+      
       setPreviewError(error instanceof Error ? error.message : 'Failed to generate preview. Please try again.')
-      setShowEmailPopup(false) // Show error on main form
+      setShowEmailPopup(false)
       setGenerationStatus('')
       setGenerationProgress(0)
+      setCurrentStage(0)
+      setEstimatedTimeRemaining(0)
     } finally {
       setIsGeneratingPreview(false)
     }
-  }
+  }, [])
 
   const platforms = [
     { id: 'instagram', name: 'Instagram', color: 'from-purple-500 to-pink-500', icon: '📷' },
@@ -524,6 +566,80 @@ export default function Demo() {
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* AI Generation Overlay - Full Screen Progress */}
+          {isGeneratingPreview && !showEmailPopup && (
+            <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-gradient-to-br from-gray-900/90 via-gray-900/95 to-black/90 backdrop-blur-md animate-fade-in">
+              {showCompletionCelebration ? (
+                /* Celebration Animation */
+                <div className="text-center animate-scale-in">
+                  {/* Confetti-like particles */}
+                  <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                    {[...Array(20)].map((_, i) => (
+                      <div
+                        key={i}
+                        className="absolute w-3 h-3 rounded-full animate-float-up"
+                        style={{
+                          left: `${Math.random() * 100}%`,
+                          backgroundColor: ['#f97316', '#fbbf24', '#34d399', '#60a5fa', '#a78bfa'][i % 5],
+                          animationDelay: `${Math.random() * 0.5}s`,
+                          animationDuration: `${1 + Math.random()}s`,
+                        }}
+                      />
+                    ))}
+                  </div>
+                  
+                  {/* Success Icon */}
+                  <div className="relative">
+                    <div className="w-24 h-24 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-full flex items-center justify-center mx-auto shadow-2xl shadow-emerald-500/50 animate-bounce">
+                      <CheckIcon className="w-12 h-12 text-white" />
+                    </div>
+                    <div className="absolute inset-0 rounded-full bg-emerald-400 animate-ping opacity-30" />
+                  </div>
+                  
+                  <h2 className="mt-6 text-3xl font-black text-white">Preview Ready!</h2>
+                  <p className="mt-2 text-white/70">AI analysis complete</p>
+                </div>
+              ) : (
+                <div className="w-full max-w-xl">
+                  <GenerationProgress
+                    isGenerating={isGeneratingPreview}
+                    currentStage={currentStage}
+                    overallProgress={generationProgress}
+                    statusMessage={generationStatus}
+                    estimatedTimeRemaining={estimatedTimeRemaining}
+                  />
+                  
+                  {/* URL being processed */}
+                  <div className="mt-6 text-center">
+                    <p className="text-white/60 text-sm mb-2">Analyzing:</p>
+                    <div className="bg-white/10 rounded-lg px-4 py-2 inline-flex items-center space-x-2">
+                      <GlobeAltIcon className="w-4 h-4 text-orange-400" />
+                      <span className="text-white/90 font-mono text-sm truncate max-w-xs">
+                        {pendingUrl || url}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Wait message */}
+                  <p className="mt-8 text-center text-white/40 text-xs">
+                    Our AI is analyzing your page using multi-stage reasoning...
+                  </p>
+                </div>
+              )}
+              
+              {/* Animation styles */}
+              <style>{`
+                @keyframes float-up {
+                  0% { transform: translateY(100vh) rotate(0deg); opacity: 1; }
+                  100% { transform: translateY(-100vh) rotate(720deg); opacity: 0; }
+                }
+                .animate-float-up {
+                  animation: float-up 2s ease-out forwards;
+                }
+              `}</style>
             </div>
           )}
 
