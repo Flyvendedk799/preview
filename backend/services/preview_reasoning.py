@@ -262,12 +262,24 @@ OUTPUT STRICT JSON:
 
 CRITICAL RULES:
 1. Extract EXACT text content - no paraphrasing
-2. Be PRECISE with bounding boxes
+2. Be PRECISE with bounding boxes - use normalized coordinates (0-1)
 3. Provide GENUINE reasoning, not templates
 4. Identify ALL visible regions, then filter by weight
 5. HERO weight should be assigned to only ONE element
 6. Navigation elements should usually be weight=omit
-7. Duplicate/redundant content should be weight=omit"""
+7. Duplicate/redundant content should be weight=omit
+
+BOUNDING BOX PRECISION (very important):
+- For PROFILE IMAGES (circular avatars): 
+  * The bbox should encompass the ENTIRE circular avatar area
+  * Include slight padding around the circle to capture the full image
+  * x,y should be the top-left corner of the bounding rectangle containing the circle
+  * width,height should cover the full circular avatar
+- For rectangular images: bbox should tightly fit the image bounds
+- All coordinates are normalized (0-1 relative to image dimensions)
+
+Example for a profile avatar at position (100,50) with size 80x80 on a 800x600 image:
+bbox: {"x": 0.1, "y": 0.067, "width": 0.1, "height": 0.133}"""
 
 
 STAGE_4_5_PROMPT = """You are a senior visual designer creating an optimal preview layout.
@@ -407,23 +419,66 @@ def prepare_image(screenshot_bytes: bytes) -> Tuple[str, Image.Image]:
     return base64_str, image
 
 
-def crop_region(image: Image.Image, bbox: Dict[str, float]) -> str:
-    """Crop a region from the image."""
+def crop_region(image: Image.Image, bbox: Dict[str, float], is_profile_image: bool = False) -> str:
+    """
+    Crop a region from the image.
+    
+    For profile images, ensures a square, centered crop with padding
+    to handle imprecise bounding boxes from AI detection.
+    """
+    # Calculate raw coordinates
     left = int(bbox['x'] * image.width)
     top = int(bbox['y'] * image.height)
     right = int((bbox['x'] + bbox['width']) * image.width)
     bottom = int((bbox['y'] + bbox['height']) * image.height)
     
-    # Clamp to image bounds
-    left = max(0, left)
-    top = max(0, top)
-    right = min(image.width, right)
-    bottom = min(image.height, bottom)
+    # Add padding to make cropping more forgiving (5% of each dimension)
+    padding_x = int((right - left) * 0.1)
+    padding_y = int((bottom - top) * 0.1)
+    
+    left = max(0, left - padding_x)
+    top = max(0, top - padding_y)
+    right = min(image.width, right + padding_x)
+    bottom = min(image.height, bottom + padding_y)
+    
+    if right <= left or bottom <= top:
+        return ""
+    
+    # For profile images, ensure square crop centered on the detected region
+    if is_profile_image:
+        width = right - left
+        height = bottom - top
+        
+        # Make it square by taking the larger dimension
+        size = max(width, height)
+        
+        # Center the square on the original detection
+        center_x = (left + right) // 2
+        center_y = (top + bottom) // 2
+        
+        # Calculate new bounds
+        half_size = size // 2
+        left = max(0, center_x - half_size)
+        top = max(0, center_y - half_size)
+        right = min(image.width, center_x + half_size)
+        bottom = min(image.height, center_y + half_size)
+        
+        # Re-adjust if we hit image bounds
+        if right - left < size and left > 0:
+            left = max(0, right - size)
+        if bottom - top < size and top > 0:
+            top = max(0, bottom - size)
     
     if right <= left or bottom <= top:
         return ""
     
     cropped = image.crop((left, top, right, bottom))
+    
+    # For profile images, resize to a consistent size for quality
+    if is_profile_image and cropped.width > 0:
+        target_size = 256
+        cropped = cropped.resize((target_size, target_size), Image.Resampling.LANCZOS)
+    
     buffer = BytesIO()
     cropped.save(buffer, format='PNG', optimize=True)
     return base64.b64encode(buffer.getvalue()).decode('utf-8')
@@ -477,7 +532,9 @@ def run_stages_1_2_3(screenshot_bytes: bytes) -> Tuple[List[Dict], Dict[str, str
     # Crop images for included regions
     for region in data.get("regions", []):
         if region.get("content_type") == "image" and region.get("bbox"):
-            region["image_data"] = crop_region(pil_image, region["bbox"])
+            # Check if this is a profile/identity image for special handling
+            is_profile = region.get("purpose") == "identity"
+            region["image_data"] = crop_region(pil_image, region["bbox"], is_profile_image=is_profile)
     
     return (
         data.get("regions", []),
