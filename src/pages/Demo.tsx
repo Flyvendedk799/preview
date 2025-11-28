@@ -649,20 +649,134 @@ export default function Demo() {
           {/* Preview Step */}
           {step === 'preview' && preview && (
             <div className="space-y-12">
-              {/* Success Banner */}
+              {/* Success Banner with AI Confidence */}
               <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border-2 border-emerald-200 rounded-xl p-8 text-center relative overflow-hidden animate-fade-in">
                 <div className="absolute inset-0 bg-gradient-to-r from-emerald-400/10 via-teal-400/10 to-emerald-400/10 animate-pulse" />
                 <div className="relative z-10">
                   <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-emerald-500/30 animate-bounce">
                     <CheckIcon className="w-8 h-8 text-white" />
                   </div>
-                  <h3 className="text-2xl font-black text-gray-900 mb-2">Preview Generated!</h3>
-                  <p className="text-gray-600">See how it appears across different platforms</p>
+                  <h3 className="text-2xl font-black text-gray-900 mb-2">AI Analysis Complete!</h3>
+                  <p className="text-gray-600 mb-4">Deep UI/UX intelligence applied to your page</p>
+                  
+                  {/* AI Confidence Indicator */}
+                  <div className="flex items-center justify-center space-x-4">
+                    <div className="flex items-center space-x-2 bg-white/80 px-4 py-2 rounded-full">
+                      <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <span className="text-sm font-semibold text-gray-700">
+                        AI Confidence: {Math.round(preview.confidence * 100)}%
+                      </span>
+                    </div>
+                    <div className="bg-white/80 px-4 py-2 rounded-full">
+                      <span className="text-sm font-semibold text-gray-700 capitalize">
+                        Intent: {preview.design_intent}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* Main Preview Card */}
-              <div className="bg-white rounded-2xl shadow-2xl border-2 border-gray-200 overflow-hidden transform hover:scale-[1.01] transition-all duration-300 relative group">
+              {/* Design Intelligence Summary */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Quality Metrics */}
+                <div className="bg-gradient-to-br from-violet-50 to-purple-50 rounded-xl p-6 border border-violet-200">
+                  <h4 className="font-bold text-violet-900 mb-4 flex items-center">
+                    <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                    Design Quality
+                  </h4>
+                  <div className="space-y-3">
+                    <div>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="text-gray-600">Visual Hierarchy</span>
+                        <span className="font-semibold text-violet-700">{Math.round(preview.quality.hierarchy_score * 100)}%</span>
+                      </div>
+                      <div className="h-2 bg-violet-200 rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-violet-500 to-purple-500 rounded-full transition-all duration-500" style={{ width: `${preview.quality.hierarchy_score * 100}%` }} />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="text-gray-600">Message Clarity</span>
+                        <span className="font-semibold text-violet-700">{Math.round(preview.quality.clarity_score * 100)}%</span>
+                      </div>
+                      <div className="h-2 bg-violet-200 rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-violet-500 to-purple-500 rounded-full transition-all duration-500" style={{ width: `${preview.quality.clarity_score * 100}%` }} />
+                      </div>
+                    </div>
+                    <div className="pt-2 border-t border-violet-200">
+                      <span className="text-xs text-gray-500">Clutter Assessment: </span>
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded ${
+                        preview.quality.clutter === 'clean' ? 'bg-green-100 text-green-700' :
+                        preview.quality.clutter === 'moderate' ? 'bg-yellow-100 text-yellow-700' :
+                        'bg-red-100 text-red-700'
+                      }`}>
+                        {preview.quality.clutter}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Value Proposition */}
+                <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl p-6 border border-blue-200">
+                  <h4 className="font-bold text-blue-900 mb-4 flex items-center">
+                    <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    AI Interpretation
+                  </h4>
+                  <div className="space-y-3">
+                    <div>
+                      <span className="text-xs text-gray-500 uppercase tracking-wide">Primary Message</span>
+                      <p className="text-sm font-medium text-gray-800 mt-1">{preview.primary_message || 'Not detected'}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs text-gray-500 uppercase tracking-wide">Value Proposition</span>
+                      <p className="text-sm font-medium text-gray-800 mt-1">{preview.value_proposition || 'Not detected'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Extracted Content */}
+                <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-6 border border-amber-200">
+                  <h4 className="font-bold text-amber-900 mb-4 flex items-center">
+                    <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Key Content
+                  </h4>
+                  <div className="space-y-2">
+                    {preview.content.headline && (
+                      <div className="text-sm">
+                        <span className="text-gray-500">Headline: </span>
+                        <span className="font-medium text-gray-800">{preview.content.headline}</span>
+                      </div>
+                    )}
+                    {preview.content.cta && (
+                      <div className="text-sm">
+                        <span className="text-gray-500">CTA: </span>
+                        <span className="font-semibold text-orange-600">{preview.content.cta}</span>
+                      </div>
+                    )}
+                    {preview.content.features.length > 0 && (
+                      <div className="pt-2">
+                        <span className="text-xs text-gray-500 uppercase tracking-wide">Key Features</span>
+                        <div className="flex flex-wrap gap-1.5 mt-1.5">
+                          {preview.content.features.slice(0, 3).map((feature, i) => (
+                            <span key={i} className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs rounded-full">
+                              {feature}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Main Preview Card with Visual Guidance */}
+              <div className="bg-white rounded-2xl shadow-2xl border-2 border-gray-200 overflow-hidden relative group">
                 <div className="absolute -inset-1 bg-gradient-to-r from-orange-500 via-amber-500 to-yellow-500 rounded-2xl opacity-0 group-hover:opacity-20 blur-xl transition-opacity duration-300" />
                 
                 {preview.image_url && (
@@ -677,16 +791,46 @@ export default function Demo() {
                       }}
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
+                    
+                    {/* Visual Guidance Overlay - Show emphasis zones */}
+                    {preview.visual_guidance.emphasis_zones.length > 0 && (
+                      <div className="absolute inset-0 pointer-events-none">
+                        {preview.visual_guidance.emphasis_zones.slice(0, 3).map((zone, i) => (
+                          <div
+                            key={i}
+                            className="absolute border-2 border-dashed border-orange-400/50 rounded-lg bg-orange-500/10 transition-all duration-300"
+                            style={{
+                              left: `${zone.x * 100}%`,
+                              top: `${zone.y * 100}%`,
+                              width: `${zone.width * 100}%`,
+                              height: `${zone.height * 100}%`,
+                            }}
+                            title={zone.reason}
+                          >
+                            <span className="absolute -top-5 left-0 text-xs bg-orange-500 text-white px-2 py-0.5 rounded">
+                              #{zone.priority}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {/* Style Badge */}
+                    <div className="absolute top-4 right-4 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-full">
+                      <span className="text-xs font-semibold text-white capitalize">
+                        Style: {preview.visual_guidance.style}
+                      </span>
+                    </div>
                   </div>
                 )}
                 <div className="p-6 relative">
                   <div className="mb-3 flex items-center justify-between">
                     <span className="inline-block px-4 py-1.5 bg-gradient-to-r from-orange-100 to-amber-100 text-orange-700 text-xs font-bold rounded-full uppercase border border-orange-200">
-                      {preview.type}
+                      {preview.design_intent}
                     </span>
                     <div className="flex items-center space-x-1 text-amber-500">
                       <StarIcon className="w-4 h-4 fill-amber-400" />
-                      <span className="text-xs font-semibold">AI Generated</span>
+                      <span className="text-xs font-semibold">AI Intelligence</span>
                     </div>
                   </div>
                   <h3 className="text-2xl font-black text-gray-900 mb-3 leading-tight">{preview.title}</h3>
@@ -699,6 +843,78 @@ export default function Demo() {
                   </div>
                 </div>
               </div>
+
+              {/* Content Variants Section */}
+              <div className="bg-gradient-to-br from-gray-50 to-white rounded-2xl p-8 border border-gray-200">
+                <div className="text-center mb-8">
+                  <h3 className="text-2xl font-black text-gray-900 mb-2">AI Content Variants</h3>
+                  <p className="text-gray-600">Different messaging approaches for A/B testing</p>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Action-Oriented */}
+                  <div className="bg-white rounded-xl p-5 border-2 border-blue-200 hover:border-blue-400 transition-colors">
+                    <div className="flex items-center space-x-2 mb-3">
+                      <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                        <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                      </div>
+                      <span className="text-sm font-bold text-blue-700">Action-Oriented</span>
+                    </div>
+                    <h4 className="font-bold text-gray-900 mb-2 text-sm">{preview.variants.action_oriented.title || 'N/A'}</h4>
+                    <p className="text-gray-600 text-xs">{preview.variants.action_oriented.description || 'N/A'}</p>
+                  </div>
+
+                  {/* Benefit-Focused */}
+                  <div className="bg-white rounded-xl p-5 border-2 border-green-200 hover:border-green-400 transition-colors">
+                    <div className="flex items-center space-x-2 mb-3">
+                      <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+                        <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <span className="text-sm font-bold text-green-700">Benefit-Focused</span>
+                    </div>
+                    <h4 className="font-bold text-gray-900 mb-2 text-sm">{preview.variants.benefit_focused.title || 'N/A'}</h4>
+                    <p className="text-gray-600 text-xs">{preview.variants.benefit_focused.description || 'N/A'}</p>
+                  </div>
+
+                  {/* Emotional */}
+                  <div className="bg-white rounded-xl p-5 border-2 border-purple-200 hover:border-purple-400 transition-colors">
+                    <div className="flex items-center space-x-2 mb-3">
+                      <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
+                        <svg className="w-4 h-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                        </svg>
+                      </div>
+                      <span className="text-sm font-bold text-purple-700">Emotional</span>
+                    </div>
+                    <h4 className="font-bold text-gray-900 mb-2 text-sm">{preview.variants.emotional.title || 'N/A'}</h4>
+                    <p className="text-gray-600 text-xs">{preview.variants.emotional.description || 'N/A'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* AI Reasoning (Collapsible) */}
+              {preview.reasoning && (
+                <details className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden group">
+                  <summary className="px-6 py-4 cursor-pointer hover:bg-gray-100 transition-colors flex items-center justify-between">
+                    <span className="font-bold text-gray-900 flex items-center">
+                      <svg className="w-5 h-5 mr-2 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                      </svg>
+                      AI Reasoning
+                    </span>
+                    <svg className="w-5 h-5 text-gray-400 transform transition-transform group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </summary>
+                  <div className="px-6 py-4 border-t border-gray-200 bg-white">
+                    <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{preview.reasoning}</p>
+                  </div>
+                </details>
+              )}
 
               {/* Mobile Platform Showcase */}
               <div className="bg-gradient-to-br from-gray-50 to-white rounded-2xl p-8 sm:p-10 border border-gray-200">

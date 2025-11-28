@@ -921,19 +921,84 @@ export async function exportNewsletterSubscribers(format: 'csv' | 'xlsx' = 'csv'
 }
 
 // ============================================================================
-// Demo Preview Endpoints
+// Demo Preview Endpoints - Enhanced with UI/UX Intelligence
 // ============================================================================
 
 export interface DemoPreviewRequest {
   url: string
 }
 
+export interface EmphasisZone {
+  x: number
+  y: number
+  width: number
+  height: number
+  priority: number
+  reason: string
+  content_type: string
+}
+
+export interface DemoPreviewVariant {
+  title: string
+  description: string
+}
+
+export interface VisualGuidance {
+  focal_point: { x: number; y: number }
+  crop_region: { x: number; y: number; width: number; height: number }
+  emphasis_zones: EmphasisZone[]
+  style: string
+  overlay_position: string
+}
+
+export interface ContentExtraction {
+  headline: string | null
+  subheadline: string | null
+  cta: string | null
+  features: string[]
+  social_proof: string | null
+}
+
+export interface QualityMetrics {
+  hierarchy_score: number
+  clarity_score: number
+  clutter: string
+}
+
 export interface DemoPreviewResponse {
+  // Core preview data
   title: string
   description: string | null
   image_url: string | null
   type: string
   url: string
+  
+  // Design intelligence
+  design_intent: string
+  primary_message: string
+  value_proposition: string
+  
+  // Variants for A/B testing
+  variants: {
+    action_oriented: DemoPreviewVariant
+    benefit_focused: DemoPreviewVariant
+    emotional: DemoPreviewVariant
+  }
+  
+  // Visual guidance
+  visual_guidance: VisualGuidance
+  
+  // Extracted content
+  content: ContentExtraction
+  
+  // Quality metrics
+  quality: QualityMetrics
+  
+  // AI reasoning
+  reasoning: string
+  confidence: number
+  
+  // Demo metadata
   is_demo: boolean
   message: string
 }
