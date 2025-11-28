@@ -921,85 +921,65 @@ export async function exportNewsletterSubscribers(format: 'csv' | 'xlsx' = 'csv'
 }
 
 // ============================================================================
-// Demo Preview Endpoints - Semantic Reconstruction
+// Demo Preview Endpoints - Multi-Stage Reasoned Preview
 // ============================================================================
 
 export interface DemoPreviewRequest {
   url: string
 }
 
-export interface BoundingBox {
-  x: number
-  y: number
-  width: number
-  height: number
+export interface ContextItem {
+  icon: string  // 'location', 'info', etc.
+  text: string
 }
 
-export interface ExtractedElement {
-  id: string
-  type: string  // profile_image, hero_image, headline, subheadline, cta_button, etc.
-  content: string
-  bounding_box: BoundingBox
-  priority: number
-  include_in_preview: boolean
-  text_content: string | null
-  background_color: string | null
-  text_color: string | null
-  font_weight: string | null
-  is_image: boolean
-  image_crop_data: string | null  // Base64 of cropped image region
-  confidence: number
+export interface CredibilityItem {
+  type: string   // 'rating', 'review', etc.
+  value: string  // '4.5 (10 reviews)'
 }
 
-export interface LayoutSection {
-  name: string
-  element_ids: string[]
-  layout_direction: 'horizontal' | 'vertical' | 'grid'
-  alignment: 'left' | 'center' | 'right'
-  spacing: 'tight' | 'normal' | 'loose'
-  emphasis: 'primary' | 'secondary' | 'tertiary'
-}
-
-export interface LayoutPlan {
-  template: string  // profile_card, product_card, landing_hero, etc.
-  page_type: string
+export interface LayoutBlueprint {
+  template_type: string  // profile, product, landing, article, service
   primary_color: string
   secondary_color: string
   accent_color: string
-  background_style: string
-  font_style: string
-  sections: LayoutSection[]
-  title: string
-  subtitle: string | null
-  description: string | null
-  cta_text: string | null
-  layout_rationale: string
+  
+  // Quality scores from coherence check
+  coherence_score: number  // 0-1
+  balance_score: number    // 0-1
+  clarity_score: number    // 0-1
+  overall_quality: 'excellent' | 'good' | 'fair' | 'poor'
+  
+  // Reasoning chain
+  layout_reasoning: string
+  composition_notes: string
 }
 
 export interface DemoPreviewResponse {
-  // URL
+  // Source URL
   url: string
   
-  // Layout plan for reconstruction
-  layout_plan: LayoutPlan
+  // ===== RENDERED CONTENT =====
+  title: string
+  subtitle: string | null
+  description: string | null
+  tags: string[]
+  context_items: ContextItem[]
+  credibility_items: CredibilityItem[]
+  cta_text: string | null
   
-  // Extracted elements
-  elements: ExtractedElement[]
-  
-  // Key images (base64)
-  profile_image_base64: string | null
-  hero_image_base64: string | null
-  logo_base64: string | null
-  
-  // Screenshot fallback
+  // ===== IMAGES =====
+  primary_image_base64: string | null
   screenshot_url: string | null
   
-  // Quality metrics
-  extraction_confidence: number
-  reconstruction_quality: 'excellent' | 'good' | 'fair' | 'fallback'
+  // ===== LAYOUT BLUEPRINT =====
+  blueprint: LayoutBlueprint
+  
+  // ===== QUALITY METRICS =====
+  reasoning_confidence: number  // 0-1
   processing_time_ms: number
   
-  // Demo metadata
+  // ===== DEMO METADATA =====
   is_demo: boolean
   message: string
 }

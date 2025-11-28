@@ -1,145 +1,174 @@
 /**
  * ReconstructedPreview Component
  * 
- * Renders a semantically reconstructed preview based on extracted UI elements
- * and an AI-generated layout plan. This creates a purposefully designed preview
- * rather than just displaying a cropped screenshot.
- * 
- * The component:
- * - Uses extracted images, text, and layout instructions
- * - Renders a clean, modern preview card
- * - Adapts to different page types (profile, product, landing, etc.)
- * - Falls back gracefully when data is incomplete
+ * Renders an AI-reconstructed preview using multi-stage reasoning output.
+ * Designed for premium SaaS quality with clean, intentional aesthetics.
  */
 
-import { DemoPreviewResponse, ExtractedElement, LayoutPlan } from '../api/client'
+import { DemoPreviewResponse } from '../api/client'
 
 interface ReconstructedPreviewProps {
   preview: DemoPreviewResponse
   className?: string
 }
 
-// Template-specific renderers
-const ProfileCardTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
-  const { layout_plan, elements, profile_image_base64, hero_image_base64 } = preview
-  
-  // Find relevant elements
-  const nameElement = elements.find(e => e.type === 'headline' && e.include_in_preview)
-  const titleElement = elements.find(e => e.type === 'subheadline' && e.include_in_preview)
-  const locationElement = elements.find(e => e.type === 'location' && e.include_in_preview)
-  const skillElements = elements.filter(e => e.type === 'skill_tag' && e.include_in_preview).slice(0, 4)
-  const ratingElement = elements.find(e => e.type === 'rating' && e.include_in_preview)
-  const bodyTextElement = elements.find(e => e.type === 'body_text' && e.include_in_preview)
-  
-  const profileImage = profile_image_base64 || hero_image_base64
-  
-  // Get description from body_text element or layout_plan
-  const description = bodyTextElement?.text_content || layout_plan.description
+// Icon components for context items
+const LocationIcon = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+  </svg>
+)
+
+const InfoIcon = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+  </svg>
+)
+
+const StarIcon = ({ filled = false }: { filled?: boolean }) => (
+  <svg className={`w-4 h-4 ${filled ? 'text-amber-400 fill-current' : 'text-gray-300'}`} viewBox="0 0 20 20">
+    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+  </svg>
+)
+
+// Get icon for context type
+const getContextIcon = (icon: string) => {
+  switch (icon.toLowerCase()) {
+    case 'location':
+      return <LocationIcon />
+    default:
+      return <InfoIcon />
+  }
+}
+
+// Quality badge component
+const QualityBadge = ({ quality, score }: { quality: string; score: number }) => {
+  const colors: Record<string, string> = {
+    excellent: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+    good: 'bg-blue-100 text-blue-700 border-blue-200',
+    fair: 'bg-amber-100 text-amber-700 border-amber-200',
+    poor: 'bg-gray-100 text-gray-600 border-gray-200'
+  }
   
   return (
-    <div 
-      className="rounded-2xl overflow-hidden shadow-2xl"
-      style={{ 
-        background: `linear-gradient(135deg, ${layout_plan.primary_color}15, ${layout_plan.secondary_color}10)`,
-        borderColor: layout_plan.primary_color + '30'
-      }}
-    >
-      {/* Header with gradient */}
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${colors[quality] || colors.good}`}>
+      {Math.round(score * 100)}% {quality}
+    </span>
+  )
+}
+
+// =============================================================================
+// TEMPLATE COMPONENTS
+// =============================================================================
+
+/**
+ * Profile Card Template
+ * Best for: Personal pages, freelancer profiles, team members
+ */
+const ProfileTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
+  const { blueprint, primary_image_base64, title, subtitle, description, tags, context_items, credibility_items } = preview
+  
+  return (
+    <div className="relative overflow-hidden rounded-2xl bg-white shadow-xl">
+      {/* Gradient header */}
       <div 
-        className="h-24 relative"
+        className="h-28 relative"
         style={{ 
-          background: `linear-gradient(135deg, ${layout_plan.primary_color}, ${layout_plan.secondary_color})`
+          background: `linear-gradient(135deg, ${blueprint.primary_color}, ${blueprint.secondary_color})` 
         }}
       >
-        <div className="absolute inset-0 bg-black/10" />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/10" />
+        {/* Subtle pattern overlay */}
+        <div 
+          className="absolute inset-0 opacity-10"
+          style={{
+            backgroundImage: `radial-gradient(circle at 25px 25px, white 2%, transparent 0%)`,
+            backgroundSize: '50px 50px'
+          }}
+        />
       </div>
       
-      {/* Profile section */}
-      <div className="px-6 pb-6 -mt-12 relative">
+      {/* Content section */}
+      <div className="relative px-6 pb-6">
         {/* Profile image */}
-        <div className="flex justify-center mb-4">
-          {profileImage ? (
+        <div className="flex justify-center -mt-16 mb-4">
+          {primary_image_base64 ? (
             <img 
-              src={`data:image/png;base64,${profileImage}`}
-              alt="Profile"
-              className="w-24 h-24 rounded-full border-4 border-white shadow-lg object-cover"
+              src={`data:image/png;base64,${primary_image_base64}`}
+              alt={title}
+              className="w-28 h-28 rounded-full border-4 border-white shadow-lg object-cover ring-4 ring-white/50"
             />
           ) : (
             <div 
-              className="w-24 h-24 rounded-full border-4 border-white shadow-lg flex items-center justify-center text-3xl font-bold text-white"
-              style={{ backgroundColor: layout_plan.primary_color }}
+              className="w-28 h-28 rounded-full border-4 border-white shadow-lg flex items-center justify-center text-4xl font-bold text-white ring-4 ring-white/50"
+              style={{ backgroundColor: blueprint.primary_color }}
             >
-              {(layout_plan.title || 'P')[0].toUpperCase()}
+              {title.charAt(0).toUpperCase()}
             </div>
           )}
         </div>
         
-        {/* Name and title */}
-        <div className="text-center mb-4">
-          <h3 className="text-xl font-bold text-gray-900 mb-1">
-            {nameElement?.text_content || layout_plan.title || 'Profile'}
-          </h3>
-          {(titleElement?.text_content || layout_plan.subtitle) && (
-            <p className="text-gray-600 text-sm">
-              {titleElement?.text_content || layout_plan.subtitle}
-            </p>
-          )}
-        </div>
+        {/* Name */}
+        <h2 className="text-2xl font-bold text-gray-900 text-center mb-1">
+          {title}
+        </h2>
         
-        {/* Location */}
-        {locationElement?.text_content && (
-          <div className="flex items-center justify-center text-gray-500 text-sm mb-4">
-            <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-            {locationElement.text_content}
+        {/* Subtitle/role */}
+        {subtitle && (
+          <p className="text-gray-600 text-center text-sm mb-3">
+            {subtitle}
+          </p>
+        )}
+        
+        {/* Context items (location, etc.) */}
+        {context_items.length > 0 && (
+          <div className="flex items-center justify-center gap-4 text-gray-500 text-sm mb-4">
+            {context_items.map((item, i) => (
+              <div key={i} className="flex items-center gap-1">
+                {getContextIcon(item.icon)}
+                <span>{item.text}</span>
+              </div>
+            ))}
           </div>
         )}
         
-        {/* Skills/Tags */}
-        {skillElements.length > 0 && (
+        {/* Tags/skills */}
+        {tags.length > 0 && (
           <div className="flex flex-wrap justify-center gap-2 mb-4">
-            {skillElements.map((skill, i) => (
+            {tags.slice(0, 4).map((tag, i) => (
               <span 
                 key={i}
-                className="px-3 py-1 rounded-full text-xs font-medium"
+                className="px-3 py-1 rounded-full text-xs font-medium transition-colors hover:opacity-80"
                 style={{ 
-                  backgroundColor: layout_plan.primary_color + '15',
-                  color: layout_plan.primary_color
+                  backgroundColor: `${blueprint.primary_color}15`,
+                  color: blueprint.primary_color
                 }}
               >
-                {skill.text_content || skill.content}
+                {tag}
               </span>
             ))}
           </div>
         )}
         
-        {/* Description/About Section */}
+        {/* Description */}
         {description && (
-          <div className="mb-4 border-t border-gray-200 pt-4">
-            {(titleElement?.text_content || layout_plan.subtitle) && (
-              <div className="text-center mb-2">
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                  {titleElement?.text_content || layout_plan.subtitle}
-                </span>
-              </div>
-            )}
-            <p className="text-gray-700 text-sm leading-relaxed line-clamp-4 text-center px-2">
+          <div className="border-t border-gray-100 pt-4 mt-2">
+            <p className="text-gray-700 text-sm leading-relaxed text-center line-clamp-3">
               {description}
             </p>
           </div>
         )}
         
-        {/* Rating */}
-        {ratingElement?.text_content && (
-          <div className="flex items-center justify-center text-amber-500">
-            <svg className="w-5 h-5 fill-current" viewBox="0 0 20 20">
-              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-            </svg>
-            <span className="ml-1 text-sm font-semibold text-gray-700">
-              {ratingElement.text_content}
-            </span>
+        {/* Credibility items */}
+        {credibility_items.length > 0 && (
+          <div className="flex items-center justify-center gap-4 mt-4 pt-4 border-t border-gray-100">
+            {credibility_items.map((item, i) => (
+              <div key={i} className="flex items-center gap-1 text-sm">
+                {item.type.includes('rating') && <StarIcon filled />}
+                <span className="text-gray-700 font-medium">{item.value}</span>
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -147,280 +176,395 @@ const ProfileCardTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
   )
 }
 
-const ProductCardTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
-  const { layout_plan, elements, hero_image_base64, profile_image_base64 } = preview
-  
-  const productImage = hero_image_base64 || profile_image_base64
-  const priceElement = elements.find(e => e.type === 'price' && e.include_in_preview)
-  const ctaElement = elements.find(e => e.type === 'cta_button' && e.include_in_preview)
-  const featureElements = elements.filter(e => e.type === 'feature_item' && e.include_in_preview).slice(0, 3)
+/**
+ * Product Card Template
+ * Best for: E-commerce, SaaS products, services
+ */
+const ProductTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
+  const { blueprint, primary_image_base64, title, subtitle, description, tags, cta_text, credibility_items } = preview
   
   return (
-    <div className="rounded-2xl overflow-hidden shadow-2xl bg-white">
+    <div className="relative overflow-hidden rounded-2xl bg-white shadow-xl">
       {/* Product image */}
-      <div className="aspect-video bg-gradient-to-br from-gray-100 to-gray-200 relative overflow-hidden">
-        {productImage ? (
+      {primary_image_base64 ? (
+        <div className="aspect-[16/9] overflow-hidden bg-gray-100">
           <img 
-            src={`data:image/png;base64,${productImage}`}
-            alt="Product"
+            src={`data:image/png;base64,${primary_image_base64}`}
+            alt={title}
             className="w-full h-full object-cover"
           />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <svg className="w-16 h-16 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-          </div>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div 
+          className="aspect-[16/9] flex items-center justify-center"
+          style={{ 
+            background: `linear-gradient(135deg, ${blueprint.primary_color}20, ${blueprint.secondary_color}20)` 
+          }}
+        >
+          <span className="text-6xl opacity-30">📦</span>
+        </div>
+      )}
       
       {/* Content */}
-      <div className="p-5">
-        <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2">
-          {layout_plan.title || 'Product'}
-        </h3>
+      <div className="p-6">
+        {/* Category tags */}
+        {tags.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-3">
+            {tags.slice(0, 2).map((tag, i) => (
+              <span 
+                key={i}
+                className="px-2 py-0.5 rounded text-xs font-medium uppercase tracking-wide"
+                style={{ 
+                  backgroundColor: `${blueprint.primary_color}15`,
+                  color: blueprint.primary_color
+                }}
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
         
-        {layout_plan.description && (
-          <p className="text-gray-600 text-sm mb-3 line-clamp-2">
-            {layout_plan.description}
+        {/* Title */}
+        <h2 className="text-xl font-bold text-gray-900 mb-2 line-clamp-2">
+          {title}
+        </h2>
+        
+        {/* Subtitle */}
+        {subtitle && (
+          <p className="text-gray-600 text-sm mb-3">
+            {subtitle}
           </p>
         )}
         
-        {/* Features */}
-        {featureElements.length > 0 && (
-          <div className="space-y-1 mb-4">
-            {featureElements.map((feature, i) => (
-              <div key={i} className="flex items-center text-sm text-gray-600">
-                <svg className="w-4 h-4 mr-2 text-green-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        {/* Description */}
+        {description && (
+          <p className="text-gray-600 text-sm leading-relaxed mb-4 line-clamp-2">
+            {description}
+          </p>
+        )}
+        
+        {/* Price/credibility and CTA row */}
+        <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+          {credibility_items.length > 0 ? (
+            <div className="flex items-center gap-1">
+              {credibility_items[0].type.includes('price') ? (
+                <span className="text-xl font-bold" style={{ color: blueprint.primary_color }}>
+                  {credibility_items[0].value}
+                </span>
+              ) : (
+                <>
+                  <StarIcon filled />
+                  <span className="text-sm font-medium text-gray-700">{credibility_items[0].value}</span>
+                </>
+              )}
+            </div>
+          ) : (
+            <div />
+          )}
+          
+          {cta_text && (
+            <button 
+              className="px-4 py-2 rounded-lg text-white text-sm font-medium transition-all hover:opacity-90 hover:shadow-md"
+              style={{ backgroundColor: blueprint.accent_color || blueprint.primary_color }}
+            >
+              {cta_text}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Landing/Hero Template
+ * Best for: Landing pages, homepages, promotional content
+ */
+const LandingTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
+  const { blueprint, primary_image_base64, screenshot_url, title, subtitle, description, cta_text, tags } = preview
+  
+  const imageUrl = primary_image_base64 
+    ? `data:image/png;base64,${primary_image_base64}` 
+    : screenshot_url
+  
+  return (
+    <div 
+      className="relative overflow-hidden rounded-2xl shadow-xl min-h-[300px]"
+      style={{ 
+        background: `linear-gradient(135deg, ${blueprint.primary_color}, ${blueprint.secondary_color})` 
+      }}
+    >
+      {/* Background image with overlay */}
+      {imageUrl && (
+        <div className="absolute inset-0">
+          <img 
+            src={imageUrl}
+            alt={title}
+            className="w-full h-full object-cover opacity-20"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-transparent" />
+        </div>
+      )}
+      
+      {/* Content */}
+      <div className="relative p-8 flex flex-col justify-center min-h-[300px]">
+        {/* Tags */}
+        {tags.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-4">
+            {tags.slice(0, 2).map((tag, i) => (
+              <span 
+                key={i}
+                className="px-2 py-0.5 rounded text-xs font-medium uppercase tracking-wide bg-white/20 text-white/90"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
+        
+        {/* Title */}
+        <h2 className="text-3xl font-bold text-white mb-3 max-w-lg">
+          {title}
+        </h2>
+        
+        {/* Subtitle */}
+        {subtitle && (
+          <p className="text-white/90 text-lg mb-2 max-w-md">
+            {subtitle}
+          </p>
+        )}
+        
+        {/* Description */}
+        {description && (
+          <p className="text-white/70 text-sm leading-relaxed mb-6 max-w-md line-clamp-2">
+            {description}
+          </p>
+        )}
+        
+        {/* CTA */}
+        {cta_text && (
+          <div>
+            <button 
+              className="px-6 py-3 rounded-lg text-sm font-bold transition-all hover:opacity-90 hover:shadow-lg"
+              style={{ 
+                backgroundColor: blueprint.accent_color || '#ffffff',
+                color: blueprint.primary_color
+              }}
+            >
+              {cta_text}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Article Card Template
+ * Best for: Blog posts, news, documentation
+ */
+const ArticleTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
+  const { blueprint, primary_image_base64, title, subtitle, description, tags, credibility_items } = preview
+  
+  return (
+    <div className="relative overflow-hidden rounded-2xl bg-white shadow-xl">
+      {/* Article image */}
+      {primary_image_base64 && (
+        <div className="aspect-[2/1] overflow-hidden bg-gray-100">
+          <img 
+            src={`data:image/png;base64,${primary_image_base64}`}
+            alt={title}
+            className="w-full h-full object-cover"
+          />
+        </div>
+      )}
+      
+      {/* Content */}
+      <div className="p-6">
+        {/* Category and meta */}
+        <div className="flex items-center gap-3 mb-3">
+          {tags.length > 0 && (
+            <span 
+              className="px-2 py-0.5 rounded text-xs font-medium uppercase tracking-wide"
+              style={{ 
+                backgroundColor: `${blueprint.primary_color}15`,
+                color: blueprint.primary_color
+              }}
+            >
+              {tags[0]}
+            </span>
+          )}
+          {credibility_items.length > 0 && (
+            <span className="text-xs text-gray-500">
+              {credibility_items[0].value}
+            </span>
+          )}
+        </div>
+        
+        {/* Title */}
+        <h2 className="text-xl font-bold text-gray-900 mb-2 line-clamp-2">
+          {title}
+        </h2>
+        
+        {/* Description */}
+        {(description || subtitle) && (
+          <p className="text-gray-600 text-sm leading-relaxed line-clamp-3">
+            {description || subtitle}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Service Card Template
+ * Best for: Service pages, portfolios, case studies
+ */
+const ServiceTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
+  const { blueprint, primary_image_base64, title, subtitle, description, tags, cta_text, context_items } = preview
+  
+  return (
+    <div className="relative overflow-hidden rounded-2xl bg-white shadow-xl">
+      {/* Top accent bar */}
+      <div 
+        className="h-2"
+        style={{ backgroundColor: blueprint.primary_color }}
+      />
+      
+      <div className="p-6">
+        {/* Icon or image */}
+        <div className="mb-4">
+          {primary_image_base64 ? (
+            <img 
+              src={`data:image/png;base64,${primary_image_base64}`}
+              alt={title}
+              className="w-16 h-16 rounded-xl object-cover shadow-md"
+            />
+          ) : (
+            <div 
+              className="w-16 h-16 rounded-xl flex items-center justify-center text-2xl shadow-md"
+              style={{ 
+                backgroundColor: `${blueprint.primary_color}15`,
+                color: blueprint.primary_color
+              }}
+            >
+              ✨
+            </div>
+          )}
+        </div>
+        
+        {/* Title */}
+        <h2 className="text-xl font-bold text-gray-900 mb-2">
+          {title}
+        </h2>
+        
+        {/* Subtitle */}
+        {subtitle && (
+          <p className="text-gray-600 text-sm mb-3">
+            {subtitle}
+          </p>
+        )}
+        
+        {/* Description */}
+        {description && (
+          <p className="text-gray-600 text-sm leading-relaxed mb-4 line-clamp-3">
+            {description}
+          </p>
+        )}
+        
+        {/* Tags as features */}
+        {tags.length > 0 && (
+          <div className="space-y-2 mb-4">
+            {tags.slice(0, 3).map((tag, i) => (
+              <div key={i} className="flex items-center gap-2 text-sm text-gray-700">
+                <svg 
+                  className="w-4 h-4 flex-shrink-0" 
+                  fill="none" 
+                  viewBox="0 0 24 24" 
+                  stroke={blueprint.primary_color}
+                >
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
-                <span className="line-clamp-1">{feature.text_content || feature.content}</span>
+                <span>{tag}</span>
               </div>
             ))}
           </div>
         )}
         
-        {/* Price and CTA */}
-        <div className="flex items-center justify-between">
-          {priceElement?.text_content && (
-            <span className="text-xl font-bold" style={{ color: layout_plan.primary_color }}>
-              {priceElement.text_content}
-            </span>
-          )}
-          {(ctaElement?.text_content || layout_plan.cta_text) && (
-            <button 
-              className="px-4 py-2 rounded-lg text-white text-sm font-semibold transition-all hover:opacity-90"
-              style={{ backgroundColor: layout_plan.accent_color || layout_plan.primary_color }}
-            >
-              {ctaElement?.text_content || layout_plan.cta_text}
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-const LandingHeroTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
-  const { layout_plan, elements, hero_image_base64, logo_base64 } = preview
-  
-  const ctaElement = elements.find(e => e.type === 'cta_button' && e.include_in_preview)
-  
-  return (
-    <div 
-      className="rounded-2xl overflow-hidden shadow-2xl relative min-h-[280px]"
-      style={{ 
-        background: hero_image_base64 
-          ? undefined 
-          : `linear-gradient(135deg, ${layout_plan.primary_color}, ${layout_plan.secondary_color})`
-      }}
-    >
-      {/* Background image */}
-      {hero_image_base64 && (
-        <div className="absolute inset-0">
-          <img 
-            src={`data:image/png;base64,${hero_image_base64}`}
-            alt="Hero"
-            className="w-full h-full object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/40 to-black/20" />
-        </div>
-      )}
-      
-      {/* Content overlay */}
-      <div className="relative z-10 p-6 flex flex-col justify-end min-h-[280px]">
-        {/* Logo */}
-        {logo_base64 && (
-          <div className="absolute top-4 left-4">
-            <img 
-              src={`data:image/png;base64,${logo_base64}`}
-              alt="Logo"
-              className="h-8 object-contain"
-            />
+        {/* Context items */}
+        {context_items.length > 0 && (
+          <div className="flex items-center gap-4 text-xs text-gray-500 mb-4 pt-4 border-t border-gray-100">
+            {context_items.map((item, i) => (
+              <div key={i} className="flex items-center gap-1">
+                {getContextIcon(item.icon)}
+                <span>{item.text}</span>
+              </div>
+            ))}
           </div>
         )}
         
-        {/* Text content */}
-        <div className="mt-auto">
-          <h3 className="text-2xl font-bold text-white mb-2 drop-shadow-lg">
-            {layout_plan.title || 'Welcome'}
-          </h3>
-          
-          {(layout_plan.subtitle || layout_plan.description) && (
-            <p className="text-white/90 text-sm mb-4 line-clamp-2 drop-shadow">
-              {layout_plan.subtitle || layout_plan.description}
-            </p>
-          )}
-          
-          {(ctaElement?.text_content || layout_plan.cta_text) && (
-            <button 
-              className="px-5 py-2.5 rounded-lg text-sm font-semibold transition-all hover:scale-105"
-              style={{ 
-                backgroundColor: layout_plan.accent_color || '#ffffff',
-                color: layout_plan.accent_color ? '#ffffff' : layout_plan.primary_color
-              }}
-            >
-              {ctaElement?.text_content || layout_plan.cta_text}
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-const ArticleCardTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
-  const { layout_plan, elements, hero_image_base64 } = preview
-  
-  const bodyTextElement = elements.find(e => e.type === 'body_text' && e.include_in_preview)
-  
-  return (
-    <div className="rounded-2xl overflow-hidden shadow-2xl bg-white">
-      {/* Article image */}
-      {hero_image_base64 && (
-        <div className="aspect-video overflow-hidden">
-          <img 
-            src={`data:image/png;base64,${hero_image_base64}`}
-            alt="Article"
-            className="w-full h-full object-cover"
-          />
-        </div>
-      )}
-      
-      {/* Content */}
-      <div className="p-5">
-        <div className="flex items-center space-x-2 mb-3">
-          <span 
-            className="px-2 py-1 rounded text-xs font-semibold uppercase"
-            style={{ 
-              backgroundColor: layout_plan.primary_color + '15',
-              color: layout_plan.primary_color
-            }}
+        {/* CTA */}
+        {cta_text && (
+          <button 
+            className="w-full px-4 py-2.5 rounded-lg text-white text-sm font-medium transition-all hover:opacity-90 hover:shadow-md"
+            style={{ backgroundColor: blueprint.primary_color }}
           >
-            Article
-          </span>
-        </div>
-        
-        <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2">
-          {layout_plan.title || 'Article'}
-        </h3>
-        
-        {(bodyTextElement?.text_content || layout_plan.description) && (
-          <p className="text-gray-600 text-sm line-clamp-3">
-            {bodyTextElement?.text_content || layout_plan.description}
-          </p>
+            {cta_text}
+          </button>
         )}
       </div>
     </div>
   )
 }
 
-const MinimalTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
-  const { layout_plan, hero_image_base64, profile_image_base64, screenshot_url } = preview
-  
-  const displayImage = hero_image_base64 || profile_image_base64
-  
-  return (
-    <div className="rounded-2xl overflow-hidden shadow-2xl bg-white">
-      {/* Image */}
-      <div className="aspect-video bg-gradient-to-br from-gray-100 to-gray-200 relative overflow-hidden">
-        {displayImage ? (
-          <img 
-            src={`data:image/png;base64,${displayImage}`}
-            alt="Preview"
-            className="w-full h-full object-cover"
-          />
-        ) : screenshot_url ? (
-          <img 
-            src={screenshot_url}
-            alt="Screenshot"
-            className="w-full h-full object-cover object-top"
-          />
-        ) : (
-          <div 
-            className="w-full h-full flex items-center justify-center"
-            style={{ background: `linear-gradient(135deg, ${layout_plan.primary_color}30, ${layout_plan.secondary_color}20)` }}
-          >
-            <svg className="w-16 h-16 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
-            </svg>
-          </div>
-        )}
-      </div>
-      
-      {/* Content */}
-      <div className="p-5">
-        <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2">
-          {layout_plan.title || 'Page Preview'}
-        </h3>
-        
-        {(layout_plan.subtitle || layout_plan.description) && (
-          <p className="text-gray-600 text-sm line-clamp-2">
-            {layout_plan.subtitle || layout_plan.description}
-          </p>
-        )}
-      </div>
-    </div>
-  )
-}
+// =============================================================================
+// MAIN COMPONENT
+// =============================================================================
 
-// Main component that selects the appropriate template
 export default function ReconstructedPreview({ preview, className = '' }: ReconstructedPreviewProps) {
-  const { layout_plan } = preview
+  const { blueprint } = preview
   
-  // Select template based on layout plan
+  // Select template based on type
   const renderTemplate = () => {
-    switch (layout_plan.template) {
-      case 'profile_card':
-        return <ProfileCardTemplate preview={preview} />
-      case 'product_card':
-        return <ProductCardTemplate preview={preview} />
-      case 'landing_hero':
-        return <LandingHeroTemplate preview={preview} />
-      case 'article_card':
-        return <ArticleCardTemplate preview={preview} />
-      case 'service_card':
-        // Service cards are similar to profile cards
-        return <ProfileCardTemplate preview={preview} />
-      case 'minimal':
+    switch (blueprint.template_type) {
+      case 'profile':
+        return <ProfileTemplate preview={preview} />
+      case 'product':
+        return <ProductTemplate preview={preview} />
+      case 'landing':
+        return <LandingTemplate preview={preview} />
+      case 'article':
+        return <ArticleTemplate preview={preview} />
+      case 'service':
+        return <ServiceTemplate preview={preview} />
       default:
-        return <MinimalTemplate preview={preview} />
+        // Default to profile for unknown types
+        return <ProfileTemplate preview={preview} />
     }
   }
   
   return (
-    <div className={`reconstructed-preview ${className}`}>
-      {renderTemplate()}
+    <div className={`relative group ${className}`}>
+      {/* Glow effect on hover */}
+      <div 
+        className="absolute -inset-1 rounded-3xl opacity-0 group-hover:opacity-30 blur-xl transition-opacity duration-500"
+        style={{ 
+          background: `linear-gradient(135deg, ${blueprint.primary_color}, ${blueprint.accent_color || blueprint.secondary_color})` 
+        }}
+      />
+      
+      {/* Main content */}
+      <div className="relative">
+        {renderTemplate()}
+      </div>
+      
+      {/* Quality indicator (subtle) */}
+      <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+        <QualityBadge quality={blueprint.overall_quality} score={blueprint.coherence_score} />
+      </div>
     </div>
   )
 }
-
-// Export individual templates for flexibility
-export {
-  ProfileCardTemplate,
-  ProductCardTemplate,
-  LandingHeroTemplate,
-  ArticleCardTemplate,
-  MinimalTemplate
-}
-

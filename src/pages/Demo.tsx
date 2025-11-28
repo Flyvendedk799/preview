@@ -658,53 +658,72 @@ export default function Demo() {
                     <CheckIcon className="w-8 h-8 text-white" />
                   </div>
                   <h3 className="text-2xl font-black text-gray-900 mb-2">Preview Reconstructed!</h3>
-                  <p className="text-gray-600 mb-4">AI extracted and reconstructed UI elements from your page</p>
+                  <p className="text-gray-600 mb-4">Multi-stage AI reasoning extracted and optimized your content</p>
                   
                   {/* Quality Indicators */}
                   <div className="flex flex-wrap items-center justify-center gap-3">
                     <div className="flex items-center space-x-2 bg-white/80 px-4 py-2 rounded-full">
                       <div className={`w-2 h-2 rounded-full ${
-                        preview.reconstruction_quality === 'excellent' ? 'bg-emerald-500' :
-                        preview.reconstruction_quality === 'good' ? 'bg-green-500' :
-                        preview.reconstruction_quality === 'fair' ? 'bg-yellow-500' :
+                        preview.blueprint.overall_quality === 'excellent' ? 'bg-emerald-500' :
+                        preview.blueprint.overall_quality === 'good' ? 'bg-green-500' :
+                        preview.blueprint.overall_quality === 'fair' ? 'bg-yellow-500' :
                         'bg-gray-400'
                       } animate-pulse`} />
                       <span className="text-sm font-semibold text-gray-700 capitalize">
-                        Quality: {preview.reconstruction_quality}
+                        Quality: {preview.blueprint.overall_quality}
                       </span>
                     </div>
                     <div className="bg-white/80 px-4 py-2 rounded-full">
                       <span className="text-sm font-semibold text-gray-700">
-                        Confidence: {Math.round(preview.extraction_confidence * 100)}%
+                        Confidence: {Math.round(preview.reasoning_confidence * 100)}%
                       </span>
                     </div>
                     <div className="bg-white/80 px-4 py-2 rounded-full">
                       <span className="text-sm font-semibold text-gray-700 capitalize">
-                        Type: {preview.layout_plan.page_type}
+                        Type: {preview.blueprint.template_type}
                       </span>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Extraction Summary */}
+              {/* Reasoning Summary */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Elements Extracted */}
+                {/* Quality Scores */}
                 <div className="bg-gradient-to-br from-violet-50 to-purple-50 rounded-xl p-6 border border-violet-200">
                   <h4 className="font-bold text-violet-900 mb-4 flex items-center">
                     <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                     </svg>
-                    Elements Extracted
+                    Quality Scores
                   </h4>
-                  <div className="space-y-2">
-                    <div className="text-3xl font-black text-violet-700">{preview.elements.length}</div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {Array.from(new Set(preview.elements.map(e => e.type))).slice(0, 4).map((type, i) => (
-                        <span key={i} className="px-2 py-0.5 bg-violet-100 text-violet-700 text-xs rounded-full capitalize">
-                          {type.replace('_', ' ')}
-                        </span>
-                      ))}
+                  <div className="space-y-3">
+                    <div>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="text-gray-600">Coherence</span>
+                        <span className="font-semibold text-violet-700">{Math.round(preview.blueprint.coherence_score * 100)}%</span>
+                      </div>
+                      <div className="h-2 bg-violet-200 rounded-full overflow-hidden">
+                        <div className="h-full bg-violet-500 rounded-full" style={{ width: `${preview.blueprint.coherence_score * 100}%` }} />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="text-gray-600">Balance</span>
+                        <span className="font-semibold text-violet-700">{Math.round(preview.blueprint.balance_score * 100)}%</span>
+                      </div>
+                      <div className="h-2 bg-violet-200 rounded-full overflow-hidden">
+                        <div className="h-full bg-violet-500 rounded-full" style={{ width: `${preview.blueprint.balance_score * 100}%` }} />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="text-gray-600">Clarity</span>
+                        <span className="font-semibold text-violet-700">{Math.round(preview.blueprint.clarity_score * 100)}%</span>
+                      </div>
+                      <div className="h-2 bg-violet-200 rounded-full overflow-hidden">
+                        <div className="h-full bg-violet-500 rounded-full" style={{ width: `${preview.blueprint.clarity_score * 100}%` }} />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -719,15 +738,19 @@ export default function Demo() {
                   </h4>
                   <div className="space-y-2">
                     <div className="text-lg font-bold text-blue-700 capitalize">
-                      {preview.layout_plan.template.replace('_', ' ')}
-                    </div>
-                    <div className="text-sm text-gray-600">
-                      Style: <span className="font-medium capitalize">{preview.layout_plan.font_style}</span>
+                      {preview.blueprint.template_type.replace('_', ' ')}
                     </div>
                     <div className="flex items-center space-x-2 mt-2">
-                      <div className="w-6 h-6 rounded-full border-2 border-white shadow-sm" style={{ backgroundColor: preview.layout_plan.primary_color }} title="Primary" />
-                      <div className="w-6 h-6 rounded-full border-2 border-white shadow-sm" style={{ backgroundColor: preview.layout_plan.secondary_color }} title="Secondary" />
-                      <div className="w-6 h-6 rounded-full border-2 border-white shadow-sm" style={{ backgroundColor: preview.layout_plan.accent_color }} title="Accent" />
+                      <div className="w-6 h-6 rounded-full border-2 border-white shadow-sm" style={{ backgroundColor: preview.blueprint.primary_color }} title="Primary" />
+                      <div className="w-6 h-6 rounded-full border-2 border-white shadow-sm" style={{ backgroundColor: preview.blueprint.secondary_color }} title="Secondary" />
+                      <div className="w-6 h-6 rounded-full border-2 border-white shadow-sm" style={{ backgroundColor: preview.blueprint.accent_color }} title="Accent" />
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {preview.tags.slice(0, 3).map((tag, i) => (
+                        <span key={i} className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full">
+                          {tag}
+                        </span>
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -745,11 +768,11 @@ export default function Demo() {
                       Processing Time: <span className="font-bold text-amber-700">{(preview.processing_time_ms / 1000).toFixed(1)}s</span>
                     </div>
                     <div className="text-sm text-gray-600">
-                      Title: <span className="font-medium text-gray-800">{preview.layout_plan.title || 'N/A'}</span>
+                      Title: <span className="font-medium text-gray-800">{preview.title || 'N/A'}</span>
                     </div>
-                    {preview.layout_plan.cta_text && (
+                    {preview.cta_text && (
                       <div className="text-sm text-gray-600">
-                        CTA: <span className="font-semibold text-orange-600">{preview.layout_plan.cta_text}</span>
+                        CTA: <span className="font-semibold text-orange-600">{preview.cta_text}</span>
                       </div>
                     )}
                   </div>
@@ -790,52 +813,79 @@ export default function Demo() {
                 </div>
               </div>
 
-              {/* Extracted Elements Detail */}
-              <details className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
-                <summary className="px-6 py-4 cursor-pointer hover:bg-gray-100 transition-colors flex items-center justify-between">
-                  <span className="font-bold text-gray-900 flex items-center">
-                    <svg className="w-5 h-5 mr-2 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              {/* Content Summary */}
+              {(preview.description || preview.context_items.length > 0 || preview.credibility_items.length > 0) && (
+                <details className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
+                  <summary className="px-6 py-4 cursor-pointer hover:bg-gray-100 transition-colors flex items-center justify-between">
+                    <span className="font-bold text-gray-900 flex items-center">
+                      <svg className="w-5 h-5 mr-2 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                      </svg>
+                      Extracted Content
+                    </span>
+                    <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
-                    Extracted Elements ({preview.elements.length})
-                  </span>
-                  <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </summary>
-                <div className="px-6 py-4 border-t border-gray-200 bg-white">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {preview.elements.filter(e => e.include_in_preview).map((element, i) => (
-                      <div key={i} className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs font-bold text-gray-700 capitalize">{element.type.replace('_', ' ')}</span>
-                          <span className="text-xs text-gray-500">Priority: {element.priority}</span>
-                        </div>
-                        <p className="text-sm text-gray-600 line-clamp-2">
-                          {element.text_content || element.content || 'Visual element'}
-                        </p>
+                  </summary>
+                  <div className="px-6 py-4 border-t border-gray-200 bg-white space-y-4">
+                    {preview.description && (
+                      <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                        <span className="text-xs font-bold text-gray-700 block mb-1">Description</span>
+                        <p className="text-sm text-gray-600">{preview.description}</p>
                       </div>
-                    ))}
+                    )}
+                    {preview.context_items.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {preview.context_items.map((item, i) => (
+                          <span key={i} className="px-3 py-1 bg-gray-100 text-gray-700 text-xs rounded-full flex items-center gap-1">
+                            {item.icon === 'location' && (
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                              </svg>
+                            )}
+                            {item.text}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {preview.credibility_items.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {preview.credibility_items.map((item, i) => (
+                          <span key={i} className="px-3 py-1 bg-amber-50 text-amber-700 text-xs rounded-full">
+                            {item.value}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                </div>
-              </details>
+                </details>
+              )}
 
-              {/* Layout Rationale */}
-              {preview.layout_plan.layout_rationale && (
+              {/* Layout Reasoning */}
+              {preview.blueprint.layout_reasoning && (
                 <details className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
                   <summary className="px-6 py-4 cursor-pointer hover:bg-gray-100 transition-colors flex items-center justify-between">
                     <span className="font-bold text-gray-900 flex items-center">
                       <svg className="w-5 h-5 mr-2 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                       </svg>
-                      AI Layout Rationale
+                      AI Reasoning Chain
                     </span>
                     <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
                   </summary>
-                  <div className="px-6 py-4 border-t border-gray-200 bg-white">
-                    <p className="text-sm text-gray-700 leading-relaxed">{preview.layout_plan.layout_rationale}</p>
+                  <div className="px-6 py-4 border-t border-gray-200 bg-white space-y-4">
+                    <div>
+                      <h5 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Layout Strategy</h5>
+                      <p className="text-sm text-gray-700 leading-relaxed">{preview.blueprint.layout_reasoning}</p>
+                    </div>
+                    {preview.blueprint.composition_notes && (
+                      <div>
+                        <h5 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Composition Notes</h5>
+                        <p className="text-sm text-gray-700 leading-relaxed">{preview.blueprint.composition_notes}</p>
+                      </div>
+                    )}
                   </div>
                 </details>
               )}
@@ -898,24 +948,18 @@ export default function Demo() {
                               </div>
 
                               {/* Preview Image */}
-                              {(preview.hero_image_base64 || preview.profile_image_base64 || preview.screenshot_url) ? (
+                              {(preview.primary_image_base64 || preview.screenshot_url) ? (
                                 <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
-                                  {preview.hero_image_base64 ? (
+                                  {preview.primary_image_base64 ? (
                                     <img
-                                      src={`data:image/png;base64,${preview.hero_image_base64}`}
-                                      alt={preview.layout_plan.title}
-                                      className="w-full h-full object-cover"
-                                    />
-                                  ) : preview.profile_image_base64 ? (
-                                    <img
-                                      src={`data:image/png;base64,${preview.profile_image_base64}`}
-                                      alt={preview.layout_plan.title}
+                                      src={`data:image/png;base64,${preview.primary_image_base64}`}
+                                      alt={preview.title}
                                       className="w-full h-full object-cover"
                                     />
                                   ) : preview.screenshot_url ? (
                                     <img
                                       src={preview.screenshot_url}
-                                      alt={preview.layout_plan.title}
+                                      alt={preview.title}
                                       className="w-full h-full object-cover"
                                     />
                                   ) : null}
