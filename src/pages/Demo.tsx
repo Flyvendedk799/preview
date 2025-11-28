@@ -20,6 +20,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid'
 import { subscribeToNewsletter, generateDemoPreview, type DemoPreviewResponse } from '../api/client'
+import ReconstructedPreview from '../components/ReconstructedPreview'
 
 type Step = 'input' | 'preview'
 
@@ -649,246 +650,192 @@ export default function Demo() {
           {/* Preview Step */}
           {step === 'preview' && preview && (
             <div className="space-y-12">
-              {/* Success Banner with AI Confidence */}
+              {/* Success Banner */}
               <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border-2 border-emerald-200 rounded-xl p-8 text-center relative overflow-hidden animate-fade-in">
                 <div className="absolute inset-0 bg-gradient-to-r from-emerald-400/10 via-teal-400/10 to-emerald-400/10 animate-pulse" />
                 <div className="relative z-10">
                   <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-emerald-500/30 animate-bounce">
                     <CheckIcon className="w-8 h-8 text-white" />
                   </div>
-                  <h3 className="text-2xl font-black text-gray-900 mb-2">AI Analysis Complete!</h3>
-                  <p className="text-gray-600 mb-4">Deep UI/UX intelligence applied to your page</p>
+                  <h3 className="text-2xl font-black text-gray-900 mb-2">Preview Reconstructed!</h3>
+                  <p className="text-gray-600 mb-4">AI extracted and reconstructed UI elements from your page</p>
                   
-                  {/* AI Confidence Indicator */}
-                  <div className="flex items-center justify-center space-x-4">
+                  {/* Quality Indicators */}
+                  <div className="flex flex-wrap items-center justify-center gap-3">
                     <div className="flex items-center space-x-2 bg-white/80 px-4 py-2 rounded-full">
-                      <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <div className={`w-2 h-2 rounded-full ${
+                        preview.reconstruction_quality === 'excellent' ? 'bg-emerald-500' :
+                        preview.reconstruction_quality === 'good' ? 'bg-green-500' :
+                        preview.reconstruction_quality === 'fair' ? 'bg-yellow-500' :
+                        'bg-gray-400'
+                      } animate-pulse`} />
+                      <span className="text-sm font-semibold text-gray-700 capitalize">
+                        Quality: {preview.reconstruction_quality}
+                      </span>
+                    </div>
+                    <div className="bg-white/80 px-4 py-2 rounded-full">
                       <span className="text-sm font-semibold text-gray-700">
-                        AI Confidence: {Math.round(preview.confidence * 100)}%
+                        Confidence: {Math.round(preview.extraction_confidence * 100)}%
                       </span>
                     </div>
                     <div className="bg-white/80 px-4 py-2 rounded-full">
                       <span className="text-sm font-semibold text-gray-700 capitalize">
-                        Intent: {preview.design_intent}
+                        Type: {preview.layout_plan.page_type}
                       </span>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Design Intelligence Summary */}
+              {/* Extraction Summary */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Quality Metrics */}
+                {/* Elements Extracted */}
                 <div className="bg-gradient-to-br from-violet-50 to-purple-50 rounded-xl p-6 border border-violet-200">
                   <h4 className="font-bold text-violet-900 mb-4 flex items-center">
                     <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                     </svg>
-                    Design Quality
+                    Elements Extracted
                   </h4>
-                  <div className="space-y-3">
-                    <div>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="text-gray-600">Visual Hierarchy</span>
-                        <span className="font-semibold text-violet-700">{Math.round(preview.quality.hierarchy_score * 100)}%</span>
-                      </div>
-                      <div className="h-2 bg-violet-200 rounded-full overflow-hidden">
-                        <div className="h-full bg-gradient-to-r from-violet-500 to-purple-500 rounded-full transition-all duration-500" style={{ width: `${preview.quality.hierarchy_score * 100}%` }} />
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="text-gray-600">Message Clarity</span>
-                        <span className="font-semibold text-violet-700">{Math.round(preview.quality.clarity_score * 100)}%</span>
-                      </div>
-                      <div className="h-2 bg-violet-200 rounded-full overflow-hidden">
-                        <div className="h-full bg-gradient-to-r from-violet-500 to-purple-500 rounded-full transition-all duration-500" style={{ width: `${preview.quality.clarity_score * 100}%` }} />
-                      </div>
-                    </div>
-                    <div className="pt-2 border-t border-violet-200">
-                      <span className="text-xs text-gray-500">Clutter Assessment: </span>
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded ${
-                        preview.quality.clutter === 'clean' ? 'bg-green-100 text-green-700' :
-                        preview.quality.clutter === 'moderate' ? 'bg-yellow-100 text-yellow-700' :
-                        'bg-red-100 text-red-700'
-                      }`}>
-                        {preview.quality.clutter}
-                      </span>
+                  <div className="space-y-2">
+                    <div className="text-3xl font-black text-violet-700">{preview.elements.length}</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {Array.from(new Set(preview.elements.map(e => e.type))).slice(0, 4).map((type, i) => (
+                        <span key={i} className="px-2 py-0.5 bg-violet-100 text-violet-700 text-xs rounded-full capitalize">
+                          {type.replace('_', ' ')}
+                        </span>
+                      ))}
                     </div>
                   </div>
                 </div>
 
-                {/* Value Proposition */}
+                {/* Layout Template */}
                 <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl p-6 border border-blue-200">
                   <h4 className="font-bold text-blue-900 mb-4 flex items-center">
                     <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
                     </svg>
-                    AI Interpretation
+                    Layout Template
                   </h4>
-                  <div className="space-y-3">
-                    <div>
-                      <span className="text-xs text-gray-500 uppercase tracking-wide">Primary Message</span>
-                      <p className="text-sm font-medium text-gray-800 mt-1">{preview.primary_message || 'Not detected'}</p>
+                  <div className="space-y-2">
+                    <div className="text-lg font-bold text-blue-700 capitalize">
+                      {preview.layout_plan.template.replace('_', ' ')}
                     </div>
-                    <div>
-                      <span className="text-xs text-gray-500 uppercase tracking-wide">Value Proposition</span>
-                      <p className="text-sm font-medium text-gray-800 mt-1">{preview.value_proposition || 'Not detected'}</p>
+                    <div className="text-sm text-gray-600">
+                      Style: <span className="font-medium capitalize">{preview.layout_plan.font_style}</span>
+                    </div>
+                    <div className="flex items-center space-x-2 mt-2">
+                      <div className="w-6 h-6 rounded-full border-2 border-white shadow-sm" style={{ backgroundColor: preview.layout_plan.primary_color }} title="Primary" />
+                      <div className="w-6 h-6 rounded-full border-2 border-white shadow-sm" style={{ backgroundColor: preview.layout_plan.secondary_color }} title="Secondary" />
+                      <div className="w-6 h-6 rounded-full border-2 border-white shadow-sm" style={{ backgroundColor: preview.layout_plan.accent_color }} title="Accent" />
                     </div>
                   </div>
                 </div>
 
-                {/* Extracted Content */}
+                {/* Processing Info */}
                 <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-6 border border-amber-200">
                   <h4 className="font-bold text-amber-900 mb-4 flex items-center">
                     <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                     </svg>
-                    Key Content
+                    AI Processing
                   </h4>
                   <div className="space-y-2">
-                    {preview.content.headline && (
-                      <div className="text-sm">
-                        <span className="text-gray-500">Headline: </span>
-                        <span className="font-medium text-gray-800">{preview.content.headline}</span>
+                    <div className="text-sm text-gray-600">
+                      Processing Time: <span className="font-bold text-amber-700">{(preview.processing_time_ms / 1000).toFixed(1)}s</span>
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      Title: <span className="font-medium text-gray-800">{preview.layout_plan.title || 'N/A'}</span>
+                    </div>
+                    {preview.layout_plan.cta_text && (
+                      <div className="text-sm text-gray-600">
+                        CTA: <span className="font-semibold text-orange-600">{preview.layout_plan.cta_text}</span>
                       </div>
                     )}
-                    {preview.content.cta && (
-                      <div className="text-sm">
-                        <span className="text-gray-500">CTA: </span>
-                        <span className="font-semibold text-orange-600">{preview.content.cta}</span>
-                      </div>
-                    )}
-                    {preview.content.features.length > 0 && (
-                      <div className="pt-2">
-                        <span className="text-xs text-gray-500 uppercase tracking-wide">Key Features</span>
-                        <div className="flex flex-wrap gap-1.5 mt-1.5">
-                          {preview.content.features.slice(0, 3).map((feature, i) => (
-                            <span key={i} className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs rounded-full">
-                              {feature}
-                            </span>
-                          ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Reconstructed Preview Card */}
+              <div className="relative group">
+                <div className="absolute -inset-1 bg-gradient-to-r from-orange-500 via-amber-500 to-yellow-500 rounded-2xl opacity-20 blur-xl group-hover:opacity-30 transition-opacity duration-300" />
+                <div className="relative">
+                  <div className="text-center mb-6">
+                    <h3 className="text-2xl font-black text-gray-900 mb-2">AI Reconstructed Preview</h3>
+                    <p className="text-gray-600">Semantically extracted and redesigned from your page</p>
+                  </div>
+                  
+                  <div className="max-w-md mx-auto">
+                    <ReconstructedPreview preview={preview} />
+                  </div>
+                  
+                  {/* Comparison toggle */}
+                  <div className="mt-6 text-center">
+                    <details className="inline-block">
+                      <summary className="cursor-pointer text-sm text-gray-500 hover:text-gray-700 transition-colors">
+                        View original screenshot
+                      </summary>
+                      {preview.screenshot_url && (
+                        <div className="mt-4 max-w-2xl mx-auto">
+                          <img 
+                            src={preview.screenshot_url} 
+                            alt="Original screenshot"
+                            className="w-full rounded-lg shadow-lg border border-gray-200"
+                          />
+                          <p className="text-xs text-gray-500 mt-2">Original page screenshot (before reconstruction)</p>
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </details>
                   </div>
                 </div>
               </div>
 
-              {/* Main Preview Card with Visual Guidance */}
-              <div className="bg-white rounded-2xl shadow-2xl border-2 border-gray-200 overflow-hidden relative group">
-                <div className="absolute -inset-1 bg-gradient-to-r from-orange-500 via-amber-500 to-yellow-500 rounded-2xl opacity-0 group-hover:opacity-20 blur-xl transition-opacity duration-300" />
-                
-                {preview.image_url && (
-                  <div className="aspect-video bg-gradient-to-br from-gray-100 to-gray-200 relative overflow-hidden">
-                    <img
-                      src={preview.image_url}
-                      alt={preview.title}
-                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement
-                        target.style.display = 'none'
-                      }}
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
-                    
-                    {/* Style Badge */}
-                    <div className="absolute top-4 right-4 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-full">
-                      <span className="text-xs font-semibold text-white capitalize">
-                        Style: {preview.visual_guidance.style}
-                      </span>
-                    </div>
-                  </div>
-                )}
-                <div className="p-6 relative">
-                  <div className="mb-3 flex items-center justify-between">
-                    <span className="inline-block px-4 py-1.5 bg-gradient-to-r from-orange-100 to-amber-100 text-orange-700 text-xs font-bold rounded-full uppercase border border-orange-200">
-                      {preview.design_intent}
-                    </span>
-                    <div className="flex items-center space-x-1 text-amber-500">
-                      <StarIcon className="w-4 h-4 fill-amber-400" />
-                      <span className="text-xs font-semibold">AI Intelligence</span>
-                    </div>
-                  </div>
-                  <h3 className="text-2xl font-black text-gray-900 mb-3 leading-tight">{preview.title}</h3>
-                  {preview.description && (
-                    <p className="text-gray-600 mb-4 leading-relaxed">{preview.description}</p>
-                  )}
-                  <div className="flex items-center space-x-2 text-sm text-gray-500 bg-gray-50 rounded-lg p-2">
-                    <LinkIcon className="w-4 h-4 text-orange-500" />
-                    <span className="truncate font-medium">{preview.url}</span>
+              {/* Extracted Elements Detail */}
+              <details className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
+                <summary className="px-6 py-4 cursor-pointer hover:bg-gray-100 transition-colors flex items-center justify-between">
+                  <span className="font-bold text-gray-900 flex items-center">
+                    <svg className="w-5 h-5 mr-2 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    Extracted Elements ({preview.elements.length})
+                  </span>
+                  <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </summary>
+                <div className="px-6 py-4 border-t border-gray-200 bg-white">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {preview.elements.filter(e => e.include_in_preview).map((element, i) => (
+                      <div key={i} className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-bold text-gray-700 capitalize">{element.type.replace('_', ' ')}</span>
+                          <span className="text-xs text-gray-500">Priority: {element.priority}</span>
+                        </div>
+                        <p className="text-sm text-gray-600 line-clamp-2">
+                          {element.text_content || element.content || 'Visual element'}
+                        </p>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              </div>
+              </details>
 
-              {/* Content Variants Section */}
-              <div className="bg-gradient-to-br from-gray-50 to-white rounded-2xl p-8 border border-gray-200">
-                <div className="text-center mb-8">
-                  <h3 className="text-2xl font-black text-gray-900 mb-2">AI Content Variants</h3>
-                  <p className="text-gray-600">Different messaging approaches for A/B testing</p>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {/* Action-Oriented */}
-                  <div className="bg-white rounded-xl p-5 border-2 border-blue-200 hover:border-blue-400 transition-colors">
-                    <div className="flex items-center space-x-2 mb-3">
-                      <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                        <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                        </svg>
-                      </div>
-                      <span className="text-sm font-bold text-blue-700">Action-Oriented</span>
-                    </div>
-                    <h4 className="font-bold text-gray-900 mb-2 text-sm">{preview.variants.action_oriented.title || 'N/A'}</h4>
-                    <p className="text-gray-600 text-xs">{preview.variants.action_oriented.description || 'N/A'}</p>
-                  </div>
-
-                  {/* Benefit-Focused */}
-                  <div className="bg-white rounded-xl p-5 border-2 border-green-200 hover:border-green-400 transition-colors">
-                    <div className="flex items-center space-x-2 mb-3">
-                      <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-                        <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                      </div>
-                      <span className="text-sm font-bold text-green-700">Benefit-Focused</span>
-                    </div>
-                    <h4 className="font-bold text-gray-900 mb-2 text-sm">{preview.variants.benefit_focused.title || 'N/A'}</h4>
-                    <p className="text-gray-600 text-xs">{preview.variants.benefit_focused.description || 'N/A'}</p>
-                  </div>
-
-                  {/* Emotional */}
-                  <div className="bg-white rounded-xl p-5 border-2 border-purple-200 hover:border-purple-400 transition-colors">
-                    <div className="flex items-center space-x-2 mb-3">
-                      <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-                        <svg className="w-4 h-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                        </svg>
-                      </div>
-                      <span className="text-sm font-bold text-purple-700">Emotional</span>
-                    </div>
-                    <h4 className="font-bold text-gray-900 mb-2 text-sm">{preview.variants.emotional.title || 'N/A'}</h4>
-                    <p className="text-gray-600 text-xs">{preview.variants.emotional.description || 'N/A'}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* AI Reasoning (Collapsible) */}
-              {preview.reasoning && (
-                <details className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden group">
+              {/* Layout Rationale */}
+              {preview.layout_plan.layout_rationale && (
+                <details className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
                   <summary className="px-6 py-4 cursor-pointer hover:bg-gray-100 transition-colors flex items-center justify-between">
                     <span className="font-bold text-gray-900 flex items-center">
                       <svg className="w-5 h-5 mr-2 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                       </svg>
-                      AI Reasoning
+                      AI Layout Rationale
                     </span>
-                    <svg className="w-5 h-5 text-gray-400 transform transition-transform group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
                   </summary>
                   <div className="px-6 py-4 border-t border-gray-200 bg-white">
-                    <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{preview.reasoning}</p>
+                    <p className="text-sm text-gray-700 leading-relaxed">{preview.layout_plan.layout_rationale}</p>
                   </div>
                 </details>
               )}

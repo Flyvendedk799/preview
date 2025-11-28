@@ -921,82 +921,83 @@ export async function exportNewsletterSubscribers(format: 'csv' | 'xlsx' = 'csv'
 }
 
 // ============================================================================
-// Demo Preview Endpoints - Enhanced with UI/UX Intelligence
+// Demo Preview Endpoints - Semantic Reconstruction
 // ============================================================================
 
 export interface DemoPreviewRequest {
   url: string
 }
 
-export interface EmphasisZone {
+export interface BoundingBox {
   x: number
   y: number
   width: number
   height: number
+}
+
+export interface ExtractedElement {
+  id: string
+  type: string  // profile_image, hero_image, headline, subheadline, cta_button, etc.
+  content: string
+  bounding_box: BoundingBox
   priority: number
-  reason: string
-  content_type: string
+  include_in_preview: boolean
+  text_content: string | null
+  background_color: string | null
+  text_color: string | null
+  font_weight: string | null
+  is_image: boolean
+  image_crop_data: string | null  // Base64 of cropped image region
+  confidence: number
 }
 
-export interface DemoPreviewVariant {
+export interface LayoutSection {
+  name: string
+  element_ids: string[]
+  layout_direction: 'horizontal' | 'vertical' | 'grid'
+  alignment: 'left' | 'center' | 'right'
+  spacing: 'tight' | 'normal' | 'loose'
+  emphasis: 'primary' | 'secondary' | 'tertiary'
+}
+
+export interface LayoutPlan {
+  template: string  // profile_card, product_card, landing_hero, etc.
+  page_type: string
+  primary_color: string
+  secondary_color: string
+  accent_color: string
+  background_style: string
+  font_style: string
+  sections: LayoutSection[]
   title: string
-  description: string
-}
-
-export interface VisualGuidance {
-  focal_point: { x: number; y: number }
-  crop_region: { x: number; y: number; width: number; height: number }
-  emphasis_zones: EmphasisZone[]
-  style: string
-  overlay_position: string
-}
-
-export interface ContentExtraction {
-  headline: string | null
-  subheadline: string | null
-  cta: string | null
-  features: string[]
-  social_proof: string | null
-}
-
-export interface QualityMetrics {
-  hierarchy_score: number
-  clarity_score: number
-  clutter: string
+  subtitle: string | null
+  description: string | null
+  cta_text: string | null
+  layout_rationale: string
 }
 
 export interface DemoPreviewResponse {
-  // Core preview data
-  title: string
-  description: string | null
-  image_url: string | null
-  type: string
+  // URL
   url: string
   
-  // Design intelligence
-  design_intent: string
-  primary_message: string
-  value_proposition: string
+  // Layout plan for reconstruction
+  layout_plan: LayoutPlan
   
-  // Variants for A/B testing
-  variants: {
-    action_oriented: DemoPreviewVariant
-    benefit_focused: DemoPreviewVariant
-    emotional: DemoPreviewVariant
-  }
+  // Extracted elements
+  elements: ExtractedElement[]
   
-  // Visual guidance
-  visual_guidance: VisualGuidance
+  // Key images (base64)
+  profile_image_base64: string | null
+  hero_image_base64: string | null
+  logo_base64: string | null
   
-  // Extracted content
-  content: ContentExtraction
+  // Screenshot fallback
+  screenshot_url: string | null
   
   // Quality metrics
-  quality: QualityMetrics
-  
-  // AI reasoning
-  reasoning: string
-  confidence: number
+  extraction_confidence: number
+  reconstruction_quality: 'excellent' | 'good' | 'fair' | 'fallback'
+  processing_time_ms: number
   
   // Demo metadata
   is_demo: boolean
