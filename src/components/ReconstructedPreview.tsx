@@ -123,11 +123,11 @@ const ProfileTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
         
         {/* Context items (location, etc.) */}
         {context_items.length > 0 && (
-          <div className="flex items-center justify-center gap-4 text-gray-500 text-sm mb-4">
+          <div className="flex items-center justify-center gap-4 text-gray-700 text-sm mb-4 font-medium">
             {context_items.map((item, i) => (
               <div key={i} className="flex items-center gap-1">
                 {getContextIcon(item.icon)}
-                <span>{item.text}</span>
+                <span className="text-gray-700">{item.text}</span>
               </div>
             ))}
           </div>

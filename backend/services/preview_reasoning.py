@@ -303,7 +303,7 @@ Rules for high-quality previews:
 5. MAX 4 tags/badges (select most relevant)
 6. Prefer concise value propositions over long descriptions
 7. Include location/context only if it adds value
-8. Include credibility only if meaningful (skip 0 ratings)
+8. Include credibility items if they are visually prominent, even if the value is zero (e.g., "0 reviews" can be important for transparency)
 
 === STAGE 5: LAYOUT SYNTHESIS ===
 Assign included regions to layout slots:
@@ -312,7 +312,7 @@ Assign included regions to layout slots:
 - tagline_slot: Brief professional descriptor (role, specialty)
 - value_slot: Core value proposition or about text
 - context_slots: Location, date, company (max 2)
-- credibility_slots: Ratings, testimonials (max 2, skip if zero/empty)
+- credibility_slots: Ratings, testimonials (max 2, include if visually prominent even if zero)
 - action_slot: Primary CTA
 - tags_slots: Skills, categories (max 4)
 
@@ -432,9 +432,9 @@ def crop_region(image: Image.Image, bbox: Dict[str, float], is_profile_image: bo
     right = int((bbox['x'] + bbox['width']) * image.width)
     bottom = int((bbox['y'] + bbox['height']) * image.height)
     
-    # Add padding to make cropping more forgiving (5% of each dimension)
-    padding_x = int((right - left) * 0.1)
-    padding_y = int((bottom - top) * 0.1)
+    # Add padding to make cropping more forgiving (15% of each dimension for better coverage)
+    padding_x = int((right - left) * 0.15)
+    padding_y = int((bottom - top) * 0.15)
     
     left = max(0, left - padding_x)
     top = max(0, top - padding_y)
@@ -449,8 +449,10 @@ def crop_region(image: Image.Image, bbox: Dict[str, float], is_profile_image: bo
         width = right - left
         height = bottom - top
         
-        # Make it square by taking the larger dimension
+        # Make it square by taking the larger dimension, with extra padding for circular avatars
         size = max(width, height)
+        # Add 20% more to ensure we capture the full circular avatar
+        size = int(size * 1.2)
         
         # Center the square on the original detection
         center_x = (left + right) // 2
@@ -463,11 +465,22 @@ def crop_region(image: Image.Image, bbox: Dict[str, float], is_profile_image: bo
         right = min(image.width, center_x + half_size)
         bottom = min(image.height, center_y + half_size)
         
-        # Re-adjust if we hit image bounds
-        if right - left < size and left > 0:
-            left = max(0, right - size)
-        if bottom - top < size and top > 0:
-            top = max(0, bottom - size)
+        # Re-adjust if we hit image bounds (try to maintain square)
+        actual_width = right - left
+        actual_height = bottom - top
+        
+        # If we lost size due to bounds, try to expand the other dimension
+        if actual_width < size and actual_height < size:
+            # Try to expand horizontally if possible
+            if right < image.width:
+                right = min(image.width, left + size)
+            elif left > 0:
+                left = max(0, right - size)
+            # Try to expand vertically if possible
+            if bottom < image.height:
+                bottom = min(image.height, top + size)
+            elif top > 0:
+                top = max(0, bottom - size)
     
     if right <= left or bottom <= top:
         return ""
@@ -715,8 +728,8 @@ def extract_final_content(
             region = region_map[cred_id]
             cred_type = region.get("content_type", "other")
             cred_text = get_region_content(cred_id)
-            # Skip zero ratings
-            if cred_text and not (cred_text.startswith("0 ") or cred_text == "0"):
+            # Include all credibility items if they were selected by AI (even zero ratings)
+            if cred_text:
                 credibility_items.append({"type": cred_type, "value": cred_text})
     
     # Extract CTA
