@@ -792,29 +792,6 @@ export default function Demo() {
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
                     
-                    {/* Visual Guidance Overlay - Show emphasis zones */}
-                    {preview.visual_guidance.emphasis_zones.length > 0 && (
-                      <div className="absolute inset-0 pointer-events-none">
-                        {preview.visual_guidance.emphasis_zones.slice(0, 3).map((zone, i) => (
-                          <div
-                            key={i}
-                            className="absolute border-2 border-dashed border-orange-400/50 rounded-lg bg-orange-500/10 transition-all duration-300"
-                            style={{
-                              left: `${zone.x * 100}%`,
-                              top: `${zone.y * 100}%`,
-                              width: `${zone.width * 100}%`,
-                              height: `${zone.height * 100}%`,
-                            }}
-                            title={zone.reason}
-                          >
-                            <span className="absolute -top-5 left-0 text-xs bg-orange-500 text-white px-2 py-0.5 rounded">
-                              #{zone.priority}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    
                     {/* Style Badge */}
                     <div className="absolute top-4 right-4 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-full">
                       <span className="text-xs font-semibold text-white capitalize">
