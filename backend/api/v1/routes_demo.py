@@ -164,38 +164,32 @@ def generate_demo_preview(
             detail="Failed to analyze page. Please try again."
         )
     
-    # Step 4: Generate composited preview image (og:image with all elements)
+    # Step 4: Generate screenshot-based og:image (visual-first, no text overlays)
     composited_image_url = None
     try:
-        logger.info("Generating composited preview image for og:image")
+        logger.info("Generating screenshot-based og:image (visual-first approach)")
         
-        # Prepare context items for image generation
-        context_items_list = [
-            {"icon": c["icon"], "text": c["text"]}
-            for c in result.context_items
-        ]
-        
+        # Use the new screenshot-first approach
+        # This creates a clean visual image without text overlays
+        # Text content is handled by og:title and og:description
         composited_image_url = generate_and_upload_preview_image(
-            title=result.title,
-            subtitle=result.subtitle,
-            description=result.description,
-            cta_text=result.cta_text,
-            primary_image_base64=result.primary_image_base64,
-            screenshot_url=screenshot_url,
+            screenshot_bytes=screenshot_bytes,
+            url=str(request_data.url),
             blueprint={
                 "primary_color": result.blueprint.primary_color,
                 "secondary_color": result.blueprint.secondary_color,
                 "accent_color": result.blueprint.accent_color
             },
-            template_type=result.blueprint.template_type,
-            tags=result.tags,
-            context_items=context_items_list
+            template_type=result.blueprint.template_type
         )
         if composited_image_url:
-            logger.info(f"Composited preview image generated: {composited_image_url}")
+            logger.info(f"Screenshot-based og:image generated: {composited_image_url}")
     except Exception as e:
-        logger.warning(f"Failed to generate composited preview image: {e}", exc_info=True)
-        # Continue without composited image - not critical for demo
+        logger.warning(f"Failed to generate og:image: {e}", exc_info=True)
+        # Fallback to raw screenshot URL if available
+        if screenshot_url:
+            composited_image_url = screenshot_url
+            logger.info(f"Using raw screenshot as fallback: {screenshot_url}")
     
     # Step 5: Build response
     return DemoPreviewResponse(

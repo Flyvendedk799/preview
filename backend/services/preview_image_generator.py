@@ -1,8 +1,14 @@
 """
 Generate final composited preview image for og:image.
 
-This service takes the reconstructed preview data and generates a final
-PNG/JPG image that matches the ReconstructedPreview component design exactly.
+DESIGN PHILOSOPHY:
+The og:image should be a VISUAL HOOK, not a text document.
+- Screenshot-first: Use the actual page as the primary visual
+- Minimal text: Only domain/logo for brand recognition
+- Mobile-optimized: Must be legible at ~300px width
+- Let og:title and og:description handle the text content
+
+This approach follows professional social media marketing best practices.
 """
 
 import base64
@@ -10,10 +16,8 @@ import logging
 from io import BytesIO
 from uuid import uuid4
 from typing import Optional, Dict, Any
-from PIL import Image, ImageDraw, ImageFont
-from playwright.sync_api import sync_playwright
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
 from backend.services.r2_client import upload_file_to_r2
-from backend.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -21,560 +25,274 @@ logger = logging.getLogger(__name__)
 OG_IMAGE_WIDTH = 1200
 OG_IMAGE_HEIGHT = 630
 
+# Brand bar configuration
+BRAND_BAR_HEIGHT = 60
+BRAND_BAR_PADDING = 24
 
-def generate_preview_image_html(
-    title: str,
-    subtitle: Optional[str],
-    description: Optional[str],
-    cta_text: Optional[str],
-    primary_image_base64: Optional[str],
-    screenshot_url: Optional[str],
+
+def _hex_to_rgb(hex_color: str) -> tuple:
+    """Convert hex color to RGB tuple."""
+    hex_color = hex_color.lstrip('#')
+    return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+
+
+def _get_contrast_color(bg_color: tuple) -> tuple:
+    """Get white or dark text based on background luminance."""
+    luminance = (0.299 * bg_color[0] + 0.587 * bg_color[1] + 0.114 * bg_color[2]) / 255
+    return (255, 255, 255) if luminance < 0.5 else (30, 30, 30)
+
+
+def _load_font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
+    """Load font with fallbacks."""
+    font_paths = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        "/System/Library/Fonts/Helvetica.ttc",
+        "C:/Windows/Fonts/arial.ttf",
+    ]
+    
+    for path in font_paths:
+        try:
+            return ImageFont.truetype(path, size)
+        except:
+            continue
+    
+    return ImageFont.load_default()
+
+
+def generate_screenshot_based_preview(
+    screenshot_bytes: bytes,
+    domain: str,
     blueprint: Dict[str, Any],
-    template_type: str,
-    tags: list = None,
-    context_items: list = None
-) -> str:
-    """
-    Generate HTML that exactly matches the ReconstructedPreview component design.
-    """
-    if tags is None:
-        tags = []
-    if context_items is None:
-        context_items = []
-        
-    primary_color = blueprint.get("primary_color", "#3B82F6")
-    secondary_color = blueprint.get("secondary_color", "#1E293B")
-    accent_color = blueprint.get("accent_color", "#F59E0B")
-    
-    imageUrl = f'data:image/png;base64,{primary_image_base64}' if primary_image_base64 else (screenshot_url or '')
-    
-    # Match the exact design from ReconstructedPreview component
-    if template_type == "landing":
-        # LandingTemplate design
-        html = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <style>
-                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
-                
-                * {{
-                    margin: 0;
-                    padding: 0;
-                    box-sizing: border-box;
-                }}
-                
-                body {{
-                    width: {OG_IMAGE_WIDTH}px;
-                    height: {OG_IMAGE_HEIGHT}px;
-                    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-                    overflow: hidden;
-                    position: relative;
-                    background: linear-gradient(135deg, {primary_color}, {secondary_color});
-                }}
-                
-                .container {{
-                    width: 100%;
-                    height: 100%;
-                    position: relative;
-                    border-radius: 16px;
-                    overflow: hidden;
-                    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-                }}
-                
-                .bg-image {{
-                    position: absolute;
-                    inset: 0;
-                }}
-                
-                .bg-image img {{
-                    width: 100%;
-                    height: 100%;
-                    object-fit: cover;
-                    opacity: 0.2;
-                }}
-                
-                .bg-overlay {{
-                    position: absolute;
-                    inset: 0;
-                    background: linear-gradient(to right, rgba(0, 0, 0, 0.6), transparent);
-                }}
-                
-                .content {{
-                    position: relative;
-                    z-index: 10;
-                    padding: 60px 80px;
-                    height: 100%;
-                    display: flex;
-                    flex-direction: column;
-                    justify-content: center;
-                    color: white;
-                }}
-                
-                .tags {{
-                    display: flex;
-                    flex-wrap: wrap;
-                    gap: 8px;
-                    margin-bottom: 16px;
-                }}
-                
-                .tag {{
-                    padding: 4px 8px;
-                    border-radius: 4px;
-                    font-size: 12px;
-                    font-weight: 500;
-                    text-transform: uppercase;
-                    letter-spacing: 0.05em;
-                    background: rgba(255, 255, 255, 0.2);
-                    color: rgba(255, 255, 255, 0.9);
-                }}
-                
-                .title {{
-                    font-size: 48px;
-                    font-weight: 700;
-                    line-height: 1.2;
-                    margin-bottom: 12px;
-                    max-width: 900px;
-                    color: white;
-                }}
-                
-                .subtitle {{
-                    font-size: 24px;
-                    font-weight: 600;
-                    line-height: 1.3;
-                    margin-bottom: 8px;
-                    max-width: 800px;
-                    color: rgba(255, 255, 255, 0.9);
-                }}
-                
-                .description {{
-                    font-size: 18px;
-                    font-weight: 400;
-                    line-height: 1.5;
-                    margin-bottom: 24px;
-                    max-width: 700px;
-                    color: rgba(255, 255, 255, 0.7);
-                }}
-                
-                .cta-button {{
-                    display: inline-block;
-                    padding: 12px 24px;
-                    background: {accent_color};
-                    color: {primary_color};
-                    font-size: 14px;
-                    font-weight: 700;
-                    border-radius: 8px;
-                    text-decoration: none;
-                    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-                    transition: opacity 0.2s;
-                }}
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                {f'<div class="bg-image"><img src="{imageUrl}" alt="" /></div>' if imageUrl else ''}
-                <div class="bg-overlay"></div>
-                <div class="content">
-                    {f'<div class="tags">' + ''.join([f'<span class="tag">{tag}</span>' for tag in tags[:2]]) + '</div>' if tags else ''}
-                    <h1 class="title">{title}</h1>
-                    {f'<p class="subtitle">{subtitle}</p>' if subtitle else ''}
-                    {f'<p class="description">{description}</p>' if description else ''}
-                    {f'<a href="#" class="cta-button">{cta_text}</a>' if cta_text else ''}
-                </div>
-            </div>
-        </body>
-        </html>
-        """
-    elif template_type == "profile":
-        # ProfileTemplate design
-        html = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <style>
-                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
-                
-                * {{
-                    margin: 0;
-                    padding: 0;
-                    box-sizing: border-box;
-                }}
-                
-                body {{
-                    width: {OG_IMAGE_WIDTH}px;
-                    height: {OG_IMAGE_HEIGHT}px;
-                    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-                    overflow: hidden;
-                    position: relative;
-                    background: #F9FAFB;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                }}
-                
-                .card {{
-                    width: 90%;
-                    max-width: 500px;
-                    background: white;
-                    border-radius: 16px;
-                    overflow: hidden;
-                    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-                }}
-                
-                .header {{
-                    height: 112px;
-                    background: linear-gradient(135deg, {primary_color}, {secondary_color});
-                    position: relative;
-                }}
-                
-                .header-overlay {{
-                    position: absolute;
-                    inset: 0;
-                    background: linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.1));
-                }}
-                
-                .header-pattern {{
-                    position: absolute;
-                    inset: 0;
-                    opacity: 0.1;
-                    background-image: radial-gradient(circle at 25px 25px, white 2%, transparent 0%);
-                    background-size: 50px 50px;
-                }}
-                
-                .content {{
-                    position: relative;
-                    padding: 24px;
-                    padding-top: 0;
-                }}
-                
-                .profile-image-container {{
-                    display: flex;
-                    justify-content: center;
-                    margin-top: -64px;
-                    margin-bottom: 16px;
-                }}
-                
-                .profile-image {{
-                    width: 112px;
-                    height: 112px;
-                    border-radius: 50%;
-                    border: 4px solid white;
-                    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-                    object-fit: cover;
-                }}
-                
-                .name {{
-                    font-size: 24px;
-                    font-weight: 700;
-                    color: #111827;
-                    text-align: center;
-                    margin-bottom: 4px;
-                }}
-                
-                .subtitle {{
-                    font-size: 14px;
-                    color: #4B5563;
-                    text-align: center;
-                    margin-bottom: 12px;
-                }}
-                
-                .context {{
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    gap: 16px;
-                    font-size: 14px;
-                    color: #374151;
-                    font-weight: 500;
-                    margin-bottom: 16px;
-                }}
-                
-                .tags {{
-                    display: flex;
-                    flex-wrap: wrap;
-                    justify-content: center;
-                    gap: 8px;
-                    margin-bottom: 16px;
-                }}
-                
-                .tag {{
-                    padding: 4px 12px;
-                    border-radius: 9999px;
-                    font-size: 12px;
-                    font-weight: 500;
-                    background: {primary_color}15;
-                    color: {primary_color};
-                }}
-                
-                .description {{
-                    border-top: 1px solid #F3F4F6;
-                    padding-top: 16px;
-                    margin-top: 8px;
-                    font-size: 14px;
-                    color: #374151;
-                    text-align: center;
-                    line-height: 1.5;
-                }}
-            </style>
-        </head>
-        <body>
-            <div class="card">
-                <div class="header">
-                    <div class="header-overlay"></div>
-                    <div class="header-pattern"></div>
-                </div>
-                <div class="content">
-                    <div class="profile-image-container">
-                        {f'<img src="data:image/png;base64,{primary_image_base64}" class="profile-image" alt="" />' if primary_image_base64 else f'<div class="profile-image" style="background: {primary_color}; display: flex; align-items: center; justify-content: center; color: white; font-size: 36px; font-weight: 700;">{title[0].upper() if title else "P"}</div>'}
-                    </div>
-                    <h2 class="name">{title}</h2>
-                    {f'<p class="subtitle">{subtitle}</p>' if subtitle else ''}
-                    {f'<div class="context">{context_items[0]["text"] if context_items else ""}</div>' if context_items else ''}
-                    {f'<div class="tags">' + ''.join([f'<span class="tag">{tag}</span>' for tag in tags[:4]]) + '</div>' if tags else ''}
-                    {f'<p class="description">{description}</p>' if description else ''}
-                </div>
-            </div>
-        </body>
-        </html>
-        """
-    else:
-        # Product/Service template - white card with icon
-        html = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <style>
-                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
-                
-                * {{
-                    margin: 0;
-                    padding: 0;
-                    box-sizing: border-box;
-                }}
-                
-                body {{
-                    width: {OG_IMAGE_WIDTH}px;
-                    height: {OG_IMAGE_HEIGHT}px;
-                    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-                    overflow: hidden;
-                    position: relative;
-                    background: #F9FAFB;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                }}
-                
-                .card {{
-                    width: 90%;
-                    max-width: 600px;
-                    background: white;
-                    border-radius: 16px;
-                    overflow: hidden;
-                    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-                }}
-                
-                .accent-bar {{
-                    height: 8px;
-                    background: {primary_color};
-                }}
-                
-                .content {{
-                    padding: 24px;
-                }}
-                
-                .icon-container {{
-                    margin-bottom: 16px;
-                }}
-                
-                .icon {{
-                    width: 64px;
-                    height: 64px;
-                    border-radius: 12px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    font-size: 24px;
-                    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-                    background: {primary_color}15;
-                    color: {primary_color};
-                }}
-                
-                .icon img {{
-                    width: 100%;
-                    height: 100%;
-                    object-fit: cover;
-                    border-radius: 12px;
-                }}
-                
-                .title {{
-                    font-size: 20px;
-                    font-weight: 700;
-                    color: #111827;
-                    margin-bottom: 8px;
-                }}
-                
-                .subtitle {{
-                    font-size: 14px;
-                    color: #4B5563;
-                    margin-bottom: 12px;
-                }}
-                
-                .description {{
-                    font-size: 14px;
-                    color: #4B5563;
-                    line-height: 1.5;
-                    margin-bottom: 16px;
-                }}
-                
-                .cta-button {{
-                    width: 100%;
-                    padding: 10px 16px;
-                    background: {primary_color};
-                    color: white;
-                    font-size: 14px;
-                    font-weight: 500;
-                    border-radius: 8px;
-                    border: none;
-                    cursor: pointer;
-                    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-                }}
-            </style>
-        </head>
-        <body>
-            <div class="card">
-                <div class="accent-bar"></div>
-                <div class="content">
-                    <div class="icon-container">
-                        {f'<img src="data:image/png;base64,{primary_image_base64}" class="icon" alt="" />' if primary_image_base64 else '<div class="icon">✨</div>'}
-                    </div>
-                    <h2 class="title">{title}</h2>
-                    {f'<p class="subtitle">{subtitle}</p>' if subtitle else ''}
-                    {f'<p class="description">{description}</p>' if description else ''}
-                    {f'<button class="cta-button">{cta_text}</button>' if cta_text else ''}
-                </div>
-            </div>
-        </body>
-        </html>
-        """
-    
-    return html
-
-
-def generate_composited_preview_image(
-    title: str,
-    subtitle: Optional[str],
-    description: Optional[str],
-    cta_text: Optional[str],
-    primary_image_base64: Optional[str],
-    screenshot_url: Optional[str],
-    blueprint: Dict[str, Any],
-    template_type: str,
-    tags: list = None,
-    context_items: list = None
+    template_type: str = "default"
 ) -> bytes:
     """
-    Generate final composited preview image.
+    Generate og:image using screenshot as the primary visual.
     
-    Uses Playwright to render HTML and capture as PNG.
+    Strategy:
+    - Screenshot fills most of the frame
+    - Subtle brand bar at bottom with domain
+    - Light gradient overlay for visual cohesion
+    - NO text overlays (titles, descriptions, CTAs)
+    
+    Args:
+        screenshot_bytes: Raw PNG bytes of the page screenshot
+        domain: Domain name for brand bar (e.g., "example.com")
+        blueprint: Color palette with primary_color, secondary_color, accent_color
+        template_type: Page type (profile, product, landing, etc.) - for optional tweaks
+    
+    Returns:
+        PNG image bytes
     """
     try:
-        html = generate_preview_image_html(
-            title=title,
-            subtitle=subtitle,
-            description=description,
-            cta_text=cta_text,
-            primary_image_base64=primary_image_base64,
-            screenshot_url=screenshot_url,
-            blueprint=blueprint,
-            template_type=template_type,
-            tags=tags or [],
-            context_items=context_items or []
+        # Load screenshot
+        screenshot = Image.open(BytesIO(screenshot_bytes)).convert('RGBA')
+        
+        # Get brand colors
+        primary_color = _hex_to_rgb(blueprint.get("primary_color", "#3B82F6"))
+        secondary_color = _hex_to_rgb(blueprint.get("secondary_color", "#1E293B"))
+        
+        # Calculate dimensions
+        content_height = OG_IMAGE_HEIGHT - BRAND_BAR_HEIGHT
+        
+        # Smart crop/resize screenshot to fit content area
+        screenshot_resized = _smart_crop_screenshot(
+            screenshot, 
+            OG_IMAGE_WIDTH, 
+            content_height,
+            template_type
         )
         
-        with sync_playwright() as p:
-            browser = p.chromium.launch(args=["--no-sandbox"])
-            page = browser.new_page(
-                viewport={"width": OG_IMAGE_WIDTH, "height": OG_IMAGE_HEIGHT},
-                device_scale_factor=2  # High DPI for quality
-            )
-            
-            page.set_content(html, wait_until="networkidle")
-            
-            # Wait for fonts and images to load
-            page.wait_for_timeout(1500)
-            
-            # Capture screenshot
-            screenshot_bytes = page.screenshot(
-                type="png",
-                full_page=False,
-                clip={"x": 0, "y": 0, "width": OG_IMAGE_WIDTH, "height": OG_IMAGE_HEIGHT}
-            )
-            
-            browser.close()
-            
-            return screenshot_bytes
-            
-    except Exception as e:
-        logger.error(f"Error generating composited preview image: {e}", exc_info=True)
-        # Fallback: create a simple image with PIL
-        return _generate_fallback_image(title, subtitle, description, cta_text, blueprint)
-
-
-def _generate_fallback_image(
-    title: str,
-    subtitle: Optional[str],
-    description: Optional[str],
-    cta_text: Optional[str],
-    blueprint: Dict[str, Any]
-) -> bytes:
-    """Fallback image generation using PIL if Playwright fails."""
-    try:
-        primary_color = tuple(int(blueprint.get("primary_color", "#3B82F6").lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
-        accent_color = tuple(int(blueprint.get("accent_color", "#F59E0B").lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
+        # Create final image
+        final_image = Image.new('RGBA', (OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT), (255, 255, 255, 255))
         
-        # Create image
+        # Paste screenshot at top
+        final_image.paste(screenshot_resized, (0, 0))
+        
+        # Add subtle gradient overlay at bottom of screenshot (for visual transition)
+        gradient_overlay = _create_bottom_gradient(OG_IMAGE_WIDTH, content_height, primary_color)
+        final_image = Image.alpha_composite(final_image, gradient_overlay)
+        
+        # Add brand bar at bottom
+        brand_bar = _create_brand_bar(
+            OG_IMAGE_WIDTH, 
+            BRAND_BAR_HEIGHT, 
+            domain, 
+            primary_color,
+            secondary_color
+        )
+        final_image.paste(brand_bar, (0, content_height))
+        
+        # Convert to RGB for PNG export
+        final_rgb = Image.new('RGB', final_image.size, (255, 255, 255))
+        final_rgb.paste(final_image, mask=final_image.split()[-1] if final_image.mode == 'RGBA' else None)
+        
+        # Save to bytes
+        buffer = BytesIO()
+        final_rgb.save(buffer, format='PNG', optimize=True)
+        return buffer.getvalue()
+        
+    except Exception as e:
+        logger.error(f"Screenshot-based preview generation failed: {e}", exc_info=True)
+        # Fallback to simple branded image
+        return _generate_fallback_preview(domain, blueprint)
+
+
+def _smart_crop_screenshot(
+    screenshot: Image.Image, 
+    target_width: int, 
+    target_height: int,
+    template_type: str
+) -> Image.Image:
+    """
+    Intelligently crop and resize screenshot to fit target dimensions.
+    
+    Strategy varies by template type:
+    - Landing/Service: Focus on top hero section
+    - Profile: Try to center on main content
+    - Default: Crop from top
+    """
+    src_width, src_height = screenshot.size
+    target_ratio = target_width / target_height
+    src_ratio = src_width / src_height
+    
+    if src_ratio > target_ratio:
+        # Source is wider - crop sides
+        new_width = int(src_height * target_ratio)
+        left = (src_width - new_width) // 2
+        cropped = screenshot.crop((left, 0, left + new_width, src_height))
+    else:
+        # Source is taller - crop from top (keep hero section)
+        new_height = int(src_width / target_ratio)
+        
+        # For most pages, the important content is at the top
+        # Only take from the top portion of the page
+        cropped = screenshot.crop((0, 0, src_width, min(new_height, src_height)))
+        
+        # If we couldn't get enough height, pad with white
+        if cropped.size[1] < new_height:
+            padded = Image.new('RGBA', (src_width, new_height), (255, 255, 255, 255))
+            padded.paste(cropped, (0, 0))
+            cropped = padded
+    
+    # Resize to exact target dimensions
+    return cropped.resize((target_width, target_height), Image.Resampling.LANCZOS)
+
+
+def _create_bottom_gradient(width: int, height: int, color: tuple) -> Image.Image:
+    """Create a subtle gradient overlay at the bottom for visual transition to brand bar."""
+    overlay = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+    
+    # Gradient starts at 80% of height
+    gradient_start = int(height * 0.8)
+    gradient_height = height - gradient_start
+    
+    for y in range(gradient_height):
+        # Gradually increase opacity
+        alpha = int(30 * (y / gradient_height))  # Max 30 alpha for subtlety
+        draw.line(
+            [(0, gradient_start + y), (width, gradient_start + y)],
+            fill=(color[0], color[1], color[2], alpha)
+        )
+    
+    return overlay
+
+
+def _create_brand_bar(
+    width: int, 
+    height: int, 
+    domain: str, 
+    primary_color: tuple,
+    secondary_color: tuple
+) -> Image.Image:
+    """
+    Create a clean brand bar with domain.
+    
+    Design:
+    - Solid background using secondary color (usually dark)
+    - Domain text on the left
+    - Optional: small accent line at top
+    """
+    bar = Image.new('RGB', (width, height), secondary_color)
+    draw = ImageDraw.Draw(bar)
+    
+    # Accent line at top (2px, primary color)
+    draw.rectangle([(0, 0), (width, 2)], fill=primary_color)
+    
+    # Domain text
+    font = _load_font(24, bold=True)
+    text_color = _get_contrast_color(secondary_color)
+    
+    # Clean up domain
+    clean_domain = domain.replace('www.', '').upper()
+    
+    # Calculate text position (vertically centered, left padded)
+    try:
+        bbox = draw.textbbox((0, 0), clean_domain, font=font)
+        text_height = bbox[3] - bbox[1]
+    except:
+        text_height = 24
+    
+    text_y = (height - text_height) // 2
+    
+    # Draw domain
+    draw.text((BRAND_BAR_PADDING, text_y), clean_domain, fill=text_color, font=font)
+    
+    # Optional: Add a subtle icon/indicator on the right
+    indicator_size = 8
+    indicator_x = width - BRAND_BAR_PADDING - indicator_size
+    indicator_y = (height - indicator_size) // 2
+    draw.ellipse(
+        [(indicator_x, indicator_y), (indicator_x + indicator_size, indicator_y + indicator_size)],
+        fill=primary_color
+    )
+    
+    return bar
+
+
+def _generate_fallback_preview(domain: str, blueprint: Dict[str, Any]) -> bytes:
+    """Generate a simple branded fallback image if screenshot processing fails."""
+    try:
+        primary_color = _hex_to_rgb(blueprint.get("primary_color", "#3B82F6"))
+        secondary_color = _hex_to_rgb(blueprint.get("secondary_color", "#1E293B"))
+        
+        # Create gradient background
         img = Image.new('RGB', (OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT), primary_color)
         draw = ImageDraw.Draw(img)
         
-        # Try to load a font (fallback to default if not available)
+        # Diagonal gradient effect
+        for y in range(OG_IMAGE_HEIGHT):
+            ratio = y / OG_IMAGE_HEIGHT
+            r = int(primary_color[0] * (1 - ratio) + secondary_color[0] * ratio)
+            g = int(primary_color[1] * (1 - ratio) + secondary_color[1] * ratio)
+            b = int(primary_color[2] * (1 - ratio) + secondary_color[2] * ratio)
+            draw.line([(0, y), (OG_IMAGE_WIDTH, y)], fill=(r, g, b))
+        
+        # Domain in center
+        font = _load_font(48, bold=True)
+        clean_domain = domain.replace('www.', '').upper()
+        
         try:
-            font_large = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 60)
-            font_medium = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 32)
+            bbox = draw.textbbox((0, 0), clean_domain, font=font)
+            text_width = bbox[2] - bbox[0]
+            text_height = bbox[3] - bbox[1]
         except:
-            font_large = ImageFont.load_default()
-            font_medium = ImageFont.load_default()
+            text_width = len(clean_domain) * 30
+            text_height = 48
         
-        # Draw title
-        y = 100
-        draw.text((80, y), title, fill=(255, 255, 255), font=font_large)
+        text_x = (OG_IMAGE_WIDTH - text_width) // 2
+        text_y = (OG_IMAGE_HEIGHT - text_height) // 2
         
-        # Draw description if available
-        if description:
-            y += 100
-            draw.text((80, y), description[:100] + "...", fill=(255, 255, 255), font=font_medium)
+        draw.text((text_x, text_y), clean_domain, fill=(255, 255, 255), font=font)
         
-        # Draw CTA button
-        if cta_text:
-            y += 100
-            button_width = 300
-            button_height = 60
-            draw.rectangle(
-                [(80, y), (80 + button_width, y + button_height)],
-                fill=accent_color
-            )
-            draw.text((100, y + 15), cta_text[:30], fill=(255, 255, 255), font=font_medium)
-        
-        # Save to bytes
         buffer = BytesIO()
         img.save(buffer, format='PNG')
         return buffer.getvalue()
         
     except Exception as e:
-        logger.error(f"Fallback image generation failed: {e}", exc_info=True)
-        # Ultimate fallback: solid color image
+        logger.error(f"Fallback preview generation failed: {e}", exc_info=True)
+        # Ultimate fallback: solid color
         img = Image.new('RGB', (OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT), (59, 130, 246))
         buffer = BytesIO()
         img.save(buffer, format='PNG')
@@ -582,36 +300,39 @@ def _generate_fallback_image(
 
 
 def generate_and_upload_preview_image(
-    title: str,
-    subtitle: Optional[str],
-    description: Optional[str],
-    cta_text: Optional[str],
-    primary_image_base64: Optional[str],
-    screenshot_url: Optional[str],
+    screenshot_bytes: bytes,
+    url: str,
     blueprint: Dict[str, Any],
-    template_type: str,
-    tags: list = None,
-    context_items: list = None
+    template_type: str = "default"
 ) -> Optional[str]:
     """
-    Generate composited preview image and upload to R2.
+    Generate screenshot-based og:image and upload to R2.
+    
+    This is the main entry point for og:image generation.
+    
+    Args:
+        screenshot_bytes: Raw PNG bytes of the page screenshot
+        url: Full URL (used to extract domain)
+        blueprint: Color palette
+        template_type: Page type for optional conditional enhancements
     
     Returns:
         Public URL of uploaded image, or None if upload fails
     """
     try:
-        logger.info("Generating composited preview image")
-        image_bytes = generate_composited_preview_image(
-            title=title,
-            subtitle=subtitle,
-            description=description,
-            cta_text=cta_text,
-            primary_image_base64=primary_image_base64,
-            screenshot_url=screenshot_url,
+        # Extract domain from URL
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        domain = parsed.netloc or parsed.path.split('/')[0]
+        
+        logger.info(f"Generating screenshot-based preview for: {domain}")
+        
+        # Generate the image
+        image_bytes = generate_screenshot_based_preview(
+            screenshot_bytes=screenshot_bytes,
+            domain=domain,
             blueprint=blueprint,
-            template_type=template_type,
-            tags=tags or [],
-            context_items=context_items or []
+            template_type=template_type
         )
         
         # Upload to R2
@@ -624,3 +345,35 @@ def generate_and_upload_preview_image(
     except Exception as e:
         logger.error(f"Failed to generate/upload preview image: {e}", exc_info=True)
         return None
+
+
+# =============================================================================
+# LEGACY SUPPORT - Keep old function signature for backwards compatibility
+# =============================================================================
+
+def generate_composited_preview_image(*args, **kwargs) -> bytes:
+    """
+    Legacy function - redirects to new screenshot-based approach.
+    
+    Note: This function signature is deprecated. Use generate_screenshot_based_preview instead.
+    """
+    logger.warning("generate_composited_preview_image is deprecated, use generate_screenshot_based_preview")
+    
+    # Try to extract screenshot_bytes from kwargs
+    screenshot_url = kwargs.get('screenshot_url')
+    if screenshot_url:
+        try:
+            import requests
+            response = requests.get(screenshot_url, timeout=10)
+            if response.status_code == 200:
+                return generate_screenshot_based_preview(
+                    screenshot_bytes=response.content,
+                    domain="preview",
+                    blueprint=kwargs.get('blueprint', {}),
+                    template_type=kwargs.get('template_type', 'default')
+                )
+        except:
+            pass
+    
+    # Fallback
+    return _generate_fallback_preview("preview", kwargs.get('blueprint', {}))
