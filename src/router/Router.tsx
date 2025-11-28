@@ -40,7 +40,7 @@ export default function Router() {
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
-      <Route path="/demo" element={<Demo />} />
+      <Route path="/demo" element={<Demo />} exact />
       
       {/* Public Blog routes */}
       <Route path="/blog" element={<Blog />} />
