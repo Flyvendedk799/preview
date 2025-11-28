@@ -33,7 +33,7 @@ export default function Demo() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [emailSubscribed, setEmailSubscribed] = useState(false)
   const [showEmailSuccess, setShowEmailSuccess] = useState(false)
-  const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null)
+  const [selectedPlatform, setSelectedPlatform] = useState<string>('facebook') // Default to Facebook
   const [showEmailPopup, setShowEmailPopup] = useState(false)
   const [pendingUrl, setPendingUrl] = useState<string>('')
   
@@ -894,112 +894,144 @@ export default function Demo() {
               <div className="bg-gradient-to-br from-gray-50 to-white rounded-2xl p-8 sm:p-10 border border-gray-200">
                 <div className="text-center mb-8">
                   <h3 className="text-2xl sm:text-3xl font-black text-gray-900 mb-2">See It In Action</h3>
-                  <p className="text-gray-600">How your preview appears on social media platforms</p>
+                  <p className="text-gray-600 mb-6">How your preview appears on social media platforms</p>
+                  
+                  {/* Platform Selector */}
+                  <div className="flex justify-center">
+                    <div className="relative inline-block">
+                      <select
+                        value={selectedPlatform}
+                        onChange={(e) => setSelectedPlatform(e.target.value)}
+                        className="appearance-none bg-white border-2 border-gray-200 rounded-xl px-6 py-3 pr-12 font-semibold text-gray-900 text-sm cursor-pointer transition-all duration-300 hover:border-orange-300 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                      >
+                        {platforms.map((platform) => (
+                          <option key={platform.id} value={platform.id}>
+                            {platform.name}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none">
+                        <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-                  {platforms.map((platform) => (
-                    <div
-                      key={platform.id}
-                      className="flex flex-col items-center group cursor-pointer"
-                      onClick={() => setSelectedPlatform(selectedPlatform === platform.id ? null : platform.id)}
-                    >
-                      {/* Mobile Device Frame */}
-                      <div className="relative w-full max-w-[280px] transform transition-all duration-300 group-hover:scale-105">
-                        {/* Device Frame */}
-                        <div className="relative bg-gray-900 rounded-[2.5rem] p-1.5 shadow-2xl">
-                          {/* Notch */}
-                          <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-32 h-6 bg-gray-900 rounded-b-2xl z-10"></div>
-                          
-                          {/* Screen */}
-                          <div className="bg-white rounded-[2rem] overflow-hidden">
-                            {/* Status Bar */}
-                            <div className="h-8 bg-gray-50 flex items-center justify-between px-4 text-xs">
-                              <span className="font-semibold">9:41</span>
-                              <div className="flex items-center space-x-1">
-                                <div className="w-4 h-2 border border-gray-400 rounded-sm">
-                                  <div className="w-full h-full bg-gray-400 rounded-sm"></div>
-                                </div>
-                                <div className="w-5 h-2.5 border border-gray-400 rounded-sm">
-                                  <div className="w-3/4 h-full bg-gray-400 rounded-sm"></div>
+                {/* Single Platform Preview */}
+                <div className="flex justify-center">
+                  {(() => {
+                    const platform = platforms.find(p => p.id === selectedPlatform) || platforms[1] // Fallback to Facebook
+                    return (
+                      <div className="flex flex-col items-center w-full">
+                        {/* Mobile Device Frame */}
+                        <div className="relative w-full max-w-[340px] transform transition-all duration-300">
+                          {/* Device Frame with Shadow */}
+                          <div className="relative bg-gray-900 rounded-[2.5rem] p-2.5 shadow-2xl">
+                            {/* Notch */}
+                            <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-40 h-8 bg-gray-900 rounded-b-2xl z-10"></div>
+                            
+                            {/* Screen */}
+                            <div className="bg-white rounded-[2rem] overflow-hidden">
+                              {/* Status Bar */}
+                              <div className="h-9 bg-gray-50 flex items-center justify-between px-5 text-xs border-b border-gray-100">
+                                <span className="font-semibold text-gray-900">9:41</span>
+                                <div className="flex items-center space-x-1.5">
+                                  <div className="w-5 h-2.5 border border-gray-400 rounded-sm">
+                                    <div className="w-full h-full bg-gray-400 rounded-sm"></div>
+                                  </div>
+                                  <div className="w-6 h-3 border border-gray-400 rounded-sm">
+                                    <div className="w-4/5 h-full bg-gray-400 rounded-sm"></div>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
 
-                            {/* Platform Header */}
-                            <div className={`h-12 bg-gradient-to-r ${platform.color} flex items-center justify-between px-4 text-white`}>
-                              <div className="flex items-center space-x-2">
-                                <div className="w-6 h-6 bg-white/20 rounded flex items-center justify-center text-xs">
-                                  {platform.icon}
+                              {/* Platform Header */}
+                              <div className={`h-16 bg-gradient-to-r ${platform.color} flex items-center justify-between px-5 text-white shadow-sm`}>
+                                <div className="flex items-center space-x-3">
+                                  <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center text-base backdrop-blur-sm">
+                                    {platform.icon}
+                                  </div>
+                                  <span className="text-sm font-bold uppercase tracking-wide">{platform.name}</span>
                                 </div>
-                                <span className="text-xs font-bold uppercase">{platform.name}</span>
+                                <div className="w-2 h-2 bg-white rounded-full opacity-80"></div>
                               </div>
-                              <div className="w-1 h-1 bg-white rounded-full"></div>
-                            </div>
 
-                            {/* Link Preview Card - What shows when URL is shared */}
-                            <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-                              {/* Composited Preview Image - This is the actual og:image */}
-                              {preview.composited_preview_image_url ? (
-                                <div className="aspect-[1.91/1] bg-gray-100 overflow-hidden">
-                                  <img
-                                    src={preview.composited_preview_image_url}
-                                    alt={preview.title}
-                                    className="w-full h-full object-cover"
-                                  />
-                                </div>
-                              ) : (preview.primary_image_base64 || preview.screenshot_url) ? (
-                                <div className="aspect-[1.91/1] bg-gray-100 overflow-hidden">
-                                  {preview.primary_image_base64 ? (
+                              {/* Link Preview Card - What shows when URL is shared */}
+                              <div className="bg-white">
+                                {/* Composited Preview Image - This is the actual og:image */}
+                                {preview.composited_preview_image_url ? (
+                                  <div className="aspect-[1.91/1] bg-gray-100 overflow-hidden relative">
                                     <img
-                                      src={`data:image/png;base64,${preview.primary_image_base64}`}
+                                      src={preview.composited_preview_image_url}
                                       alt={preview.title}
                                       className="w-full h-full object-cover"
+                                      onError={(e) => {
+                                        // Fallback if image fails to load
+                                        const target = e.target as HTMLImageElement
+                                        if (preview.screenshot_url) {
+                                          target.src = preview.screenshot_url
+                                        }
+                                      }}
                                     />
-                                  ) : preview.screenshot_url ? (
-                                    <img
-                                      src={preview.screenshot_url}
-                                      alt={preview.title}
-                                      className="w-full h-full object-cover"
-                                    />
-                                  ) : null}
-                                </div>
-                              ) : (
-                                <div 
-                                  className="aspect-[1.91/1] flex items-center justify-center"
-                                  style={{ 
-                                    background: `linear-gradient(135deg, ${preview.blueprint.primary_color}20, ${preview.blueprint.secondary_color}20)` 
-                                  }}
-                                >
-                                  <span className="text-3xl opacity-30">📷</span>
-                                </div>
-                              )}
+                                  </div>
+                                ) : (preview.primary_image_base64 || preview.screenshot_url) ? (
+                                  <div className="aspect-[1.91/1] bg-gray-100 overflow-hidden">
+                                    {preview.primary_image_base64 ? (
+                                      <img
+                                        src={`data:image/png;base64,${preview.primary_image_base64}`}
+                                        alt={preview.title}
+                                        className="w-full h-full object-cover"
+                                      />
+                                    ) : preview.screenshot_url ? (
+                                      <img
+                                        src={preview.screenshot_url}
+                                        alt={preview.title}
+                                        className="w-full h-full object-cover"
+                                      />
+                                    ) : null}
+                                  </div>
+                                ) : (
+                                  <div 
+                                    className="aspect-[1.91/1] flex items-center justify-center"
+                                    style={{ 
+                                      background: `linear-gradient(135deg, ${preview.blueprint.primary_color}20, ${preview.blueprint.secondary_color}20)` 
+                                    }}
+                                  >
+                                    <span className="text-4xl opacity-30">📷</span>
+                                  </div>
+                                )}
 
-                              {/* Domain (shown below image in link previews) */}
-                              <div className="p-3">
-                                <div className="text-[9px] text-gray-500 uppercase tracking-wide font-medium">
-                                  {(() => {
-                                    try {
-                                      const url = new URL(preview.url)
-                                      return url.hostname.replace('www.', '')
-                                    } catch {
-                                      return 'website.com'
-                                    }
-                                  })()}
+                                {/* Domain (shown below image in link previews) */}
+                                <div className="px-5 py-3.5 border-t border-gray-100 bg-gray-50">
+                                  <div className="text-[11px] text-gray-500 uppercase tracking-wider font-semibold">
+                                    {(() => {
+                                      try {
+                                        const url = new URL(preview.url)
+                                        return url.hostname.replace('www.', '')
+                                      } catch {
+                                        return 'website.com'
+                                      }
+                                    })()}
+                                  </div>
                                 </div>
                               </div>
-                            </div>
 
-                            {/* Home Indicator */}
-                            <div className="h-2 flex items-center justify-center">
-                              <div className="w-32 h-1 bg-gray-300 rounded-full"></div>
+                              {/* Home Indicator */}
+                              <div className="h-4 flex items-center justify-center bg-white border-t border-gray-100">
+                                <div className="w-40 h-2 bg-gray-300 rounded-full"></div>
+                              </div>
                             </div>
                           </div>
                         </div>
+                        <p className="mt-8 text-lg font-bold text-gray-900 flex items-center gap-2">
+                          <span>{platform.icon}</span>
+                          <span>{platform.name}</span>
+                        </p>
                       </div>
-                      <p className="mt-4 text-sm font-semibold text-gray-700">{platform.name}</p>
-                    </div>
-                  ))}
+                    )
+                  })()}
                 </div>
               </div>
 
@@ -1031,7 +1063,7 @@ export default function Demo() {
                             setUrl('')
                             setPreview(null)
                             setPreviewError(null)
-                            setSelectedPlatform(null)
+                            setSelectedPlatform('facebook')
                           }}
                           className="px-6 py-3 bg-white border-2 border-gray-200 text-gray-700 rounded-xl font-bold text-sm transition-all duration-300 hover:scale-[1.02] hover:border-orange-300 hover:bg-orange-50"
                         >
