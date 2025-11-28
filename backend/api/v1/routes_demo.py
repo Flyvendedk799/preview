@@ -1,4 +1,5 @@
 """Demo/landing page routes for marketing campaigns."""
+from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, HttpUrl
@@ -7,6 +8,8 @@ from backend.services.preview_generator import generate_ai_preview
 from backend.services.rate_limiter import check_rate_limit, get_rate_limit_key_for_ip
 from backend.services.activity_logger import get_client_ip
 from backend.utils.url_sanitizer import validate_url_security
+from backend.services.playwright_screenshot import capture_screenshot
+from backend.services.r2_client import upload_file_to_r2
 from backend.schemas.brand import BrandSettings
 import logging
 
@@ -80,19 +83,33 @@ def generate_demo_preview(
             detail="Failed to generate preview. Please try again later."
         )
     
-    # Determine preview type based on URL
-    url_lower = str(request_data.url).lower()
-    if "/product" in url_lower or "/shop" in url_lower:
-        preview_type = "product"
-    elif "/blog" in url_lower or "/post" in url_lower:
-        preview_type = "blog"
-    else:
-        preview_type = "landing"
+    # Capture screenshot and upload to R2 (use actual screenshot, not just og:image)
+    image_url = None
+    try:
+        screenshot_bytes = capture_screenshot(str(request_data.url))
+        filename = f"screenshots/demo/{uuid4()}.png"
+        image_url = upload_file_to_r2(screenshot_bytes, filename, "image/png")
+        logger.info(f"Demo screenshot uploaded: {filename}")
+    except Exception as screenshot_error:
+        logger.warning(f"Demo screenshot capture failed, using fallback: {screenshot_error}")
+        # Fallback to og:image from metadata if screenshot fails
+        image_url = ai_result.get("image_url") or None
+    
+    # Determine preview type based on URL or AI result
+    preview_type = ai_result.get("type", "unknown")
+    if preview_type == "unknown":
+        url_lower = str(request_data.url).lower()
+        if "/product" in url_lower or "/shop" in url_lower:
+            preview_type = "product"
+        elif "/blog" in url_lower or "/post" in url_lower:
+            preview_type = "blog"
+        else:
+            preview_type = "landing"
     
     return DemoPreviewResponse(
         title=ai_result.get("title") or "Untitled Page",
         description=ai_result.get("description"),
-        image_url=ai_result.get("image_url"),
+        image_url=image_url,  # Use screenshot URL, not og:image
         type=preview_type,
         url=str(request_data.url),
         is_demo=True,

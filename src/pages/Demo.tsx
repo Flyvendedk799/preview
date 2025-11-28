@@ -152,13 +152,54 @@ export default function Demo() {
 
   const generatePreviewWithUrl = async (urlToProcess: string) => {
     setIsGeneratingPreview(true)
+    setGenerationStatus('Analyzing page...')
+    setGenerationProgress(10)
+    
     try {
+      // Simulate progress updates
+      const progressInterval = setInterval(() => {
+        setGenerationProgress((prev) => {
+          if (prev >= 90) return prev
+          return prev + Math.random() * 10
+        })
+      }, 500)
+
+      const statusMessages = [
+        { progress: 20, message: 'Capturing screenshot...' },
+        { progress: 40, message: 'Analyzing visual design...' },
+        { progress: 60, message: 'Extracting content...' },
+        { progress: 80, message: 'Generating preview...' },
+      ]
+
+      let statusIndex = 0
+      const statusInterval = setInterval(() => {
+        if (statusIndex < statusMessages.length) {
+          setGenerationStatus(statusMessages[statusIndex].message)
+          setGenerationProgress(statusMessages[statusIndex].progress)
+          statusIndex++
+        }
+      }, 3000)
+
       const result = await generateDemoPreview(urlToProcess)
+      
+      clearInterval(progressInterval)
+      clearInterval(statusInterval)
+      
+      setGenerationStatus('Finalizing...')
+      setGenerationProgress(100)
+      
+      // Small delay to show completion
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
       setPreview(result)
       setStep('preview')
+      setGenerationStatus('')
+      setGenerationProgress(0)
     } catch (error) {
       setPreviewError(error instanceof Error ? error.message : 'Failed to generate preview. Please try again.')
       setShowEmailPopup(false) // Show error on main form
+      setGenerationStatus('')
+      setGenerationProgress(0)
     } finally {
       setIsGeneratingPreview(false)
     }
@@ -552,12 +593,29 @@ export default function Demo() {
                   <button
                     type="submit"
                     disabled={isSubmittingEmail || isGeneratingPreview || !email.trim() || !consentChecked}
-                    className="w-full py-4 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500 text-white rounded-xl font-bold text-base transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] hover:shadow-2xl hover:shadow-orange-500/40 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 relative overflow-hidden group"
+                    className="w-full py-4 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500 text-white rounded-xl font-bold text-base transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] hover:shadow-2xl hover:shadow-orange-500/40 disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center justify-center space-y-2 relative overflow-hidden group"
                   >
-                    {isSubmittingEmail || isGeneratingPreview ? (
+                    {isSubmittingEmail ? (
                       <>
                         <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        <span>{isSubmittingEmail ? 'Subscribing...' : 'Generating Preview...'}</span>
+                        <span>Subscribing...</span>
+                      </>
+                    ) : isGeneratingPreview ? (
+                      <>
+                        <div className="w-full space-y-3">
+                          <div className="flex items-center justify-center space-x-2">
+                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            <span className="text-sm font-semibold">{generationStatus || 'Generating Preview...'}</span>
+                          </div>
+                          {/* Progress Bar */}
+                          <div className="w-full bg-white/20 rounded-full h-2 overflow-hidden">
+                            <div 
+                              className="h-full bg-white rounded-full transition-all duration-500 ease-out"
+                              style={{ width: `${generationProgress}%` }}
+                            />
+                          </div>
+                          <div className="text-xs text-white/80 text-center">{Math.round(generationProgress)}%</div>
+                        </div>
                       </>
                     ) : (
                       <>
@@ -867,3 +925,4 @@ export default function Demo() {
     </div>
   )
 }
+
