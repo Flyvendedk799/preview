@@ -971,6 +971,7 @@ export interface DemoPreviewResponse {
   // ===== IMAGES =====
   primary_image_base64: string | null
   screenshot_url: string | null
+  composited_preview_image_url: string | null  // Final og:image with all elements composited
   
   // ===== LAYOUT BLUEPRINT =====
   blueprint: LayoutBlueprint

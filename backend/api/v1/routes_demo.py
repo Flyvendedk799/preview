@@ -11,6 +11,7 @@ from backend.utils.url_sanitizer import validate_url_security
 from backend.services.playwright_screenshot import capture_screenshot
 from backend.services.r2_client import upload_file_to_r2
 from backend.services.preview_reasoning import generate_reasoned_preview
+from backend.services.preview_image_generator import generate_and_upload_preview_image
 import logging
 
 logger = logging.getLogger(__name__)
@@ -80,6 +81,7 @@ class DemoPreviewResponse(BaseModel):
     # ===== IMAGES =====
     primary_image_base64: Optional[str] = None
     screenshot_url: Optional[str] = None
+    composited_preview_image_url: Optional[str] = None  # Final og:image with all elements
     
     # ===== LAYOUT BLUEPRINT =====
     blueprint: LayoutBlueprint
@@ -162,7 +164,30 @@ def generate_demo_preview(
             detail="Failed to analyze page. Please try again."
         )
     
-    # Step 4: Build response
+    # Step 4: Generate composited preview image (og:image with all elements)
+    composited_image_url = None
+    try:
+        logger.info("Generating composited preview image for og:image")
+        composited_image_url = generate_and_upload_preview_image(
+            title=result.title,
+            subtitle=result.subtitle,
+            description=result.description,
+            cta_text=result.cta_text,
+            primary_image_base64=result.primary_image_base64,
+            blueprint={
+                "primary_color": result.blueprint.primary_color,
+                "secondary_color": result.blueprint.secondary_color,
+                "accent_color": result.blueprint.accent_color
+            },
+            template_type=result.blueprint.template_type
+        )
+        if composited_image_url:
+            logger.info(f"Composited preview image generated: {composited_image_url}")
+    except Exception as e:
+        logger.warning(f"Failed to generate composited preview image: {e}", exc_info=True)
+        # Continue without composited image - not critical for demo
+    
+    # Step 5: Build response
     return DemoPreviewResponse(
         url=str(request_data.url),
         
@@ -184,6 +209,7 @@ def generate_demo_preview(
         # Images
         primary_image_base64=result.primary_image_base64,
         screenshot_url=screenshot_url,
+        composited_preview_image_url=composited_image_url,  # This is the og:image
         
         # Layout blueprint
         blueprint=LayoutBlueprint(

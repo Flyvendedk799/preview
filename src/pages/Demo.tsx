@@ -939,8 +939,16 @@ export default function Demo() {
 
                             {/* Link Preview Card - What shows when URL is shared */}
                             <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-                              {/* Preview Image */}
-                              {(preview.primary_image_base64 || preview.screenshot_url) ? (
+                              {/* Composited Preview Image - This is the actual og:image */}
+                              {preview.composited_preview_image_url ? (
+                                <div className="aspect-[1.91/1] bg-gray-100 overflow-hidden">
+                                  <img
+                                    src={preview.composited_preview_image_url}
+                                    alt={preview.title}
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                              ) : (preview.primary_image_base64 || preview.screenshot_url) ? (
                                 <div className="aspect-[1.91/1] bg-gray-100 overflow-hidden">
                                   {preview.primary_image_base64 ? (
                                     <img
@@ -967,9 +975,8 @@ export default function Demo() {
                                 </div>
                               )}
 
-                              {/* Link Preview Content */}
-                              <div className="p-3 space-y-1.5">
-                                {/* Domain */}
+                              {/* Domain (shown below image in link previews) */}
+                              <div className="p-3">
                                 <div className="text-[9px] text-gray-500 uppercase tracking-wide font-medium">
                                   {(() => {
                                     try {
@@ -980,28 +987,6 @@ export default function Demo() {
                                     }
                                   })()}
                                 </div>
-
-                                {/* Title */}
-                                <h4 className="text-[11px] font-bold text-gray-900 leading-tight line-clamp-2">
-                                  {preview.title}
-                                </h4>
-
-                                {/* Description */}
-                                {(preview.description || preview.subtitle) && (
-                                  <p className="text-[10px] text-gray-600 leading-tight line-clamp-2">
-                                    {preview.description || preview.subtitle}
-                                  </p>
-                                )}
-
-                                {/* CTA Button (if available) */}
-                                {preview.cta_text && (
-                                  <button 
-                                    className="mt-2 w-full text-[9px] font-bold py-1.5 rounded text-white transition-opacity hover:opacity-90"
-                                    style={{ backgroundColor: preview.blueprint.accent_color || preview.blueprint.primary_color }}
-                                  >
-                                    {preview.cta_text.length > 30 ? preview.cta_text.substring(0, 30) + '...' : preview.cta_text}
-                                  </button>
-                                )}
                               </div>
                             </div>
 
