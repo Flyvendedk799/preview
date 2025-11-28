@@ -15,6 +15,7 @@ import {
   ExclamationTriangleIcon,
   UserCircleIcon,
   DocumentTextIcon,
+  EnvelopeIcon,
 } from '@heroicons/react/24/outline'
 import { useAuth } from '../../hooks/useAuth'
 
@@ -41,6 +42,7 @@ const adminNavigation = [
   { name: 'Domains', href: '/app/admin/domains', icon: GlobeAltIcon },
   { name: 'Previews', href: '/app/admin/previews', icon: PhotoIcon },
   { name: 'Blog', href: '/app/admin/blog', icon: DocumentTextIcon },
+  { name: 'Newsletter', href: '/app/admin/newsletter', icon: EnvelopeIcon },
   { name: 'Analytics', href: '/app/admin/analytics', icon: ChartBarIcon },
   { name: 'Activity', href: '/app/admin/activity', icon: ClockIcon },
   { name: 'System', href: '/app/admin/system', icon: ServerIcon },

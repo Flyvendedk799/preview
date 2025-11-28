@@ -23,6 +23,7 @@ import AdminErrors from '../pages/admin/AdminErrors'
 import AdminBlog from '../pages/admin/AdminBlog'
 import AdminBlogEditor from '../pages/admin/AdminBlogEditor'
 import AdminBlogCategories from '../pages/admin/AdminBlogCategories'
+import AdminNewsletter from '../pages/admin/AdminNewsletter'
 import Organizations from '../pages/Organizations'
 import OrganizationMembers from '../pages/OrganizationMembers'
 import OrganizationSettings from '../pages/OrganizationSettings'
@@ -30,6 +31,7 @@ import JoinOrganization from '../pages/JoinOrganization'
 import AccountSettings from '../pages/AccountSettings'
 import Blog from '../pages/Blog'
 import BlogPost from '../pages/BlogPost'
+import Demo from '../pages/Demo'
 
 export default function Router() {
   return (
@@ -38,6 +40,7 @@ export default function Router() {
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
+      <Route path="/demo" element={<Demo />} />
       
       {/* Public Blog routes */}
       <Route path="/blog" element={<Blog />} />
@@ -262,6 +265,16 @@ export default function Router() {
           <ProtectedRoute>
             <AdminRoute>
               <AdminBlogEditor />
+            </AdminRoute>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/app/admin/newsletter"
+        element={
+          <ProtectedRoute>
+            <AdminRoute>
+              <AdminNewsletter />
             </AdminRoute>
           </ProtectedRoute>
         }

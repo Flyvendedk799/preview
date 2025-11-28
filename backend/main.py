@@ -9,7 +9,7 @@ from backend.middleware.security_headers import SecurityHeadersMiddleware
 from backend.middleware.request_id import RequestIDMiddleware
 from backend.middleware.request_logging import RequestLoggingMiddleware
 from backend.utils.logger import setup_logging
-from backend.api.v1 import routes_auth, routes_domains, routes_brand, routes_previews, routes_analytics, routes_public_preview, routes_jobs, routes_verification, routes_billing, routes_webhooks, routes_activity, routes_tracking, routes_analytics_extended, routes_organizations, routes_preview_variants, routes_account, routes_blog, routes_preview_debug
+from backend.api.v1 import routes_auth, routes_domains, routes_brand, routes_previews, routes_analytics, routes_public_preview, routes_jobs, routes_verification, routes_billing, routes_webhooks, routes_activity, routes_tracking, routes_analytics_extended, routes_organizations, routes_preview_variants, routes_account, routes_blog, routes_preview_debug, routes_newsletter, routes_demo
 from backend.api.admin import routes_admin
 
 # DEV ONLY: Testing endpoints (disabled in production)
@@ -23,7 +23,7 @@ log_level = os.getenv("LOG_LEVEL", "INFO")
 setup_logging(level=log_level)
 
 # Import all models to ensure they're registered with Base
-from backend.models import user, domain, brand, preview, error, activity_log, analytics_event, analytics_aggregate, organization, organization_member, preview_variant, blog_post  # noqa: F401
+from backend.models import user, domain, brand, preview, error, activity_log, analytics_event, analytics_aggregate, organization, organization_member, preview_variant, blog_post, newsletter_subscriber  # noqa: F401
 
 
 # Create database tables on startup
@@ -179,6 +179,14 @@ app.include_router(
 )
 app.include_router(
     routes_preview_debug.router,
+    prefix=settings.API_V1_PREFIX,
+)
+app.include_router(
+    routes_newsletter.router,
+    prefix=settings.API_V1_PREFIX,
+)
+app.include_router(
+    routes_demo.router,
     prefix=settings.API_V1_PREFIX,
 )
 

@@ -839,3 +839,109 @@ export async function adminDeleteBlogCategory(categoryId: number): Promise<void>
   })
 }
 
+// ============================================================================
+// Newsletter Endpoints
+// ============================================================================
+
+export interface NewsletterSubscribeRequest {
+  email: string
+  source?: string
+  consent_given?: boolean
+}
+
+export interface NewsletterSubscriber {
+  id: number
+  email: string
+  source: string
+  subscribed_at: string
+  is_active: boolean
+  consent_given: boolean
+  ip_address?: string | null
+  user_agent?: string | null
+}
+
+export interface NewsletterSubscriberList {
+  items: NewsletterSubscriber[]
+  total: number
+  page: number
+  per_page: number
+  total_pages: number
+}
+
+export async function subscribeToNewsletter(data: NewsletterSubscribeRequest): Promise<NewsletterSubscriber> {
+  return fetchApi<NewsletterSubscriber>('/api/v1/newsletter/subscribe', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }, false) // No auth required
+}
+
+export async function fetchNewsletterSubscribers(options?: {
+  page?: number
+  per_page?: number
+  search?: string
+  source?: string
+}): Promise<NewsletterSubscriberList> {
+  const params = new URLSearchParams()
+  if (options?.page) params.append('page', options.page.toString())
+  if (options?.per_page) params.append('per_page', options.per_page.toString())
+  if (options?.search) params.append('search', options.search)
+  if (options?.source) params.append('source', options.source)
+  
+  const query = params.toString() ? `?${params.toString()}` : ''
+  return fetchApi<NewsletterSubscriberList>(`/api/v1/newsletter/subscribers${query}`)
+}
+
+export async function exportNewsletterSubscribers(format: 'csv' | 'xlsx' = 'csv', source?: string): Promise<Blob> {
+  const params = new URLSearchParams()
+  params.append('format', format)
+  if (source) params.append('source', source)
+  
+  const baseUrl = getApiBaseUrl()
+  const url = `${baseUrl}/api/v1/newsletter/subscribers/export?${params.toString()}`
+  const token = getAuthToken()
+  
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+  
+  const response = await fetch(url, {
+    method: 'GET',
+    headers,
+  })
+  
+  if (!response.ok) {
+    throw new Error(`Export failed: ${response.statusText}`)
+  }
+  
+  return response.blob()
+}
+
+// ============================================================================
+// Demo Preview Endpoints
+// ============================================================================
+
+export interface DemoPreviewRequest {
+  url: string
+}
+
+export interface DemoPreviewResponse {
+  title: string
+  description: string | null
+  image_url: string | null
+  type: string
+  url: string
+  is_demo: boolean
+  message: string
+}
+
+export async function generateDemoPreview(url: string): Promise<DemoPreviewResponse> {
+  return fetchApi<DemoPreviewResponse>('/api/v1/demo/preview', {
+    method: 'POST',
+    body: JSON.stringify({ url }),
+  }, false) // No auth required
+}
+
