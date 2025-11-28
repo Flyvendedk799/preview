@@ -235,7 +235,8 @@ export default function Landing() {
             <div className="flex items-center space-x-3">
               <Link
                 to="/app"
-                className="hidden sm:flex group relative px-5 sm:px-6 py-2.5 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500 text-white rounded-xl font-bold text-xs sm:text-sm transition-all duration-300 hover:scale-[1.04] active:scale-[0.98] hover:shadow-xl hover:shadow-orange-500/30 overflow-hidden min-h-[42px] items-center justify-center select-none"
+                className="hidden sm:flex group relative px-5 sm:px-6 py-3 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500 text-white rounded-xl font-bold text-xs sm:text-sm transition-all duration-300 hover:scale-[1.04] active:scale-[0.98] hover:shadow-xl hover:shadow-orange-500/30 overflow-hidden min-h-[44px] items-center justify-center select-none"
+                style={{ boxShadow: scrollY > 10 ? '0 4px 20px rgba(249, 115, 22, 0.3)' : 'none' }}
               >
                 <span className="relative z-10 flex items-center">
                   Get Started Free
@@ -325,12 +326,12 @@ export default function Landing() {
             <div className={`space-y-6 transition-all duration-1000 ease-out ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
               <div className="space-y-5">
                 {/* Urgency Badge */}
-                <div className="inline-flex items-center space-x-2 px-3 py-1.5 bg-gradient-to-r from-orange-50 via-amber-50 to-yellow-50 rounded-full border border-orange-200/60 backdrop-blur-sm w-fit shadow-sm">
-                  <div className="flex items-center space-x-1">
-                    <RocketLaunchIcon className="w-3.5 h-3.5 text-orange-600" />
-                    <span className="text-xs font-bold text-orange-700 tracking-wide">New: AI-Powered Preview Generation</span>
+                <div className="inline-flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-orange-100 via-amber-100 to-yellow-100 rounded-full border-2 border-orange-300/80 backdrop-blur-sm w-fit shadow-md animate-pulse">
+                  <div className="flex items-center space-x-1.5">
+                    <RocketLaunchIcon className="w-4 h-4 text-orange-600" />
+                    <span className="text-xs font-black text-orange-800 tracking-wide">New: AI-Powered Preview Generation</span>
                   </div>
-                  <span className="text-xs text-orange-500 font-semibold">→</span>
+                  <span className="text-xs text-orange-600 font-bold">→</span>
                 </div>
                 <h1 className="text-3xl sm:text-4xl lg:text-5xl xl:text-[3.25rem] font-black text-gray-900 leading-[1.1] tracking-[-0.03em]">
                   Turn every shared link into a{' '}
@@ -358,7 +359,7 @@ export default function Landing() {
               <div className="flex flex-col sm:flex-row gap-3">
                 <Link 
                   to="/app" 
-                  className="group relative px-6 sm:px-7 py-3.5 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500 text-white rounded-xl font-bold text-sm transition-all duration-300 hover:scale-[1.03] active:scale-[0.98] hover:shadow-xl hover:shadow-orange-500/30 inline-flex items-center justify-center overflow-hidden min-h-[48px] select-none"
+                  className="group relative px-6 sm:px-7 py-4 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500 text-white rounded-xl font-bold text-base transition-all duration-300 hover:scale-[1.05] active:scale-[0.98] hover:shadow-2xl hover:shadow-orange-500/50 inline-flex items-center justify-center overflow-hidden min-h-[52px] select-none animate-subtle-glow"
                 >
                   <span className="relative z-10 flex items-center">
                     Start Free Trial
@@ -384,12 +385,12 @@ export default function Landing() {
                   { icon: ShieldCheckIcon, text: 'No credit card', color: 'blue' },
                   { icon: BoltIcon, text: '5 min setup', color: 'purple' },
                 ].map((item, i) => (
-                  <div key={i} className="flex items-center space-x-2 group">
-                    <div className={`w-5 h-5 rounded-md flex items-center justify-center transition-transform duration-300 group-hover:scale-110 ${
-                      item.color === 'emerald' ? 'bg-emerald-100' :
-                      item.color === 'blue' ? 'bg-blue-100' : 'bg-purple-100'
+                  <div key={i} className="flex items-center space-x-2 group px-3 py-2 rounded-lg border border-gray-100 hover:border-gray-200 transition-all duration-300">
+                    <div className={`w-6 h-6 rounded-md flex items-center justify-center transition-transform duration-300 group-hover:scale-110 ${
+                      item.color === 'emerald' ? 'bg-emerald-100 border border-emerald-200' :
+                      item.color === 'blue' ? 'bg-blue-100 border border-blue-200' : 'bg-purple-100 border border-purple-200'
                     }`}>
-                      <item.icon className={`w-3 h-3 ${
+                      <item.icon className={`w-4 h-4 ${
                         item.color === 'emerald' ? 'text-emerald-600' :
                         item.color === 'blue' ? 'text-blue-600' : 'text-purple-600'
                       }`} />
@@ -400,10 +401,10 @@ export default function Landing() {
               </div>
 
               {/* Social Proof Mini-Section */}
-              <div className="flex items-center gap-4 pt-2 border-t border-gray-100">
+              <div className="flex items-center gap-4 pt-2 border-t border-gray-100 bg-gray-50/50 rounded-xl px-4 py-3">
                 <div className="flex -space-x-2">
                   {[1, 2, 3, 4].map((i) => (
-                    <div key={i} className={`w-8 h-8 rounded-full border-2 border-white shadow-sm ${
+                    <div key={i} className={`w-10 h-10 rounded-full border-2 border-white shadow-sm ${
                       i === 1 ? 'bg-gradient-to-br from-blue-400 to-blue-600' :
                       i === 2 ? 'bg-gradient-to-br from-purple-400 to-purple-600' :
                       i === 3 ? 'bg-gradient-to-br from-green-400 to-green-600' :
@@ -414,11 +415,11 @@ export default function Landing() {
                 <div className="flex flex-col">
                   <div className="flex items-center">
                     {[1, 2, 3, 4, 5].map((i) => (
-                      <StarIconSolid key={i} className="w-3.5 h-3.5 text-amber-400" />
+                      <StarIconSolid key={i} className="w-4 h-4 text-amber-400" />
                     ))}
-                    <span className="ml-1.5 text-xs font-bold text-gray-900">4.9</span>
+                    <span className="ml-1.5 text-sm font-black text-gray-900">4.9</span>
                   </div>
-                  <span className="text-xs text-gray-500">Loved by 2,000+ teams</span>
+                  <span className="text-sm font-semibold text-gray-700">Loved by 2,000+ teams</span>
                 </div>
               </div>
             </div>
@@ -515,30 +516,30 @@ export default function Landing() {
       </section>
 
       {/* Enhanced Social Proof with Animated Stats */}
-      <section className="py-10 sm:py-14 border-y border-gray-100 bg-gradient-to-b from-white to-gray-50/50">
+      <section className="py-10 sm:py-14 border-y border-gray-100 bg-gradient-to-b from-white via-orange-50/20 to-gray-50/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12">
           {/* Stats Grid - Animated Key Metrics for Credibility */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8 mb-10 sm:mb-12">
-            <div ref={stat1.ref} className="text-center group cursor-default">
-              <div className="text-2xl sm:text-3xl lg:text-4xl font-black text-gray-900 mb-1 group-hover:text-orange-600 transition-colors duration-300 tabular-nums">
+            <div ref={stat1.ref} className="text-center group cursor-default p-4 rounded-xl hover:bg-white/60 transition-all duration-300">
+              <div className="text-2xl sm:text-3xl lg:text-5xl font-black text-gray-900 mb-1 group-hover:bg-gradient-to-r group-hover:from-orange-500 group-hover:via-amber-500 group-hover:to-orange-500 group-hover:bg-clip-text group-hover:text-transparent transition-all duration-300 tabular-nums">
                 {stat1.count.toLocaleString()}+
               </div>
               <div className="text-xs sm:text-sm text-gray-500 font-medium">Active Teams</div>
             </div>
-            <div ref={stat2.ref} className="text-center group cursor-default">
-              <div className="text-2xl sm:text-3xl lg:text-4xl font-black text-gray-900 mb-1 group-hover:text-orange-600 transition-colors duration-300 tabular-nums">
+            <div ref={stat2.ref} className="text-center group cursor-default p-4 rounded-xl hover:bg-white/60 transition-all duration-300">
+              <div className="text-2xl sm:text-3xl lg:text-5xl font-black text-gray-900 mb-1 group-hover:bg-gradient-to-r group-hover:from-orange-500 group-hover:via-amber-500 group-hover:to-orange-500 group-hover:bg-clip-text group-hover:text-transparent transition-all duration-300 tabular-nums">
                 {stat2.count}%
               </div>
               <div className="text-xs sm:text-sm text-gray-500 font-medium">Avg. CTR Increase</div>
             </div>
-            <div ref={stat3.ref} className="text-center group cursor-default">
-              <div className="text-2xl sm:text-3xl lg:text-4xl font-black text-gray-900 mb-1 group-hover:text-orange-600 transition-colors duration-300 tabular-nums">
+            <div ref={stat3.ref} className="text-center group cursor-default p-4 rounded-xl hover:bg-white/60 transition-all duration-300">
+              <div className="text-2xl sm:text-3xl lg:text-5xl font-black text-gray-900 mb-1 group-hover:bg-gradient-to-r group-hover:from-orange-500 group-hover:via-amber-500 group-hover:to-orange-500 group-hover:bg-clip-text group-hover:text-transparent transition-all duration-300 tabular-nums">
                 {stat3.count}M+
               </div>
               <div className="text-xs sm:text-sm text-gray-500 font-medium">Previews Generated</div>
             </div>
-            <div ref={stat4.ref} className="text-center group cursor-default">
-              <div className="text-2xl sm:text-3xl lg:text-4xl font-black text-gray-900 mb-1 group-hover:text-orange-600 transition-colors duration-300 tabular-nums">
+            <div ref={stat4.ref} className="text-center group cursor-default p-4 rounded-xl hover:bg-white/60 transition-all duration-300">
+              <div className="text-2xl sm:text-3xl lg:text-5xl font-black text-gray-900 mb-1 group-hover:bg-gradient-to-r group-hover:from-orange-500 group-hover:via-amber-500 group-hover:to-orange-500 group-hover:bg-clip-text group-hover:text-transparent transition-all duration-300 tabular-nums">
                 {stat4.count}.9%
               </div>
               <div className="text-xs sm:text-sm text-gray-500 font-medium">Uptime SLA</div>
@@ -576,10 +577,10 @@ export default function Landing() {
       >
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-10 sm:mb-14 space-y-3">
-            <div className="inline-flex items-center space-x-2 px-3 py-1 bg-orange-50 rounded-full border border-orange-100 mb-3">
-              <span className="text-xs font-bold text-orange-600">SIMPLE SETUP</span>
+            <div className="inline-flex items-center space-x-2 px-4 py-1.5 bg-gradient-to-r from-orange-100 to-amber-100 rounded-full border-2 border-orange-200 mb-4 shadow-sm">
+              <span className="text-xs font-black text-orange-700 tracking-wide">SIMPLE SETUP</span>
             </div>
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-gray-900 tracking-[-0.02em]">Get started in 4 easy steps</h2>
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-gray-900 tracking-[-0.02em] drop-shadow-sm">Get started in 4 easy steps</h2>
             <p className="text-base sm:text-lg text-gray-500 max-w-xl mx-auto px-4">
               No technical knowledge required. Up and running in under 5 minutes.
             </p>
@@ -660,10 +661,10 @@ export default function Landing() {
       >
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-10 sm:mb-14 space-y-3">
-            <div className="inline-flex items-center space-x-2 px-3 py-1 bg-blue-50 rounded-full border border-blue-100 mb-3">
-              <span className="text-xs font-bold text-blue-600">POWERFUL FEATURES</span>
+            <div className="inline-flex items-center space-x-2 px-4 py-1.5 bg-gradient-to-r from-blue-100 to-indigo-100 rounded-full border-2 border-blue-200 mb-4 shadow-sm">
+              <span className="text-xs font-black text-blue-700 tracking-wide">POWERFUL FEATURES</span>
             </div>
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-gray-900 tracking-[-0.02em]">Everything you need to convert</h2>
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-gray-900 tracking-[-0.02em] drop-shadow-sm">Everything you need to convert</h2>
             <p className="text-base sm:text-lg text-gray-500 max-w-xl mx-auto px-4">
               Create stunning URL previews that drive engagement and clicks.
             </p>
@@ -759,10 +760,10 @@ export default function Landing() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 sm:gap-14 items-center">
             <div className="space-y-6 order-2 lg:order-1">
               <div className="space-y-4">
-                <div className="inline-flex items-center space-x-2 px-3 py-1 bg-purple-50 rounded-full border border-purple-100">
-                  <span className="text-xs font-bold text-purple-600">CROSS-PLATFORM</span>
+                <div className="inline-flex items-center space-x-2 px-4 py-1.5 bg-gradient-to-r from-purple-100 to-violet-100 rounded-full border-2 border-purple-200 mb-4 shadow-sm">
+                  <span className="text-xs font-black text-purple-700 tracking-wide">CROSS-PLATFORM</span>
                 </div>
-                <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-gray-900 tracking-[-0.02em] leading-tight">
+                <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-gray-900 tracking-[-0.02em] leading-tight drop-shadow-sm">
                   Beautiful previews,{' '}
                   <span className="bg-gradient-to-r from-orange-500 via-amber-500 to-yellow-500 bg-clip-text text-transparent">everywhere</span>
                 </h2>
@@ -876,10 +877,10 @@ export default function Landing() {
       >
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-10 sm:mb-14 space-y-3">
-            <div className="inline-flex items-center space-x-2 px-3 py-1 bg-emerald-50 rounded-full border border-emerald-100 mb-3">
-              <span className="text-xs font-bold text-emerald-600">SIMPLE PRICING</span>
+            <div className="inline-flex items-center space-x-2 px-4 py-1.5 bg-gradient-to-r from-emerald-100 to-teal-100 rounded-full border-2 border-emerald-200 mb-4 shadow-sm">
+              <span className="text-xs font-black text-emerald-700 tracking-wide">SIMPLE PRICING</span>
             </div>
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-gray-900 tracking-[-0.02em]">Choose your plan</h2>
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-gray-900 tracking-[-0.02em] drop-shadow-sm">Choose your plan</h2>
             <p className="text-base sm:text-lg text-gray-500 max-w-xl mx-auto px-4">
               Start free for 14 days. No credit card required.
             </p>
@@ -971,9 +972,9 @@ export default function Landing() {
                 
                 <Link
                   to="/app"
-                  className={`block w-full text-center py-3 rounded-xl font-bold text-sm transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] select-none ${
+                  className={`block w-full text-center py-3.5 rounded-xl font-bold text-sm transition-all duration-300 hover:scale-[1.05] active:scale-[0.98] select-none ${
                     plan.highlighted
-                      ? 'bg-white text-orange-600 hover:bg-gray-50 shadow-lg hover:shadow-xl'
+                      ? 'bg-white text-orange-600 hover:bg-gray-50 shadow-xl hover:shadow-2xl hover:shadow-orange-500/20'
                       : 'bg-gray-900 text-white hover:bg-gray-800'
                   }`}
                 >
@@ -1018,12 +1019,12 @@ export default function Landing() {
         
         <div className="max-w-4xl mx-auto text-center space-y-6 relative z-10">
           {/* Urgency badge */}
-          <div className="inline-flex items-center space-x-2 px-4 py-1.5 bg-orange-500/20 rounded-full border border-orange-500/30 backdrop-blur-sm">
-            <div className="w-2 h-2 bg-orange-400 rounded-full animate-pulse" />
-            <span className="text-xs font-bold text-orange-300">Limited Time: 20% off annual plans</span>
+          <div className="inline-flex items-center space-x-2 px-5 py-2 bg-orange-500/30 rounded-full border-2 border-orange-400/50 backdrop-blur-sm shadow-lg animate-pulse">
+            <div className="w-2.5 h-2.5 bg-orange-300 rounded-full animate-pulse" />
+            <span className="text-sm font-black text-orange-100">Limited Time: 20% off annual plans</span>
           </div>
           
-          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-[-0.02em] leading-tight px-4">
+          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-[-0.02em] leading-tight px-4 drop-shadow-sm">
             Ready to boost your click-through rates?
           </h2>
           <p className="text-base sm:text-lg text-gray-400 max-w-xl mx-auto leading-relaxed px-4">
@@ -1033,12 +1034,14 @@ export default function Landing() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4 px-4">
             <Link 
               to="/app" 
-              className="group relative px-8 py-4 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500 text-white rounded-xl font-bold text-base transition-all duration-300 hover:scale-[1.03] hover:shadow-xl hover:shadow-orange-500/30 inline-flex items-center justify-center overflow-hidden"
+              className="group relative px-8 py-5 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500 text-white rounded-xl font-bold text-lg transition-all duration-300 hover:scale-[1.05] hover:shadow-2xl hover:shadow-orange-500/50 inline-flex items-center justify-center overflow-hidden animate-subtle-glow"
             >
               <span className="relative z-10 flex items-center">
                 Start Free Trial
                 <ArrowRightIcon className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform duration-300" />
               </span>
+              <div className="absolute inset-0 bg-gradient-to-r from-orange-600 via-amber-600 to-orange-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
             </Link>
             <Link 
               to="/app" 
@@ -1065,10 +1068,10 @@ export default function Landing() {
       >
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-10 sm:mb-12 space-y-3">
-            <div className="inline-flex items-center space-x-2 px-3 py-1 bg-orange-50 rounded-full border border-orange-100 mb-3">
-              <span className="text-xs font-bold text-orange-600">DOCUMENTATION</span>
+            <div className="inline-flex items-center space-x-2 px-4 py-1.5 bg-gradient-to-r from-orange-100 to-amber-100 rounded-full border-2 border-orange-200 mb-4 shadow-sm">
+              <span className="text-xs font-black text-orange-700 tracking-wide">DOCUMENTATION</span>
             </div>
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-gray-900 tracking-[-0.02em]">Complete documentation & guides</h2>
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-gray-900 tracking-[-0.02em] drop-shadow-sm">Complete documentation & guides</h2>
             <p className="text-base sm:text-lg text-gray-500 max-w-xl mx-auto px-4">
               Everything you need to integrate MetaView into your workflow. Get started in minutes.
             </p>
@@ -1355,6 +1358,20 @@ export default function Landing() {
           50% {
             opacity: 0.85;
           }
+        }
+
+        /* Subtle glow animation for CTAs */
+        @keyframes subtleGlow {
+          0%, 100% {
+            box-shadow: 0 0 20px rgba(249, 115, 22, 0.2);
+          }
+          50% {
+            box-shadow: 0 0 30px rgba(249, 115, 22, 0.35);
+          }
+        }
+
+        .animate-subtle-glow {
+          animation: subtleGlow 3s ease-in-out infinite;
         }
 
         /* Shine sweep animation for CTAs */
