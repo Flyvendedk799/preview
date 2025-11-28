@@ -958,54 +958,86 @@ export default function Demo() {
                                 <div className="w-2 h-2 bg-white rounded-full opacity-80"></div>
                               </div>
 
-                              {/* Link Preview Card - What shows when URL is shared */}
+                              {/* Link Preview Card - Production-grade social embed */}
                               <div className="bg-white flex-1 flex flex-col min-h-0">
-                                {/* Composited Preview Image - This is the actual og:image */}
-                                {preview.composited_preview_image_url ? (
-                                  <div className="aspect-[1.91/1] bg-gray-100 overflow-hidden relative flex-shrink-0">
-                                    <img
-                                      src={preview.composited_preview_image_url}
-                                      alt={preview.title}
-                                      className="w-full h-full object-cover"
-                                      onError={(e) => {
-                                        // Fallback if image fails to load
-                                        const target = e.target as HTMLImageElement
-                                        if (preview.screenshot_url) {
-                                          target.src = preview.screenshot_url
-                                        }
-                                      }}
-                                    />
-                                  </div>
-                                ) : (preview.primary_image_base64 || preview.screenshot_url) ? (
-                                  <div className="aspect-[1.91/1] bg-gray-100 overflow-hidden">
-                                    {preview.primary_image_base64 ? (
-                                      <img
-                                        src={`data:image/png;base64,${preview.primary_image_base64}`}
-                                        alt={preview.title}
-                                        className="w-full h-full object-cover"
-                                      />
-                                    ) : preview.screenshot_url ? (
-                                      <img
-                                        src={preview.screenshot_url}
-                                        alt={preview.title}
-                                        className="w-full h-full object-cover"
-                                      />
-                                    ) : null}
-                                  </div>
-                                ) : (
-                                  <div 
-                                    className="aspect-[1.91/1] flex items-center justify-center"
-                                    style={{ 
-                                      background: `linear-gradient(135deg, ${preview.blueprint.primary_color}20, ${preview.blueprint.secondary_color}20)` 
-                                    }}
-                                  >
-                                    <span className="text-4xl opacity-30">📷</span>
-                                  </div>
-                                )}
+                                {/* Preview Image - Always present, no placeholders */}
+                                <div className="aspect-[1.91/1] bg-gray-100 overflow-hidden relative flex-shrink-0 w-full">
+                                  {(() => {
+                                    // Priority: composited > primary > screenshot > brand gradient
+                                    if (preview.composited_preview_image_url) {
+                                      return (
+                                        <img
+                                          src={preview.composited_preview_image_url}
+                                          alt={preview.title}
+                                          className="w-full h-full object-cover"
+                                          onError={(e) => {
+                                            const target = e.target as HTMLImageElement
+                                            if (preview.screenshot_url) {
+                                              target.src = preview.screenshot_url
+                                            } else {
+                                              // Ultimate fallback: brand gradient
+                                              target.style.display = 'none'
+                                              const parent = target.parentElement
+                                              if (parent) {
+                                                parent.style.background = `linear-gradient(135deg, ${preview.blueprint.primary_color}, ${preview.blueprint.secondary_color})`
+                                              }
+                                            }
+                                          }}
+                                        />
+                                      )
+                                    } else if (preview.primary_image_base64) {
+                                      return (
+                                        <img
+                                          src={`data:image/png;base64,${preview.primary_image_base64}`}
+                                          alt={preview.title}
+                                          className="w-full h-full object-cover"
+                                          onError={(e) => {
+                                            const target = e.target as HTMLImageElement
+                                            if (preview.screenshot_url) {
+                                              target.src = preview.screenshot_url
+                                            } else {
+                                              target.style.display = 'none'
+                                              const parent = target.parentElement
+                                              if (parent) {
+                                                parent.style.background = `linear-gradient(135deg, ${preview.blueprint.primary_color}, ${preview.blueprint.secondary_color})`
+                                              }
+                                            }
+                                          }}
+                                        />
+                                      )
+                                    } else if (preview.screenshot_url) {
+                                      return (
+                                        <img
+                                          src={preview.screenshot_url}
+                                          alt={preview.title}
+                                          className="w-full h-full object-cover"
+                                          onError={(e) => {
+                                            const target = e.target as HTMLImageElement
+                                            target.style.display = 'none'
+                                            const parent = target.parentElement
+                                            if (parent) {
+                                              parent.style.background = `linear-gradient(135deg, ${preview.blueprint.primary_color}, ${preview.blueprint.secondary_color})`
+                                            }
+                                          }}
+                                        />
+                                      )
+                                    } else {
+                                      // Brand gradient fallback - no emoji, production-ready
+                                      return (
+                                        <div 
+                                          className="w-full h-full"
+                                          style={{ 
+                                            background: `linear-gradient(135deg, ${preview.blueprint.primary_color}, ${preview.blueprint.secondary_color})`
+                                          }}
+                                        />
+                                      )
+                                    }
+                                  })()}
+                                </div>
 
-                                {/* Domain (shown below image in link previews) */}
-                                <div className="px-4 py-2.5 border-t border-gray-100 bg-gray-50 flex-shrink-0">
-                                  <div className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold">
+                                {/* Domain Footer - Always present */}
+                                <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 flex-shrink-0">
+                                  <div className="text-[11px] text-gray-600 uppercase tracking-wider font-semibold leading-tight">
                                     {(() => {
                                       try {
                                         const url = new URL(preview.url)
