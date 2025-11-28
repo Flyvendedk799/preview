@@ -959,7 +959,7 @@ export default function Demo() {
                               </div>
 
                               {/* Link Preview Card - Production-grade social embed */}
-                              <div className="bg-white flex-1 flex flex-col min-h-0">
+                              <div className="bg-white flex-1 flex flex-col min-h-0 border border-gray-200 rounded-t-lg overflow-hidden">
                                 {/* Preview Image - Always present, no placeholders */}
                                 <div className="aspect-[1.91/1] bg-gray-100 overflow-hidden relative flex-shrink-0 w-full">
                                   {(() => {
@@ -1039,20 +1039,58 @@ export default function Demo() {
                                 {(() => {
                                   const hasTitle = preview.title && preview.title.trim() && preview.title !== "Untitled"
                                   const hasDescription = preview.description && preview.description.trim()
+                                  // Don't show description if it's identical to title (redundant)
+                                  const descriptionDiffers = hasDescription && preview.description !== preview.title
+                                  const hasSubtitle = preview.subtitle && preview.subtitle.trim() && preview.subtitle !== preview.title
+                                  const hasTags = preview.tags && preview.tags.length > 0
+                                  const hasContext = preview.context_items && preview.context_items.length > 0
                                   
-                                  if (!hasTitle && !hasDescription) {
+                                  if (!hasTitle && !descriptionDiffers && !hasSubtitle) {
                                     return null
                                   }
                                   
                                   return (
-                                    <div className="px-4 py-3 bg-white border-t border-gray-100 flex-shrink-0">
+                                    <div className="px-4 py-3.5 bg-white border-t border-gray-200 flex-shrink-0">
+                                      {/* Tags or context - subtle metadata above title */}
+                                      {(hasTags || hasContext) && (
+                                        <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                          {hasTags && preview.tags.slice(0, 2).map((tag, idx) => (
+                                            <span 
+                                              key={idx}
+                                              className="px-2 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide"
+                                              style={{
+                                                backgroundColor: `${preview.blueprint.primary_color}15`,
+                                                color: preview.blueprint.primary_color
+                                              }}
+                                            >
+                                              {tag}
+                                            </span>
+                                          ))}
+                                          {hasContext && preview.context_items.slice(0, 1).map((item, idx) => (
+                                            <span key={idx} className="text-[10px] text-gray-500 font-medium">
+                                              {item.text}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      )}
+                                      
+                                      {/* Title - prominent */}
                                       {hasTitle && (
-                                        <h3 className="text-[15px] font-bold text-gray-900 leading-tight mb-1.5 line-clamp-2">
+                                        <h3 className="text-[16px] font-bold text-gray-900 leading-snug mb-1.5 line-clamp-2">
                                           {preview.title}
                                         </h3>
                                       )}
-                                      {hasDescription && (
-                                        <p className={`text-[13px] text-gray-600 leading-snug line-clamp-2 ${hasTitle ? '' : 'mt-0'}`}>
+                                      
+                                      {/* Subtitle - if different from title */}
+                                      {hasSubtitle && (
+                                        <p className="text-[13px] font-medium text-gray-700 leading-snug mb-1.5 line-clamp-1">
+                                          {preview.subtitle}
+                                        </p>
+                                      )}
+                                      
+                                      {/* Description - only if different from title */}
+                                      {descriptionDiffers && (
+                                        <p className="text-[13px] text-gray-600 leading-relaxed line-clamp-2">
                                           {preview.description}
                                         </p>
                                       )}
@@ -1061,16 +1099,28 @@ export default function Demo() {
                                 })()}
 
                                 {/* Domain Footer - Always present */}
-                                <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 flex-shrink-0">
-                                  <div className="text-[11px] text-gray-600 uppercase tracking-wider font-semibold leading-tight">
-                                    {(() => {
-                                      try {
-                                        const url = new URL(preview.url)
-                                        return url.hostname.replace('www.', '')
-                                      } catch {
-                                        return 'website.com'
-                                      }
-                                    })()}
+                                <div className="px-4 py-2.5 bg-gray-50 border-t border-gray-200 flex-shrink-0">
+                                  <div className="flex items-center justify-between">
+                                    <div className="text-[11px] text-gray-600 uppercase tracking-wider font-semibold leading-tight">
+                                      {(() => {
+                                        try {
+                                          const url = new URL(preview.url)
+                                          return url.hostname.replace('www.', '')
+                                        } catch {
+                                          return 'website.com'
+                                        }
+                                      })()}
+                                    </div>
+                                    {/* Subtle credibility indicator if available */}
+                                    {preview.credibility_items && preview.credibility_items.length > 0 && (
+                                      <div className="flex items-center gap-1.5">
+                                        {preview.credibility_items.slice(0, 1).map((item, idx) => (
+                                          <span key={idx} className="text-[10px] text-gray-500 font-medium">
+                                            {item.value}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                               </div>
