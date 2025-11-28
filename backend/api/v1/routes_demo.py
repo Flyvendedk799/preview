@@ -168,18 +168,28 @@ def generate_demo_preview(
     composited_image_url = None
     try:
         logger.info("Generating composited preview image for og:image")
+        
+        # Prepare context items for image generation
+        context_items_list = [
+            {"icon": c["icon"], "text": c["text"]}
+            for c in result.context_items
+        ]
+        
         composited_image_url = generate_and_upload_preview_image(
             title=result.title,
             subtitle=result.subtitle,
             description=result.description,
             cta_text=result.cta_text,
             primary_image_base64=result.primary_image_base64,
+            screenshot_url=screenshot_url,
             blueprint={
                 "primary_color": result.blueprint.primary_color,
                 "secondary_color": result.blueprint.secondary_color,
                 "accent_color": result.blueprint.accent_color
             },
-            template_type=result.blueprint.template_type
+            template_type=result.blueprint.template_type,
+            tags=result.tags,
+            context_items=context_items_list
         )
         if composited_image_url:
             logger.info(f"Composited preview image generated: {composited_image_url}")

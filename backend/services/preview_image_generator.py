@@ -2,8 +2,7 @@
 Generate final composited preview image for og:image.
 
 This service takes the reconstructed preview data and generates a final
-PNG/JPG image that includes all elements (title, description, CTA, etc.)
-composited together. This image becomes the og:image for link previews.
+PNG/JPG image that matches the ReconstructedPreview component design exactly.
 """
 
 import base64
@@ -23,231 +22,443 @@ OG_IMAGE_WIDTH = 1200
 OG_IMAGE_HEIGHT = 630
 
 
-def hex_to_rgb(hex_color: str) -> tuple:
-    """Convert hex color to RGB tuple."""
-    hex_color = hex_color.lstrip('#')
-    return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-
-
 def generate_preview_image_html(
     title: str,
     subtitle: Optional[str],
     description: Optional[str],
     cta_text: Optional[str],
     primary_image_base64: Optional[str],
+    screenshot_url: Optional[str],
     blueprint: Dict[str, Any],
-    template_type: str
+    template_type: str,
+    tags: list = None,
+    context_items: list = None
 ) -> str:
     """
-    Generate HTML for the preview image.
-    
-    This HTML will be rendered by Playwright to create the final image.
+    Generate HTML that exactly matches the ReconstructedPreview component design.
     """
+    if tags is None:
+        tags = []
+    if context_items is None:
+        context_items = []
+        
     primary_color = blueprint.get("primary_color", "#3B82F6")
     secondary_color = blueprint.get("secondary_color", "#1E293B")
     accent_color = blueprint.get("accent_color", "#F59E0B")
     
-    # Background image if available
-    bg_image_style = ""
-    if primary_image_base64:
-        bg_image_style = f'background-image: url(data:image/png;base64,{primary_image_base64}); background-size: cover; background-position: center;'
+    imageUrl = f'data:image/png;base64,{primary_image_base64}' if primary_image_base64 else (screenshot_url or '')
     
-    # Template-specific styling
+    # Match the exact design from ReconstructedPreview component
     if template_type == "landing":
-        # Landing page: gradient background with overlay
-        background = f'linear-gradient(135deg, {primary_color}, {secondary_color})'
-        text_color = "#FFFFFF"
-        overlay = "rgba(0, 0, 0, 0.5)"
-    elif template_type == "profile":
-        # Profile: gradient header, white content
-        background = f'linear-gradient(135deg, {primary_color}, {secondary_color})'
-        text_color = "#FFFFFF"
-        overlay = "rgba(0, 0, 0, 0.3)"
-    else:
-        # Default: white background
-        background = "#FFFFFF"
-        text_color = "#1F2937"
-        overlay = "transparent"
-    
-    html = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="UTF-8">
-        <style>
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
-            
-            * {{
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-            }}
-            
-            body {{
-                width: {OG_IMAGE_WIDTH}px;
-                height: {OG_IMAGE_HEIGHT}px;
-                font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-                overflow: hidden;
-                position: relative;
-            }}
-            
-            .container {{
-                width: 100%;
-                height: 100%;
-                position: relative;
-                background: {background};
-                {bg_image_style}
-            }}
-            
-            .overlay {{
-                position: absolute;
-                inset: 0;
-                background: {overlay};
-            }}
-            
-            .content {{
-                position: relative;
-                z-index: 10;
-                padding: 60px 80px;
-                height: 100%;
-                display: flex;
-                flex-direction: column;
-                justify-content: center;
-                color: {text_color};
-            }}
-            
-            .title {{
-                font-size: 56px;
-                font-weight: 900;
-                line-height: 1.1;
-                margin-bottom: 20px;
-                max-width: 900px;
-            }}
-            
-            .subtitle {{
-                font-size: 32px;
-                font-weight: 600;
-                line-height: 1.3;
-                margin-bottom: 16px;
-                opacity: 0.95;
-                max-width: 800px;
-            }}
-            
-            .description {{
-                font-size: 24px;
-                font-weight: 400;
-                line-height: 1.5;
-                margin-bottom: 32px;
-                opacity: 0.9;
-                max-width: 700px;
-            }}
-            
-            .cta-button {{
-                display: inline-block;
-                padding: 18px 36px;
-                background: {accent_color};
-                color: #FFFFFF;
-                font-size: 24px;
-                font-weight: 700;
-                border-radius: 12px;
-                text-decoration: none;
-                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-                max-width: fit-content;
-            }}
-            
-            /* Profile template specific */
-            .profile-header {{
-                height: 200px;
-                background: linear-gradient(135deg, {primary_color}, {secondary_color});
-                position: relative;
-            }}
-            
-            .profile-content {{
-                background: #FFFFFF;
-                padding: 40px 60px;
-                margin-top: -100px;
-                border-radius: 20px 20px 0 0;
-                position: relative;
-                z-index: 10;
-            }}
-            
-            .profile-image {{
-                width: 120px;
-                height: 120px;
-                border-radius: 50%;
-                border: 6px solid #FFFFFF;
-                margin: -60px auto 24px;
-                display: block;
-                box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-            }}
-            
-            .profile-title {{
-                font-size: 42px;
-                font-weight: 800;
-                color: #1F2937;
-                text-align: center;
-                margin-bottom: 12px;
-            }}
-            
-            .profile-subtitle {{
-                font-size: 22px;
-                color: #6B7280;
-                text-align: center;
-                margin-bottom: 24px;
-            }}
-            
-            .profile-description {{
-                font-size: 20px;
-                color: #374151;
-                text-align: center;
-                line-height: 1.6;
-                max-width: 600px;
-                margin: 0 auto 32px;
-            }}
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="overlay"></div>
-            <div class="content">
-    """
-    
-    if template_type == "profile":
-        # Profile template layout
-        html += f"""
-                <div class="profile-header"></div>
-                <div class="profile-content">
-        """
-        if primary_image_base64:
-            html += f'<img src="data:image/png;base64,{primary_image_base64}" class="profile-image" alt="Profile" />'
-        html += f"""
-                    <h1 class="profile-title">{title}</h1>
-        """
-        if subtitle:
-            html += f'<p class="profile-subtitle">{subtitle}</p>'
-        if description:
-            html += f'<p class="profile-description">{description}</p>'
-        if cta_text:
-            html += f'<a href="#" class="cta-button">{cta_text}</a>'
-        html += """
+        # LandingTemplate design
+        html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
+                
+                * {{
+                    margin: 0;
+                    padding: 0;
+                    box-sizing: border-box;
+                }}
+                
+                body {{
+                    width: {OG_IMAGE_WIDTH}px;
+                    height: {OG_IMAGE_HEIGHT}px;
+                    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+                    overflow: hidden;
+                    position: relative;
+                    background: linear-gradient(135deg, {primary_color}, {secondary_color});
+                }}
+                
+                .container {{
+                    width: 100%;
+                    height: 100%;
+                    position: relative;
+                    border-radius: 16px;
+                    overflow: hidden;
+                    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+                }}
+                
+                .bg-image {{
+                    position: absolute;
+                    inset: 0;
+                }}
+                
+                .bg-image img {{
+                    width: 100%;
+                    height: 100%;
+                    object-fit: cover;
+                    opacity: 0.2;
+                }}
+                
+                .bg-overlay {{
+                    position: absolute;
+                    inset: 0;
+                    background: linear-gradient(to right, rgba(0, 0, 0, 0.6), transparent);
+                }}
+                
+                .content {{
+                    position: relative;
+                    z-index: 10;
+                    padding: 60px 80px;
+                    height: 100%;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: center;
+                    color: white;
+                }}
+                
+                .tags {{
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 8px;
+                    margin-bottom: 16px;
+                }}
+                
+                .tag {{
+                    padding: 4px 8px;
+                    border-radius: 4px;
+                    font-size: 12px;
+                    font-weight: 500;
+                    text-transform: uppercase;
+                    letter-spacing: 0.05em;
+                    background: rgba(255, 255, 255, 0.2);
+                    color: rgba(255, 255, 255, 0.9);
+                }}
+                
+                .title {{
+                    font-size: 48px;
+                    font-weight: 700;
+                    line-height: 1.2;
+                    margin-bottom: 12px;
+                    max-width: 900px;
+                    color: white;
+                }}
+                
+                .subtitle {{
+                    font-size: 24px;
+                    font-weight: 600;
+                    line-height: 1.3;
+                    margin-bottom: 8px;
+                    max-width: 800px;
+                    color: rgba(255, 255, 255, 0.9);
+                }}
+                
+                .description {{
+                    font-size: 18px;
+                    font-weight: 400;
+                    line-height: 1.5;
+                    margin-bottom: 24px;
+                    max-width: 700px;
+                    color: rgba(255, 255, 255, 0.7);
+                }}
+                
+                .cta-button {{
+                    display: inline-block;
+                    padding: 12px 24px;
+                    background: {accent_color};
+                    color: {primary_color};
+                    font-size: 14px;
+                    font-weight: 700;
+                    border-radius: 8px;
+                    text-decoration: none;
+                    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+                    transition: opacity 0.2s;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                {f'<div class="bg-image"><img src="{imageUrl}" alt="" /></div>' if imageUrl else ''}
+                <div class="bg-overlay"></div>
+                <div class="content">
+                    {f'<div class="tags">' + ''.join([f'<span class="tag">{tag}</span>' for tag in tags[:2]]) + '</div>' if tags else ''}
+                    <h1 class="title">{title}</h1>
+                    {f'<p class="subtitle">{subtitle}</p>' if subtitle else ''}
+                    {f'<p class="description">{description}</p>' if description else ''}
+                    {f'<a href="#" class="cta-button">{cta_text}</a>' if cta_text else ''}
                 </div>
+            </div>
+        </body>
+        </html>
+        """
+    elif template_type == "profile":
+        # ProfileTemplate design
+        html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
+                
+                * {{
+                    margin: 0;
+                    padding: 0;
+                    box-sizing: border-box;
+                }}
+                
+                body {{
+                    width: {OG_IMAGE_WIDTH}px;
+                    height: {OG_IMAGE_HEIGHT}px;
+                    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+                    overflow: hidden;
+                    position: relative;
+                    background: #F9FAFB;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }}
+                
+                .card {{
+                    width: 90%;
+                    max-width: 500px;
+                    background: white;
+                    border-radius: 16px;
+                    overflow: hidden;
+                    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+                }}
+                
+                .header {{
+                    height: 112px;
+                    background: linear-gradient(135deg, {primary_color}, {secondary_color});
+                    position: relative;
+                }}
+                
+                .header-overlay {{
+                    position: absolute;
+                    inset: 0;
+                    background: linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.1));
+                }}
+                
+                .header-pattern {{
+                    position: absolute;
+                    inset: 0;
+                    opacity: 0.1;
+                    background-image: radial-gradient(circle at 25px 25px, white 2%, transparent 0%);
+                    background-size: 50px 50px;
+                }}
+                
+                .content {{
+                    position: relative;
+                    padding: 24px;
+                    padding-top: 0;
+                }}
+                
+                .profile-image-container {{
+                    display: flex;
+                    justify-content: center;
+                    margin-top: -64px;
+                    margin-bottom: 16px;
+                }}
+                
+                .profile-image {{
+                    width: 112px;
+                    height: 112px;
+                    border-radius: 50%;
+                    border: 4px solid white;
+                    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+                    object-fit: cover;
+                }}
+                
+                .name {{
+                    font-size: 24px;
+                    font-weight: 700;
+                    color: #111827;
+                    text-align: center;
+                    margin-bottom: 4px;
+                }}
+                
+                .subtitle {{
+                    font-size: 14px;
+                    color: #4B5563;
+                    text-align: center;
+                    margin-bottom: 12px;
+                }}
+                
+                .context {{
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 16px;
+                    font-size: 14px;
+                    color: #374151;
+                    font-weight: 500;
+                    margin-bottom: 16px;
+                }}
+                
+                .tags {{
+                    display: flex;
+                    flex-wrap: wrap;
+                    justify-content: center;
+                    gap: 8px;
+                    margin-bottom: 16px;
+                }}
+                
+                .tag {{
+                    padding: 4px 12px;
+                    border-radius: 9999px;
+                    font-size: 12px;
+                    font-weight: 500;
+                    background: {primary_color}15;
+                    color: {primary_color};
+                }}
+                
+                .description {{
+                    border-top: 1px solid #F3F4F6;
+                    padding-top: 16px;
+                    margin-top: 8px;
+                    font-size: 14px;
+                    color: #374151;
+                    text-align: center;
+                    line-height: 1.5;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="card">
+                <div class="header">
+                    <div class="header-overlay"></div>
+                    <div class="header-pattern"></div>
+                </div>
+                <div class="content">
+                    <div class="profile-image-container">
+                        {f'<img src="data:image/png;base64,{primary_image_base64}" class="profile-image" alt="" />' if primary_image_base64 else f'<div class="profile-image" style="background: {primary_color}; display: flex; align-items: center; justify-content: center; color: white; font-size: 36px; font-weight: 700;">{title[0].upper() if title else "P"}</div>'}
+                    </div>
+                    <h2 class="name">{title}</h2>
+                    {f'<p class="subtitle">{subtitle}</p>' if subtitle else ''}
+                    {f'<div class="context">{context_items[0]["text"] if context_items else ""}</div>' if context_items else ''}
+                    {f'<div class="tags">' + ''.join([f'<span class="tag">{tag}</span>' for tag in tags[:4]]) + '</div>' if tags else ''}
+                    {f'<p class="description">{description}</p>' if description else ''}
+                </div>
+            </div>
+        </body>
+        </html>
         """
     else:
-        # Landing/product template layout
-        html += f'<h1 class="title">{title}</h1>'
-        if subtitle:
-            html += f'<p class="subtitle">{subtitle}</p>'
-        if description:
-            html += f'<p class="description">{description}</p>'
-        if cta_text:
-            html += f'<a href="#" class="cta-button">{cta_text}</a>'
-    
-    html += """
+        # Product/Service template - white card with icon
+        html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
+                
+                * {{
+                    margin: 0;
+                    padding: 0;
+                    box-sizing: border-box;
+                }}
+                
+                body {{
+                    width: {OG_IMAGE_WIDTH}px;
+                    height: {OG_IMAGE_HEIGHT}px;
+                    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+                    overflow: hidden;
+                    position: relative;
+                    background: #F9FAFB;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }}
+                
+                .card {{
+                    width: 90%;
+                    max-width: 600px;
+                    background: white;
+                    border-radius: 16px;
+                    overflow: hidden;
+                    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+                }}
+                
+                .accent-bar {{
+                    height: 8px;
+                    background: {primary_color};
+                }}
+                
+                .content {{
+                    padding: 24px;
+                }}
+                
+                .icon-container {{
+                    margin-bottom: 16px;
+                }}
+                
+                .icon {{
+                    width: 64px;
+                    height: 64px;
+                    border-radius: 12px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 24px;
+                    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+                    background: {primary_color}15;
+                    color: {primary_color};
+                }}
+                
+                .icon img {{
+                    width: 100%;
+                    height: 100%;
+                    object-fit: cover;
+                    border-radius: 12px;
+                }}
+                
+                .title {{
+                    font-size: 20px;
+                    font-weight: 700;
+                    color: #111827;
+                    margin-bottom: 8px;
+                }}
+                
+                .subtitle {{
+                    font-size: 14px;
+                    color: #4B5563;
+                    margin-bottom: 12px;
+                }}
+                
+                .description {{
+                    font-size: 14px;
+                    color: #4B5563;
+                    line-height: 1.5;
+                    margin-bottom: 16px;
+                }}
+                
+                .cta-button {{
+                    width: 100%;
+                    padding: 10px 16px;
+                    background: {primary_color};
+                    color: white;
+                    font-size: 14px;
+                    font-weight: 500;
+                    border-radius: 8px;
+                    border: none;
+                    cursor: pointer;
+                    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="card">
+                <div class="accent-bar"></div>
+                <div class="content">
+                    <div class="icon-container">
+                        {f'<img src="data:image/png;base64,{primary_image_base64}" class="icon" alt="" />' if primary_image_base64 else '<div class="icon">✨</div>'}
+                    </div>
+                    <h2 class="title">{title}</h2>
+                    {f'<p class="subtitle">{subtitle}</p>' if subtitle else ''}
+                    {f'<p class="description">{description}</p>' if description else ''}
+                    {f'<button class="cta-button">{cta_text}</button>' if cta_text else ''}
+                </div>
             </div>
-        </div>
-    </body>
-    </html>
-    """
+        </body>
+        </html>
+        """
     
     return html
 
@@ -258,16 +469,16 @@ def generate_composited_preview_image(
     description: Optional[str],
     cta_text: Optional[str],
     primary_image_base64: Optional[str],
+    screenshot_url: Optional[str],
     blueprint: Dict[str, Any],
-    template_type: str
+    template_type: str,
+    tags: list = None,
+    context_items: list = None
 ) -> bytes:
     """
     Generate final composited preview image.
     
     Uses Playwright to render HTML and capture as PNG.
-    
-    Returns:
-        PNG image bytes
     """
     try:
         html = generate_preview_image_html(
@@ -276,8 +487,11 @@ def generate_composited_preview_image(
             description=description,
             cta_text=cta_text,
             primary_image_base64=primary_image_base64,
+            screenshot_url=screenshot_url,
             blueprint=blueprint,
-            template_type=template_type
+            template_type=template_type,
+            tags=tags or [],
+            context_items=context_items or []
         )
         
         with sync_playwright() as p:
@@ -289,8 +503,8 @@ def generate_composited_preview_image(
             
             page.set_content(html, wait_until="networkidle")
             
-            # Wait a bit for fonts to load
-            page.wait_for_timeout(1000)
+            # Wait for fonts and images to load
+            page.wait_for_timeout(1500)
             
             # Capture screenshot
             screenshot_bytes = page.screenshot(
@@ -318,8 +532,8 @@ def _generate_fallback_image(
 ) -> bytes:
     """Fallback image generation using PIL if Playwright fails."""
     try:
-        primary_color = hex_to_rgb(blueprint.get("primary_color", "#3B82F6"))
-        accent_color = hex_to_rgb(blueprint.get("accent_color", "#F59E0B"))
+        primary_color = tuple(int(blueprint.get("primary_color", "#3B82F6").lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
+        accent_color = tuple(int(blueprint.get("accent_color", "#F59E0B").lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
         
         # Create image
         img = Image.new('RGB', (OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT), primary_color)
@@ -327,7 +541,6 @@ def _generate_fallback_image(
         
         # Try to load a font (fallback to default if not available)
         try:
-            # Try to use a system font
             font_large = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 60)
             font_medium = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 32)
         except:
@@ -374,8 +587,11 @@ def generate_and_upload_preview_image(
     description: Optional[str],
     cta_text: Optional[str],
     primary_image_base64: Optional[str],
+    screenshot_url: Optional[str],
     blueprint: Dict[str, Any],
-    template_type: str
+    template_type: str,
+    tags: list = None,
+    context_items: list = None
 ) -> Optional[str]:
     """
     Generate composited preview image and upload to R2.
@@ -391,8 +607,11 @@ def generate_and_upload_preview_image(
             description=description,
             cta_text=cta_text,
             primary_image_base64=primary_image_base64,
+            screenshot_url=screenshot_url,
             blueprint=blueprint,
-            template_type=template_type
+            template_type=template_type,
+            tags=tags or [],
+            context_items=context_items or []
         )
         
         # Upload to R2
@@ -405,4 +624,3 @@ def generate_and_upload_preview_image(
     except Exception as e:
         logger.error(f"Failed to generate/upload preview image: {e}", exc_info=True)
         return None
-
