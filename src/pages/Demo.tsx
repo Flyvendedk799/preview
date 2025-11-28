@@ -627,6 +627,229 @@ export default function Demo() {
               </div>
             </div>
 
+            {/* Mobile Viewport Showcase */}
+            <div className="bg-gradient-to-br from-gray-50 to-white rounded-2xl p-8 border border-gray-200">
+              <div className="text-center mb-8">
+                <h3 className="text-2xl font-black text-gray-900 mb-2">See It In Action</h3>
+                <p className="text-gray-600">How your preview appears on social media platforms</p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {/* Instagram */}
+                <div className="flex flex-col items-center">
+                  <div className="w-full max-w-[280px]">
+                    <div className="bg-gray-900 rounded-t-[2.5rem] px-3 pt-2 pb-1">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-6 h-6 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full"></div>
+                          <span className="text-white text-xs font-semibold">instagram</span>
+                        </div>
+                        <div className="w-1 h-1 bg-white rounded-full"></div>
+                      </div>
+                    </div>
+                    <div className="bg-white border-x-2 border-gray-900">
+                      <div className="p-3 space-y-2">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full"></div>
+                          <div>
+                            <div className="h-2.5 bg-gray-300 rounded w-20 mb-1"></div>
+                            <div className="h-2 bg-gray-200 rounded w-16"></div>
+                          </div>
+                        </div>
+                        {preview.image_url ? (
+                          <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden">
+                            <img src={preview.image_url} alt={preview.title} className="w-full h-full object-cover" />
+                          </div>
+                        ) : (
+                          <div className="aspect-square bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg"></div>
+                        )}
+                        <div className="space-y-1.5">
+                          <div className="h-3 bg-gray-300 rounded w-full"></div>
+                          <div className="h-3 bg-gray-200 rounded w-3/4"></div>
+                          <div className="h-2.5 bg-gray-200 rounded w-1/2"></div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-gray-900 rounded-b-[2.5rem] h-8"></div>
+                  </div>
+                  <p className="mt-3 text-sm font-semibold text-gray-700">Instagram</p>
+                </div>
+
+                {/* Facebook */}
+                <div className="flex flex-col items-center">
+                  <div className="w-full max-w-[280px]">
+                    <div className="bg-blue-600 rounded-t-[2.5rem] px-3 pt-2 pb-1">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-6 h-6 bg-white rounded"></div>
+                          <span className="text-white text-xs font-bold">facebook</span>
+                        </div>
+                        <div className="w-1 h-1 bg-white rounded-full"></div>
+                      </div>
+                    </div>
+                    <div className="bg-white border-x-2 border-gray-900">
+                      <div className="p-3 space-y-2">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-8 h-8 bg-blue-500 rounded-full"></div>
+                          <div className="h-2.5 bg-gray-300 rounded w-24"></div>
+                        </div>
+                        {preview.image_url ? (
+                          <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
+                            <img src={preview.image_url} alt={preview.title} className="w-full h-full object-cover" />
+                          </div>
+                        ) : (
+                          <div className="aspect-video bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg"></div>
+                        )}
+                        <div className="space-y-1.5">
+                          <div className="h-3 bg-gray-300 rounded w-full"></div>
+                          <div className="h-2.5 bg-gray-200 rounded w-4/5"></div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-gray-900 rounded-b-[2.5rem] h-8"></div>
+                  </div>
+                  <p className="mt-3 text-sm font-semibold text-gray-700">Facebook</p>
+                </div>
+
+                {/* X (Twitter) */}
+                <div className="flex flex-col items-center">
+                  <div className="w-full max-w-[280px]">
+                    <div className="bg-black rounded-t-[2.5rem] px-3 pt-2 pb-1">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-6 h-6 bg-white rounded"></div>
+                          <span className="text-white text-xs font-bold">X</span>
+                        </div>
+                        <div className="w-1 h-1 bg-white rounded-full"></div>
+                      </div>
+                    </div>
+                    <div className="bg-white border-x-2 border-gray-900">
+                      <div className="p-3 space-y-2">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-8 h-8 bg-gray-400 rounded-full"></div>
+                          <div className="h-2.5 bg-gray-300 rounded w-20"></div>
+                        </div>
+                        {preview.image_url ? (
+                          <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
+                            <img src={preview.image_url} alt={preview.title} className="w-full h-full object-cover" />
+                          </div>
+                        ) : (
+                          <div className="aspect-video bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg"></div>
+                        )}
+                        <div className="space-y-1.5">
+                          <div className="h-3 bg-gray-300 rounded w-full"></div>
+                          <div className="h-2.5 bg-gray-200 rounded w-3/4"></div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-gray-900 rounded-b-[2.5rem] h-8"></div>
+                  </div>
+                  <p className="mt-3 text-sm font-semibold text-gray-700">X (Twitter)</p>
+                </div>
+
+                {/* LinkedIn */}
+                <div className="flex flex-col items-center">
+                  <div className="w-full max-w-[280px]">
+                    <div className="bg-blue-700 rounded-t-[2.5rem] px-3 pt-2 pb-1">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-6 h-6 bg-white rounded"></div>
+                          <span className="text-white text-xs font-bold">LinkedIn</span>
+                        </div>
+                        <div className="w-1 h-1 bg-white rounded-full"></div>
+                      </div>
+                    </div>
+                    <div className="bg-white border-x-2 border-gray-900">
+                      <div className="p-3 space-y-2">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-8 h-8 bg-blue-600 rounded-full"></div>
+                          <div className="h-2.5 bg-gray-300 rounded w-24"></div>
+                        </div>
+                        {preview.image_url ? (
+                          <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
+                            <img src={preview.image_url} alt={preview.title} className="w-full h-full object-cover" />
+                          </div>
+                        ) : (
+                          <div className="aspect-video bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg"></div>
+                        )}
+                        <div className="space-y-1.5">
+                          <div className="h-3 bg-gray-300 rounded w-full"></div>
+                          <div className="h-2.5 bg-gray-200 rounded w-4/5"></div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-gray-900 rounded-b-[2.5rem] h-8"></div>
+                  </div>
+                  <p className="mt-3 text-sm font-semibold text-gray-700">LinkedIn</p>
+                </div>
+
+                {/* Reddit */}
+                <div className="flex flex-col items-center">
+                  <div className="w-full max-w-[280px]">
+                    <div className="bg-orange-500 rounded-t-[2.5rem] px-3 pt-2 pb-1">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-6 h-6 bg-white rounded-full"></div>
+                          <span className="text-white text-xs font-bold">reddit</span>
+                        </div>
+                        <div className="w-1 h-1 bg-white rounded-full"></div>
+                      </div>
+                    </div>
+                    <div className="bg-white border-x-2 border-gray-900">
+                      <div className="p-3 space-y-2">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-8 h-8 bg-orange-500 rounded-full"></div>
+                          <div className="h-2.5 bg-gray-300 rounded w-20"></div>
+                        </div>
+                        {preview.image_url ? (
+                          <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
+                            <img src={preview.image_url} alt={preview.title} className="w-full h-full object-cover" />
+                          </div>
+                        ) : (
+                          <div className="aspect-video bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg"></div>
+                        )}
+                        <div className="space-y-1.5">
+                          <div className="h-3 bg-gray-300 rounded w-full"></div>
+                          <div className="h-2.5 bg-gray-200 rounded w-3/4"></div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-gray-900 rounded-b-[2.5rem] h-8"></div>
+                  </div>
+                  <p className="mt-3 text-sm font-semibold text-gray-700">Reddit</p>
+                </div>
+
+                {/* Generic Mobile Preview */}
+                <div className="flex flex-col items-center">
+                  <div className="w-full max-w-[280px]">
+                    <div className="bg-gray-800 rounded-t-[2.5rem] px-3 pt-2 pb-1">
+                      <div className="flex items-center justify-center mb-2">
+                        <div className="w-12 h-1 bg-gray-600 rounded-full"></div>
+                      </div>
+                    </div>
+                    <div className="bg-white border-x-2 border-gray-900">
+                      <div className="p-3 space-y-2">
+                        {preview.image_url ? (
+                          <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
+                            <img src={preview.image_url} alt={preview.title} className="w-full h-full object-cover" />
+                          </div>
+                        ) : (
+                          <div className="aspect-video bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg"></div>
+                        )}
+                        <div className="space-y-1.5">
+                          <div className="h-3 bg-gray-300 rounded w-full"></div>
+                          <div className="h-2.5 bg-gray-200 rounded w-4/5"></div>
+                          <div className="h-2 bg-gray-200 rounded w-2/3"></div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-gray-900 rounded-b-[2.5rem] h-8"></div>
+                  </div>
+                  <p className="mt-3 text-sm font-semibold text-gray-700">Mobile Browser</p>
+                </div>
+              </div>
+            </div>
+
             {/* Demo Notice with enhanced styling */}
             <div className="bg-gradient-to-r from-amber-50 via-yellow-50 to-amber-50 border-2 border-amber-200 rounded-xl p-6 relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-amber-200/20 rounded-full blur-2xl -mr-16 -mt-16" />
