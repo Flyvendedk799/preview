@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowRightIcon,
@@ -7,6 +7,9 @@ import {
   SparklesIcon,
   LinkIcon,
   PhotoIcon,
+  ArrowUpRightIcon,
+  Bars3Icon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline'
 import { subscribeToNewsletter, generateDemoPreview, type DemoPreviewResponse } from '../api/client'
 
@@ -17,12 +20,22 @@ export default function Demo() {
   const [email, setEmail] = useState('')
   const [url, setUrl] = useState('')
   const [preview, setPreview] = useState<DemoPreviewResponse | null>(null)
+  const [scrollY, setScrollY] = useState(0)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   
   const [emailError, setEmailError] = useState<string | null>(null)
   const [urlError, setUrlError] = useState<string | null>(null)
   const [isSubmittingEmail, setIsSubmittingEmail] = useState(false)
   const [isGeneratingPreview, setIsGeneratingPreview] = useState(false)
   const [previewError, setPreviewError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrollY(window.pageYOffset)
+    }
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
 
   const validateEmail = (email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -77,10 +90,13 @@ export default function Demo() {
       return
     }
 
-    // Ensure URL has protocol
+    // Ensure URL has HTTPS protocol (always use HTTPS)
     let processedUrl = url.trim()
     if (!processedUrl.startsWith('http://') && !processedUrl.startsWith('https://')) {
       processedUrl = `https://${processedUrl}`
+    } else if (processedUrl.startsWith('http://')) {
+      // Convert HTTP to HTTPS
+      processedUrl = processedUrl.replace('http://', 'https://')
     }
 
     if (!validateUrl(processedUrl)) {
@@ -102,27 +118,135 @@ export default function Demo() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-orange-50/30">
-      {/* Navigation */}
-      <nav className="bg-white/80 backdrop-blur-lg border-b border-gray-100 sticky top-0 z-50">
+      {/* Premium Navigation with Enhanced Contrast */}
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-2xl border-b border-gray-100/80 transition-all duration-300" style={{ boxShadow: scrollY > 10 ? '0 4px 20px rgba(0,0,0,0.06)' : 'none' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12">
-          <div className="flex items-center justify-between h-16">
-            <Link to="/" className="flex items-center space-x-2 group">
-              <div className="w-9 h-9 bg-gradient-to-br from-orange-500 via-amber-500 to-yellow-500 rounded-xl flex items-center justify-center shadow-lg shadow-orange-500/25 group-hover:scale-110 transition-transform duration-300">
-                <span className="text-white font-black text-base">M</span>
+          <div className="flex items-center justify-between h-16 sm:h-18">
+            <Link to="/" className="flex items-center space-x-2 sm:space-x-3 group">
+              <div className="relative">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 bg-gradient-to-br from-orange-500 via-amber-500 to-yellow-500 rounded-xl flex items-center justify-center shadow-lg shadow-orange-500/25 group-hover:scale-110 group-hover:shadow-orange-500/40 transition-all duration-300">
+                  <span className="text-white font-black text-base sm:text-lg">M</span>
+                </div>
+                <div className="absolute -inset-1 bg-gradient-to-br from-orange-400 to-amber-500 rounded-xl opacity-0 group-hover:opacity-40 blur-lg transition-opacity duration-300" />
               </div>
-              <span className="text-lg font-black text-gray-900 tracking-tight">MetaView</span>
+              <span className="text-lg sm:text-xl font-black text-gray-900 tracking-tight">MetaView</span>
             </Link>
-            <Link
-              to="/app"
-              className="px-5 py-2.5 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500 text-white rounded-xl font-bold text-sm transition-all duration-300 hover:scale-[1.04] hover:shadow-xl hover:shadow-orange-500/30"
-            >
-              Get Started Free
-            </Link>
+            <div className="hidden lg:flex items-center space-x-10">
+              {[
+                { href: '/#product', label: 'Product' },
+                { href: '/#features', label: 'Features' },
+                { href: '/#pricing', label: 'Pricing' },
+                { href: '/#docs', label: 'Docs' },
+              ].map((item) => (
+                <Link 
+                  key={item.label}
+                  to={item.href} 
+                  className="relative py-1 font-semibold text-sm transition-all duration-200 group text-gray-600 hover:text-gray-900"
+                >
+                  {item.label}
+                  <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-orange-500 group-hover:w-full transition-all duration-300" />
+                </Link>
+              ))}
+              <Link 
+                to="/blog" 
+                className="relative py-1 font-semibold text-sm transition-all duration-200 group text-gray-600 hover:text-gray-900"
+              >
+                Blog
+                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-orange-500 group-hover:w-full transition-all duration-300" />
+              </Link>
+              <Link to="/app" className="text-gray-600 hover:text-gray-900 transition-all duration-200 font-semibold text-sm relative group py-1">
+                Login
+                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-orange-500 group-hover:w-full transition-all duration-300" />
+              </Link>
+            </div>
+            <div className="flex items-center space-x-3">
+              <Link
+                to="/app"
+                className="hidden sm:flex group relative px-5 sm:px-6 py-3 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500 text-white rounded-xl font-bold text-xs sm:text-sm transition-all duration-300 hover:scale-[1.04] active:scale-[0.98] hover:shadow-xl hover:shadow-orange-500/30 overflow-hidden min-h-[44px] items-center justify-center select-none"
+                style={{ boxShadow: scrollY > 10 ? '0 4px 20px rgba(249, 115, 22, 0.3)' : 'none' }}
+              >
+                <span className="relative z-10 flex items-center">
+                  Get Started Free
+                  <ArrowUpRightIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 ml-1.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform duration-300" />
+                </span>
+                {/* Shine effect on hover */}
+                <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+              </Link>
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="lg:hidden p-2 text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+                aria-label="Toggle menu"
+              >
+                {mobileMenuOpen ? (
+                  <XMarkIcon className="w-6 h-6" />
+                ) : (
+                  <Bars3Icon className="w-6 h-6" />
+                )}
+              </button>
+            </div>
           </div>
+          
+          {/* Mobile Menu */}
+          {mobileMenuOpen && (
+            <div className="lg:hidden border-t border-gray-100 py-4 bg-white/95 backdrop-blur-xl">
+              <div className="flex flex-col space-y-1">
+                <Link 
+                  to="/#product" 
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="px-4 py-3 text-gray-700 hover:bg-orange-50 hover:text-orange-600 rounded-xl transition-colors font-semibold text-base min-h-[44px] flex items-center"
+                >
+                  Product
+                </Link>
+                <Link 
+                  to="/#features" 
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="px-4 py-3 text-gray-700 hover:bg-orange-50 hover:text-orange-600 rounded-xl transition-colors font-semibold text-base min-h-[44px] flex items-center"
+                >
+                  Features
+                </Link>
+                <Link 
+                  to="/#pricing" 
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="px-4 py-3 text-gray-700 hover:bg-orange-50 hover:text-orange-600 rounded-xl transition-colors font-semibold text-base min-h-[44px] flex items-center"
+                >
+                  Pricing
+                </Link>
+                <Link 
+                  to="/#docs" 
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="px-4 py-3 text-gray-700 hover:bg-orange-50 hover:text-orange-600 rounded-xl transition-colors font-semibold text-base min-h-[44px] flex items-center"
+                >
+                  Docs
+                </Link>
+                <Link 
+                  to="/blog" 
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="px-4 py-3 text-gray-700 hover:bg-orange-50 hover:text-orange-600 rounded-xl transition-colors font-semibold text-base min-h-[44px] flex items-center"
+                >
+                  Blog
+                </Link>
+                <Link 
+                  to="/app" 
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="px-4 py-3 text-gray-700 hover:bg-orange-50 hover:text-orange-600 rounded-xl transition-colors font-semibold text-base min-h-[44px] flex items-center"
+                >
+                  Login
+                </Link>
+                <Link
+                  to="/app"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="mx-4 mt-2 px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl font-bold text-sm transition-all duration-300 min-h-[44px] flex items-center justify-center shadow-lg shadow-orange-500/25"
+                >
+                  Get Started Free
+                  <ArrowUpRightIcon className="w-4 h-4 ml-2" />
+                </Link>
+              </div>
+            </div>
+          )}
         </div>
       </nav>
 
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-12 py-12 sm:py-20">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-12 pt-24 sm:pt-28 pb-12 sm:pb-20">
         {/* Header */}
         <div className="text-center mb-12">
           <div className="inline-flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-orange-100 via-amber-100 to-yellow-100 rounded-full border-2 border-orange-300/80 backdrop-blur-sm mb-6">
