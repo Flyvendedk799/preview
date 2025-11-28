@@ -8,6 +8,7 @@ from backend.core.config import settings
 from backend.schemas.brand import BrandSettings
 from backend.services.metadata_extractor import extract_metadata_from_html
 from backend.services.semantic_extractor import extract_semantic_structure
+from backend.services.content_priority_extractor import extract_priority_content
 
 
 from backend.services.retry_utils import sync_retry
@@ -104,6 +105,9 @@ def generate_ai_preview(url: str, brand_settings: BrandSettings, html_content: O
     # Step 2.5: Extract semantic structure
     semantic = extract_semantic_structure(html_content)
     
+    # Step 2.6: Extract priority content based on UI/UX signals
+    priority_content = extract_priority_content(html_content, url)
+    
     # Step 3: Parse URL for domain and path
     from urllib.parse import urlparse
     parsed_url = urlparse(url)
@@ -120,6 +124,14 @@ URL: {url}
 Domain: {domain}
 Path: {path}
 
+PAGE TYPE & PRIORITY CONTENT (HIGHEST PRIORITY - USE THIS FIRST):
+- Detected Page Type: {priority_content.get('page_type', 'unknown')}
+- Primary Title (from UI/UX analysis): {priority_content.get('primary_title', 'Not found')}
+- Primary Description (from UI/UX analysis): {priority_content.get('primary_description', 'Not found')}
+- Key Attributes: {priority_content.get('key_attributes', {})}
+- Content Priority Score: {priority_content.get('content_priority_score', 0.0)}
+- Visual Elements: {', '.join(priority_content.get('visual_elements', [])[:3])}
+
 SEMANTIC CONTENT ANALYSIS:
 - Intent: {semantic.get('intent', 'unknown')}
 - Sentiment: {semantic.get('sentiment', 'neutral')}
@@ -127,7 +139,7 @@ SEMANTIC CONTENT ANALYSIS:
 - Topic Keywords: {', '.join(semantic.get('topic_keywords', [])[:10])}
 - Named Entities: {', '.join(semantic.get('named_entities', [])[:5])}
 
-EXTRACTED METADATA (layered priority):
+EXTRACTED METADATA (fallback if priority content unavailable):
 - Title (priority): {metadata.get('priority_title', 'Not found')}
   - OG Title: {metadata.get('og_title', 'Not found')}
   - HTML Title: {metadata.get('title', 'Not found')}
@@ -162,13 +174,18 @@ YOUR TASK:
 7. Predict type based on intent and content structure
 8. Provide detailed reasoning for all choices
 
-IMPORTANT:
-- Base ALL output on semantic analysis + extracted metadata. Do not hallucinate.
-- Each variant must be unique but accurate to the content
-- Variants should test different messaging angles (concise vs descriptive vs emotional)
-- Keep titles 50-60 chars, descriptions 150-160 chars
-- Keywords must be relevant and searchable
-- Tone must align with brand voice: {brand_tone}
+CRITICAL INSTRUCTIONS:
+1. PRIORITY ORDER: Use Priority Content FIRST (from UI/UX analysis), then fall back to metadata
+2. For PROFILE pages: Focus on the person/expert name, their competencies/skills, location, and what they offer
+3. For PRODUCT pages: Focus on product name, key features, and price
+4. For ARTICLE pages: Focus on article title and main topic
+5. NEVER use generic site-wide descriptions - always extract the SPECIFIC content for this page
+6. Base ALL output on the Priority Content when available (it represents what users actually see)
+7. Each variant must be unique but accurate to the content
+8. Variants should test different messaging angles (concise vs descriptive vs emotional)
+9. Keep titles 50-60 chars, descriptions 150-160 chars
+10. Keywords must be relevant and searchable
+11. Tone must align with brand voice: {brand_tone}
 
 Return your response as valid JSON with these exact keys:
 {{
