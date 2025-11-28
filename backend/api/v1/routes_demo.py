@@ -90,6 +90,7 @@ def generate_demo_preview(
         filename = f"screenshots/demo/{uuid4()}.png"
         image_url = upload_file_to_r2(screenshot_bytes, filename, "image/png")
         logger.info(f"Demo screenshot uploaded: {filename}")
+        logger.info(f"Demo screenshot public URL: {image_url}")
     except Exception as screenshot_error:
         logger.warning(f"Demo screenshot capture failed, using fallback: {screenshot_error}")
         # Fallback to og:image from metadata if screenshot fails

@@ -59,6 +59,11 @@ def upload_file_to_r2(file_bytes: bytes, filename: str, content_type: str) -> st
             # Fallback to R2 default URL pattern: bucket.account.r2.cloudflarestorage.com
             public_url = f"https://{settings.R2_BUCKET_NAME}.{settings.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/{filename}"
         
+        # Log the generated URL for debugging
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Generated R2 public URL: {public_url}")
+        
         return public_url
     except ClientError as e:
         # Log error without exposing credentials
