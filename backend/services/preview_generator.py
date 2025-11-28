@@ -1,14 +1,18 @@
 """AI-powered preview generation service using OpenAI."""
 import json
 import re
+import base64
 from typing import Dict, Optional, List
 import requests
 from openai import OpenAI
+from io import BytesIO
+from PIL import Image
 from backend.core.config import settings
 from backend.schemas.brand import BrandSettings
 from backend.services.metadata_extractor import extract_metadata_from_html
 from backend.services.semantic_extractor import extract_semantic_structure
 from backend.services.content_priority_extractor import extract_priority_content
+from backend.services.playwright_screenshot import capture_screenshot
 
 
 from backend.services.retry_utils import sync_retry
@@ -82,9 +86,182 @@ def extract_basic_metadata(html: str) -> Dict[str, Optional[str]]:
     return metadata
 
 
+def _prepare_image_for_vision_api(screenshot_bytes: bytes) -> str:
+    """
+    Prepare screenshot image for OpenAI Vision API.
+    Compresses and converts to base64.
+    
+    Args:
+        screenshot_bytes: Raw PNG screenshot bytes
+        
+    Returns:
+        Base64-encoded image string
+    """
+    try:
+        # Open image
+        image = Image.open(BytesIO(screenshot_bytes))
+        
+        # Convert to RGB if necessary (removes alpha channel)
+        if image.mode in ('RGBA', 'LA', 'P'):
+            rgb_image = Image.new('RGB', image.size, (255, 255, 255))
+            if image.mode == 'P':
+                image = image.convert('RGBA')
+            rgb_image.paste(image, mask=image.split()[-1] if image.mode in ('RGBA', 'LA') else None)
+            image = rgb_image
+        
+        # Resize if too large (max 2048px on longest side for API efficiency)
+        max_size = 2048
+        if max(image.size) > max_size:
+            ratio = max_size / max(image.size)
+            new_size = (int(image.size[0] * ratio), int(image.size[1] * ratio))
+            image = image.resize(new_size, Image.Resampling.LANCZOS)
+        
+        # Convert to base64
+        buffer = BytesIO()
+        image.save(buffer, format='JPEG', quality=85, optimize=True)
+        image_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+        
+        return image_base64
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error preparing image for vision API: {type(e).__name__}")
+        # Fallback: just encode original
+        return base64.b64encode(screenshot_bytes).decode('utf-8')
+
+
+def _analyze_screenshot_with_vision(screenshot_bytes: bytes, url: str, brand_settings: BrandSettings) -> Optional[Dict]:
+    """
+    Analyze screenshot using OpenAI Vision API to extract content based on visual design.
+    
+    Args:
+        screenshot_bytes: Raw PNG screenshot bytes
+        url: URL for context
+        brand_settings: Brand settings for tone context
+        
+    Returns:
+        Dictionary with extracted content or None if analysis fails
+    """
+    try:
+        # Prepare image
+        image_base64 = _prepare_image_for_vision_api(screenshot_bytes)
+        
+        # Derive brand tone
+        brand_tone = _derive_brand_tone(brand_settings)
+        
+        # Parse URL
+        from urllib.parse import urlparse
+        parsed_url = urlparse(url)
+        domain = parsed_url.netloc
+        path = parsed_url.path
+        
+        # Call Vision API
+        client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        
+        response = client.chat.completions.create(
+            model="gpt-4o",  # GPT-4 Vision
+            messages=[
+                {
+                    "role": "system",
+                    "content": """You are a UI/UX expert and preview generation assistant. Analyze webpage screenshots to extract the most important content based on visual design hierarchy.
+
+Your task is to identify what content is MOST VISUALLY PROMINENT and IMPORTANT on the page, then extract that content accurately.
+
+Focus on:
+- Visual hierarchy (largest, boldest, most prominent elements)
+- Primary content (main headlines, titles, names)
+- Key information (descriptions, bios, features, prices)
+- Page type (profile, product, article, landing page)
+- Important visual elements (images, icons, badges)
+
+Return valid JSON only."""
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": f"""Analyze this webpage screenshot and extract the most important content based on visual design.
+
+URL: {url}
+Domain: {domain}
+Path: {path}
+Brand Tone: {brand_tone}
+
+Extract:
+1. Page type (profile, product, article, landing, unknown)
+2. Primary title/name (the most prominent heading or name on the page)
+3. Primary description (the main text content, bio, or description)
+4. Key attributes (for profiles: name, competencies/skills, location, rating; for products: name, price, features; etc.)
+5. Visual elements (important images, icons, badges visible)
+
+Return as JSON:
+{{
+    "page_type": "profile|product|article|landing|unknown",
+    "primary_title": "extracted title/name",
+    "primary_description": "extracted description/bio",
+    "key_attributes": {{
+        "name": "...",
+        "location": "...",
+        "competencies": ["..."],
+        "rating": "...",
+        "price": "...",
+        "features": ["..."]
+    }},
+    "visual_elements": ["description of important visual elements"],
+    "confidence": 0.0-1.0
+}}
+
+Be accurate - extract exactly what you see, don't make assumptions."""
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{image_base64}",
+                                "detail": "high"  # High detail for accurate analysis
+                            }
+                        }
+                    ]
+                }
+            ],
+            max_tokens=1000,
+            temperature=0.3  # Lower temperature for accuracy
+        )
+        
+        # Parse response
+        content = response.choices[0].message.content.strip()
+        
+        # Remove markdown code blocks if present
+        if content.startswith("```"):
+            content = re.sub(r'^```json\s*', '', content)
+            content = re.sub(r'^```\s*', '', content)
+            content = re.sub(r'```\s*$', '', content)
+        
+        vision_data = json.loads(content)
+        return vision_data
+        
+    except json.JSONDecodeError as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error parsing vision API response: {type(e).__name__}")
+        return None
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error calling vision API: {type(e).__name__}")
+        return None
+
+
 def generate_ai_preview(url: str, brand_settings: BrandSettings, html_content: Optional[str] = None) -> Dict[str, Optional[str]]:
     """
-    Generate AI-enhanced preview data using OpenAI with semantic understanding and variants.
+    Generate AI-enhanced preview data using OpenAI Vision API to analyze visual design.
+    
+    Flow:
+    1. Capture screenshot of viewport
+    2. Send to OpenAI Vision API
+    3. AI detects design and extracts important content
+    4. Generate preview based on what AI sees
+    5. Return to user
     
     Args:
         url: The URL to generate preview for
@@ -95,42 +272,69 @@ def generate_ai_preview(url: str, brand_settings: BrandSettings, html_content: O
         Dictionary with title, description, keywords, tone, type, reasoning, image_url,
         variant_a, variant_b, variant_c, rewritten_text
     """
-    # Step 1: Fetch HTML if not provided
+    # Step 1: Capture screenshot of viewport (PRIMARY METHOD)
+    vision_analysis = None
+    screenshot_bytes = None
+    try:
+        screenshot_bytes = capture_screenshot(url)
+        vision_analysis = _analyze_screenshot_with_vision(screenshot_bytes, url, brand_settings)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Screenshot capture or vision analysis failed: {type(e).__name__}, falling back to HTML parsing")
+    
+    # Step 2: Fallback to HTML parsing if vision analysis failed
     if html_content is None:
         html_content = fetch_page_html(url)
     
-    # Step 2: Extract high-quality metadata using BeautifulSoup
+    # Step 3: Extract metadata from HTML (as fallback/supplement)
     metadata = extract_metadata_from_html(html_content)
-    
-    # Step 2.5: Extract semantic structure
     semantic = extract_semantic_structure(html_content)
-    
-    # Step 2.6: Extract priority content based on UI/UX signals
     priority_content = extract_priority_content(html_content, url)
     
-    # Step 3: Parse URL for domain and path
+    # Step 4: Use vision analysis if available, otherwise use HTML-based priority content
+    if vision_analysis:
+        # Vision analysis takes precedence - it sees what users actually see
+        primary_title = vision_analysis.get('primary_title') or priority_content.get('primary_title')
+        primary_description = vision_analysis.get('primary_description') or priority_content.get('primary_description')
+        page_type = vision_analysis.get('page_type') or priority_content.get('page_type', 'unknown')
+        key_attributes = vision_analysis.get('key_attributes', {})
+        visual_elements = vision_analysis.get('visual_elements', [])
+        confidence = vision_analysis.get('confidence', 0.0)
+    else:
+        # Fallback to HTML-based extraction
+        primary_title = priority_content.get('primary_title')
+        primary_description = priority_content.get('primary_description')
+        page_type = priority_content.get('page_type', 'unknown')
+        key_attributes = priority_content.get('key_attributes', {})
+        visual_elements = priority_content.get('visual_elements', [])
+        confidence = priority_content.get('content_priority_score', 0.0)
+    
+    # Step 5: Parse URL for domain and path
     from urllib.parse import urlparse
     parsed_url = urlparse(url)
     domain = parsed_url.netloc
     path = parsed_url.path
     
-    # Step 3: Derive brand tone from brand settings
+    # Step 6: Derive brand tone from brand settings
     brand_tone = _derive_brand_tone(brand_settings)
     
-    # Step 4: Prepare enhanced prompt for OpenAI with semantic understanding
-    prompt = f"""You are a world-class preview generation assistant. Analyze the following URL and generate high-quality, accurate previews with multiple variants.
+    # Step 7: Prepare enhanced prompt for OpenAI with vision analysis (if available)
+    analysis_source = "Vision API (screenshot analysis)" if vision_analysis else "HTML parsing"
+    
+    prompt = f"""You are a world-class preview generation assistant. Generate high-quality, accurate previews with multiple variants based on the analyzed content.
 
 URL: {url}
 Domain: {domain}
 Path: {path}
 
-PAGE TYPE & PRIORITY CONTENT (HIGHEST PRIORITY - USE THIS FIRST):
-- Detected Page Type: {priority_content.get('page_type', 'unknown')}
-- Primary Title (from UI/UX analysis): {priority_content.get('primary_title', 'Not found')}
-- Primary Description (from UI/UX analysis): {priority_content.get('primary_description', 'Not found')}
-- Key Attributes: {priority_content.get('key_attributes', {})}
-- Content Priority Score: {priority_content.get('content_priority_score', 0.0)}
-- Visual Elements: {', '.join(priority_content.get('visual_elements', [])[:3])}
+CONTENT ANALYSIS ({analysis_source}):
+- Detected Page Type: {page_type}
+- Primary Title: {primary_title or 'Not found'}
+- Primary Description: {primary_description or 'Not found'}
+- Key Attributes: {key_attributes}
+- Visual Elements: {', '.join(visual_elements[:3]) if visual_elements else 'None'}
+- Confidence: {confidence:.2f}
 
 SEMANTIC CONTENT ANALYSIS:
 - Intent: {semantic.get('intent', 'unknown')}
@@ -175,17 +379,16 @@ YOUR TASK:
 8. Provide detailed reasoning for all choices
 
 CRITICAL INSTRUCTIONS:
-1. PRIORITY ORDER: Use Priority Content FIRST (from UI/UX analysis), then fall back to metadata
+1. Use the Content Analysis above as PRIMARY SOURCE - it represents what users actually see on the page
 2. For PROFILE pages: Focus on the person/expert name, their competencies/skills, location, and what they offer
 3. For PRODUCT pages: Focus on product name, key features, and price
 4. For ARTICLE pages: Focus on article title and main topic
-5. NEVER use generic site-wide descriptions - always extract the SPECIFIC content for this page
-6. Base ALL output on the Priority Content when available (it represents what users actually see)
-7. Each variant must be unique but accurate to the content
-8. Variants should test different messaging angles (concise vs descriptive vs emotional)
-9. Keep titles 50-60 chars, descriptions 150-160 chars
-10. Keywords must be relevant and searchable
-11. Tone must align with brand voice: {brand_tone}
+5. NEVER use generic site-wide descriptions - always use the SPECIFIC content extracted
+6. Each variant must be unique but accurate to the content
+7. Variants should test different messaging angles (concise vs descriptive vs emotional)
+8. Keep titles 50-60 chars, descriptions 150-160 chars
+9. Keywords must be relevant and searchable
+10. Tone must align with brand voice: {brand_tone}
 
 Return your response as valid JSON with these exact keys:
 {{
@@ -240,24 +443,23 @@ Return your response as valid JSON with these exact keys:
         
         ai_data = json.loads(content)
         
-        # Step 5: Return AI result with variants (image_url will be handled by screenshot generation in pipeline)
-        # Use priority content as fallback if AI didn't use it properly
-        priority_title = priority_content.get("primary_title") or metadata.get("priority_title")
-        priority_desc = priority_content.get("primary_description") or metadata.get("priority_description")
-        priority_image = priority_content.get("visual_elements", [])
-        priority_image_url = priority_image[0] if priority_image else None
+        # Step 8: Return AI result with variants
+        # Use vision analysis or priority content as fallback
+        final_title = ai_data.get("title") or primary_title or metadata.get("priority_title") or "Untitled Page"
+        final_description = ai_data.get("description") or primary_description or metadata.get("priority_description")
+        final_type = page_type if page_type != "unknown" else ai_data.get("type", "unknown")
         
         return {
-            "title": ai_data.get("title") or priority_title or "Untitled Page",
-            "description": ai_data.get("description") or priority_desc or None,
+            "title": final_title,
+            "description": final_description,
             "keywords": ai_data.get("keywords", []),
             "tone": ai_data.get("tone", "neutral"),
-            "type": priority_content.get("page_type", ai_data.get("type", "unknown")),
-            "reasoning": ai_data.get("reasoning", ""),
+            "type": final_type,
+            "reasoning": ai_data.get("reasoning", f"Generated from {analysis_source}"),
             "variant_a": ai_data.get("variant_a", {}),
             "variant_b": ai_data.get("variant_b", {}),
             "variant_c": ai_data.get("variant_c", {}),
-            "image_url": priority_image_url or metadata.get("og_image") or "",  # Priority image first
+            "image_url": metadata.get("og_image") or "",  # Image will be handled by screenshot generation
         }
         
     except json.JSONDecodeError as e:
