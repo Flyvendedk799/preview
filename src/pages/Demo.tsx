@@ -898,13 +898,27 @@ export default function Demo() {
                               </div>
 
                               {/* Preview Image */}
-                              {preview.image_url ? (
+                              {(preview.hero_image_base64 || preview.profile_image_base64 || preview.screenshot_url) ? (
                                 <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
-                                  <img
-                                    src={preview.image_url}
-                                    alt={preview.title}
-                                    className="w-full h-full object-cover"
-                                  />
+                                  {preview.hero_image_base64 ? (
+                                    <img
+                                      src={`data:image/png;base64,${preview.hero_image_base64}`}
+                                      alt={preview.layout_plan.title}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  ) : preview.profile_image_base64 ? (
+                                    <img
+                                      src={`data:image/png;base64,${preview.profile_image_base64}`}
+                                      alt={preview.layout_plan.title}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  ) : preview.screenshot_url ? (
+                                    <img
+                                      src={preview.screenshot_url}
+                                      alt={preview.layout_plan.title}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  ) : null}
                                 </div>
                               ) : (
                                 <div className="aspect-video bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg"></div>
