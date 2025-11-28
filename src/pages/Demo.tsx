@@ -33,6 +33,8 @@ export default function Demo() {
   const [emailSubscribed, setEmailSubscribed] = useState(false)
   const [showEmailSuccess, setShowEmailSuccess] = useState(false)
   const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null)
+  const [showEmailPopup, setShowEmailPopup] = useState(false)
+  const [pendingUrl, setPendingUrl] = useState<string>('')
   
   const [emailError, setEmailError] = useState<string | null>(null)
   const [urlError, setUrlError] = useState<string | null>(null)
@@ -75,10 +77,9 @@ export default function Demo() {
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleUrlSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setUrlError(null)
-    setEmailError(null)
     setPreviewError(null)
 
     // Validate URL
@@ -100,39 +101,64 @@ export default function Demo() {
       return
     }
 
-    // Validate email if consent is checked
-    if (consentChecked && email.trim() && !validateEmail(email)) {
+    // Store the processed URL and show email popup
+    setPendingUrl(processedUrl)
+    setShowEmailPopup(true)
+  }
+
+  const handleEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setEmailError(null)
+    setPreviewError(null)
+
+    // Validate email
+    if (!email.trim()) {
+      setEmailError('Email is required')
+      return
+    }
+
+    if (!validateEmail(email)) {
       setEmailError('Please enter a valid email address')
       return
     }
 
-    // Subscribe to newsletter if email provided
-    if (consentChecked && email.trim()) {
-      setIsSubmittingEmail(true)
-      try {
-        await subscribeToNewsletter({
-          email: email.trim(),
-          source: 'demo',
-          consent_given: true,
-        })
-        setEmailSubscribed(true)
-        setShowEmailSuccess(true)
-        setTimeout(() => setShowEmailSuccess(false), 3000)
-      } catch (error) {
-        setEmailError(error instanceof Error ? error.message : 'Failed to subscribe. Please try again.')
-      } finally {
-        setIsSubmittingEmail(false)
-      }
+    if (!consentChecked) {
+      setEmailError('Please accept the newsletter subscription to continue')
+      return
     }
 
-    // Generate preview
+    // Subscribe to newsletter
+    setIsSubmittingEmail(true)
+    try {
+      await subscribeToNewsletter({
+        email: email.trim(),
+        source: 'demo',
+        consent_given: true,
+      })
+      setEmailSubscribed(true)
+      setShowEmailSuccess(true)
+    } catch (error) {
+      setEmailError(error instanceof Error ? error.message : 'Failed to subscribe. Please try again.')
+      setIsSubmittingEmail(false)
+      return
+    } finally {
+      setIsSubmittingEmail(false)
+    }
+
+    // Close popup and generate preview with the stored URL
+    setShowEmailPopup(false)
+    await generatePreviewWithUrl(pendingUrl)
+  }
+
+  const generatePreviewWithUrl = async (urlToProcess: string) => {
     setIsGeneratingPreview(true)
     try {
-      const result = await generateDemoPreview(processedUrl)
+      const result = await generateDemoPreview(urlToProcess)
       setPreview(result)
       setStep('preview')
     } catch (error) {
       setPreviewError(error instanceof Error ? error.message : 'Failed to generate preview. Please try again.')
+      setShowEmailPopup(false) // Show error on main form
     } finally {
       setIsGeneratingPreview(false)
     }
@@ -349,7 +375,7 @@ export default function Demo() {
                     </div>
                   )}
 
-                  <form onSubmit={handleSubmit} className="space-y-6">
+                  <form onSubmit={handleUrlSubmit} className="space-y-6">
                     {/* URL Input - Primary */}
                     <div>
                       <label htmlFor="url" className="block text-sm font-bold text-gray-900 mb-2">
@@ -398,69 +424,6 @@ export default function Demo() {
                           <span>{previewError}</span>
                         </div>
                       )}
-                    </div>
-
-                    {/* Email Subscription - Optional */}
-                    <div className="bg-gradient-to-r from-gray-50 to-orange-50/30 rounded-xl p-5 border border-gray-200">
-                      <div className="flex items-start space-x-3">
-                        <input
-                          type="checkbox"
-                          id="email-consent"
-                          checked={consentChecked}
-                          onChange={(e) => {
-                            setConsentChecked(e.target.checked)
-                            setEmailError(null)
-                          }}
-                          className="mt-1 w-5 h-5 rounded border-gray-300 text-orange-500 focus:ring-orange-500 focus:ring-2 cursor-pointer"
-                        />
-                        <div className="flex-1">
-                          <label htmlFor="email-consent" className="block text-sm font-semibold text-gray-900 mb-2 cursor-pointer">
-                            Get updates & exclusive tips (optional)
-                          </label>
-                          {consentChecked && (
-                            <div className="space-y-2 animate-fade-in">
-                              <input
-                                type="email"
-                                value={email}
-                                onChange={(e) => {
-                                  setEmail(e.target.value)
-                                  setEmailError(null)
-                                }}
-                                placeholder="your@email.com"
-                                className={`w-full px-4 py-3 rounded-xl border-2 transition-all duration-200 focus:outline-none focus:ring-2 ${
-                                  emailError
-                                    ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
-                                    : 'border-orange-200 focus:border-orange-500 focus:ring-orange-200 bg-white'
-                                }`}
-                                disabled={isSubmittingEmail}
-                              />
-                              {emailError && (
-                                <div className="flex items-center space-x-1 text-sm text-red-600 animate-shake">
-                                  <ExclamationCircleIcon className="w-4 h-4" />
-                                  <span>{emailError}</span>
-                                </div>
-                              )}
-                              {isSubmittingEmail && (
-                                <div className="flex items-center space-x-2 text-sm text-orange-600">
-                                  <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
-                                  <span>Subscribing...</span>
-                                </div>
-                              )}
-                              {emailSubscribed && !showEmailSuccess && (
-                                <div className="flex items-center space-x-2 text-sm text-emerald-600">
-                                  <CheckIcon className="w-4 h-4" />
-                                  <span>Subscribed successfully!</span>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                          {!consentChecked && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              Stay updated with new features, tips, and exclusive content
-                            </p>
-                          )}
-                        </div>
-                      </div>
                     </div>
 
                     {/* Submit Button */}
