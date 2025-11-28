@@ -926,16 +926,16 @@ export default function Demo() {
                     return (
                       <div className="flex flex-col items-center w-full">
                         {/* Mobile Device Frame */}
-                        <div className="relative w-full max-w-[340px] transform transition-all duration-300">
-                          {/* Device Frame with Shadow */}
-                          <div className="relative bg-gray-900 rounded-[2.5rem] p-2.5 shadow-2xl">
+                        <div className="relative w-full max-w-[280px] mx-auto transform transition-all duration-300">
+                          {/* Device Frame with Shadow - iPhone aspect ratio ~9:19.5 */}
+                          <div className="relative bg-gray-900 rounded-[2.5rem] p-1.5 shadow-2xl" style={{ aspectRatio: '9/19.5', minHeight: '600px' }}>
                             {/* Notch */}
-                            <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-40 h-8 bg-gray-900 rounded-b-2xl z-10"></div>
+                            <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-36 h-7 bg-gray-900 rounded-b-2xl z-10"></div>
                             
                             {/* Screen */}
-                            <div className="bg-white rounded-[2rem] overflow-hidden">
+                            <div className="bg-white rounded-[2rem] overflow-hidden h-full flex flex-col relative">
                               {/* Status Bar */}
-                              <div className="h-9 bg-gray-50 flex items-center justify-between px-5 text-xs border-b border-gray-100">
+                              <div className="h-8 bg-gray-50 flex items-center justify-between px-4 text-xs border-b border-gray-100 flex-shrink-0">
                                 <span className="font-semibold text-gray-900">9:41</span>
                                 <div className="flex items-center space-x-1.5">
                                   <div className="w-5 h-2.5 border border-gray-400 rounded-sm">
@@ -948,7 +948,7 @@ export default function Demo() {
                               </div>
 
                               {/* Platform Header */}
-                              <div className={`h-16 bg-gradient-to-r ${platform.color} flex items-center justify-between px-5 text-white shadow-sm`}>
+                              <div className={`h-14 bg-gradient-to-r ${platform.color} flex items-center justify-between px-4 text-white shadow-sm flex-shrink-0`}>
                                 <div className="flex items-center space-x-3">
                                   <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center text-base backdrop-blur-sm">
                                     {platform.icon}
@@ -959,10 +959,10 @@ export default function Demo() {
                               </div>
 
                               {/* Link Preview Card - What shows when URL is shared */}
-                              <div className="bg-white">
+                              <div className="bg-white flex-1 flex flex-col min-h-0">
                                 {/* Composited Preview Image - This is the actual og:image */}
                                 {preview.composited_preview_image_url ? (
-                                  <div className="aspect-[1.91/1] bg-gray-100 overflow-hidden relative">
+                                  <div className="aspect-[1.91/1] bg-gray-100 overflow-hidden relative flex-shrink-0">
                                     <img
                                       src={preview.composited_preview_image_url}
                                       alt={preview.title}
@@ -1004,8 +1004,8 @@ export default function Demo() {
                                 )}
 
                                 {/* Domain (shown below image in link previews) */}
-                                <div className="px-5 py-3.5 border-t border-gray-100 bg-gray-50">
-                                  <div className="text-[11px] text-gray-500 uppercase tracking-wider font-semibold">
+                                <div className="px-4 py-2.5 border-t border-gray-100 bg-gray-50 flex-shrink-0">
+                                  <div className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold">
                                     {(() => {
                                       try {
                                         const url = new URL(preview.url)
@@ -1019,8 +1019,8 @@ export default function Demo() {
                               </div>
 
                               {/* Home Indicator */}
-                              <div className="h-4 flex items-center justify-center bg-white border-t border-gray-100">
-                                <div className="w-40 h-2 bg-gray-300 rounded-full"></div>
+                              <div className="h-3 flex items-center justify-center bg-white border-t border-gray-100 flex-shrink-0">
+                                <div className="w-32 h-1.5 bg-gray-300 rounded-full"></div>
                               </div>
                             </div>
                           </div>
