@@ -2,21 +2,21 @@
 Generate final composited preview image for og:image.
 
 DESIGN PHILOSOPHY:
-The og:image should be a VISUAL HOOK, not a text document.
-- Screenshot-first: Use the actual page as the primary visual
-- Minimal text: Only domain/logo for brand recognition
-- Mobile-optimized: Must be legible at ~300px width
-- Let og:title and og:description handle the text content
+The og:image should be a well-designed visual asset that:
+1. Has intentional, readable typography (optimized for small sizes)
+2. Shows the key message in a beautiful way
+3. Uses the screenshot as context/background
+4. Complements (not duplicates) og:title
 
-This approach follows professional social media marketing best practices.
+The AI decides what content goes in the image vs og:title.
 """
 
 import base64
 import logging
 from io import BytesIO
 from uuid import uuid4
-from typing import Optional, Dict, Any
-from PIL import Image, ImageDraw, ImageFont, ImageFilter
+from typing import Optional, Dict, Any, List
+from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
 from backend.services.r2_client import upload_file_to_r2
 
 logger = logging.getLogger(__name__)
@@ -25,15 +25,14 @@ logger = logging.getLogger(__name__)
 OG_IMAGE_WIDTH = 1200
 OG_IMAGE_HEIGHT = 630
 
-# Brand bar configuration
-BRAND_BAR_HEIGHT = 60
-BRAND_BAR_PADDING = 24
-
 
 def _hex_to_rgb(hex_color: str) -> tuple:
     """Convert hex color to RGB tuple."""
     hex_color = hex_color.lstrip('#')
-    return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+    try:
+        return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+    except:
+        return (59, 130, 246)  # Default blue
 
 
 def _get_contrast_color(bg_color: tuple) -> tuple:
@@ -42,16 +41,22 @@ def _get_contrast_color(bg_color: tuple) -> tuple:
     return (255, 255, 255) if luminance < 0.5 else (30, 30, 30)
 
 
-def _load_font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
+def _load_font(size: int, bold: bool = True) -> ImageFont.FreeTypeFont:
     """Load font with fallbacks."""
-    font_paths = [
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-        "/System/Library/Fonts/Helvetica.ttc",
-        "C:/Windows/Fonts/arial.ttf",
+    font_paths_bold = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
+    ]
+    font_paths_regular = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
     ]
     
-    for path in font_paths:
+    paths = font_paths_bold if bold else font_paths_regular
+    
+    for path in paths:
         try:
             return ImageFont.truetype(path, size)
         except:
@@ -60,239 +65,270 @@ def _load_font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
     return ImageFont.load_default()
 
 
-def generate_screenshot_based_preview(
+def _wrap_text(text: str, font: ImageFont.FreeTypeFont, max_width: int, draw: ImageDraw.Draw) -> List[str]:
+    """Wrap text to fit within max_width."""
+    words = text.split()
+    lines = []
+    current_line = []
+    
+    for word in words:
+        test_line = ' '.join(current_line + [word])
+        try:
+            bbox = draw.textbbox((0, 0), test_line, font=font)
+            width = bbox[2] - bbox[0]
+        except:
+            width = len(test_line) * (font.size // 2)
+        
+        if width <= max_width:
+            current_line.append(word)
+        else:
+            if current_line:
+                lines.append(' '.join(current_line))
+            current_line = [word]
+    
+    if current_line:
+        lines.append(' '.join(current_line))
+    
+    return lines[:3]  # Max 3 lines
+
+
+def generate_designed_preview(
     screenshot_bytes: bytes,
+    title: str,
+    subtitle: Optional[str],
+    description: Optional[str],
+    cta_text: Optional[str],
     domain: str,
     blueprint: Dict[str, Any],
     template_type: str = "default"
 ) -> bytes:
     """
-    Generate og:image using screenshot as the primary visual.
+    Generate a beautifully designed og:image.
     
-    Strategy:
-    - Screenshot fills most of the frame
-    - Subtle brand bar at bottom with domain
-    - Light gradient overlay for visual cohesion
-    - NO text overlays (titles, descriptions, CTAs)
+    Design approach:
+    - Screenshot as dimmed background for context
+    - Large, readable headline overlay
+    - Optional CTA button
+    - Brand colors for visual identity
+    - Optimized typography for mobile viewing
     
-    Args:
-        screenshot_bytes: Raw PNG bytes of the page screenshot
-        domain: Domain name for brand bar (e.g., "example.com")
-        blueprint: Color palette with primary_color, secondary_color, accent_color
-        template_type: Page type (profile, product, landing, etc.) - for optional tweaks
-    
-    Returns:
-        PNG image bytes
+    This creates an image that looks designed and intentional,
+    not just a raw screenshot.
     """
     try:
-        # Load screenshot
+        # Load and process screenshot
         screenshot = Image.open(BytesIO(screenshot_bytes)).convert('RGBA')
         
         # Get brand colors
         primary_color = _hex_to_rgb(blueprint.get("primary_color", "#3B82F6"))
         secondary_color = _hex_to_rgb(blueprint.get("secondary_color", "#1E293B"))
+        accent_color = _hex_to_rgb(blueprint.get("accent_color", "#F59E0B"))
         
-        # Calculate dimensions
-        content_height = OG_IMAGE_HEIGHT - BRAND_BAR_HEIGHT
-        
-        # Smart crop/resize screenshot to fit content area
-        screenshot_resized = _smart_crop_screenshot(
-            screenshot, 
-            OG_IMAGE_WIDTH, 
-            content_height,
-            template_type
-        )
-        
-        # Create final image
+        # Create base image
         final_image = Image.new('RGBA', (OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT), (255, 255, 255, 255))
         
-        # Paste screenshot at top
-        final_image.paste(screenshot_resized, (0, 0))
+        # Resize and position screenshot as background
+        screenshot_bg = _prepare_screenshot_background(screenshot, OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT)
+        final_image.paste(screenshot_bg, (0, 0))
         
-        # Add subtle gradient overlay at bottom of screenshot (for visual transition)
-        gradient_overlay = _create_bottom_gradient(OG_IMAGE_WIDTH, content_height, primary_color)
-        final_image = Image.alpha_composite(final_image, gradient_overlay)
+        # Apply dark overlay for text readability
+        overlay = Image.new('RGBA', (OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT), (0, 0, 0, 0))
+        overlay_draw = ImageDraw.Draw(overlay)
         
-        # Add brand bar at bottom
-        brand_bar = _create_brand_bar(
-            OG_IMAGE_WIDTH, 
-            BRAND_BAR_HEIGHT, 
-            domain, 
-            primary_color,
-            secondary_color
+        # Gradient overlay - darker on left where text will be
+        for x in range(OG_IMAGE_WIDTH):
+            # Stronger on left, fading to right
+            alpha = int(180 * (1 - (x / OG_IMAGE_WIDTH) * 0.6))
+            overlay_draw.line([(x, 0), (x, OG_IMAGE_HEIGHT)], fill=(0, 0, 0, alpha))
+        
+        final_image = Image.alpha_composite(final_image, overlay)
+        
+        # Add brand accent bar at top
+        accent_bar = Image.new('RGBA', (OG_IMAGE_WIDTH, 6), (*primary_color, 255))
+        final_image.paste(accent_bar, (0, 0))
+        
+        # Convert to RGB for drawing
+        draw_image = final_image.convert('RGB')
+        draw = ImageDraw.Draw(draw_image)
+        
+        # Typography settings - LARGE for mobile readability
+        title_font = _load_font(52, bold=True)
+        subtitle_font = _load_font(28, bold=False)
+        cta_font = _load_font(22, bold=True)
+        domain_font = _load_font(18, bold=True)
+        
+        # Content area (left side with padding)
+        content_x = 60
+        content_y = 80
+        max_text_width = OG_IMAGE_WIDTH - 200  # Leave space on right
+        
+        # Draw title (wrapped, large, white)
+        if title and title != "Untitled":
+            title_lines = _wrap_text(title, title_font, max_text_width, draw)
+            for i, line in enumerate(title_lines):
+                y_pos = content_y + (i * 60)
+                # Shadow for depth
+                draw.text((content_x + 2, y_pos + 2), line, fill=(0, 0, 0), font=title_font)
+                draw.text((content_x, y_pos), line, fill=(255, 255, 255), font=title_font)
+            content_y += len(title_lines) * 60 + 20
+        
+        # Draw subtitle or description (smaller, slightly transparent)
+        display_text = subtitle or description
+        if display_text and content_y < 400:
+            # Truncate if too long
+            if len(display_text) > 120:
+                display_text = display_text[:117] + "..."
+            
+            sub_lines = _wrap_text(display_text, subtitle_font, max_text_width, draw)
+            for i, line in enumerate(sub_lines[:2]):  # Max 2 lines
+                y_pos = content_y + (i * 36)
+                draw.text((content_x, y_pos), line, fill=(220, 220, 220), font=subtitle_font)
+            content_y += min(len(sub_lines), 2) * 36 + 30
+        
+        # Draw CTA button (if available and space permits)
+        if cta_text and content_y < 480:
+            cta_text_clean = cta_text[:30]  # Limit length
+            
+            try:
+                bbox = draw.textbbox((0, 0), cta_text_clean, font=cta_font)
+                cta_width = bbox[2] - bbox[0] + 48
+                cta_height = 50
+            except:
+                cta_width = len(cta_text_clean) * 14 + 48
+                cta_height = 50
+            
+            # Button background
+            button_x = content_x
+            button_y = content_y
+            
+            # Rounded rectangle (approximated)
+            draw.rectangle(
+                [(button_x, button_y), (button_x + cta_width, button_y + cta_height)],
+                fill=accent_color
+            )
+            
+            # Button text
+            text_color = _get_contrast_color(accent_color)
+            draw.text(
+                (button_x + 24, button_y + 12),
+                cta_text_clean,
+                fill=text_color,
+                font=cta_font
+            )
+        
+        # Domain badge (bottom left)
+        domain_clean = domain.replace('www.', '').upper()
+        domain_y = OG_IMAGE_HEIGHT - 50
+        
+        # Semi-transparent background for domain
+        try:
+            bbox = draw.textbbox((0, 0), domain_clean, font=domain_font)
+            domain_width = bbox[2] - bbox[0] + 24
+        except:
+            domain_width = len(domain_clean) * 12 + 24
+        
+        # Draw domain with background
+        draw.rectangle(
+            [(content_x - 8, domain_y - 4), (content_x + domain_width, domain_y + 28)],
+            fill=(0, 0, 0, 128)
         )
-        final_image.paste(brand_bar, (0, content_height))
-        
-        # Convert to RGB for PNG export
-        final_rgb = Image.new('RGB', final_image.size, (255, 255, 255))
-        final_rgb.paste(final_image, mask=final_image.split()[-1] if final_image.mode == 'RGBA' else None)
+        draw.text((content_x, domain_y), domain_clean, fill=(255, 255, 255), font=domain_font)
         
         # Save to bytes
         buffer = BytesIO()
-        final_rgb.save(buffer, format='PNG', optimize=True)
+        draw_image.save(buffer, format='PNG', optimize=True)
         return buffer.getvalue()
         
     except Exception as e:
-        logger.error(f"Screenshot-based preview generation failed: {e}", exc_info=True)
-        # Fallback to simple branded image
-        return _generate_fallback_preview(domain, blueprint)
+        logger.error(f"Designed preview generation failed: {e}", exc_info=True)
+        return _generate_fallback_preview(title, domain, blueprint)
 
 
-def _smart_crop_screenshot(
-    screenshot: Image.Image, 
-    target_width: int, 
-    target_height: int,
-    template_type: str
+def _prepare_screenshot_background(
+    screenshot: Image.Image,
+    target_width: int,
+    target_height: int
 ) -> Image.Image:
     """
-    Intelligently crop and resize screenshot to fit target dimensions.
+    Prepare screenshot as a background image.
     
-    Strategy varies by template type:
-    - Landing/Service: Focus on top hero section
-    - Profile: Try to center on main content
-    - Default: Crop from top
+    - Resize to cover the full area
+    - Apply slight blur for depth
+    - Darken slightly for text overlay
     """
     src_width, src_height = screenshot.size
     target_ratio = target_width / target_height
     src_ratio = src_width / src_height
     
+    # Resize to cover (may crop)
     if src_ratio > target_ratio:
-        # Source is wider - crop sides
-        new_width = int(src_height * target_ratio)
-        left = (src_width - new_width) // 2
-        cropped = screenshot.crop((left, 0, left + new_width, src_height))
+        # Source is wider - scale by height
+        new_height = target_height
+        new_width = int(src_width * (target_height / src_height))
     else:
-        # Source is taller - crop from top (keep hero section)
-        new_height = int(src_width / target_ratio)
-        
-        # For most pages, the important content is at the top
-        # Only take from the top portion of the page
-        cropped = screenshot.crop((0, 0, src_width, min(new_height, src_height)))
-        
-        # If we couldn't get enough height, pad with white
-        if cropped.size[1] < new_height:
-            padded = Image.new('RGBA', (src_width, new_height), (255, 255, 255, 255))
-            padded.paste(cropped, (0, 0))
-            cropped = padded
+        # Source is taller - scale by width
+        new_width = target_width
+        new_height = int(src_height * (target_width / src_width))
     
-    # Resize to exact target dimensions
-    return cropped.resize((target_width, target_height), Image.Resampling.LANCZOS)
+    resized = screenshot.resize((new_width, new_height), Image.Resampling.LANCZOS)
+    
+    # Center crop to target size
+    left = (new_width - target_width) // 2
+    top = 0  # Keep top of page visible
+    cropped = resized.crop((left, top, left + target_width, top + target_height))
+    
+    # Apply subtle blur for depth (makes text more readable)
+    blurred = cropped.filter(ImageFilter.GaussianBlur(radius=2))
+    
+    # Slightly darken
+    enhancer = ImageEnhance.Brightness(blurred)
+    darkened = enhancer.enhance(0.85)
+    
+    return darkened.convert('RGBA')
 
 
-def _create_bottom_gradient(width: int, height: int, color: tuple) -> Image.Image:
-    """Create a subtle gradient overlay at the bottom for visual transition to brand bar."""
-    overlay = Image.new('RGBA', (width, height), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(overlay)
-    
-    # Gradient starts at 80% of height
-    gradient_start = int(height * 0.8)
-    gradient_height = height - gradient_start
-    
-    for y in range(gradient_height):
-        # Gradually increase opacity
-        alpha = int(30 * (y / gradient_height))  # Max 30 alpha for subtlety
-        draw.line(
-            [(0, gradient_start + y), (width, gradient_start + y)],
-            fill=(color[0], color[1], color[2], alpha)
-        )
-    
-    return overlay
-
-
-def _create_brand_bar(
-    width: int, 
-    height: int, 
-    domain: str, 
-    primary_color: tuple,
-    secondary_color: tuple
-) -> Image.Image:
-    """
-    Create a clean brand bar with domain.
-    
-    Design:
-    - Solid background using secondary color (usually dark)
-    - Domain text on the left
-    - Optional: small accent line at top
-    """
-    bar = Image.new('RGB', (width, height), secondary_color)
-    draw = ImageDraw.Draw(bar)
-    
-    # Accent line at top (2px, primary color)
-    draw.rectangle([(0, 0), (width, 2)], fill=primary_color)
-    
-    # Domain text
-    font = _load_font(24, bold=True)
-    text_color = _get_contrast_color(secondary_color)
-    
-    # Clean up domain
-    clean_domain = domain.replace('www.', '').upper()
-    
-    # Calculate text position (vertically centered, left padded)
-    try:
-        bbox = draw.textbbox((0, 0), clean_domain, font=font)
-        text_height = bbox[3] - bbox[1]
-    except:
-        text_height = 24
-    
-    text_y = (height - text_height) // 2
-    
-    # Draw domain
-    draw.text((BRAND_BAR_PADDING, text_y), clean_domain, fill=text_color, font=font)
-    
-    # Optional: Add a subtle icon/indicator on the right
-    indicator_size = 8
-    indicator_x = width - BRAND_BAR_PADDING - indicator_size
-    indicator_y = (height - indicator_size) // 2
-    draw.ellipse(
-        [(indicator_x, indicator_y), (indicator_x + indicator_size, indicator_y + indicator_size)],
-        fill=primary_color
-    )
-    
-    return bar
-
-
-def _generate_fallback_preview(domain: str, blueprint: Dict[str, Any]) -> bytes:
-    """Generate a simple branded fallback image if screenshot processing fails."""
+def _generate_fallback_preview(
+    title: str,
+    domain: str,
+    blueprint: Dict[str, Any]
+) -> bytes:
+    """Generate fallback preview if main generation fails."""
     try:
         primary_color = _hex_to_rgb(blueprint.get("primary_color", "#3B82F6"))
         secondary_color = _hex_to_rgb(blueprint.get("secondary_color", "#1E293B"))
         
-        # Create gradient background
+        # Gradient background
         img = Image.new('RGB', (OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT), primary_color)
         draw = ImageDraw.Draw(img)
         
-        # Diagonal gradient effect
+        # Diagonal gradient
         for y in range(OG_IMAGE_HEIGHT):
             ratio = y / OG_IMAGE_HEIGHT
-            r = int(primary_color[0] * (1 - ratio) + secondary_color[0] * ratio)
-            g = int(primary_color[1] * (1 - ratio) + secondary_color[1] * ratio)
-            b = int(primary_color[2] * (1 - ratio) + secondary_color[2] * ratio)
+            r = int(primary_color[0] * (1 - ratio * 0.3) + secondary_color[0] * ratio * 0.3)
+            g = int(primary_color[1] * (1 - ratio * 0.3) + secondary_color[1] * ratio * 0.3)
+            b = int(primary_color[2] * (1 - ratio * 0.3) + secondary_color[2] * ratio * 0.3)
             draw.line([(0, y), (OG_IMAGE_WIDTH, y)], fill=(r, g, b))
         
-        # Domain in center
-        font = _load_font(48, bold=True)
-        clean_domain = domain.replace('www.', '').upper()
+        # Title
+        title_font = _load_font(48, bold=True)
+        if title and title != "Untitled":
+            title_lines = _wrap_text(title, title_font, OG_IMAGE_WIDTH - 120, draw)
+            y = OG_IMAGE_HEIGHT // 2 - len(title_lines) * 30
+            for line in title_lines:
+                draw.text((60, y), line, fill=(255, 255, 255), font=title_font)
+                y += 60
         
-        try:
-            bbox = draw.textbbox((0, 0), clean_domain, font=font)
-            text_width = bbox[2] - bbox[0]
-            text_height = bbox[3] - bbox[1]
-        except:
-            text_width = len(clean_domain) * 30
-            text_height = 48
-        
-        text_x = (OG_IMAGE_WIDTH - text_width) // 2
-        text_y = (OG_IMAGE_HEIGHT - text_height) // 2
-        
-        draw.text((text_x, text_y), clean_domain, fill=(255, 255, 255), font=font)
+        # Domain
+        domain_font = _load_font(20, bold=True)
+        domain_clean = domain.replace('www.', '').upper()
+        draw.text((60, OG_IMAGE_HEIGHT - 60), domain_clean, fill=(255, 255, 255, 180), font=domain_font)
         
         buffer = BytesIO()
         img.save(buffer, format='PNG')
         return buffer.getvalue()
         
     except Exception as e:
-        logger.error(f"Fallback preview generation failed: {e}", exc_info=True)
-        # Ultimate fallback: solid color
+        logger.error(f"Fallback generation failed: {e}", exc_info=True)
         img = Image.new('RGB', (OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT), (59, 130, 246))
         buffer = BytesIO()
         img.save(buffer, format='PNG')
@@ -302,34 +338,53 @@ def _generate_fallback_preview(domain: str, blueprint: Dict[str, Any]) -> bytes:
 def generate_and_upload_preview_image(
     screenshot_bytes: bytes,
     url: str,
-    blueprint: Dict[str, Any],
+    title: str,
+    subtitle: Optional[str] = None,
+    description: Optional[str] = None,
+    cta_text: Optional[str] = None,
+    blueprint: Dict[str, Any] = None,
     template_type: str = "default"
 ) -> Optional[str]:
     """
-    Generate screenshot-based og:image and upload to R2.
+    Generate designed og:image and upload to R2.
     
-    This is the main entry point for og:image generation.
+    Creates a beautiful, designed preview image that:
+    - Uses screenshot as contextual background
+    - Has large, readable typography
+    - Shows key messaging (title, CTA)
+    - Is optimized for mobile social feeds
     
     Args:
-        screenshot_bytes: Raw PNG bytes of the page screenshot
-        url: Full URL (used to extract domain)
+        screenshot_bytes: Raw PNG bytes of page screenshot
+        url: Full URL (for domain extraction)
+        title: Main headline for the image
+        subtitle: Optional subtitle/tagline
+        description: Optional description
+        cta_text: Optional CTA button text
         blueprint: Color palette
-        template_type: Page type for optional conditional enhancements
+        template_type: Page type
     
     Returns:
-        Public URL of uploaded image, or None if upload fails
+        Public URL of uploaded image, or None if failed
     """
+    if blueprint is None:
+        blueprint = {}
+    
     try:
-        # Extract domain from URL
+        # Extract domain
         from urllib.parse import urlparse
         parsed = urlparse(url)
         domain = parsed.netloc or parsed.path.split('/')[0]
         
-        logger.info(f"Generating screenshot-based preview for: {domain}")
+        logger.info(f"Generating designed preview for: {domain}")
         
         # Generate the image
-        image_bytes = generate_screenshot_based_preview(
+        image_bytes = generate_designed_preview(
             screenshot_bytes=screenshot_bytes,
+            title=title,
+            subtitle=subtitle,
+            description=description,
+            cta_text=cta_text,
             domain=domain,
             blueprint=blueprint,
             template_type=template_type
@@ -339,41 +394,9 @@ def generate_and_upload_preview_image(
         filename = f"previews/demo/{uuid4()}.png"
         image_url = upload_file_to_r2(image_bytes, filename, "image/png")
         
-        logger.info(f"Preview image uploaded: {image_url}")
+        logger.info(f"Designed preview uploaded: {image_url}")
         return image_url
         
     except Exception as e:
         logger.error(f"Failed to generate/upload preview image: {e}", exc_info=True)
         return None
-
-
-# =============================================================================
-# LEGACY SUPPORT - Keep old function signature for backwards compatibility
-# =============================================================================
-
-def generate_composited_preview_image(*args, **kwargs) -> bytes:
-    """
-    Legacy function - redirects to new screenshot-based approach.
-    
-    Note: This function signature is deprecated. Use generate_screenshot_based_preview instead.
-    """
-    logger.warning("generate_composited_preview_image is deprecated, use generate_screenshot_based_preview")
-    
-    # Try to extract screenshot_bytes from kwargs
-    screenshot_url = kwargs.get('screenshot_url')
-    if screenshot_url:
-        try:
-            import requests
-            response = requests.get(screenshot_url, timeout=10)
-            if response.status_code == 200:
-                return generate_screenshot_based_preview(
-                    screenshot_bytes=response.content,
-                    domain="preview",
-                    blueprint=kwargs.get('blueprint', {}),
-                    template_type=kwargs.get('template_type', 'default')
-                )
-        except:
-            pass
-    
-    # Fallback
-    return _generate_fallback_preview("preview", kwargs.get('blueprint', {}))

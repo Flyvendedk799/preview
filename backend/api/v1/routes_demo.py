@@ -164,17 +164,24 @@ def generate_demo_preview(
             detail="Failed to analyze page. Please try again."
         )
     
-    # Step 4: Generate screenshot-based og:image (visual-first, no text overlays)
+    # Step 4: Generate designed og:image (screenshot background + typography overlay)
     composited_image_url = None
     try:
-        logger.info("Generating screenshot-based og:image (visual-first approach)")
+        logger.info("Generating designed og:image with typography overlay")
         
-        # Use the new screenshot-first approach
-        # This creates a clean visual image without text overlays
-        # Text content is handled by og:title and og:description
+        # Create a beautifully designed preview image:
+        # - Screenshot as contextual background (dimmed, blurred)
+        # - Large, readable headline overlay
+        # - Optional CTA button
+        # - Brand colors and domain badge
+        # This creates an image that looks intentional and professional
         composited_image_url = generate_and_upload_preview_image(
             screenshot_bytes=screenshot_bytes,
             url=str(request_data.url),
+            title=result.title,
+            subtitle=result.subtitle,
+            description=result.description,
+            cta_text=result.cta_text,
             blueprint={
                 "primary_color": result.blueprint.primary_color,
                 "secondary_color": result.blueprint.secondary_color,
@@ -183,7 +190,7 @@ def generate_demo_preview(
             template_type=result.blueprint.template_type
         )
         if composited_image_url:
-            logger.info(f"Screenshot-based og:image generated: {composited_image_url}")
+            logger.info(f"Designed og:image generated: {composited_image_url}")
     except Exception as e:
         logger.warning(f"Failed to generate og:image: {e}", exc_info=True)
         # Fallback to raw screenshot URL if available
