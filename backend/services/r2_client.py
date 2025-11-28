@@ -52,9 +52,11 @@ def upload_file_to_r2(file_bytes: bytes, filename: str, content_type: str) -> st
         # R2 public URLs follow pattern: https://<bucket>.<account>.r2.cloudflarestorage.com/<key>
         # Or use custom domain if R2_PUBLIC_BASE_URL is set
         if settings.R2_PUBLIC_BASE_URL:
-            public_url = f"{settings.R2_PUBLIC_BASE_URL.rstrip('/')}/{filename}"
+            # Remove trailing slash and ensure proper URL construction
+            base_url = settings.R2_PUBLIC_BASE_URL.rstrip('/')
+            public_url = f"{base_url}/{filename}"
         else:
-            # Fallback to R2 default URL pattern
+            # Fallback to R2 default URL pattern: bucket.account.r2.cloudflarestorage.com
             public_url = f"https://{settings.R2_BUCKET_NAME}.{settings.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/{filename}"
         
         return public_url
