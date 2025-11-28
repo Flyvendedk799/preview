@@ -29,8 +29,12 @@ const ProfileCardTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
   const locationElement = elements.find(e => e.type === 'location' && e.include_in_preview)
   const skillElements = elements.filter(e => e.type === 'skill_tag' && e.include_in_preview).slice(0, 4)
   const ratingElement = elements.find(e => e.type === 'rating' && e.include_in_preview)
+  const bodyTextElement = elements.find(e => e.type === 'body_text' && e.include_in_preview)
   
   const profileImage = profile_image_base64 || hero_image_base64
+  
+  // Get description from body_text element or layout_plan
+  const description = bodyTextElement?.text_content || layout_plan.description
   
   return (
     <div 
@@ -108,6 +112,22 @@ const ProfileCardTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
                 {skill.text_content || skill.content}
               </span>
             ))}
+          </div>
+        )}
+        
+        {/* Description/About Section */}
+        {description && (
+          <div className="mb-4 border-t border-gray-200 pt-4">
+            {(titleElement?.text_content || layout_plan.subtitle) && (
+              <div className="text-center mb-2">
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  {titleElement?.text_content || layout_plan.subtitle}
+                </span>
+              </div>
+            )}
+            <p className="text-gray-700 text-sm leading-relaxed line-clamp-4 text-center px-2">
+              {description}
+            </p>
           </div>
         )}
         
