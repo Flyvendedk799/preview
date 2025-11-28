@@ -948,186 +948,237 @@ export default function Demo() {
                               </div>
 
                               {/* Platform Header */}
-                              <div className={`h-14 bg-gradient-to-r ${platform.color} flex items-center justify-between px-4 text-white shadow-sm flex-shrink-0`}>
-                                <div className="flex items-center space-x-3">
-                                  <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center text-base backdrop-blur-sm">
+                              <div className={`h-12 bg-gradient-to-r ${platform.color} flex items-center justify-between px-4 text-white shadow-sm flex-shrink-0`}>
+                                <div className="flex items-center space-x-2">
+                                  <div className="w-7 h-7 bg-white/20 rounded-lg flex items-center justify-center text-sm backdrop-blur-sm">
                                     {platform.icon}
                                   </div>
-                                  <span className="text-sm font-bold uppercase tracking-wide">{platform.name}</span>
+                                  <span className="text-xs font-bold uppercase tracking-wide">{platform.name}</span>
                                 </div>
-                                <div className="w-2 h-2 bg-white rounded-full opacity-80"></div>
+                                <div className="flex items-center space-x-2">
+                                  <div className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center">
+                                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                      <path d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" />
+                                    </svg>
+                                  </div>
+                                </div>
                               </div>
 
-                              {/* Link Preview Card - Production-grade social embed */}
-                              <div className="bg-white flex-1 flex flex-col min-h-0 border border-gray-200 rounded-t-lg overflow-hidden">
-                                {/* Preview Image - Always present, no placeholders */}
-                                <div className="aspect-[1.91/1] bg-gray-100 overflow-hidden relative flex-shrink-0 w-full">
-                                  {(() => {
-                                    // Priority: composited > primary > screenshot > brand gradient
-                                    if (preview.composited_preview_image_url) {
-                                      return (
-                                        <img
-                                          src={preview.composited_preview_image_url}
-                                          alt={preview.title}
-                                          className="w-full h-full object-cover"
-                                          onError={(e) => {
-                                            const target = e.target as HTMLImageElement
-                                            if (preview.screenshot_url) {
-                                              target.src = preview.screenshot_url
-                                            } else {
-                                              // Ultimate fallback: brand gradient
-                                              target.style.display = 'none'
-                                              const parent = target.parentElement
-                                              if (parent) {
-                                                parent.style.background = `linear-gradient(135deg, ${preview.blueprint.primary_color}, ${preview.blueprint.secondary_color})`
-                                              }
-                                            }
-                                          }}
-                                        />
-                                      )
-                                    } else if (preview.primary_image_base64) {
-                                      return (
-                                        <img
-                                          src={`data:image/png;base64,${preview.primary_image_base64}`}
-                                          alt={preview.title}
-                                          className="w-full h-full object-cover"
-                                          onError={(e) => {
-                                            const target = e.target as HTMLImageElement
-                                            if (preview.screenshot_url) {
-                                              target.src = preview.screenshot_url
-                                            } else {
-                                              target.style.display = 'none'
-                                              const parent = target.parentElement
-                                              if (parent) {
-                                                parent.style.background = `linear-gradient(135deg, ${preview.blueprint.primary_color}, ${preview.blueprint.secondary_color})`
-                                              }
-                                            }
-                                          }}
-                                        />
-                                      )
-                                    } else if (preview.screenshot_url) {
-                                      return (
-                                        <img
-                                          src={preview.screenshot_url}
-                                          alt={preview.title}
-                                          className="w-full h-full object-cover"
-                                          onError={(e) => {
-                                            const target = e.target as HTMLImageElement
-                                            target.style.display = 'none'
-                                            const parent = target.parentElement
-                                            if (parent) {
-                                              parent.style.background = `linear-gradient(135deg, ${preview.blueprint.primary_color}, ${preview.blueprint.secondary_color})`
-                                            }
-                                          }}
-                                        />
-                                      )
-                                    } else {
-                                      // Brand gradient fallback - no emoji, production-ready
-                                      return (
-                                        <div 
-                                          className="w-full h-full"
-                                          style={{ 
-                                            background: `linear-gradient(135deg, ${preview.blueprint.primary_color}, ${preview.blueprint.secondary_color})`
-                                          }}
-                                        />
-                                      )
-                                    }
-                                  })()}
-                                </div>
+                              {/* Scrollable Feed Area */}
+                              <div className="flex-1 bg-gray-100 overflow-hidden flex flex-col">
+                                {/* Social Post Container */}
+                                <div className="bg-white">
+                                  {/* Post Author Section */}
+                                  <div className="px-3 py-2.5 flex items-center space-x-2.5">
+                                    {/* Author Avatar */}
+                                    <div 
+                                      className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-sm"
+                                      style={{ backgroundColor: preview.blueprint.primary_color }}
+                                    >
+                                      {preview.title ? preview.title.charAt(0).toUpperCase() : 'M'}
+                                    </div>
+                                    {/* Author Info */}
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center space-x-1">
+                                        <span className="text-[13px] font-bold text-gray-900 truncate">
+                                          MetaView Demo
+                                        </span>
+                                        <svg className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                        </svg>
+                                      </div>
+                                      <div className="flex items-center space-x-1 text-[11px] text-gray-500">
+                                        <span>Just now</span>
+                                        <span>·</span>
+                                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM4.332 8.027a6.012 6.012 0 011.912-2.706C6.512 5.73 6.974 6 7.5 6A1.5 1.5 0 019 7.5V8a2 2 0 004 0 2 2 0 011.523-1.943A5.977 5.977 0 0116 10c0 .34-.028.675-.083 1H15a2 2 0 00-2 2v2.197A5.973 5.973 0 0110 16v-2a2 2 0 00-2-2 2 2 0 01-2-2 2 2 0 00-1.668-1.973z" clipRule="evenodd" />
+                                        </svg>
+                                      </div>
+                                    </div>
+                                    {/* More Options */}
+                                    <button className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center">
+                                      <svg className="w-5 h-5 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" />
+                                      </svg>
+                                    </button>
+                                  </div>
 
-                                {/* Title and Description - Production social embed format */}
-                                {(() => {
-                                  const hasTitle = preview.title && preview.title.trim() && preview.title !== "Untitled"
-                                  const hasDescription = preview.description && preview.description.trim()
-                                  // Don't show description if it's identical to title (redundant)
-                                  const descriptionDiffers = hasDescription && preview.description !== preview.title
-                                  const hasSubtitle = preview.subtitle && preview.subtitle.trim() && preview.subtitle !== preview.title
-                                  const hasTags = preview.tags && preview.tags.length > 0
-                                  const hasContext = preview.context_items && preview.context_items.length > 0
-                                  
-                                  if (!hasTitle && !descriptionDiffers && !hasSubtitle) {
-                                    return null
-                                  }
-                                  
-                                  return (
-                                    <div className="px-4 py-3.5 bg-white border-t border-gray-200 flex-shrink-0">
-                                      {/* Tags or context - subtle metadata above title */}
-                                      {(hasTags || hasContext) && (
-                                        <div className="flex items-center gap-2 mb-2 flex-wrap">
-                                          {hasTags && preview.tags.slice(0, 2).map((tag, idx) => (
-                                            <span 
-                                              key={idx}
-                                              className="px-2 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide"
-                                              style={{
-                                                backgroundColor: `${preview.blueprint.primary_color}15`,
-                                                color: preview.blueprint.primary_color
+                                  {/* Post Text */}
+                                  <div className="px-3 pb-2">
+                                    <p className="text-[13px] text-gray-900 leading-relaxed">
+                                      {preview.cta_text ? (
+                                        <>Check this out! 👇 {preview.cta_text}</>
+                                      ) : (
+                                        <>Check out this link! 🔗</>
+                                      )}
+                                    </p>
+                                  </div>
+
+                                  {/* Link Preview Card */}
+                                  <div className="mx-3 mb-2 border border-gray-200 rounded-lg overflow-hidden bg-gray-50">
+                                    {/* Preview Image */}
+                                    <div className="aspect-[1.91/1] bg-gray-200 overflow-hidden relative">
+                                      {(() => {
+                                        if (preview.composited_preview_image_url) {
+                                          return (
+                                            <img
+                                              src={preview.composited_preview_image_url}
+                                              alt={preview.title}
+                                              className="w-full h-full object-cover"
+                                              onError={(e) => {
+                                                const target = e.target as HTMLImageElement
+                                                if (preview.screenshot_url) {
+                                                  target.src = preview.screenshot_url
+                                                } else {
+                                                  target.style.display = 'none'
+                                                  const parent = target.parentElement
+                                                  if (parent) {
+                                                    parent.style.background = `linear-gradient(135deg, ${preview.blueprint.primary_color}, ${preview.blueprint.secondary_color})`
+                                                  }
+                                                }
                                               }}
-                                            >
-                                              {tag}
-                                            </span>
-                                          ))}
-                                          {hasContext && preview.context_items.slice(0, 1).map((item, idx) => (
-                                            <span key={idx} className="text-[10px] text-gray-500 font-medium">
-                                              {item.text}
-                                            </span>
-                                          ))}
-                                        </div>
-                                      )}
-                                      
-                                      {/* Title - prominent */}
-                                      {hasTitle && (
-                                        <h3 className="text-[16px] font-bold text-gray-900 leading-snug mb-1.5 line-clamp-2">
+                                            />
+                                          )
+                                        } else if (preview.primary_image_base64) {
+                                          return (
+                                            <img
+                                              src={`data:image/png;base64,${preview.primary_image_base64}`}
+                                              alt={preview.title}
+                                              className="w-full h-full object-cover"
+                                              onError={(e) => {
+                                                const target = e.target as HTMLImageElement
+                                                if (preview.screenshot_url) {
+                                                  target.src = preview.screenshot_url
+                                                } else {
+                                                  target.style.display = 'none'
+                                                  const parent = target.parentElement
+                                                  if (parent) {
+                                                    parent.style.background = `linear-gradient(135deg, ${preview.blueprint.primary_color}, ${preview.blueprint.secondary_color})`
+                                                  }
+                                                }
+                                              }}
+                                            />
+                                          )
+                                        } else if (preview.screenshot_url) {
+                                          return (
+                                            <img
+                                              src={preview.screenshot_url}
+                                              alt={preview.title}
+                                              className="w-full h-full object-cover"
+                                              onError={(e) => {
+                                                const target = e.target as HTMLImageElement
+                                                target.style.display = 'none'
+                                                const parent = target.parentElement
+                                                if (parent) {
+                                                  parent.style.background = `linear-gradient(135deg, ${preview.blueprint.primary_color}, ${preview.blueprint.secondary_color})`
+                                                }
+                                              }}
+                                            />
+                                          )
+                                        } else {
+                                          return (
+                                            <div 
+                                              className="w-full h-full"
+                                              style={{ 
+                                                background: `linear-gradient(135deg, ${preview.blueprint.primary_color}, ${preview.blueprint.secondary_color})`
+                                              }}
+                                            />
+                                          )
+                                        }
+                                      })()}
+                                    </div>
+
+                                    {/* Link Meta */}
+                                    <div className="px-3 py-2 bg-gray-50">
+                                      {/* Domain */}
+                                      <div className="text-[10px] text-gray-500 uppercase tracking-wide font-medium mb-1">
+                                        {(() => {
+                                          try {
+                                            return new URL(preview.url).hostname.replace('www.', '')
+                                          } catch {
+                                            return 'website.com'
+                                          }
+                                        })()}
+                                      </div>
+                                      {/* Title */}
+                                      {preview.title && preview.title !== "Untitled" && (
+                                        <h4 className="text-[13px] font-semibold text-gray-900 leading-tight line-clamp-2 mb-0.5">
                                           {preview.title}
-                                        </h3>
+                                        </h4>
                                       )}
-                                      
-                                      {/* Subtitle - if different from title */}
-                                      {hasSubtitle && (
-                                        <p className="text-[13px] font-medium text-gray-700 leading-snug mb-1.5 line-clamp-1">
-                                          {preview.subtitle}
-                                        </p>
-                                      )}
-                                      
-                                      {/* Description - only if different from title */}
-                                      {descriptionDiffers && (
-                                        <p className="text-[13px] text-gray-600 leading-relaxed line-clamp-2">
+                                      {/* Description */}
+                                      {preview.description && preview.description !== preview.title && (
+                                        <p className="text-[11px] text-gray-600 leading-snug line-clamp-1">
                                           {preview.description}
                                         </p>
                                       )}
                                     </div>
-                                  )
-                                })()}
+                                  </div>
 
-                                {/* Domain Footer - Always present */}
-                                <div className="px-4 py-2.5 bg-gray-50 border-t border-gray-200 flex-shrink-0">
-                                  <div className="flex items-center justify-between">
-                                    <div className="text-[11px] text-gray-600 uppercase tracking-wider font-semibold leading-tight">
-                                      {(() => {
-                                        try {
-                                          const url = new URL(preview.url)
-                                          return url.hostname.replace('www.', '')
-                                        } catch {
-                                          return 'website.com'
-                                        }
-                                      })()}
-                                    </div>
-                                    {/* Subtle credibility indicator if available */}
-                                    {preview.credibility_items && preview.credibility_items.length > 0 && (
-                                      <div className="flex items-center gap-1.5">
-                                        {preview.credibility_items.slice(0, 1).map((item, idx) => (
-                                          <span key={idx} className="text-[10px] text-gray-500 font-medium">
-                                            {item.value}
-                                          </span>
-                                        ))}
+                                  {/* Engagement Stats */}
+                                  <div className="px-3 py-1.5 flex items-center justify-between text-[11px] text-gray-500 border-t border-gray-100">
+                                    <div className="flex items-center space-x-1">
+                                      <div className="flex -space-x-1">
+                                        <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center ring-1 ring-white">
+                                          <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                            <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z" />
+                                          </svg>
+                                        </div>
+                                        <div className="w-4 h-4 rounded-full bg-red-500 flex items-center justify-center ring-1 ring-white">
+                                          <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
+                                          </svg>
+                                        </div>
                                       </div>
-                                    )}
+                                      <span>42</span>
+                                    </div>
+                                    <div className="flex items-center space-x-3">
+                                      <span>12 comments</span>
+                                      <span>3 shares</span>
+                                    </div>
+                                  </div>
+
+                                  {/* Action Buttons */}
+                                  <div className="px-2 py-1 flex items-center justify-around border-t border-gray-200">
+                                    <button className="flex-1 flex items-center justify-center space-x-1.5 py-2 rounded-lg hover:bg-gray-100 transition-colors">
+                                      <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
+                                      </svg>
+                                      <span className="text-[12px] font-semibold text-gray-600">Like</span>
+                                    </button>
+                                    <button className="flex-1 flex items-center justify-center space-x-1.5 py-2 rounded-lg hover:bg-gray-100 transition-colors">
+                                      <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                      </svg>
+                                      <span className="text-[12px] font-semibold text-gray-600">Comment</span>
+                                    </button>
+                                    <button className="flex-1 flex items-center justify-center space-x-1.5 py-2 rounded-lg hover:bg-gray-100 transition-colors">
+                                      <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                                      </svg>
+                                      <span className="text-[12px] font-semibold text-gray-600">Share</span>
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* Separator / Next Post Teaser */}
+                                <div className="h-2 bg-gray-100"></div>
+                                
+                                {/* Partial Next Post (to show feed continues) */}
+                                <div className="bg-white px-3 py-2.5 flex items-center space-x-2.5">
+                                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold text-sm">
+                                    A
+                                  </div>
+                                  <div className="flex-1">
+                                    <div className="text-[13px] font-bold text-gray-900">Another User</div>
+                                    <div className="text-[11px] text-gray-500">2 hours ago</div>
                                   </div>
                                 </div>
                               </div>
 
                               {/* Home Indicator */}
-                              <div className="h-3 flex items-center justify-center bg-white border-t border-gray-100 flex-shrink-0">
-                                <div className="w-32 h-1.5 bg-gray-300 rounded-full"></div>
+                              <div className="h-2 flex items-center justify-center bg-white flex-shrink-0">
+                                <div className="w-28 h-1 bg-gray-300 rounded-full"></div>
                               </div>
                             </div>
                           </div>
