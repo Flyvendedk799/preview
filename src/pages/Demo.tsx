@@ -1164,7 +1164,11 @@ export default function Demo() {
                                           src={preview.composited_preview_image_url}
                                           alt={preview.title}
                                           className="w-full h-full object-cover"
+                                          onLoad={() => {
+                                            console.log('[Social Preview Image] Loaded successfully:', preview.composited_preview_image_url)
+                                          }}
                                           onError={(e) => {
+                                            console.error('[Social Preview Image] Failed to load:', preview.composited_preview_image_url)
                                             // Graceful fallback: show gradient if image fails to load
                                             const target = e.target as HTMLImageElement
                                             target.style.display = 'none'
