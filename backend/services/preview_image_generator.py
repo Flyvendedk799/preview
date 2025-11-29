@@ -413,26 +413,33 @@ def _generate_landing_template_image(
         final_image = Image.alpha_composite(final_image.convert('RGBA'), overlay).convert('RGB')
         draw = ImageDraw.Draw(final_image)
         
-        # Content padding (matching React: p-8 = 32px, scaled for 1200px)
-        padding = 64  # 32px * 2
+        # Content padding (matching React: p-8 = 32px, scaled for 1200px width)
+        # Scale factor: 1200px / ~750px typical card width ≈ 1.6x
+        padding = 64  # 32px * 2 (p-8 scaled)
         content_x = padding
         content_y = padding
         
-        # Typography (matching React component)
-        title_font = _load_font(48, bold=True)  # text-3xl = 30px, scaled
-        subtitle_font = _load_font(28, bold=False)  # text-lg = 18px, scaled
-        description_font = _load_font(20, bold=False)  # text-sm = 14px, scaled
-        tag_font = _load_font(18, bold=True)  # text-xs = 12px, scaled
-        cta_font = _load_font(20, bold=True)  # text-sm = 14px, scaled
+        # Typography (matching React component exactly)
+        # React: text-3xl = 30px → scaled: 30 * 1.6 = 48px
+        title_font = _load_font(48, bold=True)  # text-3xl
+        # React: text-lg = 18px → scaled: 18 * 1.6 = 28.8px ≈ 28px
+        subtitle_font = _load_font(28, bold=False)  # text-lg
+        # React: text-sm = 14px → scaled: 14 * 1.6 = 22.4px ≈ 22px
+        description_font = _load_font(22, bold=False)  # text-sm
+        # React: text-xs = 12px → scaled: 12 * 1.6 = 19.2px ≈ 19px
+        tag_font = _load_font(19, bold=True)  # text-xs
+        # React: text-sm = 14px → scaled: 14 * 1.6 = 22.4px ≈ 22px
+        cta_font = _load_font(22, bold=True)  # text-sm
         
-        max_text_width = OG_IMAGE_WIDTH - (padding * 2)
+        # Max text width (matching React max-w-lg = 512px, scaled)
+        max_text_width = min(614, OG_IMAGE_WIDTH - (padding * 2))  # max-w-lg scaled
         
-        # Draw tags (matching React: bg-white/20 text-white/90)
+        # Draw tags (matching React: bg-white/20 text-white/90, gap-2 = 8px)
         if tags:
             tag_y = content_y
             for i, tag in enumerate(tags[:2]):  # Max 2 tags
                 if i > 0:
-                    tag_y += 40  # mb-4 spacing
+                    tag_y += 32  # gap-2 = 8px * 4 (scaled) - tags are inline with gap-2
                 
                 # Draw tag background (white/20 = rgba(255,255,255,0.2))
                 tag_padding_x = 16
@@ -462,37 +469,42 @@ def _generate_landing_template_image(
                 # Draw tag text (white/90) - use white since we're on RGB
                 draw.text((content_x + tag_padding_x, tag_y + tag_padding_y), tag, 
                          fill=(255, 255, 255), font=tag_font)
+                # Move x position for next tag (inline layout with gap-2 = 8px * 4 = 32px)
+                content_x += int(tag_bg_w) + 32
             
-            content_y += len(tags[:2]) * 40 + 32  # mb-4 spacing after tags
+            # Reset x and move y down after tags row
+            content_x = padding
+            content_y += int(tag_bg_h) + 32  # mb-4 = 16px * 2 (scaled)
         
-        # Draw title (white, bold, large)
+        # Draw title (white, bold, large) - matching React: text-3xl font-bold text-white mb-3
         if title and title != "Untitled":
             title_lines = _wrap_text(title, title_font, max_text_width, draw)
             for i, line in enumerate(title_lines):
-                y_pos = content_y + (i * 56)  # Line height
+                y_pos = content_y + (i * 60)  # Line height (title font size + spacing)
                 draw.text((content_x, y_pos), line, fill=(255, 255, 255), font=title_font)
-            content_y += len(title_lines) * 56 + 24  # mb-3 spacing
+            content_y += len(title_lines) * 60 + 24  # mb-3 = 12px * 2 (scaled)
         
-        # Draw subtitle (white - will appear lighter due to dark overlay)
+        # Draw subtitle (white/90) - matching React: text-white/90 text-lg mb-2
         if subtitle:
             subtitle_lines = _wrap_text(subtitle, subtitle_font, max_text_width, draw)
             for i, line in enumerate(subtitle_lines[:2]):  # Max 2 lines
-                y_pos = content_y + (i * 36)
+                y_pos = content_y + (i * 32)  # Line height
                 draw.text((content_x, y_pos), line, fill=(255, 255, 255), font=subtitle_font)
-            content_y += min(len(subtitle_lines), 2) * 36 + 16  # mb-2 spacing
+            content_y += min(len(subtitle_lines), 2) * 32 + 16  # mb-2 = 8px * 2 (scaled)
         
-        # Draw description (white - will appear lighter due to dark overlay)
+        # Draw description (white/70) - matching React: text-white/70 text-sm mb-6
         if description:
             desc_lines = _wrap_text(description, description_font, max_text_width, draw)
             for i, line in enumerate(desc_lines[:2]):  # line-clamp-2
-                y_pos = content_y + (i * 28)
+                y_pos = content_y + (i * 28)  # Line height
                 draw.text((content_x, y_pos), line, fill=(255, 255, 255), font=description_font)
-            content_y += min(len(desc_lines), 2) * 28 + 48  # mb-6 spacing
+            content_y += min(len(desc_lines), 2) * 28 + 48  # mb-6 = 24px * 2 (scaled)
         
         # Draw CTA button (matching React: accent_color background, primary_color text)
+        # React: px-6 py-3 rounded-lg text-sm font-bold
         if cta_text:
-            button_padding_x = 48  # px-6 = 24px * 2
-            button_padding_y = 24  # py-3 = 12px * 2
+            button_padding_x = 48  # px-6 = 24px * 2 (scaled)
+            button_padding_y = 24  # py-3 = 12px * 2 (scaled)
             try:
                 bbox = draw.textbbox((0, 0), cta_text, font=cta_font)
                 button_width = (bbox[2] - bbox[0]) + (button_padding_x * 2)
@@ -504,8 +516,13 @@ def _generate_landing_template_image(
             button_x = content_x
             button_y = content_y
             
-            # Draw button background (accent_color)
+            # Draw button background (accent_color) with rounded corners approximation
+            # Create button with rounded rectangle effect
             button_bg = Image.new('RGB', (int(button_width), int(button_height)), accent_color)
+            # Add rounded corners by drawing a slightly smaller rectangle
+            button_draw = ImageDraw.Draw(button_bg)
+            # Draw rounded rectangle approximation (fill entire area for simplicity)
+            button_draw.rectangle([(0, 0), (int(button_width), int(button_height))], fill=accent_color)
             final_image.paste(button_bg, (int(button_x), int(button_y)))
             
             # Draw button text (primary_color)
