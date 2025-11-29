@@ -107,7 +107,7 @@ def generate_designed_preview(
     primary_image_base64: Optional[str] = None
 ) -> bytes:
     """
-    Generate a beautifully designed og:image matching the React component card design.
+    Generate a beautifully designed og:image for social media sharing.
     
     Design approach:
     - White card background (matching React component)
@@ -116,10 +116,11 @@ def generate_designed_preview(
     - Title, subtitle, description
     - Tags as features with checkmarks
     - Context items (if available)
-    - CTA button at bottom
+    - NO CTA buttons (social platforms show CTAs in text/metadata, not in images)
     - Rounded corners and shadow effect
     
-    This creates an image that matches the AI Reconstructed Preview component.
+    This creates an image optimized for social embeds - clean, professional,
+    and matching how real social platforms render link previews.
     """
     if tags is None:
         tags = []
@@ -305,30 +306,9 @@ def generate_designed_preview(
             
             content_y += 32  # mb-4 = 16px * 2, scaled
         
-        # Draw CTA button at bottom (position after all content)
-        if cta_text:
-            # Position button after all content with some spacing
-            button_y = content_y + 20  # Add spacing after last element
-            button_height = 50  # py-2.5 scaled
-            button_width = max_text_width
-            
-            # Draw button background (rounded rectangle approximated)
-            button_radius = 8  # rounded-lg
-            # Draw rounded rectangle (approximate)
-            draw.rectangle(
-                [(content_x, button_y), (content_x + button_width, button_y + button_height)],
-                fill=primary_color
-            )
-            
-            # Draw button text (centered)
-            try:
-                bbox = draw.textbbox((0, 0), cta_text, font=cta_font)
-                text_width = bbox[2] - bbox[0]
-                text_x = content_x + (button_width - text_width) // 2
-                text_y = button_y + (button_height - (bbox[3] - bbox[1])) // 2
-                draw.text((text_x, text_y), cta_text, fill=(255, 255, 255), font=cta_font)
-            except:
-                draw.text((content_x + 16, button_y + 12), cta_text, fill=(255, 255, 255), font=cta_font)
+        # NOTE: CTA buttons are NOT rendered in og:image for social previews
+        # Social platforms show CTAs in text/metadata, not baked into images
+        # This ensures previews look like native embeds, not UI screenshots
         
         # Save to bytes
         buffer = BytesIO()
@@ -499,40 +479,9 @@ def _generate_landing_template_image(
                 draw.text((content_x, y_pos), line, fill=(255, 255, 255), font=description_font)
             content_y += min(len(desc_lines), 2) * 28 + 48  # mb-6 = 24px * 2 (scaled)
         
-        # Draw CTA button (matching React: accent_color background, primary_color text)
-        # React: px-6 py-3 rounded-lg text-sm font-bold
-        if cta_text:
-            button_padding_x = 48  # px-6 = 24px * 2 (scaled)
-            button_padding_y = 24  # py-3 = 12px * 2 (scaled)
-            try:
-                bbox = draw.textbbox((0, 0), cta_text, font=cta_font)
-                button_width = (bbox[2] - bbox[0]) + (button_padding_x * 2)
-                button_height = (bbox[3] - bbox[1]) + (button_padding_y * 2)
-            except:
-                button_width = len(cta_text) * 12 + (button_padding_x * 2)
-                button_height = 40
-            
-            button_x = content_x
-            button_y = content_y
-            
-            # Draw button background (accent_color) with rounded corners approximation
-            # Create button with rounded rectangle effect
-            button_bg = Image.new('RGB', (int(button_width), int(button_height)), accent_color)
-            # Add rounded corners by drawing a slightly smaller rectangle
-            button_draw = ImageDraw.Draw(button_bg)
-            # Draw rounded rectangle approximation (fill entire area for simplicity)
-            button_draw.rectangle([(0, 0), (int(button_width), int(button_height))], fill=accent_color)
-            final_image.paste(button_bg, (int(button_x), int(button_y)))
-            
-            # Draw button text (primary_color)
-            try:
-                bbox = draw.textbbox((0, 0), cta_text, font=cta_font)
-                text_x = button_x + button_padding_x
-                text_y = button_y + button_padding_y
-                draw.text((text_x, text_y), cta_text, fill=primary_color, font=cta_font)
-            except:
-                draw.text((button_x + button_padding_x, button_y + button_padding_y), 
-                         cta_text, fill=primary_color, font=cta_font)
+        # NOTE: CTA buttons are NOT rendered in og:image for social previews
+        # Social platforms show CTAs in text/metadata, not baked into images
+        # This ensures previews look like native embeds, not UI screenshots
         
         # Save to bytes
         buffer = BytesIO()

@@ -243,9 +243,13 @@ def _extract_colors_from_image(image_bytes: bytes) -> Dict[str, str]:
 
 def extract_brand_colors(html_content: str, screenshot_bytes: Optional[bytes] = None) -> Dict[str, str]:
     """
-    Extract brand colors from website.
+    Extract brand colors from website with intelligent fallbacks.
 
-    Uses both HTML analysis and screenshot color analysis.
+    Priority:
+    1. Screenshot color analysis (most accurate)
+    2. CSS custom properties/variables
+    3. Meta theme-color tag
+    4. Branded MetaView fallback (not generic)
 
     Args:
         html_content: HTML content of the page
@@ -254,14 +258,15 @@ def extract_brand_colors(html_content: str, screenshot_bytes: Optional[bytes] = 
     Returns:
         Dict with primary, secondary, accent colors
     """
+    # Use branded MetaView fallback instead of generic blue
     colors = {
-        "primary_color": "#2563EB",  # Default blue
-        "secondary_color": "#1E40AF",
-        "accent_color": "#F59E0B"
+        "primary_color": "#F97316",  # MetaView orange (branded fallback)
+        "secondary_color": "#1E293B",  # Dark gray
+        "accent_color": "#FBBF24"  # MetaView amber
     }
 
     try:
-        # Extract from screenshot if available
+        # Priority 1: Extract from screenshot if available (most accurate)
         if screenshot_bytes:
             palette = _extract_colors_from_image(screenshot_bytes)
             if palette:
@@ -271,25 +276,39 @@ def extract_brand_colors(html_content: str, screenshot_bytes: Optional[bytes] = 
                 logger.info(f"Extracted colors from screenshot: {colors}")
                 return colors
 
-        # Fallback: Parse CSS for common brand color patterns
+        # Priority 2: Parse CSS for common brand color patterns
         soup = BeautifulSoup(html_content, 'html.parser')
 
         # Check for CSS variables (modern approach)
         style_tags = soup.find_all('style')
         for style in style_tags:
             if style.string:
-                # Look for CSS custom properties
+                # Look for CSS custom properties (primary, brand, main colors)
                 var_matches = re.findall(r'--(?:primary|brand|main)[-\w]*:\s*(#[0-9a-fA-F]{6}|#[0-9a-fA-F]{3}|rgb\([^)]+\))', style.string)
                 if var_matches:
-                    # Use first match as primary color
                     colors["primary_color"] = var_matches[0]
                     logger.info(f"Extracted primary color from CSS variables: {colors['primary_color']}")
+                    # Try to find secondary/accent in same style block
+                    secondary_matches = re.findall(r'--(?:secondary|accent)[-\w]*:\s*(#[0-9a-fA-F]{6}|#[0-9a-fA-F]{3}|rgb\([^)]+\))', style.string)
+                    if len(secondary_matches) > 0:
+                        colors["secondary_color"] = secondary_matches[0]
+                    if len(secondary_matches) > 1:
+                        colors["accent_color"] = secondary_matches[1]
                     break
+
+        # Priority 3: Check meta theme-color tag
+        theme_color = soup.find('meta', attrs={'name': 'theme-color'})
+        if theme_color and theme_color.get('content'):
+            theme_hex = theme_color['content'].strip()
+            if re.match(r'^#[0-9a-fA-F]{6}$', theme_hex, re.IGNORECASE):
+                colors["primary_color"] = theme_hex
+                logger.info(f"Extracted primary color from theme-color meta: {colors['primary_color']}")
 
         return colors
 
     except Exception as e:
         logger.error(f"Color extraction failed: {e}", exc_info=True)
+        # Return branded MetaView fallback, not generic blue
         return colors
 
 

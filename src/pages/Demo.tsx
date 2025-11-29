@@ -395,13 +395,14 @@ export default function Demo() {
   }
 
   // AI Generation stages aligned with backend workflow
+  // Progress is estimated - actual timing varies based on page complexity
   const GENERATION_STAGES = [
-    { id: 'capture', progress: 10, time: 3, message: 'Capturing page screenshot...' },
-    { id: 'analyze', progress: 30, time: 8, message: 'Analyzing visual structure...' },
-    { id: 'prioritize', progress: 50, time: 5, message: 'Identifying key elements...' },
-    { id: 'compose', progress: 70, time: 4, message: 'Designing optimal layout...' },
-    { id: 'validate', progress: 85, time: 3, message: 'Running quality checks...' },
-    { id: 'render', progress: 95, time: 2, message: 'Rendering final preview...' },
+    { id: 'capture', progress: 15, time: 4, message: 'Capturing page screenshot...' },
+    { id: 'brand', progress: 30, time: 5, message: 'Extracting brand elements...' },
+    { id: 'analyze', progress: 50, time: 10, message: 'Analyzing visual structure...' },
+    { id: 'prioritize', progress: 65, time: 6, message: 'Identifying key elements...' },
+    { id: 'compose', progress: 80, time: 5, message: 'Designing optimal layout...' },
+    { id: 'render', progress: 92, time: 3, message: 'Rendering final preview...' },
   ]
 
   const generationCancelRef = useRef<boolean>(false)
@@ -417,11 +418,13 @@ export default function Demo() {
     setPreviewError(null)
     generationCancelRef.current = false
     
-    // Start stage progression
+    // Start stage progression with honest estimates
     let stageIndex = 0
     const totalEstimatedTime = GENERATION_STAGES.reduce((sum, s) => sum + s.time, 0)
     let elapsedTime = 0
+    const startTime = Date.now()
     
+    // More honest stage progression - stages advance based on estimated timing
     stageIntervalRef.current = setInterval(() => {
       if (generationCancelRef.current) return
       if (stageIndex < GENERATION_STAGES.length) {
@@ -430,29 +433,41 @@ export default function Demo() {
         setGenerationProgress(stage.progress)
         setGenerationStatus(stage.message)
         
-        // Update estimated time remaining
-        elapsedTime += stage.time
-        const remaining = Math.max(0, totalEstimatedTime - elapsedTime)
-        setEstimatedTimeRemaining(remaining)
+        // Update estimated time remaining based on actual elapsed time
+        elapsedTime = (Date.now() - startTime) / 1000
+        const remaining = Math.max(5, totalEstimatedTime - elapsedTime) // Minimum 5s remaining
+        setEstimatedTimeRemaining(Math.ceil(remaining))
         
         stageIndex++
+      } else {
+        // If we've gone through all stages but still waiting, show "Finalizing"
+        if (stageIndex >= GENERATION_STAGES.length) {
+          setGenerationStatus('Finalizing preview...')
+          setGenerationProgress(95)
+        }
       }
-    }, 4000) // Advance stage every 4 seconds (tuned for typical API response time)
+    }, 5000) // Advance stage every 5 seconds (more conservative estimate)
     
-    // Smooth progress animation between stages
+    // Smooth progress animation between stages - but cap at 95% until complete
     progressIntervalRef.current = setInterval(() => {
       if (generationCancelRef.current) return
       setGenerationProgress((prev) => {
         const currentStageData = GENERATION_STAGES[Math.min(stageIndex, GENERATION_STAGES.length - 1)]
-        const nextStageData = GENERATION_STAGES[Math.min(stageIndex + 1, GENERATION_STAGES.length - 1)]
         const targetProgress = currentStageData?.progress || prev
         
-        if (prev >= 95) return prev // Don't exceed 95 until complete
+        // Never exceed 95% until API call completes
+        if (prev >= 95) return 95
         if (prev >= targetProgress) return prev
         
-        return Math.min(prev + 0.5, targetProgress)
+        // Smooth increment
+        return Math.min(prev + 0.3, targetProgress, 95)
       })
-    }, 100)
+      
+      // Update time estimate based on actual elapsed time
+      const actualElapsed = (Date.now() - startTime) / 1000
+      const remaining = Math.max(5, totalEstimatedTime - actualElapsed)
+      setEstimatedTimeRemaining(Math.ceil(remaining))
+    }, 150)
     
     try {
       const result = await generateDemoPreviewV2(urlToProcess)
@@ -628,16 +643,25 @@ export default function Demo() {
     return text.substring(0, maxLength - 3) + '...'
   }
   
-  // Get platform-specific preview data
+  // Get platform-specific preview data using unified PreviewData model
+  // Platform components only adapt rendering, never change underlying data
   const getPlatformPreviewData = (platformId: string) => {
     const platform = platforms.find(p => p.id === platformId) || platforms[0]
-    if (!preview) return { title: '', description: '', aspectRatio: platform.aspectRatio }
+    if (!preview) return { title: '', description: '', aspectRatio: platform.aspectRatio, imageUrl: null }
+    
+    // Unified data model - platform only adapts rendering, not data
+    const previewData = {
+      image: preview.composited_preview_image_url || preview.screenshot_url || null,
+      title: preview.title || 'Untitled',
+      description: preview.description || null,
+      url: preview.url,
+    }
     
     return {
-      title: truncateForPlatform(preview.title, platform.maxTitleLength),
-      description: truncateForPlatform(preview.description || '', platform.maxDescLength),
+      title: truncateForPlatform(previewData.title, platform.maxTitleLength),
+      description: truncateForPlatform(previewData.description || '', platform.maxDescLength),
       aspectRatio: platform.aspectRatio,
-      imageUrl: preview.composited_preview_image_url || preview.screenshot_url,
+      imageUrl: previewData.image,
     }
   }
 
@@ -1544,7 +1568,12 @@ export default function Demo() {
                           </svg>
                           Social Media Preview
                         </h4>
-                        <p className="text-sm text-gray-600">This is what appears when you share the link on social media</p>
+                        <p className="text-sm text-gray-600 mb-2">
+                          This is how your link appears when shared on social platforms
+                        </p>
+                        <p className="text-xs text-gray-500 italic">
+                          Preview images are non-interactive — this is exactly how platforms render your link
+                        </p>
                       </div>
                       <div className="max-w-2xl mx-auto">
                         <div className="relative group">
@@ -1725,18 +1754,22 @@ export default function Demo() {
                   <h3 className="text-2xl sm:text-3xl font-black text-gray-900 mb-2">See It In Action</h3>
                   <p className="text-gray-600 mb-6">How your preview appears on social media platforms</p>
                   
-                  {/* Platform Selector */}
-                  <div className="flex justify-center">
+                  {/* Platform Selector - Enhanced Discoverability */}
+                  <div className="flex flex-col items-center gap-3">
                     <div className="relative inline-block">
+                      <label htmlFor="platform-selector" className="block text-xs font-semibold text-gray-600 mb-2 text-center">
+                        Select Platform Preview
+                      </label>
                       <select
+                        id="platform-selector"
                         value={selectedPlatform}
                         onChange={(e) => setSelectedPlatform(e.target.value)}
-                        className="appearance-none bg-white border-2 border-gray-200 rounded-xl px-6 py-3 pr-12 font-semibold text-gray-900 text-sm cursor-pointer transition-all duration-300 hover:border-orange-300 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                        className="appearance-none bg-white border-2 border-gray-200 rounded-xl px-6 py-3 pr-12 font-semibold text-gray-900 text-sm cursor-pointer transition-all duration-300 hover:border-orange-300 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 min-w-[200px]"
                         aria-label="Select social media platform to preview"
                       >
                         {platforms.map((platform) => (
                           <option key={platform.id} value={platform.id}>
-                            {platform.name}
+                            {platform.icon} {platform.name}
                           </option>
                         ))}
                       </select>
@@ -1746,6 +1779,9 @@ export default function Demo() {
                         </svg>
                       </div>
                     </div>
+                    <p className="text-xs text-gray-500 text-center max-w-md">
+                      Switch between platforms to see how your preview adapts to each platform's design conventions
+                    </p>
                   </div>
                 </div>
 
@@ -1837,7 +1873,7 @@ export default function Demo() {
                                   <div className="px-3 pb-2">
                                     <p className="text-[13px] text-gray-900 leading-relaxed">
                                       {preview.cta_text ? (
-                                        <>Check this out! 👇 {preview.cta_text}</>
+                                        <>Check this out! {preview.cta_text}</>
                                       ) : (
                                         <>Check out this link! 🔗</>
                                       )}
@@ -2072,104 +2108,53 @@ export default function Demo() {
                 </div>
               </div>
 
-              {/* Demo Notice & CTAs */}
-              <div className="bg-gradient-to-r from-amber-50 via-yellow-50 to-amber-50 border-2 border-amber-200 rounded-xl p-8 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-amber-200/20 rounded-full blur-2xl -mr-16 -mt-16" />
-                <div className="relative z-10">
-                  <div className="flex items-start space-x-4">
-                    <div className="w-12 h-12 bg-amber-500 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg shadow-amber-500/30">
-                      <PhotoIcon className="w-6 h-6 text-white" aria-hidden="true" />
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="font-black text-gray-900 mb-1 text-lg">This is a Demo Preview</h4>
-                      <p className="text-sm text-gray-700 mb-4">{preview.message}</p>
-                      
-                      {/* Value propositions */}
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
-                        <div className="flex items-center space-x-2 text-xs text-gray-600">
-                          <CheckIcon className="w-4 h-4 text-emerald-500 flex-shrink-0" aria-hidden="true" />
-                          <span>Unlimited previews</span>
-                        </div>
-                        <div className="flex items-center space-x-2 text-xs text-gray-600">
-                          <CheckIcon className="w-4 h-4 text-emerald-500 flex-shrink-0" aria-hidden="true" />
-                          <span>Custom branding</span>
-                        </div>
-                        <div className="flex items-center space-x-2 text-xs text-gray-600">
-                          <CheckIcon className="w-4 h-4 text-emerald-500 flex-shrink-0" aria-hidden="true" />
-                          <span>Analytics & insights</span>
-                        </div>
-                      </div>
-                      
-                      <div className="flex flex-col sm:flex-row gap-3">
-                        <Link
-                          to="/app"
-                          className="group px-8 py-4 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500 text-white rounded-xl font-bold text-base transition-all duration-300 hover:scale-[1.02] hover:shadow-xl hover:shadow-orange-500/30 text-center relative overflow-hidden"
-                          aria-label="Get full access to MetaView"
-                        >
-                          <span className="relative z-10 flex items-center justify-center">
-                            Get Full Access
-                            <ArrowRightIcon className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" aria-hidden="true" />
-                          </span>
-                          <div className="absolute inset-0 bg-gradient-to-r from-orange-600 via-amber-600 to-orange-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                        </Link>
-                        <button
-                          onClick={() => {
-                            setStep('input')
-                            setUrl('')
-                            setPreview(null)
-                            setPreviewError(null)
-                            setSelectedPlatform('facebook')
-                            // Scroll to top
-                            window.scrollTo({ top: 0, behavior: 'smooth' })
-                          }}
-                          className="px-6 py-4 bg-white border-2 border-gray-200 text-gray-700 rounded-xl font-bold text-sm transition-all duration-300 hover:scale-[1.02] hover:border-orange-300 hover:bg-orange-50"
-                          aria-label="Try generating a preview for another URL"
-                        >
-                          Try Another URL
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Final CTA Section */}
+              {/* Clean Demo Ending - Single Strong CTA */}
               <div className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-2xl p-10 text-center text-white relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-r from-orange-500/10 via-amber-500/10 to-yellow-500/10 animate-pulse" />
-                <div className="relative z-10">
-                  <div className="inline-flex items-center space-x-2 px-4 py-2 bg-orange-500/20 rounded-full border border-orange-400/30 mb-4">
-                    <SparklesIcon className="w-4 h-4 text-orange-300" />
-                    <span className="text-sm font-bold text-orange-200">Limited Time Offer</span>
-                  </div>
+                <div className="absolute inset-0 bg-gradient-to-r from-orange-500/10 via-amber-500/10 to-yellow-500/10" />
+                <div className="relative z-10 max-w-2xl mx-auto">
                   <h3 className="text-3xl font-black mb-3">Ready to Create Unlimited Previews?</h3>
-                  <p className="text-gray-300 mb-8 max-w-xl mx-auto text-lg">
-                    Join thousands of teams using MetaView to create high-converting URL previews. Start your free trial today.
+                  <p className="text-gray-300 mb-8 text-lg">
+                    Join teams using MetaView to create high-converting URL previews with AI-powered brand intelligence.
                   </p>
-                  <div className="flex flex-wrap items-center justify-center gap-4 mb-6">
+                  <div className="flex flex-wrap items-center justify-center gap-6 mb-8">
                     <div className="flex items-center space-x-2 text-sm text-gray-400">
                       <CheckIcon className="w-5 h-5 text-emerald-400" />
-                      <span>14-day free trial</span>
+                      <span>Unlimited previews</span>
                     </div>
                     <div className="flex items-center space-x-2 text-sm text-gray-400">
                       <CheckIcon className="w-5 h-5 text-emerald-400" />
-                      <span>No credit card required</span>
+                      <span>Custom branding</span>
                     </div>
                     <div className="flex items-center space-x-2 text-sm text-gray-400">
                       <CheckIcon className="w-5 h-5 text-emerald-400" />
-                      <span>Cancel anytime</span>
+                      <span>Analytics & insights</span>
                     </div>
                   </div>
-                  <Link
-                    to="/app"
-                    className="group inline-flex items-center space-x-2 px-10 py-5 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500 text-white rounded-xl font-black text-lg transition-all duration-300 hover:scale-[1.05] hover:shadow-2xl hover:shadow-orange-500/50 relative overflow-hidden"
-                  >
-                    <span className="relative z-10 flex items-center">
-                      Start Free Trial
-                      <ArrowRightIcon className="w-6 h-6 ml-2 group-hover:translate-x-1 transition-transform" />
-                    </span>
-                    <div className="absolute inset-0 bg-gradient-to-r from-orange-600 via-amber-600 to-orange-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                    <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-                  </Link>
+                  <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                    <Link
+                      to="/app"
+                      className="group inline-flex items-center justify-center space-x-2 px-10 py-5 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500 text-white rounded-xl font-black text-lg transition-all duration-300 hover:scale-[1.05] hover:shadow-2xl hover:shadow-orange-500/50 relative overflow-hidden"
+                    >
+                      <span className="relative z-10 flex items-center">
+                        Get Full Access
+                        <ArrowRightIcon className="w-6 h-6 ml-2 group-hover:translate-x-1 transition-transform" />
+                      </span>
+                      <div className="absolute inset-0 bg-gradient-to-r from-orange-600 via-amber-600 to-orange-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                    </Link>
+                    <button
+                      onClick={() => {
+                        setStep('input')
+                        setUrl('')
+                        setPreview(null)
+                        setPreviewError(null)
+                        setSelectedPlatform('facebook')
+                        window.scrollTo({ top: 0, behavior: 'smooth' })
+                      }}
+                      className="px-8 py-5 bg-white/10 backdrop-blur-sm border border-white/20 text-white rounded-xl font-bold text-lg transition-all duration-300 hover:bg-white/20 hover:scale-[1.02]"
+                    >
+                      Try Another URL
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
