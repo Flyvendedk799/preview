@@ -305,6 +305,15 @@ const LandingTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
       ? `data:image/png;base64,${primary_image_base64}` 
       : screenshot_url
   
+  // DEBUG: Log image source selection for LandingTemplate
+  console.log('[LandingTemplate] Image source selection:', {
+    composited_preview_image_url: composited_preview_image_url || 'null',
+    primary_image_base64: primary_image_base64 ? 'present (base64)' : 'null',
+    screenshot_url: screenshot_url || 'null',
+    selected_imageUrl: imageUrl || 'null',
+    using: composited_preview_image_url ? 'composited' : primary_image_base64 ? 'primary_base64' : 'screenshot'
+  })
+  
   return (
     <div 
       className="relative overflow-hidden rounded-2xl shadow-xl min-h-[300px]"
@@ -319,6 +328,12 @@ const LandingTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
             src={imageUrl}
             alt={title}
             className="w-full h-full object-cover opacity-20"
+            onLoad={() => {
+              console.log('[LandingTemplate] Background image loaded successfully:', imageUrl)
+            }}
+            onError={(e) => {
+              console.error('[LandingTemplate] Background image failed to load:', imageUrl, e)
+            }}
           />
           <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-transparent" />
         </div>
@@ -556,7 +571,14 @@ const ServiceTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
 // =============================================================================
 
 export default function ReconstructedPreview({ preview, className = '' }: ReconstructedPreviewProps) {
-  const { blueprint } = preview
+  const { blueprint, composited_preview_image_url } = preview
+  
+  // DEBUG: Log template selection and image data
+  console.log('[ReconstructedPreview] Rendering:', {
+    template_type: blueprint.template_type,
+    composited_preview_image_url: composited_preview_image_url || 'null',
+    title: preview.title
+  })
   
   // Select template based on type
   const renderTemplate = () => {
