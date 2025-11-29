@@ -451,6 +451,19 @@ export async function fetchAdminWorkerHealth(): Promise<WorkerHealth> {
   return fetchApi<WorkerHealth>('/api/v1/admin/system/worker-health')
 }
 
+export interface DeploymentResponse {
+  success: boolean
+  message: string
+  output?: string
+  branch_merged?: string
+}
+
+export async function triggerDeployment(): Promise<DeploymentResponse> {
+  return fetchApi<DeploymentResponse>('/api/v1/admin/deploy/merge-claude-branch', {
+    method: 'POST',
+  })
+}
+
 export async function exportUserData(): Promise<any> {
   return fetchApi('/api/v1/account/export')
 }

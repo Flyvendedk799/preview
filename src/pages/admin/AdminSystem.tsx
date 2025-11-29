@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import { ArrowPathIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
+import { ArrowPathIcon, ExclamationTriangleIcon, CloudArrowUpIcon } from '@heroicons/react/24/outline'
 import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
-import { fetchAdminSystemOverview, fetchAdminWorkerHealth, type SystemOverview, type WorkerHealth } from '../../api/client'
+import { fetchAdminSystemOverview, fetchAdminWorkerHealth, triggerDeployment, type SystemOverview, type WorkerHealth } from '../../api/client'
 
 export default function AdminSystem() {
   const [overview, setOverview] = useState<SystemOverview | null>(null)
@@ -10,6 +10,8 @@ export default function AdminSystem() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [restarting, setRestarting] = useState(false)
+  const [deploying, setDeploying] = useState(false)
+  const [deploymentResult, setDeploymentResult] = useState<{ success: boolean; message: string; branch_merged?: string } | null>(null)
 
   useEffect(() => {
     loadData()
@@ -51,6 +53,35 @@ export default function AdminSystem() {
       setError(err instanceof Error ? err.message : 'Failed to restart workers')
     } finally {
       setRestarting(false)
+    }
+  }
+
+  const handleDeploy = async () => {
+    if (!window.confirm('This will merge the latest claude branch into main and push to trigger Railway deployment. Continue?')) {
+      return
+    }
+
+    try {
+      setDeploying(true)
+      setDeploymentResult(null)
+      setError(null)
+      const result = await triggerDeployment()
+      setDeploymentResult(result)
+      if (result.success) {
+        // Clear any previous errors
+        setError(null)
+      } else {
+        setError(result.message)
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to trigger deployment'
+      setError(errorMessage)
+      setDeploymentResult({
+        success: false,
+        message: errorMessage
+      })
+    } finally {
+      setDeploying(false)
     }
   }
 
@@ -131,6 +162,52 @@ export default function AdminSystem() {
               </div>
             </Card>
           </div>
+
+          {/* Deployment Management */}
+          <Card className="mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-secondary">Deployment Management</h2>
+              <Button
+                onClick={handleDeploy}
+                disabled={deploying}
+                variant="primary"
+              >
+                {deploying ? (
+                  <span className="flex items-center space-x-2">
+                    <CloudArrowUpIcon className="w-5 h-5 animate-pulse" />
+                    <span>Deploying...</span>
+                  </span>
+                ) : (
+                  <span className="flex items-center space-x-2">
+                    <CloudArrowUpIcon className="w-5 h-5" />
+                    <span>Deploy Latest Changes</span>
+                  </span>
+                )}
+              </Button>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              Merge the latest claude branch into main and push to trigger Railway deployment. This will pull changes from remote, find the latest claude branch, merge it, and push to main.
+            </p>
+            {deploymentResult && (
+              <div className={`mt-4 p-4 rounded-lg ${
+                deploymentResult.success 
+                  ? 'bg-green-50 border border-green-200' 
+                  : 'bg-red-50 border border-red-200'
+              }`}>
+                <p className={`text-sm font-medium ${
+                  deploymentResult.success ? 'text-green-800' : 'text-red-800'
+                }`}>
+                  {deploymentResult.success ? '✓ ' : '✗ '}
+                  {deploymentResult.message}
+                </p>
+                {deploymentResult.branch_merged && (
+                  <p className="text-xs text-gray-600 mt-1">
+                    Branch merged: {deploymentResult.branch_merged}
+                  </p>
+                )}
+              </div>
+            )}
+          </Card>
 
           {/* Worker Management */}
           <Card className="mb-6">

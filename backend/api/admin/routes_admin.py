@@ -742,3 +742,179 @@ def list_errors(
     
     return result
 
+
+class DeploymentResponse(BaseModel):
+    """Deployment response."""
+    success: bool
+    message: str
+    output: Optional[str] = None
+    branch_merged: Optional[str] = None
+
+
+@router.post("/deploy/merge-claude-branch", response_model=DeploymentResponse)
+def deploy_merge_claude_branch(
+    request: Request,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(get_admin_user)
+):
+    """Merge latest claude branch into main and push to trigger Railway deployment."""
+    import subprocess
+    import logging
+    import re
+    
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # Log admin action
+        log_activity(
+            db,
+            user_id=admin_user.id,
+            action="admin.deployment.triggered",
+            metadata={"action": "merge_claude_branch"},
+            request=request
+        )
+        
+        output_lines = []
+        
+        # Step 1: Fetch latest changes from remote
+        logger.info("Fetching latest changes from remote...")
+        fetch_result = subprocess.run(
+            ["git", "fetch", "origin"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            cwd="."
+        )
+        output_lines.append(f"Fetch: {fetch_result.stdout}")
+        if fetch_result.stderr:
+            output_lines.append(f"Fetch stderr: {fetch_result.stderr}")
+        
+        if fetch_result.returncode != 0:
+            raise Exception(f"Git fetch failed: {fetch_result.stderr}")
+        
+        # Step 2: Get list of remote branches and find latest claude branch
+        branch_result = subprocess.run(
+            ["git", "branch", "-r"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            cwd="."
+        )
+        
+        if branch_result.returncode != 0:
+            raise Exception(f"Failed to list branches: {branch_result.stderr}")
+        
+        # Find claude branches (pattern: origin/claude/*)
+        claude_branches = []
+        for line in branch_result.stdout.split('\n'):
+            line = line.strip()
+            if line.startswith('origin/claude/'):
+                claude_branches.append(line)
+        
+        if not claude_branches:
+            return DeploymentResponse(
+                success=False,
+                message="No claude branches found to merge",
+                output="\n".join(output_lines)
+            )
+        
+        # Sort branches to get the latest one (assuming they have timestamps or are sorted by creation)
+        # Get the most recent one by checking commit dates
+        latest_branch = None
+        latest_date = None
+        
+        for branch in claude_branches:
+            branch_name = branch.replace('origin/', '')
+            date_result = subprocess.run(
+                ["git", "log", "-1", "--format=%ct", branch],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                cwd="."
+            )
+            if date_result.returncode == 0 and date_result.stdout.strip():
+                commit_date = int(date_result.stdout.strip())
+                if latest_date is None or commit_date > latest_date:
+                    latest_date = commit_date
+                    latest_branch = branch_name
+        
+        if not latest_branch:
+            # Fallback: use the first claude branch
+            latest_branch = claude_branches[0].replace('origin/', '')
+        
+        output_lines.append(f"Found latest claude branch: {latest_branch}")
+        
+        # Step 3: Checkout main and ensure it's up to date
+        checkout_result = subprocess.run(
+            ["git", "checkout", "main"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            cwd="."
+        )
+        output_lines.append(f"Checkout main: {checkout_result.stdout}")
+        if checkout_result.stderr:
+            output_lines.append(f"Checkout stderr: {checkout_result.stderr}")
+        
+        # Step 4: Merge the claude branch
+        logger.info(f"Merging {latest_branch} into main...")
+        merge_result = subprocess.run(
+            ["git", "merge", f"origin/{latest_branch}", "--no-edit"],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            cwd="."
+        )
+        output_lines.append(f"Merge: {merge_result.stdout}")
+        if merge_result.stderr:
+            output_lines.append(f"Merge stderr: {merge_result.stderr}")
+        
+        if merge_result.returncode != 0:
+            # Check if it's a merge conflict or other error
+            if "CONFLICT" in merge_result.stdout or "conflict" in merge_result.stdout.lower():
+                return DeploymentResponse(
+                    success=False,
+                    message=f"Merge conflict detected. Manual resolution required.",
+                    output="\n".join(output_lines),
+                    branch_merged=latest_branch
+                )
+            else:
+                raise Exception(f"Git merge failed: {merge_result.stderr}")
+        
+        # Step 5: Push to origin/main
+        logger.info("Pushing to origin/main...")
+        push_result = subprocess.run(
+            ["git", "push", "origin", "main"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            cwd="."
+        )
+        output_lines.append(f"Push: {push_result.stdout}")
+        if push_result.stderr:
+            output_lines.append(f"Push stderr: {push_result.stderr}")
+        
+        if push_result.returncode != 0:
+            raise Exception(f"Git push failed: {push_result.stderr}")
+        
+        return DeploymentResponse(
+            success=True,
+            message=f"Successfully merged {latest_branch} into main and pushed to trigger Railway deployment",
+            output="\n".join(output_lines),
+            branch_merged=latest_branch
+        )
+        
+    except subprocess.TimeoutExpired:
+        logger.error("Git operation timed out")
+        return DeploymentResponse(
+            success=False,
+            message="Git operation timed out. Please try again or deploy manually.",
+            output="\n".join(output_lines)
+        )
+    except Exception as e:
+        logger.error(f"Deployment failed: {e}", exc_info=True)
+        return DeploymentResponse(
+            success=False,
+            message=f"Deployment failed: {str(e)}",
+            output="\n".join(output_lines)
+        )
