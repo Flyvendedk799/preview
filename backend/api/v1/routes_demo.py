@@ -163,10 +163,12 @@ def generate_demo_preview(
         logger.info(f"Capturing screenshot for: {url_str}")
         screenshot_bytes = capture_screenshot(url_str)
     except Exception as e:
-        logger.error(f"Screenshot capture failed: {e}", exc_info=True)
+        error_msg = str(e)
+        logger.error(f"Screenshot capture failed: {error_msg}", exc_info=True)
+        # Pass through the descriptive error message from capture_screenshot
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to capture page screenshot. Please try again."
+            detail=f"Failed to capture page screenshot: {error_msg}"
         )
     
     # Step 2: Upload full screenshot to R2 (as fallback)

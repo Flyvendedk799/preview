@@ -1,6 +1,9 @@
 """Playwright-based screenshot service for capturing website screenshots."""
+import logging
 from typing import Tuple
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError, Error as PlaywrightError
+
+logger = logging.getLogger(__name__)
 
 
 def capture_screenshot(url: str) -> bytes:
@@ -13,34 +16,80 @@ def capture_screenshot(url: str) -> bytes:
 
     Returns:
         Raw image bytes (PNG format)
+        
+    Raises:
+        Exception: If screenshot capture fails with descriptive error message
     """
-    with sync_playwright() as p:
-        # Chromium args for containerized environments (Railway, Docker)
-        # These flags prevent GPU crashes and resource issues
-        browser = p.chromium.launch(
-            args=[
-                "--no-sandbox",
-                "--disable-setuid-sandbox",
-                "--disable-gpu",
-                "--disable-dev-shm-usage",
-                "--single-process",
-                "--no-zygote"
-            ],
-            headless=True
-        )
+    try:
+        with sync_playwright() as p:
+            # Chromium args for containerized environments (Railway, Docker)
+            # These flags prevent GPU crashes and resource issues
+            try:
+                browser = p.chromium.launch(
+                    args=[
+                        "--no-sandbox",
+                        "--disable-setuid-sandbox",
+                        "--disable-gpu",
+                        "--disable-dev-shm-usage",
+                        "--single-process",
+                        "--no-zygote"
+                    ],
+                    headless=True
+                )
+            except Exception as e:
+                logger.error(f"Failed to launch browser for {url}: {e}")
+                raise Exception(f"Failed to start browser: {str(e)}")
 
-        page = browser.new_page(
-            viewport={"width": 1200, "height": 630},  # Ideal OG size
-            device_scale_factor=2
-        )
+            try:
+                page = browser.new_page(
+                    viewport={"width": 1200, "height": 630},  # Ideal OG size
+                    device_scale_factor=2
+                )
 
-        page.goto(url, wait_until="networkidle", timeout=25000)
+                try:
+                    page.goto(url, wait_until="networkidle", timeout=25000)
+                except PlaywrightTimeoutError as e:
+                    logger.error(f"Page navigation timeout for {url}: {e}")
+                    browser.close()
+                    raise Exception(f"Page load timeout: The website took too long to load. Please try again or check if the URL is accessible.")
+                except PlaywrightError as e:
+                    logger.error(f"Playwright error navigating to {url}: {e}")
+                    browser.close()
+                    error_msg = str(e)
+                    if "net::ERR_CERT_AUTHORITY_INVALID" in error_msg or "SSL" in error_msg:
+                        raise Exception(f"SSL certificate error: The website's certificate is invalid or self-signed. Cannot capture screenshot.")
+                    elif "net::ERR_NAME_NOT_RESOLVED" in error_msg:
+                        raise Exception(f"DNS error: Could not resolve the domain name. Please check the URL.")
+                    elif "net::ERR_CONNECTION_REFUSED" in error_msg:
+                        raise Exception(f"Connection refused: The website is not accessible. Please check if the URL is correct.")
+                    else:
+                        raise Exception(f"Failed to load page: {error_msg}")
 
-        # Ensure full-page screenshot because highlight detection uses it
-        screenshot = page.screenshot(type="png", full_page=True)
+                # Ensure full-page screenshot because highlight detection uses it
+                try:
+                    screenshot = page.screenshot(type="png", full_page=True)
+                except Exception as e:
+                    logger.error(f"Screenshot capture failed for {url}: {e}")
+                    browser.close()
+                    raise Exception(f"Failed to capture screenshot: {str(e)}")
 
-        browser.close()
-        return screenshot
+                browser.close()
+                return screenshot
+                
+            except Exception as e:
+                # Ensure browser is closed even if page operations fail
+                try:
+                    browser.close()
+                except:
+                    pass
+                raise
+                
+    except Exception as e:
+        # Re-raise with more context if it's not already a descriptive error
+        if "Failed to" not in str(e) and "error" not in str(e).lower():
+            logger.error(f"Unexpected error capturing screenshot for {url}: {e}")
+            raise Exception(f"Failed to capture screenshot: {str(e)}")
+        raise
 
 
 def capture_screenshot_and_html(url: str) -> Tuple[bytes, str]:
@@ -55,31 +104,75 @@ def capture_screenshot_and_html(url: str) -> Tuple[bytes, str]:
 
     Returns:
         Tuple of (screenshot_bytes, html_content)
+        
+    Raises:
+        Exception: If capture fails with descriptive error message
     """
-    with sync_playwright() as p:
-        browser = p.chromium.launch(
-            args=[
-                "--no-sandbox",
-                "--disable-setuid-sandbox",
-                "--disable-gpu",
-                "--disable-dev-shm-usage",
-                "--single-process",
-                "--no-zygote"
-            ],
-            headless=True
-        )
+    try:
+        with sync_playwright() as p:
+            try:
+                browser = p.chromium.launch(
+                    args=[
+                        "--no-sandbox",
+                        "--disable-setuid-sandbox",
+                        "--disable-gpu",
+                        "--disable-dev-shm-usage",
+                        "--single-process",
+                        "--no-zygote"
+                    ],
+                    headless=True
+                )
+            except Exception as e:
+                logger.error(f"Failed to launch browser for {url}: {e}")
+                raise Exception(f"Failed to start browser: {str(e)}")
 
-        page = browser.new_page(
-            viewport={"width": 1200, "height": 630},
-            device_scale_factor=2
-        )
+            try:
+                page = browser.new_page(
+                    viewport={"width": 1200, "height": 630},
+                    device_scale_factor=2
+                )
 
-        page.goto(url, wait_until="networkidle", timeout=25000)
+                try:
+                    page.goto(url, wait_until="networkidle", timeout=25000)
+                except PlaywrightTimeoutError as e:
+                    logger.error(f"Page navigation timeout for {url}: {e}")
+                    browser.close()
+                    raise Exception(f"Page load timeout: The website took too long to load.")
+                except PlaywrightError as e:
+                    logger.error(f"Playwright error navigating to {url}: {e}")
+                    browser.close()
+                    error_msg = str(e)
+                    if "net::ERR_CERT_AUTHORITY_INVALID" in error_msg or "SSL" in error_msg:
+                        raise Exception(f"SSL certificate error: The website's certificate is invalid.")
+                    elif "net::ERR_NAME_NOT_RESOLVED" in error_msg:
+                        raise Exception(f"DNS error: Could not resolve the domain name.")
+                    else:
+                        raise Exception(f"Failed to load page: {error_msg}")
 
-        # Capture both screenshot and HTML
-        screenshot = page.screenshot(type="png", full_page=True)
-        html_content = page.content()
+                # Capture both screenshot and HTML
+                try:
+                    screenshot = page.screenshot(type="png", full_page=True)
+                    html_content = page.content()
+                except Exception as e:
+                    logger.error(f"Failed to capture screenshot/HTML for {url}: {e}")
+                    browser.close()
+                    raise Exception(f"Failed to capture screenshot: {str(e)}")
 
-        browser.close()
-        return screenshot, html_content
+                browser.close()
+                return screenshot, html_content
+                
+            except Exception as e:
+                # Ensure browser is closed even if page operations fail
+                try:
+                    browser.close()
+                except:
+                    pass
+                raise
+                
+    except Exception as e:
+        # Re-raise with more context if it's not already a descriptive error
+        if "Failed to" not in str(e) and "error" not in str(e).lower():
+            logger.error(f"Unexpected error capturing screenshot/HTML for {url}: {e}")
+            raise Exception(f"Failed to capture screenshot: {str(e)}")
+        raise
 
