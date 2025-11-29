@@ -434,16 +434,17 @@ def _generate_landing_template_image(
         # Max text width (matching React max-w-lg = 512px, scaled)
         max_text_width = min(614, OG_IMAGE_WIDTH - (padding * 2))  # max-w-lg scaled
         
-        # Draw tags (matching React: bg-white/20 text-white/90, gap-2 = 8px)
+        # Draw tags (matching React: flex flex-wrap gap-2 mb-4, bg-white/20 text-white/90)
+        # Tags are displayed horizontally in a row with gap-2 (8px) between them
         if tags:
+            tag_x = content_x
             tag_y = content_y
+            max_tag_height = 0
+            
             for i, tag in enumerate(tags[:2]):  # Max 2 tags
-                if i > 0:
-                    tag_y += 32  # gap-2 = 8px * 4 (scaled) - tags are inline with gap-2
-                
                 # Draw tag background (white/20 = rgba(255,255,255,0.2))
-                tag_padding_x = 16
-                tag_padding_y = 8
+                tag_padding_x = 16  # px-2 = 8px * 2 (scaled)
+                tag_padding_y = 8   # py-0.5 = 2px * 4 (scaled)
                 try:
                     bbox = draw.textbbox((0, 0), tag, font=tag_font)
                     tag_width = bbox[2] - bbox[0]
@@ -452,29 +453,27 @@ def _generate_landing_template_image(
                     tag_width = len(tag) * 10
                     tag_height = 20
                 
-                # Draw rounded rectangle for tag (approximate)
-                tag_bg_x = content_x
-                tag_bg_y = tag_y
                 tag_bg_w = tag_width + (tag_padding_x * 2)
                 tag_bg_h = tag_height + (tag_padding_y * 2)
+                max_tag_height = max(max_tag_height, tag_bg_h)
                 
-                # White/20 background - draw directly on RGB image
-                # Create temporary RGBA image for tag background
+                # White/20 background - create temporary RGBA image for tag background
                 tag_bg = Image.new('RGBA', (int(tag_bg_w), int(tag_bg_h)), (255, 255, 255, 51))  # 20% opacity
                 temp_img = final_image.convert('RGBA')
-                temp_img.paste(tag_bg, (int(tag_bg_x), int(tag_bg_y)), tag_bg)
+                temp_img.paste(tag_bg, (int(tag_x), int(tag_y)), tag_bg)
                 final_image = temp_img.convert('RGB')
                 draw = ImageDraw.Draw(final_image)
                 
                 # Draw tag text (white/90) - use white since we're on RGB
-                draw.text((content_x + tag_padding_x, tag_y + tag_padding_y), tag, 
+                draw.text((tag_x + tag_padding_x, tag_y + tag_padding_y), tag, 
                          fill=(255, 255, 255), font=tag_font)
-                # Move x position for next tag (inline layout with gap-2 = 8px * 4 = 32px)
-                content_x += int(tag_bg_w) + 32
+                
+                # Move x position for next tag (gap-2 = 8px * 4 = 32px scaled)
+                if i < len(tags[:2]) - 1:  # Not the last tag
+                    tag_x += int(tag_bg_w) + 32
             
-            # Reset x and move y down after tags row
-            content_x = padding
-            content_y += int(tag_bg_h) + 32  # mb-4 = 16px * 2 (scaled)
+            # Move y down after tags row
+            content_y += max_tag_height + 32  # mb-4 = 16px * 2 (scaled)
         
         # Draw title (white, bold, large) - matching React: text-3xl font-bold text-white mb-3
         if title and title != "Untitled":
