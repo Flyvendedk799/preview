@@ -164,17 +164,18 @@ def generate_demo_preview(
             detail="Failed to analyze page. Please try again."
         )
     
-    # Step 4: Generate designed og:image (screenshot background + typography overlay)
+    # Step 4: Generate designed og:image (matching React component card design)
     composited_image_url = None
     try:
-        logger.info("Generating designed og:image with typography overlay")
+        logger.info("Generating designed og:image matching React component")
         
-        # Create a beautifully designed preview image:
-        # - Screenshot as contextual background (dimmed, blurred)
-        # - Large, readable headline overlay
-        # - Optional CTA button
-        # - Brand colors and domain badge
-        # This creates an image that looks intentional and professional
+        # Create a beautifully designed preview image that matches the React component:
+        # - White card background with accent bar
+        # - Icon/image, title, subtitle, description
+        # - Tags as features with checkmarks
+        # - Context items (if available)
+        # - CTA button at bottom
+        # This creates an image that matches the AI Reconstructed Preview component
         composited_image_url = generate_and_upload_preview_image(
             screenshot_bytes=screenshot_bytes,
             url=str(request_data.url),
@@ -187,7 +188,17 @@ def generate_demo_preview(
                 "secondary_color": result.blueprint.secondary_color,
                 "accent_color": result.blueprint.accent_color
             },
-            template_type=result.blueprint.template_type
+            template_type=result.blueprint.template_type,
+            tags=result.tags,
+            context_items=[
+                {"icon": c["icon"], "text": c["text"]}
+                for c in result.context_items
+            ],
+            credibility_items=[
+                {"type": c["type"], "value": c["value"]}
+                for c in result.credibility_items
+            ],
+            primary_image_base64=result.primary_image_base64
         )
         if composited_image_url:
             logger.info(f"Designed og:image generated: {composited_image_url}")
