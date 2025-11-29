@@ -304,39 +304,6 @@ export default function Demo() {
     setPreviewError(null)
   }, [])
 
-  // Keyboard navigation
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Escape key: Close modals or cancel generation
-      if (e.key === 'Escape') {
-        if (isGeneratingPreview) {
-          cancelGeneration()
-          return
-        }
-        if (showEmailPopup) {
-          setShowEmailPopup(false)
-          setEmail('')
-          setConsentChecked(false)
-          setEmailError(null)
-        }
-        if (mobileMenuOpen) {
-          setMobileMenuOpen(false)
-        }
-      }
-      
-      // Enter key: Submit form if URL input is focused and not generating
-      if (e.key === 'Enter' && !isGeneratingPreview && url.trim() && document.activeElement?.id === 'url') {
-        const processedUrl = url.trim().startsWith('http') ? url.trim() : `https://${url.trim()}`
-        if (validateUrl(processedUrl)) {
-          generatePreviewWithUrl(processedUrl)
-        }
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [url, isGeneratingPreview, showEmailPopup, mobileMenuOpen, generatePreviewWithUrl, cancelGeneration])
-
   const validateEmail = (email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     return emailRegex.test(email)
@@ -438,8 +405,8 @@ export default function Demo() {
   ]
 
   const generationCancelRef = useRef<boolean>(false)
-  const stageIntervalRef = useRef<NodeJS.Timeout | null>(null)
-  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const stageIntervalRef = useRef<number | null>(null)
+  const progressIntervalRef = useRef<number | null>(null)
 
   const generatePreviewWithUrl = useCallback(async (urlToProcess: string) => {
     setIsGeneratingPreview(true)
@@ -571,6 +538,39 @@ export default function Demo() {
       }
     }
   }, [emailSubscribed])
+
+  // Keyboard navigation (after generatePreviewWithUrl is defined)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Escape key: Close modals or cancel generation
+      if (e.key === 'Escape') {
+        if (isGeneratingPreview) {
+          cancelGeneration()
+          return
+        }
+        if (showEmailPopup) {
+          setShowEmailPopup(false)
+          setEmail('')
+          setConsentChecked(false)
+          setEmailError(null)
+        }
+        if (mobileMenuOpen) {
+          setMobileMenuOpen(false)
+        }
+      }
+      
+      // Enter key: Submit form if URL input is focused and not generating
+      if (e.key === 'Enter' && !isGeneratingPreview && url.trim() && document.activeElement?.id === 'url') {
+        const processedUrl = url.trim().startsWith('http') ? url.trim() : `https://${url.trim()}`
+        if (validateUrl(processedUrl)) {
+          generatePreviewWithUrl(processedUrl)
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [url, isGeneratingPreview, showEmailPopup, mobileMenuOpen, generatePreviewWithUrl, cancelGeneration, validateUrl])
 
   // IMPROVEMENT: Enhanced platform configurations with realistic layouts
   const platforms = [
