@@ -14,7 +14,19 @@ def capture_screenshot(url: str) -> bytes:
         Raw image bytes (PNG format)
     """
     with sync_playwright() as p:
-        browser = p.chromium.launch(args=["--no-sandbox"])
+        # Chromium args for containerized environments (Railway, Docker)
+        # These flags prevent GPU crashes and resource issues
+        browser = p.chromium.launch(
+            args=[
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-gpu",
+                "--disable-dev-shm-usage",
+                "--single-process",
+                "--no-zygote"
+            ],
+            headless=True
+        )
         
         page = browser.new_page(
             viewport={"width": 1200, "height": 630},  # Ideal OG size
