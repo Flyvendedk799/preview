@@ -68,14 +68,13 @@ const QualityBadge = ({ quality, score }: { quality: string; score: number }) =>
  * Best for: Personal pages, freelancer profiles, team members
  */
 const ProfileTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
-  const { blueprint, composited_preview_image_url, primary_image_base64, title, subtitle, description, tags, context_items, credibility_items } = preview
-  
-  // Use composited_preview_image_url as primary source (canonical og:image)
-  const profileImageUrl = composited_preview_image_url 
-    ? composited_preview_image_url
-    : primary_image_base64 
-      ? `data:image/png;base64,${primary_image_base64}` 
-      : null
+  const { blueprint, primary_image_base64, screenshot_url, title, subtitle, description, tags, context_items, credibility_items } = preview
+
+  // For UI card: Use raw images (NOT composited_preview_image_url which is for og:image only)
+  // Priority: AI-extracted image > Screenshot
+  const profileImageUrl = primary_image_base64
+    ? `data:image/png;base64,${primary_image_base64}`
+    : screenshot_url
   
   return (
     <div className="relative overflow-hidden rounded-2xl bg-white shadow-xl">
@@ -189,14 +188,13 @@ const ProfileTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
  * Best for: E-commerce, SaaS products, services
  */
 const ProductTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
-  const { blueprint, composited_preview_image_url, primary_image_base64, title, subtitle, description, tags, cta_text, credibility_items } = preview
-  
-  // Use composited_preview_image_url as primary source (canonical og:image)
-  const productImageUrl = composited_preview_image_url 
-    ? composited_preview_image_url
-    : primary_image_base64 
-      ? `data:image/png;base64,${primary_image_base64}` 
-      : null
+  const { blueprint, primary_image_base64, screenshot_url, title, subtitle, description, tags, cta_text, credibility_items } = preview
+
+  // For UI card: Use raw images (NOT composited_preview_image_url which is for og:image only)
+  // Priority: AI-extracted image > Screenshot
+  const productImageUrl = primary_image_base64
+    ? `data:image/png;base64,${primary_image_base64}`
+    : screenshot_url
   
   return (
     <div className="relative overflow-hidden rounded-2xl bg-white shadow-xl">
@@ -297,29 +295,26 @@ const ProductTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
  * Best for: Landing pages, homepages, promotional content
  */
 const LandingTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
-  const { blueprint, composited_preview_image_url, primary_image_base64, screenshot_url, title, subtitle, description, cta_text, tags } = preview
-  
-  // Use composited_preview_image_url as primary source (canonical og:image)
-  const imageUrl = composited_preview_image_url 
-    ? composited_preview_image_url
-    : primary_image_base64 
-      ? `data:image/png;base64,${primary_image_base64}` 
-      : screenshot_url
-  
+  const { blueprint, primary_image_base64, screenshot_url, title, subtitle, description, cta_text, tags } = preview
+
+  // For UI card: Use raw screenshot as background (NOT composited_preview_image_url which is for og:image only)
+  // Priority: Screenshot > AI-extracted image
+  // We use screenshot here because it provides better visual context for landing pages
+  const imageUrl = screenshot_url || (primary_image_base64 ? `data:image/png;base64,${primary_image_base64}` : null)
+
   // DEBUG: Log image source selection for LandingTemplate (only when image URL changes)
   const imageUrlRef = useRef<string | null>(null)
   useEffect(() => {
     if (imageUrl !== imageUrlRef.current) {
       console.log('[LandingTemplate] Image source selection:', {
-        composited_preview_image_url: composited_preview_image_url || 'null',
         primary_image_base64: primary_image_base64 ? 'present (base64)' : 'null',
         screenshot_url: screenshot_url || 'null',
         selected_imageUrl: imageUrl || 'null',
-        using: composited_preview_image_url ? 'composited' : primary_image_base64 ? 'primary_base64' : 'screenshot'
+        using: screenshot_url ? 'screenshot' : primary_image_base64 ? 'primary_base64' : 'none'
       })
       imageUrlRef.current = imageUrl
     }
-  }, [imageUrl, composited_preview_image_url, primary_image_base64, screenshot_url])
+  }, [imageUrl, primary_image_base64, screenshot_url])
   
   return (
     <div 
@@ -407,14 +402,13 @@ const LandingTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
  * Best for: Blog posts, news, documentation
  */
 const ArticleTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
-  const { blueprint, composited_preview_image_url, primary_image_base64, title, subtitle, description, tags, credibility_items } = preview
-  
-  // Use composited_preview_image_url as primary source (canonical og:image)
-  const articleImageUrl = composited_preview_image_url 
-    ? composited_preview_image_url
-    : primary_image_base64 
-      ? `data:image/png;base64,${primary_image_base64}` 
-      : null
+  const { blueprint, primary_image_base64, screenshot_url, title, subtitle, description, tags, credibility_items } = preview
+
+  // For UI card: Use raw images (NOT composited_preview_image_url which is for og:image only)
+  // Priority: AI-extracted image > Screenshot
+  const articleImageUrl = primary_image_base64
+    ? `data:image/png;base64,${primary_image_base64}`
+    : screenshot_url
   
   return (
     <div className="relative overflow-hidden rounded-2xl bg-white shadow-xl">
@@ -472,14 +466,13 @@ const ArticleTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
  * Best for: Service pages, portfolios, case studies
  */
 const ServiceTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
-  const { blueprint, composited_preview_image_url, primary_image_base64, title, subtitle, description, tags, cta_text, context_items } = preview
-  
-  // Use composited_preview_image_url as primary source (canonical og:image)
-  const serviceImageUrl = composited_preview_image_url 
-    ? composited_preview_image_url
-    : primary_image_base64 
-      ? `data:image/png;base64,${primary_image_base64}` 
-      : null
+  const { blueprint, primary_image_base64, screenshot_url, title, subtitle, description, tags, cta_text, context_items } = preview
+
+  // For UI card: Use raw images (NOT composited_preview_image_url which is for og:image only)
+  // Priority: AI-extracted image > Screenshot
+  const serviceImageUrl = primary_image_base64
+    ? `data:image/png;base64,${primary_image_base64}`
+    : screenshot_url
   
   return (
     <div className="relative overflow-hidden rounded-2xl bg-white shadow-xl">
@@ -580,21 +573,23 @@ const ServiceTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
 // =============================================================================
 
 export default function ReconstructedPreview({ preview, className = '' }: ReconstructedPreviewProps) {
-  const { blueprint, composited_preview_image_url } = preview
-  
+  const { blueprint, screenshot_url, primary_image_base64 } = preview
+
   // DEBUG: Log template selection and image data (only once per preview change)
   const previewIdRef = useRef<string | null>(null)
   useEffect(() => {
-    const currentId = `${blueprint.template_type}-${composited_preview_image_url || 'no-image'}-${preview.title}`
+    const currentId = `${blueprint.template_type}-${screenshot_url || 'no-screenshot'}-${preview.title}`
     if (currentId !== previewIdRef.current) {
       console.log('[ReconstructedPreview] Rendering:', {
         template_type: blueprint.template_type,
-        composited_preview_image_url: composited_preview_image_url || 'null',
-        title: preview.title
+        screenshot_url: screenshot_url || 'null',
+        primary_image_base64: primary_image_base64 ? 'present (base64)' : 'null',
+        title: preview.title,
+        note: 'UI card uses raw images, NOT composited_preview_image_url (which is for og:image only)'
       })
       previewIdRef.current = currentId
     }
-  }, [blueprint.template_type, composited_preview_image_url, preview.title])
+  }, [blueprint.template_type, screenshot_url, primary_image_base64, preview.title])
   
   // Select template based on type
   const renderTemplate = () => {

@@ -1198,7 +1198,42 @@ export default function Demo() {
                   <div className="max-w-md mx-auto">
                     <ReconstructedPreview preview={preview} />
                   </div>
-                  
+
+                  {/* Social Media Preview (og:image) */}
+                  {preview.composited_preview_image_url && (
+                    <div className="mt-8">
+                      <div className="text-center mb-4">
+                        <h4 className="text-lg font-semibold text-gray-900 mb-1 flex items-center justify-center gap-2">
+                          <svg className="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                          </svg>
+                          Social Media Preview
+                        </h4>
+                        <p className="text-sm text-gray-600">This is what appears when you share the link on social media</p>
+                      </div>
+                      <div className="max-w-2xl mx-auto">
+                        <div className="relative group">
+                          <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-xl opacity-20 blur-xl group-hover:opacity-30 transition-opacity" />
+                          <div className="relative bg-white p-2 rounded-xl shadow-xl border border-gray-200">
+                            <img
+                              src={preview.composited_preview_image_url}
+                              alt="Social media preview (og:image)"
+                              className="w-full rounded-lg"
+                            />
+                            <div className="mt-3 px-3 pb-2">
+                              <p className="text-xs text-gray-500 flex items-center gap-1">
+                                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                                </svg>
+                                This image is automatically set as <code className="px-1 py-0.5 bg-gray-100 rounded text-xs font-mono">og:image</code> for social sharing
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Comparison toggle */}
                   <div className="mt-6 text-center">
                     <details className="inline-block">
