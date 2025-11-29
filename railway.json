@@ -15,7 +15,14 @@
     "frontend": {
       "build": {
         "builder": "DOCKERFILE",
-        "dockerfilePath": "Dockerfile.frontend"
+        "dockerfilePath": "Dockerfile.frontend",
+        "watchPaths": [
+          "src/**",
+          "public/**",
+          "index.html",
+          "package.json",
+          "Dockerfile.frontend"
+        ]
       },
       "deploy": {
         "startCommand": "",
