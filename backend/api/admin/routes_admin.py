@@ -788,7 +788,7 @@ def deploy_merge_claude_branch(
         # On Railway, git is usually in /usr/bin/git
         return "git"  # Fallback to just "git" and let subprocess handle the error
     
-    output_lines = []  # Initialize early to avoid UnboundLocalError
+        output_lines = []  # Initialize early to avoid UnboundLocalError
     
     try:
         # Log admin action
@@ -803,6 +803,14 @@ def deploy_merge_claude_branch(
         # Try GitHub API first (preferred for Railway)
         github_token = os.getenv("GITHUB_TOKEN")
         github_repo = os.getenv("GITHUB_REPO", "Flyvendedk799/preview")  # Default to your repo
+        
+        if not github_token:
+            # No GitHub token - provide helpful instructions
+            return DeploymentResponse(
+                success=False,
+                message="GitHub API token not configured. To enable remote deployment, please set the GITHUB_TOKEN environment variable in Railway. Go to Railway Dashboard → Your Service → Variables → Add GITHUB_TOKEN with a GitHub Personal Access Token (repo scope).",
+                output="GitHub token not found. Git is not available in Railway runtime containers."
+            )
         
         if github_token:
             logger.info("Attempting to use GitHub API for merge")
