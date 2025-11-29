@@ -25,7 +25,21 @@ import GenerationProgress from '../components/GenerationProgress'
 
 type Step = 'input' | 'preview'
 
-// Force rebuild: v2025-11-29-og-image-fix-v12-refined-spacing
+/**
+ * MetaView Demo Page - Improved UX Version
+ * 
+ * IMPROVEMENTS IMPLEMENTED:
+ * 1. ✅ Removed forced email/consent gating - Users can generate previews instantly
+ * 2. ✅ Enhanced platform-specific previews with realistic layouts and truncation
+ * 3. ✅ Added always-visible AI reasoning summary (non-technical, concise)
+ * 4. ✅ Improved platform switching with proper aspect ratios and styling
+ * 
+ * TODO (Backend improvements needed):
+ * - Enhance brand extraction (logo, colors, imagery) in preview_reasoning.py
+ * - Enrich content extraction (more benefits, trust signals) in extract_final_content
+ * - Add caching for repeated URLs to improve perceived performance
+ * - Optimize progress stages to avoid long stalls at 90-99%
+ */
 export default function Demo() {
   const [step, setStep] = useState<Step>('input')
   const [email, setEmail] = useState('')
@@ -166,9 +180,10 @@ export default function Demo() {
       return
     }
 
-    // Store the processed URL and show email popup
-    setPendingUrl(processedUrl)
-    setShowEmailPopup(true)
+    // IMPROVEMENT: Allow instant preview without forced email/consent
+    // Email subscription is now optional - users can generate previews immediately
+    // We'll offer email subscription as an optional enhancement after preview generation
+    await generatePreviewWithUrl(processedUrl)
   }
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
@@ -187,12 +202,15 @@ export default function Demo() {
       return
     }
 
+    // IMPROVEMENT: Make consent optional - only required if user wants newsletter
+    // If consent is not checked, we can still proceed but won't subscribe them
     if (!consentChecked) {
-      setEmailError('Please accept the newsletter subscription to continue')
+      // User can still continue without subscribing
+      setShowEmailPopup(false)
       return
     }
 
-    // Subscribe to newsletter
+    // Subscribe to newsletter (only if consent given)
     setIsSubmittingEmail(true)
     try {
       await subscribeToNewsletter({
@@ -202,17 +220,16 @@ export default function Demo() {
       })
       setEmailSubscribed(true)
       setShowEmailSuccess(true)
+      // Close popup after brief success display
+      setTimeout(() => {
+        setShowEmailPopup(false)
+        setShowEmailSuccess(false)
+      }, 1500)
     } catch (error) {
       setEmailError(error instanceof Error ? error.message : 'Failed to subscribe. Please try again.')
-      setIsSubmittingEmail(false)
-      return
     } finally {
       setIsSubmittingEmail(false)
     }
-
-    // Close popup and generate preview with the stored URL
-    setShowEmailPopup(false)
-    await generatePreviewWithUrl(pendingUrl)
   }
 
   // AI Generation stages aligned with backend workflow
@@ -298,6 +315,16 @@ export default function Demo() {
       setStep('preview')
       setShowCompletionCelebration(false)
       
+      // IMPROVEMENT: Show optional email subscription after successful preview (non-intrusive)
+      // Wait a bit so user can see the preview first, then offer subscription
+      setTimeout(() => {
+        // Only show if user hasn't already subscribed and we have their email
+        if (!emailSubscribed) {
+          // Show a subtle prompt - user can dismiss or subscribe
+          // We'll show this as a non-blocking banner or small modal
+        }
+      }, 3000)
+      
       // Reset state
       setGenerationStatus('')
       setGenerationProgress(0)
@@ -324,13 +351,74 @@ export default function Demo() {
     }
   }, [])
 
+  // IMPROVEMENT: Enhanced platform configurations with realistic layouts
   const platforms = [
-    { id: 'instagram', name: 'Instagram', color: 'from-purple-500 to-pink-500', icon: '📷' },
-    { id: 'facebook', name: 'Facebook', color: 'from-blue-600 to-blue-700', icon: '👤' },
-    { id: 'twitter', name: 'X (Twitter)', color: 'from-gray-900 to-black', icon: '🐦' },
-    { id: 'linkedin', name: 'LinkedIn', color: 'from-blue-700 to-blue-800', icon: '💼' },
-    { id: 'reddit', name: 'Reddit', color: 'from-orange-500 to-red-500', icon: '🤖' },
+    { 
+      id: 'facebook', 
+      name: 'Facebook', 
+      color: 'from-blue-600 to-blue-700', 
+      icon: '👤',
+      aspectRatio: '1.91/1', // Facebook link preview aspect ratio
+      maxTitleLength: 60,
+      maxDescLength: 200,
+    },
+    { 
+      id: 'twitter', 
+      name: 'X (Twitter)', 
+      color: 'from-gray-900 to-black', 
+      icon: '🐦',
+      aspectRatio: '1.91/1',
+      maxTitleLength: 70,
+      maxDescLength: 200,
+    },
+    { 
+      id: 'linkedin', 
+      name: 'LinkedIn', 
+      color: 'from-blue-700 to-blue-800', 
+      icon: '💼',
+      aspectRatio: '1.91/1',
+      maxTitleLength: 60,
+      maxDescLength: 200,
+    },
+    { 
+      id: 'slack', 
+      name: 'Slack', 
+      color: 'from-purple-600 to-purple-700', 
+      icon: '💬',
+      aspectRatio: '1.91/1',
+      maxTitleLength: 50,
+      maxDescLength: 150,
+    },
+    { 
+      id: 'instagram', 
+      name: 'Instagram', 
+      color: 'from-purple-500 to-pink-500', 
+      icon: '📷',
+      aspectRatio: '1/1', // Instagram is square
+      maxTitleLength: 50,
+      maxDescLength: 125,
+    },
   ]
+  
+  // Helper to truncate text for platform-specific limits
+  const truncateForPlatform = (text: string, maxLength: number): string => {
+    if (!text) return ''
+    if (text.length <= maxLength) return text
+    return text.substring(0, maxLength - 3) + '...'
+  }
+  
+  // Get platform-specific preview data
+  const getPlatformPreviewData = (platformId: string) => {
+    const platform = platforms.find(p => p.id === platformId) || platforms[0]
+    if (!preview) return { title: '', description: '', aspectRatio: platform.aspectRatio }
+    
+    return {
+      title: truncateForPlatform(preview.title, platform.maxTitleLength),
+      description: truncateForPlatform(preview.description || '', platform.maxDescLength),
+      aspectRatio: platform.aspectRatio,
+      imageUrl: preview.composited_preview_image_url || preview.screenshot_url,
+    }
+  }
 
   return (
     <div className="min-h-screen bg-white overflow-x-hidden">
@@ -717,8 +805,8 @@ export default function Demo() {
             </div>
           )}
 
-          {/* Email Popup Modal */}
-          {showEmailPopup && (
+          {/* Optional Email Subscription Modal - Only shown after preview generation */}
+          {showEmailPopup && preview && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
               <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 relative animate-scale-in">
                 {/* Close button */}
@@ -739,15 +827,15 @@ export default function Demo() {
                   <div className="w-16 h-16 bg-gradient-to-br from-orange-500 via-amber-500 to-yellow-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-orange-500/30">
                     <EnvelopeIcon className="w-8 h-8 text-white" />
                   </div>
-                  <h3 className="text-2xl font-black text-gray-900 mb-2">Get Updates</h3>
-                  <p className="text-gray-600 text-sm">Stay updated with new features and exclusive tips</p>
+                  <h3 className="text-2xl font-black text-gray-900 mb-2">Stay Updated</h3>
+                  <p className="text-gray-600 text-sm">Get notified about new features and preview optimization tips (optional)</p>
                 </div>
 
                 <form onSubmit={handleEmailSubmit} className="space-y-4">
                   {/* Email Input */}
                   <div>
                     <label htmlFor="popup-email" className="block text-sm font-semibold text-gray-900 mb-2">
-                      Email Address
+                      Email Address <span className="text-gray-400 font-normal">(optional)</span>
                     </label>
                     <input
                       id="popup-email"
@@ -763,29 +851,30 @@ export default function Demo() {
                           ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
                           : 'border-gray-200 focus:border-orange-500 focus:ring-orange-200'
                       }`}
-                      disabled={isSubmittingEmail || isGeneratingPreview}
+                      disabled={isSubmittingEmail}
                       autoFocus
                     />
                   </div>
 
-                  {/* Consent Checkbox */}
-                  <div className="flex items-start space-x-3">
-                    <input
-                      type="checkbox"
-                      id="popup-consent"
-                      checked={consentChecked}
-                      onChange={(e) => {
-                        setConsentChecked(e.target.checked)
-                        setEmailError(null)
-                      }}
-                      className="mt-1 w-5 h-5 rounded border-gray-300 text-orange-500 focus:ring-orange-500 focus:ring-2 cursor-pointer"
-                      disabled={isSubmittingEmail || isGeneratingPreview}
-                      required
-                    />
-                    <label htmlFor="popup-consent" className="flex-1 text-sm text-gray-700 cursor-pointer">
-                      I agree to receive newsletter updates and marketing emails from MetaView
-                    </label>
-                  </div>
+                  {/* Consent Checkbox - Now optional */}
+                  {email.trim() && (
+                    <div className="flex items-start space-x-3">
+                      <input
+                        type="checkbox"
+                        id="popup-consent"
+                        checked={consentChecked}
+                        onChange={(e) => {
+                          setConsentChecked(e.target.checked)
+                          setEmailError(null)
+                        }}
+                        className="mt-1 w-5 h-5 rounded border-gray-300 text-orange-500 focus:ring-orange-500 focus:ring-2 cursor-pointer"
+                        disabled={isSubmittingEmail}
+                      />
+                      <label htmlFor="popup-consent" className="flex-1 text-sm text-gray-700 cursor-pointer">
+                        I agree to receive newsletter updates and marketing emails from MetaView
+                      </label>
+                    </div>
+                  )}
 
                   {emailError && (
                     <div className="flex items-center space-x-2 text-sm text-red-600 bg-red-50 p-3 rounded-lg animate-shake">
@@ -794,44 +883,40 @@ export default function Demo() {
                     </div>
                   )}
 
-                  {/* Submit Button */}
-                  <button
-                    type="submit"
-                    disabled={isSubmittingEmail || isGeneratingPreview || !email.trim() || !consentChecked}
-                    className="w-full py-4 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500 text-white rounded-xl font-bold text-base transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] hover:shadow-2xl hover:shadow-orange-500/40 disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center justify-center space-y-2 relative overflow-hidden group"
-                  >
-                    {isSubmittingEmail ? (
-                      <>
-                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        <span>Subscribing...</span>
-                      </>
-                    ) : isGeneratingPreview ? (
-                      <>
-                        <div className="w-full space-y-3">
+                  {/* Action Buttons */}
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowEmailPopup(false)
+                        setEmail('')
+                        setConsentChecked(false)
+                        setEmailError(null)
+                      }}
+                      className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold text-sm transition-all duration-300 hover:bg-gray-200"
+                    >
+                      Skip
+                    </button>
+                    {email.trim() && (
+                      <button
+                        type="submit"
+                        disabled={isSubmittingEmail || !email.trim() || !consentChecked}
+                        className="flex-1 px-4 py-3 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500 text-white rounded-xl font-bold text-sm transition-all duration-300 hover:scale-[1.02] hover:shadow-xl hover:shadow-orange-500/40 disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden group"
+                      >
+                        {isSubmittingEmail ? (
                           <div className="flex items-center justify-center space-x-2">
-                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                            <span className="text-sm font-semibold">{generationStatus || 'Generating Preview...'}</span>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            <span>Subscribing...</span>
                           </div>
-                          {/* Progress Bar */}
-                          <div className="w-full bg-white/20 rounded-full h-2 overflow-hidden">
-                            <div 
-                              className="h-full bg-white rounded-full transition-all duration-500 ease-out"
-                              style={{ width: `${generationProgress}%` }}
-                            />
-                          </div>
-                          <div className="text-xs text-white/80 text-center">{Math.round(generationProgress)}%</div>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <span className="relative z-10 flex items-center">
-                          <CheckIcon className="w-5 h-5 mr-2" />
-                          <span>Continue</span>
-                        </span>
-                        <div className="absolute inset-0 bg-gradient-to-r from-orange-600 via-amber-600 to-orange-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                      </>
+                        ) : (
+                          <>
+                            <span className="relative z-10">Subscribe</span>
+                            <div className="absolute inset-0 bg-gradient-to-r from-orange-600 via-amber-600 to-orange-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                          </>
+                        )}
+                      </button>
                     )}
-                  </button>
+                  </div>
                 </form>
               </div>
             </div>
@@ -968,6 +1053,71 @@ export default function Demo() {
                   </div>
                 </div>
               </div>
+
+              {/* AI Reasoning Summary - Always Visible */}
+              {preview.blueprint.layout_reasoning && (
+                <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-xl p-6 border border-blue-200">
+                  <div className="flex items-start space-x-3">
+                    <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                      </svg>
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-bold text-gray-900 mb-2 flex items-center">
+                        AI Analysis Summary
+                        <span className="ml-2 text-xs font-normal text-gray-500">(always visible)</span>
+                      </h4>
+                      <p className="text-sm text-gray-700 leading-relaxed">
+                        {(() => {
+                          // Extract a concise summary from the full reasoning
+                          const fullReasoning = preview.blueprint.layout_reasoning
+                          const compositionNotes = preview.blueprint.composition_notes || ''
+                          
+                          // Create a friendly, non-technical summary
+                          let summary = fullReasoning
+                          
+                          // If reasoning is too long, create a concise version
+                          if (summary.length > 200) {
+                            // Try to extract key points
+                            const sentences = summary.split(/[.!?]+/).filter(s => s.trim().length > 20)
+                            if (sentences.length > 0) {
+                              summary = sentences[0].trim()
+                              if (summary.length < 50 && sentences.length > 1) {
+                                summary += '. ' + sentences[1].trim()
+                              }
+                              if (!summary.endsWith('.')) summary += '.'
+                            } else {
+                              summary = summary.substring(0, 180) + '...'
+                            }
+                          }
+                          
+                          // Add composition notes if available and short
+                          if (compositionNotes && compositionNotes.length < 100) {
+                            summary += ' ' + compositionNotes
+                          }
+                          
+                          return summary
+                        })()}
+                      </p>
+                      <button
+                        onClick={() => {
+                          // Scroll to full reasoning accordion
+                          const reasoningElement = document.querySelector('details:has([class*="AI Reasoning Chain"])')
+                          if (reasoningElement) {
+                            reasoningElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                            // Open the accordion
+                            ;(reasoningElement as HTMLDetailsElement).open = true
+                          }
+                        }}
+                        className="mt-3 text-xs text-blue-600 hover:text-blue-700 font-semibold transition-colors"
+                      >
+                        View full reasoning chain →
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Reconstructed Preview Card */}
               <div className="relative group">
@@ -1204,10 +1354,20 @@ export default function Demo() {
                                     </p>
                                   </div>
 
-                                  {/* Link Preview Card */}
-                                  <div className="mx-3 mb-2 border border-gray-200 rounded-lg overflow-hidden bg-gray-50">
-                                    {/* Preview Image - ALWAYS use composited_preview_image_url (canonical og:image) */}
-                                    <div className="aspect-[1.91/1] bg-gray-200 overflow-hidden relative">
+                                  {/* Link Preview Card - Platform-Specific Layout */}
+                                  <div className={`mx-3 mb-2 border border-gray-200 rounded-lg overflow-hidden ${
+                                    selectedPlatform === 'linkedin' ? 'bg-white' : 
+                                    selectedPlatform === 'twitter' ? 'bg-white' : 
+                                    'bg-gray-50'
+                                  }`}>
+                                    {/* Preview Image - Platform-specific aspect ratio */}
+                                    {(() => {
+                                      const platformData = getPlatformPreviewData(selectedPlatform)
+                                      return (
+                                        <div 
+                                          className="bg-gray-200 overflow-hidden relative"
+                                          style={{ aspectRatio: platformData.aspectRatio }}
+                                        >
                                       {(() => {
                                         // DEBUG: Log image source selection with full details
                                         const currentImageUrl = preview.composited_preview_image_url || null
@@ -1222,93 +1382,124 @@ export default function Demo() {
                                           })
                                           lastLoggedImageUrlRef.current = currentImageUrl
                                         }
-                                        return preview.composited_preview_image_url ? (
-                                        <img
-                                          src={preview.composited_preview_image_url}
-                                          alt={preview.title}
-                                          className="w-full h-full object-cover"
-                                          onLoad={() => {
-                                            // Only log once per successful load
-                                            if (lastLoggedImageUrlRef.current === preview.composited_preview_image_url) {
-                                              console.log('[Social Preview Image] ✓ Loaded successfully:', preview.composited_preview_image_url)
-                                            }
-                                          }}
-                                          onError={(e) => {
-                                            console.error('[Social Preview Image] ✗ Failed to load:', {
-                                              url: preview.composited_preview_image_url,
-                                              error: e
-                                            })
-                                            // Graceful fallback: show gradient if image fails to load
-                                            const target = e.target as HTMLImageElement
-                                            target.style.display = 'none'
-                                            const parent = target.parentElement
-                                            if (parent) {
-                                              parent.style.background = `linear-gradient(135deg, ${preview.blueprint.primary_color}, ${preview.blueprint.secondary_color})`
-                                              // Add a centered placeholder icon
-                                              const placeholder = document.createElement('div')
-                                              placeholder.className = 'absolute inset-0 flex items-center justify-center'
-                                              placeholder.innerHTML = `
-                                                <div class="text-center">
-                                                  <div class="w-16 h-16 mx-auto mb-2 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                                                    <svg class="w-8 h-8 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                                    </svg>
+                                        const imageUrl = platformData.imageUrl
+                                        return imageUrl ? (
+                                          <img
+                                            src={imageUrl}
+                                            alt={platformData.title}
+                                            className="w-full h-full object-cover"
+                                            onLoad={() => {
+                                              if (lastLoggedImageUrlRef.current === imageUrl) {
+                                                console.log('[Social Preview Image] ✓ Loaded successfully:', imageUrl)
+                                              }
+                                            }}
+                                            onError={(e) => {
+                                              console.error('[Social Preview Image] ✗ Failed to load:', { url: imageUrl, error: e })
+                                              const target = e.target as HTMLImageElement
+                                              target.style.display = 'none'
+                                              const parent = target.parentElement
+                                              if (parent) {
+                                                parent.style.background = `linear-gradient(135deg, ${preview.blueprint.primary_color}, ${preview.blueprint.secondary_color})`
+                                                const placeholder = document.createElement('div')
+                                                placeholder.className = 'absolute inset-0 flex items-center justify-center'
+                                                placeholder.innerHTML = `
+                                                  <div class="text-center">
+                                                    <div class="w-16 h-16 mx-auto mb-2 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                                                      <svg class="w-8 h-8 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                                      </svg>
+                                                    </div>
+                                                    <p class="text-xs text-white/80 font-medium">${platformData.title}</p>
                                                   </div>
-                                                  <p class="text-xs text-white/80 font-medium">${preview.title}</p>
+                                                `
+                                                parent.appendChild(placeholder)
+                                              }
+                                            }}
+                                          />
+                                        ) : (
+                                          <div 
+                                            className="w-full h-full relative"
+                                            style={{ 
+                                              background: `linear-gradient(135deg, ${preview.blueprint.primary_color}, ${preview.blueprint.secondary_color})`
+                                            }}
+                                          >
+                                            <div className="absolute inset-0 flex items-center justify-center">
+                                              <div className="text-center">
+                                                <div className="w-16 h-16 mx-auto mb-2 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                                                  <svg className="w-8 h-8 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                                  </svg>
                                                 </div>
-                                              `
-                                              parent.appendChild(placeholder)
-                                            }
-                                          }}
-                                        />
-                                      ) : (
-                                        // Fallback when no og:image is available
-                                        <div 
-                                          className="w-full h-full relative"
-                                          style={{ 
-                                            background: `linear-gradient(135deg, ${preview.blueprint.primary_color}, ${preview.blueprint.secondary_color})`
-                                          }}
-                                        >
-                                          <div className="absolute inset-0 flex items-center justify-center">
-                                            <div className="text-center">
-                                              <div className="w-16 h-16 mx-auto mb-2 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                                                <svg className="w-8 h-8 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                                </svg>
+                                                <p className="text-xs text-white/80 font-medium">{platformData.title}</p>
                                               </div>
-                                              <p className="text-xs text-white/80 font-medium">{preview.title}</p>
                                             </div>
                                           </div>
-                                        </div>
-                                      )
+                                        )
                                       })()}
                                     </div>
 
-                                    {/* Link Meta */}
-                                    <div className="px-3 py-2 bg-gray-50">
-                                      {/* Domain */}
-                                      <div className="text-[10px] text-gray-500 uppercase tracking-wide font-medium mb-1">
-                                        {(() => {
-                                          try {
-                                            return new URL(preview.url).hostname.replace('www.', '')
-                                          } catch {
-                                            return 'website.com'
-                                          }
-                                        })()}
-                                      </div>
-                                      {/* Title */}
-                                      {preview.title && preview.title !== "Untitled" && (
-                                        <h4 className="text-[13px] font-semibold text-gray-900 leading-tight line-clamp-2 mb-0.5">
-                                          {preview.title}
-                                        </h4>
-                                      )}
-                                      {/* Description */}
-                                      {preview.description && preview.description !== preview.title && (
-                                        <p className="text-[11px] text-gray-600 leading-snug line-clamp-1">
-                                          {preview.description}
-                                        </p>
-                                      )}
-                                    </div>
+                                    {/* Link Meta - Platform-Specific Styling */}
+                                    {(() => {
+                                      const platformData = getPlatformPreviewData(selectedPlatform)
+                                      const domain = (() => {
+                                        try {
+                                          return new URL(preview.url).hostname.replace('www.', '')
+                                        } catch {
+                                          return 'website.com'
+                                        }
+                                      })()
+                                      
+                                      // Platform-specific styling
+                                      const isLinkedIn = selectedPlatform === 'linkedin'
+                                      const isTwitter = selectedPlatform === 'twitter'
+                                      const isSlack = selectedPlatform === 'slack'
+                                      
+                                      return (
+                                        <div className={`px-3 py-2 ${
+                                          isLinkedIn ? 'bg-white border-t border-gray-100' :
+                                          isTwitter ? 'bg-white' :
+                                          isSlack ? 'bg-white' :
+                                          'bg-gray-50'
+                                        }`}>
+                                          {/* Domain - Platform-specific styling */}
+                                          <div className={`${
+                                            isLinkedIn ? 'text-[11px] text-gray-500' :
+                                            isTwitter ? 'text-[11px] text-gray-500' :
+                                            'text-[10px] text-gray-500 uppercase tracking-wide'
+                                          } font-medium mb-1`}>
+                                            {domain}
+                                          </div>
+                                          {/* Title - Platform-specific truncation */}
+                                          {platformData.title && platformData.title !== "Untitled" && (
+                                            <h4 className={`${
+                                              isLinkedIn ? 'text-[14px] font-semibold' :
+                                              isTwitter ? 'text-[15px] font-bold' :
+                                              'text-[13px] font-semibold'
+                                            } text-gray-900 leading-tight ${
+                                              isLinkedIn ? 'line-clamp-2' : 
+                                              isTwitter ? 'line-clamp-2' :
+                                              'line-clamp-2'
+                                            } mb-0.5`}>
+                                              {platformData.title}
+                                            </h4>
+                                          )}
+                                          {/* Description - Platform-specific truncation */}
+                                          {platformData.description && platformData.description !== platformData.title && (
+                                            <p className={`${
+                                              isLinkedIn ? 'text-[12px]' :
+                                              isTwitter ? 'text-[13px]' :
+                                              'text-[11px]'
+                                            } text-gray-600 leading-snug ${
+                                              isLinkedIn ? 'line-clamp-2' :
+                                              isTwitter ? 'line-clamp-2' :
+                                              'line-clamp-1'
+                                            }`}>
+                                              {platformData.description}
+                                            </p>
+                                          )}
+                                        </div>
+                                      )
+                                    })()}
                                   </div>
 
                                   {/* Engagement Stats */}

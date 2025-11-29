@@ -12,6 +12,12 @@ from backend.services.playwright_screenshot import capture_screenshot
 from backend.services.r2_client import upload_file_to_r2
 from backend.services.preview_reasoning import generate_reasoned_preview
 from backend.services.preview_image_generator import generate_and_upload_preview_image
+from backend.services.preview_cache import (
+    generate_cache_key,
+    get_redis_client,
+    CacheConfig
+)
+import json
 import logging
 
 logger = logging.getLogger(__name__)
@@ -112,8 +118,27 @@ def generate_demo_preview(
     5. LAYOUT SYNTHESIS: Generate optimized structure
     6. COHERENCE CHECK: Validate balance and flow
     
+    IMPROVEMENT: Added caching for repeated URLs to improve performance.
     Rate limited to prevent abuse.
     """
+    url_str = str(request_data.url)
+    
+    # IMPROVEMENT: Check cache first for repeated URLs (e.g., subpay.dk)
+    redis_client = get_redis_client()
+    cache_key = generate_cache_key(url_str, "demo:preview:")
+    cached_result = None
+    
+    if redis_client:
+        try:
+            cached_data = redis_client.get(cache_key)
+            if cached_data:
+                logger.info(f"Cache hit for demo preview: {url_str[:50]}...")
+                cached_result = json.loads(cached_data)
+                # Return cached result immediately
+                return DemoPreviewResponse(**cached_result)
+        except Exception as e:
+            logger.warning(f"Cache read error: {e}")
+    
     # Rate limiting: 10 previews per hour per IP
     client_ip = get_client_ip(request)
     rate_limit_key = get_rate_limit_key_for_ip(client_ip, "demo_preview")
@@ -125,7 +150,7 @@ def generate_demo_preview(
     
     # Validate URL security
     try:
-        validate_url_security(str(request_data.url))
+        validate_url_security(url_str)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -135,8 +160,8 @@ def generate_demo_preview(
     # Step 1: Capture screenshot
     screenshot_bytes = None
     try:
-        logger.info(f"Capturing screenshot for: {request_data.url}")
-        screenshot_bytes = capture_screenshot(str(request_data.url))
+        logger.info(f"Capturing screenshot for: {url_str}")
+        screenshot_bytes = capture_screenshot(url_str)
     except Exception as e:
         logger.error(f"Screenshot capture failed: {e}", exc_info=True)
         raise HTTPException(
@@ -155,8 +180,8 @@ def generate_demo_preview(
     
     # Step 3: Run multi-stage reasoning
     try:
-        logger.info(f"Running multi-stage reasoning for: {request_data.url}")
-        result = generate_reasoned_preview(screenshot_bytes, str(request_data.url))
+        logger.info(f"Running multi-stage reasoning for: {url_str}")
+        result = generate_reasoned_preview(screenshot_bytes, url_str)
     except Exception as e:
         error_msg = str(e)
         logger.error(f"Preview reasoning failed: {error_msg}", exc_info=True)
@@ -219,8 +244,8 @@ def generate_demo_preview(
             logger.info(f"Using raw screenshot as fallback: {screenshot_url}")
     
     # Step 5: Build response
-    return DemoPreviewResponse(
-        url=str(request_data.url),
+    response = DemoPreviewResponse(
+        url=url_str,
         
         # Rendered content
         title=result.title,
@@ -264,3 +289,17 @@ def generate_demo_preview(
         is_demo=True,
         message="AI-reconstructed preview using multi-stage reasoning."
     )
+    
+    # IMPROVEMENT: Cache the result for future requests (24 hour TTL)
+    if redis_client:
+        try:
+            # Convert response to dict for caching
+            response_dict = response.model_dump()
+            cache_data = json.dumps(response_dict)
+            ttl_seconds = CacheConfig.DEFAULT_TTL_HOURS * 3600
+            redis_client.setex(cache_key, ttl_seconds, cache_data)
+            logger.info(f"Cached demo preview result for: {url_str[:50]}...")
+        except Exception as e:
+            logger.warning(f"Failed to cache result: {e}")
+    
+    return response

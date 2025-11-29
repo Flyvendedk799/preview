@@ -214,12 +214,19 @@ Identify ALL distinct UI regions visible. For each region, note:
 - Its approximate position
 - Its exact content
 
+IMPROVEMENT: Pay special attention to:
+- LOGO detection: Look for brand logos in header, favicon area, or prominent positions
+- TRUST SIGNALS: Ratings, reviews, certifications, security badges, statistics
+- BENEFIT BULLETS: Feature lists, value propositions, key selling points
+- SOCIAL PROOF: Testimonials, user counts, success metrics
+
 === STAGE 2: PURPOSE ANALYSIS ===
 For each region, determine its COMMUNICATION PURPOSE:
 - identity: Who/what this is (name, logo, profile image)
 - value_prop: Core message or what they offer
+- benefits: Supporting benefits, features, or selling points (NEW - extract 2-3 key benefits)
 - context: Supporting info (location, date, company)
-- credibility: Trust signals (ratings, reviews, certifications)
+- credibility: Trust signals (ratings, reviews, certifications, statistics, security badges)
 - action: CTAs and conversion elements
 - navigation: Menu items, tabs (usually exclude from preview)
 - decoration: Pure visual enhancement (usually exclude)
@@ -229,8 +236,8 @@ REASONING REQUIRED: Explain WHY each region has its assigned purpose.
 === STAGE 3: PRIORITY ASSIGNMENT ===
 Assign visual weight based on what users should see FIRST in a preview:
 - hero: ONE dominant element (usually the main image or headline)
-- primary: 1-2 key supporting elements
-- secondary: 2-4 supporting details
+- primary: 1-2 key supporting elements (main value prop, primary benefit)
+- secondary: 2-4 supporting details (additional benefits, trust signals)
 - tertiary: Minor details (use sparingly in previews)
 - omit: Should not appear (navigation, redundant info, clutter)
 
@@ -242,20 +249,25 @@ OUTPUT STRICT JSON:
     "regions": [
         {{
             "id": "<unique_id>",
-            "content_type": "<image|headline|subheadline|body_text|badge|button|rating|location|tag|logo|other>",
+            "content_type": "<image|headline|subheadline|body_text|badge|button|rating|location|tag|logo|benefit|statistic|testimonial|other>",
             "raw_content": "<exact content>",
             "bbox": {{"x": <0-1>, "y": <0-1>, "width": <0-1>, "height": <0-1>}},
-            "purpose": "<identity|value_prop|context|credibility|action|navigation|decoration>",
+            "purpose": "<identity|value_prop|benefits|context|credibility|action|navigation|decoration>",
             "purpose_reasoning": "<why this purpose>",
             "visual_weight": "<hero|primary|secondary|tertiary|omit>",
             "priority_score": <0.0-1.0>,
-            "priority_reasoning": "<why this priority>"
+            "priority_reasoning": "<why this priority>",
+            "is_logo": <true|false>  // NEW: Explicitly identify if this is a logo/brand mark
         }}
     ],
     "detected_palette": {{
-        "primary": "<hex>",
-        "secondary": "<hex>", 
-        "accent": "<hex>"
+        "primary": "<hex>",  // Extract from hero section, main buttons, or brand colors
+        "secondary": "<hex>",  // Extract from secondary elements
+        "accent": "<hex>"  // Extract from CTAs, highlights, or brand accent
+    }},
+    "detected_logo": {{
+        "region_id": "<region_id or null>",  // NEW: Reference to logo region if found
+        "confidence": <0.0-1.0>  // NEW: Confidence that this is actually a logo
     }},
     "analysis_confidence": <0.0-1.0>
 }}
@@ -308,11 +320,12 @@ Rules for high-quality previews:
 === STAGE 5: LAYOUT SYNTHESIS ===
 Assign included regions to layout slots:
 - identity_slot: Main name/title (clean, no prefix like "Om" or "About")
-- identity_image_slot: Profile image/avatar/logo
+- identity_image_slot: Profile image/avatar/logo (PRIORITIZE detected logo if available)
 - tagline_slot: Brief professional descriptor (role, specialty)
 - value_slot: Core value proposition or about text
+- benefits_slots: Key benefits or features (max 2-3, NEW - extract supporting benefits)
 - context_slots: Location, date, company (max 2)
-- credibility_slots: Ratings, testimonials (max 2, include if visually prominent even if zero)
+- credibility_slots: Ratings, testimonials, statistics, security badges (max 2-3, include if visually prominent even if zero)
 - action_slot: Primary CTA
 - tags_slots: Skills, categories (max 4)
 
@@ -328,11 +341,12 @@ OUTPUT JSON:
     "layout": {{
         "template_type": "<profile|product|landing|article|service>",
         "identity_slot": "<region_id or null>",
-        "identity_image_slot": "<region_id or null>",
+        "identity_image_slot": "<region_id or null>",  // PRIORITIZE logo if detected
         "tagline_slot": "<region_id or null>",
         "value_slot": "<region_id or null>",
+        "benefits_slots": ["<region_id>"],  // NEW: 2-3 key benefits
         "context_slots": ["<region_id>"],
-        "credibility_slots": ["<region_id>"],
+        "credibility_slots": ["<region_id>"],  // Can include up to 3 for rich trust signals
         "action_slot": "<region_id or null>",
         "tags_slots": ["<region_id>"]
     }},
@@ -542,12 +556,27 @@ def run_stages_1_2_3(screenshot_bytes: bytes) -> Tuple[List[Dict], Dict[str, str
     
     data = json.loads(content)
     
+    # IMPROVEMENT: Extract logo information if detected
+    detected_logo = data.get("detected_logo", {})
+    logo_region_id = detected_logo.get("region_id") if detected_logo else None
+    
     # Crop images for included regions
     for region in data.get("regions", []):
         if region.get("content_type") == "image" and region.get("bbox"):
-            # Check if this is a profile/identity image for special handling
+            # Check if this is a profile/identity image or logo for special handling
             is_profile = region.get("purpose") == "identity"
-            region["image_data"] = crop_region(pil_image, region["bbox"], is_profile_image=is_profile)
+            is_logo = region.get("is_logo", False) or region.get("id") == logo_region_id
+            
+            # Crop the region (use profile handling for logos too)
+            try:
+                image_data = crop_region(pil_image, region["bbox"], is_profile_image=(is_profile or is_logo))
+                if image_data:
+                    region["image_data"] = image_data
+                    # Mark as logo if detected
+                    if is_logo:
+                        region["is_logo"] = True
+            except Exception as e:
+                logger.warning(f"Failed to crop region {region.get('id')}: {e}")
     
     return (
         data.get("regions", []),
@@ -762,9 +791,27 @@ def extract_final_content(
                 icon = "location" if "location" in ctx_type.lower() else "info"
                 context_items.append({"icon": icon, "text": ctx_text})
     
-    # Extract credibility items
+    # IMPROVEMENT: Extract benefits (2-3 key benefits/features)
+    benefits = []
+    for benefit_id in layout_slots.get("benefits_slots", [])[:3]:
+        benefit_text = get_region_content(benefit_id, "benefits")
+        if benefit_text:
+            benefits.append(benefit_text)
+    
+    # If no explicit benefits slots, try to extract from value_prop or secondary regions
+    if not benefits:
+        # Look for regions with purpose="benefits" or secondary value_prop regions
+        for region_id, include_flag in included.items():
+            if include_flag and region_id in region_map:
+                region = region_map[region_id]
+                if region.get("purpose") == "benefits" and len(benefits) < 3:
+                    benefit_text = get_region_content(region_id, "benefits")
+                    if benefit_text and benefit_text not in benefits:
+                        benefits.append(benefit_text)
+    
+    # IMPROVEMENT: Extract more credibility items (up to 3 for rich trust signals)
     credibility_items = []
-    for cred_id in layout_slots.get("credibility_slots", [])[:2]:
+    for cred_id in layout_slots.get("credibility_slots", [])[:3]:
         if cred_id in region_map:
             region = region_map[cred_id]
             cred_type = region.get("content_type", "other")
@@ -773,17 +820,32 @@ def extract_final_content(
             if cred_text:
                 credibility_items.append({"type": cred_type, "value": cred_text})
     
+    # IMPROVEMENT: If description is thin, try to enrich it with first benefit
+    if description and len(description) < 50 and benefits:
+        # Append first benefit to description for richer content
+        description = f"{description} {benefits[0]}"
+    
     # Extract CTA
     cta_text = get_region_content(layout_slots.get("action_slot"))
     
-    # Extract primary image
+    # IMPROVEMENT: Extract primary image, prioritizing logo if detected
     primary_image = get_region_image(layout_slots.get("identity_image_slot"))
+    
+    # If no primary image but we have logo detection, try to find it
+    if not primary_image:
+        # Look for regions marked as logo
+        for region in regions:
+            if region.get("is_logo") and region.get("image_data"):
+                primary_image = region.get("image_data")
+                logger.info("Using detected logo as primary image")
+                break
     
     return {
         "title": title,
         "subtitle": subtitle,
         "description": description,
         "tags": tags,
+        "benefits": benefits,  # NEW: Extracted benefits
         "context_items": context_items,
         "credibility_items": credibility_items,
         "cta_text": cta_text,
@@ -888,12 +950,20 @@ def generate_reasoned_preview(screenshot_bytes: bytes, url: str = "") -> Reasone
     
     processing_time = int((time.time() - start_time) * 1000)
     
+    # IMPROVEMENT: Enrich description with benefits if available
+    description = final_content.get("description", "")
+    benefits = final_content.get("benefits", [])
+    if benefits and description:
+        # If description is short, append first benefit
+        if len(description) < 100 and len(benefits) > 0:
+            description = f"{description} {benefits[0]}"
+    
     result = ReasonedPreview(
         regions=analyzed_regions,
         blueprint=blueprint,
         title=final_content["title"],
         subtitle=final_content["subtitle"],
-        description=final_content["description"],
+        description=description,  # Use enriched description
         tags=final_content["tags"],
         context_items=final_content["context_items"],
         credibility_items=final_content["credibility_items"],
