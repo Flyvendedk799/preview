@@ -7,15 +7,15 @@
 
 export interface PreviewData {
   // Core preview content
-  image: string | null  // og:image URL
+  image: string | undefined  // og:image URL
   title: string
-  description: string | null
+  description: string | undefined
   url: string
   
   // Brand metadata
   brand: {
-    name: string | null
-    logo: string | null  // Base64 logo
+    name: string | undefined
+    logo: string | undefined  // Base64 logo
     colors: {
       primary: string
       secondary: string
@@ -47,13 +47,13 @@ export interface PlatformConfig {
  */
 export function toPreviewData(apiResponse: any): PreviewData {
   return {
-    image: apiResponse.composited_preview_image_url || apiResponse.screenshot_url || null,
+    image: apiResponse.composited_preview_image_url || apiResponse.screenshot_url || undefined,
     title: apiResponse.title || 'Untitled',
-    description: apiResponse.description || null,
+    description: apiResponse.description || undefined,
     url: apiResponse.url,
     brand: {
-      name: apiResponse.brand?.brand_name || null,
-      logo: apiResponse.brand?.logo_base64 || null,
+      name: apiResponse.brand?.brand_name || undefined,
+      logo: apiResponse.brand?.logo_base64 || undefined,
       colors: {
         primary: apiResponse.blueprint?.primary_color || '#3B82F6',
         secondary: apiResponse.blueprint?.secondary_color || '#1E293B',
@@ -64,7 +64,7 @@ export function toPreviewData(apiResponse: any): PreviewData {
       try {
         return new URL(apiResponse.url).hostname.replace('www.', '')
       } catch {
-        return null
+        return undefined
       }
     })(),
   }
