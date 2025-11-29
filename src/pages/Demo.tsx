@@ -25,7 +25,7 @@ import GenerationProgress from '../components/GenerationProgress'
 
 type Step = 'input' | 'preview'
 
-// Force rebuild: v2025-11-29-og-image-fix-v9-restore-design-keep-same-image
+// Force rebuild: v2025-11-29-og-image-fix-v10-set-meta-tag
 export default function Demo() {
   const [step, setStep] = useState<Step>('input')
   const [email, setEmail] = useState('')
@@ -66,6 +66,49 @@ export default function Demo() {
       })
     }
   }, [preview])
+
+  // Set og:image meta tag dynamically when preview is loaded
+  useEffect(() => {
+    if (preview?.composited_preview_image_url) {
+      // Helper to update or create meta tag
+      const setMetaTag = (property: string, content: string) => {
+        let meta = document.querySelector(`meta[property="${property}"]`) as HTMLMetaElement
+        if (!meta) {
+          meta = document.createElement('meta')
+          meta.setAttribute('property', property)
+          document.head.appendChild(meta)
+        }
+        meta.setAttribute('content', content)
+      }
+
+      // Set og:image to use the same composited image as the previews
+      setMetaTag('og:image', preview.composited_preview_image_url)
+      setMetaTag('og:title', preview.title)
+      if (preview.description) {
+        setMetaTag('og:description', preview.description)
+      }
+      setMetaTag('og:url', window.location.href)
+      
+      // Also set Twitter Card tags
+      let twitterCard = document.querySelector('meta[name="twitter:card"]') as HTMLMetaElement
+      if (!twitterCard) {
+        twitterCard = document.createElement('meta')
+        twitterCard.setAttribute('name', 'twitter:card')
+        document.head.appendChild(twitterCard)
+      }
+      twitterCard.setAttribute('content', 'summary_large_image')
+      
+      let twitterImage = document.querySelector('meta[name="twitter:image"]') as HTMLMetaElement
+      if (!twitterImage) {
+        twitterImage = document.createElement('meta')
+        twitterImage.setAttribute('name', 'twitter:image')
+        document.head.appendChild(twitterImage)
+      }
+      twitterImage.setAttribute('content', preview.composited_preview_image_url)
+      
+      console.log('[Demo] Set og:image meta tag to:', preview.composited_preview_image_url)
+    }
+  }, [preview?.composited_preview_image_url])
 
   useEffect(() => {
     const handleScroll = () => {
