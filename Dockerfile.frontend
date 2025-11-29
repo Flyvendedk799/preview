@@ -1,6 +1,9 @@
 # Multi-stage build for frontend
 FROM node:20-alpine as builder
 
+# Cache bust argument - change this value to force rebuild
+ARG CACHEBUST=2025-11-29-fix-og-image-v2
+
 # Accept build arguments for Vite environment variables
 # Railway passes environment variables, but we need to explicitly accept them as ARG
 ARG VITE_API_BASE_URL
@@ -27,6 +30,9 @@ RUN npm ci
 
 # Copy source code
 COPY . .
+
+# Bust Docker cache to force rebuild (uses CACHEBUST arg)
+RUN echo "Cache bust: ${CACHEBUST}"
 
 # Debug: Show environment variables (will be visible in build logs)
 RUN echo "=== Build-time Environment Variables ===" && \
