@@ -19,8 +19,14 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Add description column to previews table
-    op.add_column('previews', sa.Column('description', sa.String(), nullable=True))
+    # Add description column to previews table (idempotent - check if exists first)
+    from sqlalchemy import inspect
+    conn = op.get_bind()
+    inspector = inspect(conn)
+    columns = [col['name'] for col in inspector.get_columns('previews')]
+
+    if 'description' not in columns:
+        op.add_column('previews', sa.Column('description', sa.String(), nullable=True))
 
 
 def downgrade() -> None:
