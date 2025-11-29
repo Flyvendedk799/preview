@@ -134,6 +134,19 @@ def generate_designed_preview(
         secondary_color = _hex_to_rgb(blueprint.get("secondary_color", "#1E293B"))
         accent_color = _hex_to_rgb(blueprint.get("accent_color", "#F59E0B"))
         
+        # For "landing" template, use screenshot background design (matching LandingTemplate React component)
+        if template_type == "landing":
+            return _generate_landing_template_image(
+                screenshot_bytes=screenshot_bytes,
+                title=title,
+                subtitle=subtitle,
+                description=description,
+                cta_text=cta_text,
+                tags=tags,
+                blueprint=blueprint
+            )
+        
+        # For other templates, use white card design
         # Create white card background - make it prominent and centered
         card_width = OG_IMAGE_WIDTH - 120  # Card width with margins (60px each side)
         card_height = OG_IMAGE_HEIGHT - 60  # Card height with margins (30px top/bottom)
@@ -325,6 +338,194 @@ def generate_designed_preview(
     except Exception as e:
         logger.error(f"Designed preview generation failed: {e}", exc_info=True)
         return _generate_fallback_preview(title, domain, blueprint)
+
+
+def _generate_landing_template_image(
+    screenshot_bytes: bytes,
+    title: str,
+    subtitle: Optional[str],
+    description: Optional[str],
+    cta_text: Optional[str],
+    tags: List[str],
+    blueprint: Dict[str, Any]
+) -> bytes:
+    """
+    Generate landing template image matching React LandingTemplate component.
+    
+    Design matches:
+    - Gradient background (primary to secondary color)
+    - Screenshot as background (visible, not 20% opacity - this is the final image)
+    - Dark gradient overlay (from-black/60 to-transparent)
+    - White text overlay (title, subtitle, description)
+    - Tags with white/20 background
+    - CTA button with accent color
+    """
+    try:
+        # Get brand colors
+        primary_color = _hex_to_rgb(blueprint.get("primary_color", "#3B82F6"))
+        secondary_color = _hex_to_rgb(blueprint.get("secondary_color", "#1E293B"))
+        accent_color = _hex_to_rgb(blueprint.get("accent_color", "#F59E0B"))
+        
+        # Create base image with gradient background (matching React: linear-gradient(135deg, primary, secondary))
+        # Optimized gradient: draw lines instead of individual points
+        final_image = Image.new('RGB', (OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT), primary_color)
+        draw = ImageDraw.Draw(final_image)
+        
+        # Draw diagonal gradient (135deg = top-left to bottom-right) - optimized
+        for y in range(OG_IMAGE_HEIGHT):
+            # Calculate distance from top-left corner (135deg diagonal)
+            dist = (y) / (OG_IMAGE_HEIGHT)
+            r = int(primary_color[0] * (1 - dist) + secondary_color[0] * dist)
+            g = int(primary_color[1] * (1 - dist) + secondary_color[1] * dist)
+            b = int(primary_color[2] * (1 - dist) + secondary_color[2] * dist)
+            draw.line([(0, y), (OG_IMAGE_WIDTH, y)], fill=(r, g, b))
+        
+        # Load and prepare screenshot as background
+        try:
+            screenshot_img = Image.open(BytesIO(screenshot_bytes)).convert('RGB')
+            # Resize screenshot to cover full area
+            screenshot_prepared = _prepare_screenshot_background(screenshot_img, OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT)
+            # Convert to RGB for compositing
+            screenshot_rgb = Image.new('RGB', (OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT), (0, 0, 0))
+            screenshot_rgb.paste(screenshot_prepared.convert('RGB'), (0, 0))
+            
+            # Apply screenshot at reduced opacity (30% for final image - visible but not overwhelming)
+            # Use PIL's blend function for performance
+            screenshot_alpha = Image.new('L', (OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT), 77)  # 30% opacity (77/255)
+            screenshot_rgba = Image.new('RGBA', (OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT))
+            screenshot_rgba.paste(screenshot_rgb, (0, 0))
+            screenshot_rgba.putalpha(screenshot_alpha)
+            final_image = Image.alpha_composite(final_image.convert('RGBA'), screenshot_rgba).convert('RGB')
+            draw = ImageDraw.Draw(final_image)
+        except Exception as e:
+            logger.warning(f"Failed to process screenshot background: {e}")
+            # Continue with gradient only
+        
+        # Apply dark gradient overlay (from-black/60 to-transparent) - left to right
+        overlay = Image.new('RGBA', (OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT), (0, 0, 0, 0))
+        overlay_draw = ImageDraw.Draw(overlay)
+        for x in range(OG_IMAGE_WIDTH):
+            # Opacity: 60% (153/255) on left, 0% on right
+            alpha = int(153 * (1 - x / OG_IMAGE_WIDTH))
+            overlay_draw.line([(x, 0), (x, OG_IMAGE_HEIGHT)], fill=(0, 0, 0, alpha))
+        
+        # Composite overlay
+        final_image = Image.alpha_composite(final_image.convert('RGBA'), overlay).convert('RGB')
+        draw = ImageDraw.Draw(final_image)
+        
+        # Content padding (matching React: p-8 = 32px, scaled for 1200px)
+        padding = 64  # 32px * 2
+        content_x = padding
+        content_y = padding
+        
+        # Typography (matching React component)
+        title_font = _load_font(48, bold=True)  # text-3xl = 30px, scaled
+        subtitle_font = _load_font(28, bold=False)  # text-lg = 18px, scaled
+        description_font = _load_font(20, bold=False)  # text-sm = 14px, scaled
+        tag_font = _load_font(18, bold=True)  # text-xs = 12px, scaled
+        cta_font = _load_font(20, bold=True)  # text-sm = 14px, scaled
+        
+        max_text_width = OG_IMAGE_WIDTH - (padding * 2)
+        
+        # Draw tags (matching React: bg-white/20 text-white/90)
+        if tags:
+            tag_y = content_y
+            for i, tag in enumerate(tags[:2]):  # Max 2 tags
+                if i > 0:
+                    tag_y += 40  # mb-4 spacing
+                
+                # Draw tag background (white/20 = rgba(255,255,255,0.2))
+                tag_padding_x = 16
+                tag_padding_y = 8
+                try:
+                    bbox = draw.textbbox((0, 0), tag, font=tag_font)
+                    tag_width = bbox[2] - bbox[0]
+                    tag_height = bbox[3] - bbox[1]
+                except:
+                    tag_width = len(tag) * 10
+                    tag_height = 20
+                
+                # Draw rounded rectangle for tag (approximate)
+                tag_bg_x = content_x
+                tag_bg_y = tag_y
+                tag_bg_w = tag_width + (tag_padding_x * 2)
+                tag_bg_h = tag_height + (tag_padding_y * 2)
+                
+                # White/20 background - draw directly on RGB image
+                # Create temporary RGBA image for tag background
+                tag_bg = Image.new('RGBA', (int(tag_bg_w), int(tag_bg_h)), (255, 255, 255, 51))  # 20% opacity
+                temp_img = final_image.convert('RGBA')
+                temp_img.paste(tag_bg, (int(tag_bg_x), int(tag_bg_y)), tag_bg)
+                final_image = temp_img.convert('RGB')
+                draw = ImageDraw.Draw(final_image)
+                
+                # Draw tag text (white/90) - use white since we're on RGB
+                draw.text((content_x + tag_padding_x, tag_y + tag_padding_y), tag, 
+                         fill=(255, 255, 255), font=tag_font)
+            
+            content_y += len(tags[:2]) * 40 + 32  # mb-4 spacing after tags
+        
+        # Draw title (white, bold, large)
+        if title and title != "Untitled":
+            title_lines = _wrap_text(title, title_font, max_text_width, draw)
+            for i, line in enumerate(title_lines):
+                y_pos = content_y + (i * 56)  # Line height
+                draw.text((content_x, y_pos), line, fill=(255, 255, 255), font=title_font)
+            content_y += len(title_lines) * 56 + 24  # mb-3 spacing
+        
+        # Draw subtitle (white - will appear lighter due to dark overlay)
+        if subtitle:
+            subtitle_lines = _wrap_text(subtitle, subtitle_font, max_text_width, draw)
+            for i, line in enumerate(subtitle_lines[:2]):  # Max 2 lines
+                y_pos = content_y + (i * 36)
+                draw.text((content_x, y_pos), line, fill=(255, 255, 255), font=subtitle_font)
+            content_y += min(len(subtitle_lines), 2) * 36 + 16  # mb-2 spacing
+        
+        # Draw description (white - will appear lighter due to dark overlay)
+        if description:
+            desc_lines = _wrap_text(description, description_font, max_text_width, draw)
+            for i, line in enumerate(desc_lines[:2]):  # line-clamp-2
+                y_pos = content_y + (i * 28)
+                draw.text((content_x, y_pos), line, fill=(255, 255, 255), font=description_font)
+            content_y += min(len(desc_lines), 2) * 28 + 48  # mb-6 spacing
+        
+        # Draw CTA button (matching React: accent_color background, primary_color text)
+        if cta_text:
+            button_padding_x = 48  # px-6 = 24px * 2
+            button_padding_y = 24  # py-3 = 12px * 2
+            try:
+                bbox = draw.textbbox((0, 0), cta_text, font=cta_font)
+                button_width = (bbox[2] - bbox[0]) + (button_padding_x * 2)
+                button_height = (bbox[3] - bbox[1]) + (button_padding_y * 2)
+            except:
+                button_width = len(cta_text) * 12 + (button_padding_x * 2)
+                button_height = 40
+            
+            button_x = content_x
+            button_y = content_y
+            
+            # Draw button background (accent_color)
+            button_bg = Image.new('RGB', (int(button_width), int(button_height)), accent_color)
+            final_image.paste(button_bg, (int(button_x), int(button_y)))
+            
+            # Draw button text (primary_color)
+            try:
+                bbox = draw.textbbox((0, 0), cta_text, font=cta_font)
+                text_x = button_x + button_padding_x
+                text_y = button_y + button_padding_y
+                draw.text((text_x, text_y), cta_text, fill=primary_color, font=cta_font)
+            except:
+                draw.text((button_x + button_padding_x, button_y + button_padding_y), 
+                         cta_text, fill=primary_color, font=cta_font)
+        
+        # Save to bytes
+        buffer = BytesIO()
+        final_image.save(buffer, format='PNG', optimize=True)
+        return buffer.getvalue()
+        
+    except Exception as e:
+        logger.error(f"Landing template image generation failed: {e}", exc_info=True)
+        return _generate_fallback_preview(title, "landing", blueprint)
 
 
 def _prepare_screenshot_background(

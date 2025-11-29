@@ -2,7 +2,7 @@
 FROM node:20-alpine as builder
 
 # Cache bust argument - change this value to force rebuild
-ARG CACHEBUST=2025-11-29-force-rebuild-v10-set-meta-tag
+ARG CACHEBUST=2025-11-29-force-rebuild-v11-landing-template-match
 
 # Accept build arguments for Vite environment variables
 # Railway passes environment variables, but we need to explicitly accept them as ARG
