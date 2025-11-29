@@ -25,7 +25,7 @@ import GenerationProgress from '../components/GenerationProgress'
 
 type Step = 'input' | 'preview'
 
-// Force rebuild: v2025-11-29-og-image-fix
+// Force rebuild: v2025-11-29-og-image-fix-v5-optimized-logging
 export default function Demo() {
   const [step, setStep] = useState<Step>('input')
   const [email, setEmail] = useState('')
@@ -52,6 +52,7 @@ export default function Demo() {
   const [showCompletionCelebration, setShowCompletionCelebration] = useState(false)
 
   const heroRef = useRef<HTMLDivElement>(null)
+  const lastLoggedImageUrlRef = useRef<string | null>(null)
 
   useEffect(() => {
     const handleScroll = () => {
@@ -1152,23 +1153,28 @@ export default function Demo() {
                                     {/* Preview Image - ALWAYS use composited_preview_image_url (canonical og:image) */}
                                     <div className="aspect-[1.91/1] bg-gray-200 overflow-hidden relative">
                                       {(() => {
-                                        // DEBUG: Log what image we're using
-                                        console.log('[Social Preview Image]', {
-                                          composited_preview_image_url: preview.composited_preview_image_url,
-                                          primary_image_base64: preview.primary_image_base64 ? 'present (base64)' : 'null',
-                                          screenshot_url: preview.screenshot_url,
-                                          using: preview.composited_preview_image_url ? 'composited' : 'fallback'
-                                        })
+                                        // DEBUG: Only log when image URL changes (prevents excessive logging on re-renders)
+                                        const currentImageUrl = preview.composited_preview_image_url || null
+                                        if (currentImageUrl !== lastLoggedImageUrlRef.current) {
+                                          console.log('[Social Preview Image] Using:', {
+                                            composited_preview_image_url: preview.composited_preview_image_url,
+                                            using: preview.composited_preview_image_url ? 'composited' : 'fallback'
+                                          })
+                                          lastLoggedImageUrlRef.current = currentImageUrl
+                                        }
                                         return preview.composited_preview_image_url ? (
                                         <img
                                           src={preview.composited_preview_image_url}
                                           alt={preview.title}
                                           className="w-full h-full object-cover"
                                           onLoad={() => {
-                                            console.log('[Social Preview Image] Loaded successfully:', preview.composited_preview_image_url)
+                                            // Only log once per successful load
+                                            if (lastLoggedImageUrlRef.current === preview.composited_preview_image_url) {
+                                              console.log('[Social Preview Image] ✓ Loaded successfully')
+                                            }
                                           }}
                                           onError={(e) => {
-                                            console.error('[Social Preview Image] Failed to load:', preview.composited_preview_image_url)
+                                            console.error('[Social Preview Image] ✗ Failed to load:', preview.composited_preview_image_url)
                                             // Graceful fallback: show gradient if image fails to load
                                             const target = e.target as HTMLImageElement
                                             target.style.display = 'none'
