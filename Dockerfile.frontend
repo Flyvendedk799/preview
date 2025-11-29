@@ -32,15 +32,32 @@ RUN npm ci
 COPY . .
 
 # Bust Docker cache to force rebuild (uses CACHEBUST arg)
-RUN echo "Cache bust: ${CACHEBUST}"
+RUN echo "=== CACHE BUST: ${CACHEBUST} ===" && \
+    echo "Timestamp: $(date)" && \
+    echo "Node version: $(node --version)" && \
+    echo "NPM version: $(npm --version)"
 
 # Debug: Show environment variables (will be visible in build logs)
 RUN echo "=== Build-time Environment Variables ===" && \
     echo "VITE_API_BASE_URL=${VITE_API_BASE_URL:-NOT_SET}" && \
     env | grep VITE || echo "No VITE_ variables found"
 
+# Debug: Show source files that should trigger rebuild
+RUN echo "=== Source Files Check ===" && \
+    echo "Demo.tsx size: $(wc -c < src/pages/Demo.tsx) bytes" && \
+    echo "Demo.tsx last 5 lines:" && \
+    tail -5 src/pages/Demo.tsx && \
+    echo "package.json scripts:" && \
+    cat package.json | grep -A 3 "scripts"
+
 # Build the application
-RUN npm run build
+RUN echo "=== Starting Build ===" && \
+    npm run build && \
+    echo "=== Build Complete ===" && \
+    echo "dist/ contents:" && \
+    ls -lah dist/assets/ && \
+    echo "=== Bundle Files ===" && \
+    ls -lh dist/assets/*.js dist/assets/*.css
 
 # Production stage with nginx
 FROM nginx:alpine

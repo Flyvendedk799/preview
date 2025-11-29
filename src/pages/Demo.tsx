@@ -1135,7 +1135,15 @@ export default function Demo() {
                                   <div className="mx-3 mb-2 border border-gray-200 rounded-lg overflow-hidden bg-gray-50">
                                     {/* Preview Image - ALWAYS use composited_preview_image_url (canonical og:image) */}
                                     <div className="aspect-[1.91/1] bg-gray-200 overflow-hidden relative">
-                                      {preview.composited_preview_image_url ? (
+                                      {(() => {
+                                        // DEBUG: Log what image we're using
+                                        console.log('[Social Preview Image]', {
+                                          composited_preview_image_url: preview.composited_preview_image_url,
+                                          primary_image_base64: preview.primary_image_base64 ? 'present (base64)' : 'null',
+                                          screenshot_url: preview.screenshot_url,
+                                          using: preview.composited_preview_image_url ? 'composited' : 'fallback'
+                                        })
+                                        return preview.composited_preview_image_url ? (
                                         <img
                                           src={preview.composited_preview_image_url}
                                           alt={preview.title}
@@ -1183,7 +1191,8 @@ export default function Demo() {
                                             </div>
                                           </div>
                                         </div>
-                                      )}
+                                      )
+                                      })()}
                                     </div>
 
                                     {/* Link Meta */}
