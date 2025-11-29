@@ -788,6 +788,8 @@ def deploy_merge_claude_branch(
         # On Railway, git is usually in /usr/bin/git
         return "git"  # Fallback to just "git" and let subprocess handle the error
     
+    output_lines = []  # Initialize early to avoid UnboundLocalError
+    
     try:
         # Log admin action
         log_activity(
@@ -797,8 +799,6 @@ def deploy_merge_claude_branch(
             metadata={"action": "merge_claude_branch"},
             request=request
         )
-        
-        output_lines = []
         
         # Try GitHub API first (preferred for Railway)
         github_token = os.getenv("GITHUB_TOKEN")
