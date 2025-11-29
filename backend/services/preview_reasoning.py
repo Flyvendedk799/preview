@@ -596,6 +596,16 @@ def run_stages_4_5(regions: List[Dict], page_type: str, palette: Dict[str, str])
     # Filter to non-omit regions for composition decisions
     relevant_regions = [r for r in regions if r.get("visual_weight") != "omit"]
     
+    # OPTIMIZATION: Remove image_data from regions to reduce token usage
+    # We don't need the actual image data for composition/layout decisions, only metadata
+    regions_for_ai = []
+    for r in relevant_regions:
+        region_copy = {k: v for k, v in r.items() if k != "image_data"}
+        # Keep a flag that image exists, but not the data itself
+        if r.get("image_data"):
+            region_copy["has_image"] = True
+        regions_for_ai.append(region_copy)
+    
     client = OpenAI(api_key=settings.OPENAI_API_KEY, timeout=45)
     
     response = client.chat.completions.create(
@@ -608,7 +618,7 @@ def run_stages_4_5(regions: List[Dict], page_type: str, palette: Dict[str, str])
             {
                 "role": "user",
                 "content": STAGE_4_5_PROMPT.format(
-                    regions_json=json.dumps(relevant_regions, indent=2),
+                    regions_json=json.dumps(regions_for_ai, indent=2),
                     page_type=page_type,
                     primary=palette.get("primary", "#3B82F6"),
                     secondary=palette.get("secondary", "#1E293B"),
