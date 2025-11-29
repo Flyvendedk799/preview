@@ -18,9 +18,15 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Add composited_image_url to previews table
+    # Add composited_image_url to previews table (idempotent - check if exists first)
     # This stores the designed UI card image (screenshot + typography overlay)
-    op.add_column('previews', sa.Column('composited_image_url', sa.String(), nullable=True))
+    from sqlalchemy import inspect
+    conn = op.get_bind()
+    inspector = inspect(conn)
+    columns = [col['name'] for col in inspector.get_columns('previews')]
+
+    if 'composited_image_url' not in columns:
+        op.add_column('previews', sa.Column('composited_image_url', sa.String(), nullable=True))
 
 
 def downgrade() -> None:
