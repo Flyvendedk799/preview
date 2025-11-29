@@ -110,11 +110,18 @@ export function removeAuthToken(): void {
 }
 
 /**
+ * Extended fetch options with timeout support
+ */
+interface FetchApiOptions extends RequestInit {
+  timeout?: number // Timeout in milliseconds
+}
+
+/**
  * Base fetch wrapper with error handling and auth token injection
  */
 export async function fetchApi<T>(
   endpoint: string,
-  options?: RequestInit,
+  options?: FetchApiOptions,
   requireAuth: boolean = true
 ): Promise<T> {
   const baseUrl = getApiBaseUrl()
@@ -145,10 +152,21 @@ export async function fetchApi<T>(
   }
 
   try {
+    // Create AbortController for timeout (default 120 seconds)
+    const timeoutMs = options?.timeout || 120000 // 120 seconds default
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+    
+    // Remove timeout from options before passing to fetch
+    const { timeout, ...fetchOptions } = options || {}
+    
     const response = await fetch(url, {
-      ...options,
+      ...fetchOptions,
       headers,
+      signal: controller.signal,
     })
+    
+    clearTimeout(timeoutId)
 
     if (!response.ok) {
       // Try to parse JSON error response
@@ -179,6 +197,13 @@ export async function fetchApi<T>(
 
     return response.json()
   } catch (error) {
+    // Handle timeout errors
+    if (error instanceof Error && error.name === 'AbortError') {
+      const errorMessage = 'Request timed out. The preview generation is taking longer than expected. Please try again in a moment.'
+      console.error(`[API Timeout] ${url}:`, errorMessage)
+      throw new Error(errorMessage)
+    }
+    
     // Handle network errors (connection refused, etc.)
     if (error instanceof TypeError && error.message.includes('fetch')) {
       const errorMessage = `Failed to connect to API at ${url}. Please check that the backend is running and VITE_API_BASE_URL is set correctly.`
@@ -1040,6 +1065,7 @@ export async function generateDemoPreviewV2(url: string): Promise<DemoPreviewRes
   return fetchApi<DemoPreviewResponseV2>('/api/v1/demo-v2/preview', {
     method: 'POST',
     body: JSON.stringify({ url }),
+    timeout: 180000, // 3 minutes for preview generation (can take 30-60s)
   }, false) // No auth required
 }
 
