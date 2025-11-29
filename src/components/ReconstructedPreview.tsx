@@ -67,7 +67,14 @@ const QualityBadge = ({ quality, score }: { quality: string; score: number }) =>
  * Best for: Personal pages, freelancer profiles, team members
  */
 const ProfileTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
-  const { blueprint, primary_image_base64, title, subtitle, description, tags, context_items, credibility_items } = preview
+  const { blueprint, composited_preview_image_url, primary_image_base64, title, subtitle, description, tags, context_items, credibility_items } = preview
+  
+  // Use composited_preview_image_url as primary source (canonical og:image)
+  const profileImageUrl = composited_preview_image_url 
+    ? composited_preview_image_url
+    : primary_image_base64 
+      ? `data:image/png;base64,${primary_image_base64}` 
+      : null
   
   return (
     <div className="relative overflow-hidden rounded-2xl bg-white shadow-xl">
@@ -93,9 +100,9 @@ const ProfileTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
       <div className="relative px-6 pb-6">
         {/* Profile image */}
         <div className="flex justify-center -mt-16 mb-4">
-          {primary_image_base64 ? (
+          {profileImageUrl ? (
             <img 
-              src={`data:image/png;base64,${primary_image_base64}`}
+              src={profileImageUrl}
               alt={title}
               className="w-28 h-28 rounded-full border-4 border-white shadow-lg object-cover ring-4 ring-white/50"
             />
@@ -181,15 +188,22 @@ const ProfileTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
  * Best for: E-commerce, SaaS products, services
  */
 const ProductTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
-  const { blueprint, primary_image_base64, title, subtitle, description, tags, cta_text, credibility_items } = preview
+  const { blueprint, composited_preview_image_url, primary_image_base64, title, subtitle, description, tags, cta_text, credibility_items } = preview
+  
+  // Use composited_preview_image_url as primary source (canonical og:image)
+  const productImageUrl = composited_preview_image_url 
+    ? composited_preview_image_url
+    : primary_image_base64 
+      ? `data:image/png;base64,${primary_image_base64}` 
+      : null
   
   return (
     <div className="relative overflow-hidden rounded-2xl bg-white shadow-xl">
       {/* Product image */}
-      {primary_image_base64 ? (
+      {productImageUrl ? (
         <div className="aspect-[16/9] overflow-hidden bg-gray-100">
           <img 
-            src={`data:image/png;base64,${primary_image_base64}`}
+            src={productImageUrl}
             alt={title}
             className="w-full h-full object-cover"
           />
@@ -282,11 +296,14 @@ const ProductTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
  * Best for: Landing pages, homepages, promotional content
  */
 const LandingTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
-  const { blueprint, primary_image_base64, screenshot_url, title, subtitle, description, cta_text, tags } = preview
+  const { blueprint, composited_preview_image_url, primary_image_base64, screenshot_url, title, subtitle, description, cta_text, tags } = preview
   
-  const imageUrl = primary_image_base64 
-    ? `data:image/png;base64,${primary_image_base64}` 
-    : screenshot_url
+  // Use composited_preview_image_url as primary source (canonical og:image)
+  const imageUrl = composited_preview_image_url 
+    ? composited_preview_image_url
+    : primary_image_base64 
+      ? `data:image/png;base64,${primary_image_base64}` 
+      : screenshot_url
   
   return (
     <div 
@@ -366,15 +383,22 @@ const LandingTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
  * Best for: Blog posts, news, documentation
  */
 const ArticleTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
-  const { blueprint, primary_image_base64, title, subtitle, description, tags, credibility_items } = preview
+  const { blueprint, composited_preview_image_url, primary_image_base64, title, subtitle, description, tags, credibility_items } = preview
+  
+  // Use composited_preview_image_url as primary source (canonical og:image)
+  const articleImageUrl = composited_preview_image_url 
+    ? composited_preview_image_url
+    : primary_image_base64 
+      ? `data:image/png;base64,${primary_image_base64}` 
+      : null
   
   return (
     <div className="relative overflow-hidden rounded-2xl bg-white shadow-xl">
       {/* Article image */}
-      {primary_image_base64 && (
+      {articleImageUrl && (
         <div className="aspect-[2/1] overflow-hidden bg-gray-100">
           <img 
-            src={`data:image/png;base64,${primary_image_base64}`}
+            src={articleImageUrl}
             alt={title}
             className="w-full h-full object-cover"
           />
@@ -424,7 +448,14 @@ const ArticleTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
  * Best for: Service pages, portfolios, case studies
  */
 const ServiceTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
-  const { blueprint, primary_image_base64, title, subtitle, description, tags, cta_text, context_items } = preview
+  const { blueprint, composited_preview_image_url, primary_image_base64, title, subtitle, description, tags, cta_text, context_items } = preview
+  
+  // Use composited_preview_image_url as primary source (canonical og:image)
+  const serviceImageUrl = composited_preview_image_url 
+    ? composited_preview_image_url
+    : primary_image_base64 
+      ? `data:image/png;base64,${primary_image_base64}` 
+      : null
   
   return (
     <div className="relative overflow-hidden rounded-2xl bg-white shadow-xl">
@@ -437,9 +468,9 @@ const ServiceTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
       <div className="p-6">
         {/* Icon or image */}
         <div className="mb-4">
-          {primary_image_base64 ? (
+          {serviceImageUrl ? (
             <img 
-              src={`data:image/png;base64,${primary_image_base64}`}
+              src={serviceImageUrl}
               alt={title}
               className="w-16 h-16 rounded-xl object-cover shadow-md"
             />
