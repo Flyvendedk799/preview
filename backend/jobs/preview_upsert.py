@@ -37,7 +37,8 @@ def upsert_preview(
     keywords: Optional[str] = None,
     tone: Optional[str] = None,
     ai_reasoning: Optional[str] = None,
-    highlight_image_url: Optional[str] = None
+    highlight_image_url: Optional[str] = None,
+    composited_image_url: Optional[str] = None
 ) -> PreviewModel:
     """
     Upsert preview record in database.
@@ -68,6 +69,8 @@ def upsert_preview(
         existing_preview.image_url = image_url
         if highlight_image_url:
             existing_preview.highlight_image_url = highlight_image_url
+        if composited_image_url:
+            existing_preview.composited_image_url = composited_image_url
         existing_preview.keywords = keywords
         existing_preview.tone = tone
         existing_preview.ai_reasoning = ai_reasoning
@@ -87,6 +90,7 @@ def upsert_preview(
             type=preview_type,
             image_url=image_url,
             highlight_image_url=highlight_image_url,
+            composited_image_url=composited_image_url,
             keywords=keywords,
             tone=tone,
             ai_reasoning=ai_reasoning,

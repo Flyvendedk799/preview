@@ -204,11 +204,15 @@ def _get_preview_logic(full_url: str, db: Session, variant: str = None, crawler_
                     # Use variant data
                     # Determine status: fully_generated if has AI content, otherwise pending_ai
                     preview_status = "fully_generated" if preview.ai_reasoning else "pending_ai"
+                    
+                    # Use composited_image_url if available (designed UI card), otherwise fall back to variant or preview images
+                    image_url = preview.composited_image_url or variant_obj.image_url or preview.highlight_image_url or preview.image_url or settings.PLACEHOLDER_IMAGE_URL
+                    
                     return PublicPreview(
                         url=full_url,
                         title=variant_obj.title,
                         description=variant_obj.description if variant_obj.description else "No preview description available.",
-                        image_url=variant_obj.image_url or preview.highlight_image_url or preview.image_url or settings.PLACEHOLDER_IMAGE_URL,
+                        image_url=image_url,
                         site_name=domain.name,
                         type=preview.type,
                         status=preview_status,
@@ -219,11 +223,15 @@ def _get_preview_logic(full_url: str, db: Session, variant: str = None, crawler_
             # Use main preview data
             # Determine status: fully_generated if has AI content, otherwise pending_ai
             preview_status = "fully_generated" if preview.ai_reasoning else "pending_ai"
+            
+            # Use composited_image_url if available (designed UI card), otherwise fall back to highlight_image_url or image_url
+            image_url = preview.composited_image_url or preview.highlight_image_url or preview.image_url or settings.PLACEHOLDER_IMAGE_URL
+            
             return PublicPreview(
                 url=full_url,
                 title=preview.title,
                 description=preview.description if preview.description else "No preview description available.",
-                image_url=preview.image_url if preview.image_url else settings.PLACEHOLDER_IMAGE_URL,
+                image_url=image_url,
                 site_name=domain.name,
                 type=preview.type,
                 status=preview_status,

@@ -16,6 +16,7 @@ class Preview(Base):
     type = Column(String, nullable=False, index=True)
     image_url = Column(String, nullable=False)
     highlight_image_url = Column(String, nullable=True)  # 16:9 cropped highlight region
+    composited_image_url = Column(String, nullable=True)  # Designed UI card image (screenshot + typography overlay)
     description = Column(String, nullable=True)
     keywords = Column(String, nullable=True)  # Comma-separated string for now
     tone = Column(String, nullable=True)

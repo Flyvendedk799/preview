@@ -14,6 +14,8 @@ from backend.services.preview_type_predictor import predict_preview_type
 from backend.jobs.screenshot_generation import generate_screenshot
 from backend.jobs.preview_upsert import upsert_preview
 from backend.services.brand_rewriter import rewrite_to_brand_voice
+from backend.services.preview_image_generator import generate_and_upload_preview_image
+from backend.services.playwright_screenshot import capture_screenshot
 from backend.models.preview_variant import PreviewVariant as PreviewVariantModel
 from backend.models.preview_job_failure import PreviewJobFailure as PreviewJobFailureModel
 from backend.core.config import settings
@@ -128,6 +130,33 @@ def generate_preview_job(user_id: int, organization_id: int, url: str, domain: s
             highlight_image_url = settings.PLACEHOLDER_IMAGE_URL
             logger.warning(f"Using placeholder image for URL: {sanitized_url}")
         
+        # Step 12.5: Generate composited preview image (designed UI card)
+        composited_image_url = None
+        try:
+            # Capture screenshot bytes for composited image generation
+            screenshot_bytes = capture_screenshot(sanitized_url)
+            
+            # Generate designed og:image with typography overlay
+            composited_image_url = generate_and_upload_preview_image(
+                screenshot_bytes=screenshot_bytes,
+                url=sanitized_url,
+                title=validated_ai["title"],
+                subtitle=None,  # Can be enhanced later
+                description=rewritten_description,
+                cta_text=None,  # Can be enhanced later
+                blueprint={
+                    "primary_color": brand_schema.primary_color,
+                    "secondary_color": brand_schema.secondary_color,
+                    "accent_color": brand_schema.accent_color
+                },
+                template_type=preview_type
+            )
+            if composited_image_url:
+                logger.info(f"Generated composited preview image: {composited_image_url}")
+        except Exception as e:
+            logger.warning(f"Failed to generate composited preview image: {e}", exc_info=True)
+            # Continue without composited image - will use highlight_image_url as fallback
+        
         # Step 13: Upsert preview in database with all metadata
         keywords_str = ",".join(validated_ai.get("keywords", [])) if validated_ai.get("keywords") else None
         
@@ -139,6 +168,7 @@ def generate_preview_job(user_id: int, organization_id: int, url: str, domain: s
             description=rewritten_description,  # Use rewritten description
             image_url=main_image_url,
             highlight_image_url=highlight_image_url,
+            composited_image_url=composited_image_url,
             preview_type=preview_type,
             user_id=user_id,
             organization_id=organization_id,
