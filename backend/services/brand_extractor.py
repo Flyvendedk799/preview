@@ -10,6 +10,7 @@ Extracts brand elements from websites:
 import base64
 import logging
 import re
+from collections import Counter
 from io import BytesIO
 from typing import Optional, Dict, Any, List, Tuple
 from urllib.parse import urlparse, urljoin
@@ -191,6 +192,55 @@ def extract_hero_image(html_content: str, url: str) -> Optional[str]:
         return None
 
 
+def _extract_colors_from_image(image_bytes: bytes) -> Dict[str, str]:
+    """
+    Extract dominant colors from an image using PIL.
+    
+    Args:
+        image_bytes: Image bytes
+        
+    Returns:
+        Dict with primary, secondary, accent colors
+    """
+    try:
+        img = Image.open(BytesIO(image_bytes))
+        # Resize for faster processing
+        img = img.resize((150, 150), Image.Resampling.LANCZOS)
+        
+        # Convert to RGB if needed
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+        
+        # Get colors (sample every 10th pixel for speed)
+        pixels = []
+        width, height = img.size
+        for y in range(0, height, 5):
+            for x in range(0, width, 5):
+                pixels.append(img.getpixel((x, y)))
+        
+        # Get most common colors
+        color_counts = Counter(pixels)
+        top_colors = color_counts.most_common(3)
+        
+        def rgb_to_hex(rgb):
+            return f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}".upper()
+        
+        colors = {
+            "primary_color": rgb_to_hex(top_colors[0][0]) if top_colors else "#2563EB",
+            "secondary_color": rgb_to_hex(top_colors[1][0]) if len(top_colors) > 1 else "#1E40AF",
+            "accent_color": rgb_to_hex(top_colors[2][0]) if len(top_colors) > 2 else "#F59E0B"
+        }
+        
+        return colors
+    except Exception as e:
+        logger.warning(f"Failed to extract colors from image: {e}")
+        return {
+            "primary_color": "#2563EB",
+            "secondary_color": "#1E40AF",
+            "accent_color": "#F59E0B"
+        }
+
+
 def extract_brand_colors(html_content: str, screenshot_bytes: Optional[bytes] = None) -> Dict[str, str]:
     """
     Extract brand colors from website.
@@ -204,8 +254,6 @@ def extract_brand_colors(html_content: str, screenshot_bytes: Optional[bytes] = 
     Returns:
         Dict with primary, secondary, accent colors
     """
-    from backend.services.preview_reasoning import extract_color_palette
-
     colors = {
         "primary_color": "#2563EB",  # Default blue
         "secondary_color": "#1E40AF",
@@ -215,11 +263,11 @@ def extract_brand_colors(html_content: str, screenshot_bytes: Optional[bytes] = 
     try:
         # Extract from screenshot if available
         if screenshot_bytes:
-            palette = extract_color_palette(screenshot_bytes)
+            palette = _extract_colors_from_image(screenshot_bytes)
             if palette:
-                colors["primary_color"] = palette.get("primary", colors["primary_color"])
-                colors["secondary_color"] = palette.get("secondary", colors["secondary_color"])
-                colors["accent_color"] = palette.get("accent", colors["accent_color"])
+                colors["primary_color"] = palette.get("primary_color", colors["primary_color"])
+                colors["secondary_color"] = palette.get("secondary_color", colors["secondary_color"])
+                colors["accent_color"] = palette.get("accent_color", colors["accent_color"])
                 logger.info(f"Extracted colors from screenshot: {colors}")
                 return colors
 
