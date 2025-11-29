@@ -757,12 +757,17 @@ def deploy_merge_claude_branch(
     db: Session = Depends(get_db),
     admin_user: User = Depends(get_admin_user)
 ):
-    """Merge latest claude branch into main and push to trigger Railway deployment."""
+    """Merge latest claude branch into main and push to trigger Railway deployment.
+    
+    Uses GitHub API if available, otherwise falls back to git commands.
+    Railway runtime containers typically don't have git, so GitHub API is preferred.
+    """
     import subprocess
     import logging
     import re
     import shutil
     import os
+    import requests
     
     logger = logging.getLogger(__name__)
     
@@ -793,6 +798,85 @@ def deploy_merge_claude_branch(
             request=request
         )
         
+        output_lines = []
+        
+        # Try GitHub API first (preferred for Railway)
+        github_token = os.getenv("GITHUB_TOKEN")
+        github_repo = os.getenv("GITHUB_REPO", "Flyvendedk799/preview")  # Default to your repo
+        
+        if github_token:
+            logger.info("Attempting to use GitHub API for merge")
+            output_lines.append("Using GitHub API for merge")
+            
+            try:
+                # Get list of branches
+                headers = {
+                    "Authorization": f"token {github_token}",
+                    "Accept": "application/vnd.github.v3+json"
+                }
+                
+                # Get all branches
+                branches_url = f"https://api.github.com/repos/{github_repo}/branches"
+                branches_response = requests.get(branches_url, headers=headers, timeout=10)
+                
+                if branches_response.status_code != 200:
+                    raise Exception(f"Failed to fetch branches: {branches_response.text}")
+                
+                branches = branches_response.json()
+                claude_branches = [b for b in branches if b["name"].startswith("claude/")]
+                
+                if not claude_branches:
+                    return DeploymentResponse(
+                        success=False,
+                        message="No claude branches found to merge",
+                        output="\n".join(output_lines)
+                    )
+                
+                # Sort by commit date (most recent first)
+                claude_branches.sort(key=lambda b: b["commit"]["commit"]["committer"]["date"], reverse=True)
+                latest_branch = claude_branches[0]["name"]
+                output_lines.append(f"Found latest claude branch: {latest_branch}")
+                
+                # Create a merge via GitHub API
+                merge_url = f"https://api.github.com/repos/{github_repo}/merges"
+                merge_data = {
+                    "base": "main",
+                    "head": latest_branch,
+                    "commit_message": f"Merge {latest_branch} into main via admin dashboard"
+                }
+                
+                merge_response = requests.post(merge_url, json=merge_data, headers=headers, timeout=30)
+                
+                if merge_response.status_code == 201:
+                    # Merge successful
+                    output_lines.append(f"Successfully merged {latest_branch} into main via GitHub API")
+                    return DeploymentResponse(
+                        success=True,
+                        message=f"Successfully merged {latest_branch} into main. Railway will automatically redeploy.",
+                        output="\n".join(output_lines),
+                        branch_merged=latest_branch
+                    )
+                elif merge_response.status_code == 409:
+                    # Merge conflict or already merged
+                    error_data = merge_response.json()
+                    return DeploymentResponse(
+                        success=False,
+                        message=f"Merge conflict or branch already merged: {error_data.get('message', 'Unknown error')}",
+                        output="\n".join(output_lines),
+                        branch_merged=latest_branch
+                    )
+                else:
+                    raise Exception(f"GitHub API merge failed: {merge_response.status_code} - {merge_response.text}")
+                    
+            except requests.exceptions.RequestException as e:
+                logger.warning(f"GitHub API failed, falling back to git: {e}")
+                output_lines.append(f"GitHub API failed: {str(e)}, trying git fallback...")
+                # Fall through to git method
+        
+        # Fallback to git commands
+        logger.info("Using git commands for merge")
+        output_lines.append("Using git commands (GitHub API not available)")
+        
         # Find git executable
         git_cmd = find_git()
         logger.info(f"Using git at: {git_cmd}")
@@ -808,28 +892,53 @@ def deploy_merge_claude_branch(
             if check_result.returncode != 0:
                 raise Exception(f"Git not available: {check_result.stderr}")
         except FileNotFoundError:
-            raise Exception(f"Git executable not found. Tried: {git_cmd}. Please ensure git is installed and available in PATH.")
+            raise Exception(
+                "Git executable not found and GitHub API not configured. "
+                "Please set GITHUB_TOKEN environment variable or ensure git is installed."
+            )
         except Exception as e:
             raise Exception(f"Failed to verify git: {str(e)}")
         
-        output_lines = []
         output_lines.append(f"Using git: {git_cmd}")
+        
+        # Check if we're in a git repository
+        check_repo_result = subprocess.run(
+            [git_cmd, "rev-parse", "--git-dir"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            cwd="."
+        )
+        if check_repo_result.returncode != 0:
+            raise Exception(
+                "Not in a git repository. Railway runtime containers typically don't have git access. "
+                "Please set GITHUB_TOKEN environment variable to use GitHub API, or merge branches manually via GitHub."
+            )
+        
+        # Get current working directory
+        cwd = os.getcwd()
+        output_lines.append(f"Working directory: {cwd}")
         
         # Step 1: Fetch latest changes from remote
         logger.info("Fetching latest changes from remote...")
-        fetch_result = subprocess.run(
-            [git_cmd, "fetch", "origin"],
-            capture_output=True,
-            text=True,
-            timeout=30,
-            cwd="."
-        )
-        output_lines.append(f"Fetch: {fetch_result.stdout}")
-        if fetch_result.stderr:
-            output_lines.append(f"Fetch stderr: {fetch_result.stderr}")
-        
-        if fetch_result.returncode != 0:
-            raise Exception(f"Git fetch failed: {fetch_result.stderr}")
+        try:
+            fetch_result = subprocess.run(
+                [git_cmd, "fetch", "origin"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                cwd="."
+            )
+            output_lines.append(f"Fetch stdout: {fetch_result.stdout}")
+            if fetch_result.stderr:
+                output_lines.append(f"Fetch stderr: {fetch_result.stderr}")
+            
+            if fetch_result.returncode != 0:
+                raise Exception(f"Git fetch failed: {fetch_result.stderr}")
+        except subprocess.TimeoutExpired:
+            raise Exception("Git fetch timed out after 30 seconds")
+        except Exception as e:
+            raise Exception(f"Git fetch error: {str(e)}")
         
         # Step 2: Get list of remote branches and find latest claude branch
         branch_result = subprocess.run(
@@ -943,17 +1052,34 @@ def deploy_merge_claude_branch(
             branch_merged=latest_branch
         )
         
-    except subprocess.TimeoutExpired:
-        logger.error("Git operation timed out")
+    except subprocess.TimeoutExpired as e:
+        logger.error("Git operation timed out", exc_info=True)
         return DeploymentResponse(
             success=False,
-            message="Git operation timed out. Please try again or deploy manually.",
-            output="\n".join(output_lines)
+            message="Git operation timed out. Railway runtime containers may not have git access. Please merge branches manually via GitHub.",
+            output="\n".join(output_lines) if output_lines else "No output available"
+        )
+    except FileNotFoundError as e:
+        logger.error(f"Git not found: {e}", exc_info=True)
+        return DeploymentResponse(
+            success=False,
+            message="Git is not available in the Railway runtime environment. Railway containers typically don't include git. Please merge branches manually via GitHub or use Railway's GitHub integration.",
+            output="\n".join(output_lines) if output_lines else f"Error: {str(e)}"
         )
     except Exception as e:
-        logger.error(f"Deployment failed: {e}", exc_info=True)
+        error_msg = str(e)
+        logger.error(f"Deployment failed: {error_msg}", exc_info=True)
+        
+        # Provide helpful error messages for common issues
+        if "not a git repository" in error_msg.lower() or "not in a git repository" in error_msg.lower():
+            helpful_msg = "Railway runtime containers don't have git repository access. Please merge branches manually via GitHub."
+        elif "git" in error_msg.lower() and "not found" in error_msg.lower():
+            helpful_msg = "Git is not installed in the Railway runtime. Please merge branches manually via GitHub."
+        else:
+            helpful_msg = f"Deployment failed: {error_msg}"
+        
         return DeploymentResponse(
             success=False,
-            message=f"Deployment failed: {str(e)}",
-            output="\n".join(output_lines)
+            message=helpful_msg,
+            output="\n".join(output_lines) if output_lines else f"Error details: {error_msg}"
         )
