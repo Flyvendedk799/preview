@@ -158,10 +158,19 @@ def generate_demo_preview(
         logger.info(f"Running multi-stage reasoning for: {request_data.url}")
         result = generate_reasoned_preview(screenshot_bytes, str(request_data.url))
     except Exception as e:
-        logger.error(f"Preview reasoning failed: {e}", exc_info=True)
+        error_msg = str(e)
+        logger.error(f"Preview reasoning failed: {error_msg}", exc_info=True)
+        
+        # Check if it's a rate limit error
+        if "429" in error_msg or "rate limit" in error_msg.lower():
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="OpenAI rate limit reached. Please wait a moment and try again."
+            )
+        
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to analyze page. Please try again."
+            detail=f"Failed to analyze page: {error_msg}. Please try again."
         )
     
     # Step 4: Generate designed og:image (matching React component card design)

@@ -228,6 +228,15 @@ export default function Demo() {
       setShowCompletionCelebration(true)
       await new Promise(resolve => setTimeout(resolve, 1200))
       
+      // DEBUG: Log what we received from backend
+      console.log('[Demo Preview Received]', {
+        composited_preview_image_url: result.composited_preview_image_url,
+        primary_image_base64: result.primary_image_base64 ? 'present (base64)' : 'null',
+        screenshot_url: result.screenshot_url,
+        title: result.title,
+        url: result.url
+      })
+      
       setPreview(result)
       setStep('preview')
       setShowCompletionCelebration(false)
@@ -239,6 +248,13 @@ export default function Demo() {
     } catch (error) {
       clearInterval(stageInterval)
       clearInterval(progressInterval)
+      
+      // DEBUG: Log error details
+      console.error('[Demo Preview Error]', {
+        error: error instanceof Error ? error.message : String(error),
+        url: urlToProcess,
+        status: error instanceof Error && 'status' in error ? (error as any).status : 'unknown'
+      })
       
       setPreviewError(error instanceof Error ? error.message : 'Failed to generate preview. Please try again.')
       setShowEmailPopup(false)
