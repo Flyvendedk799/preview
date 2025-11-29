@@ -79,7 +79,11 @@ export type {
  * - Production: https://your-backend-service.railway.app
  */
 export function getApiBaseUrl(): string {
-  const url = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+  // If VITE_API_BASE_URL is set, use it (for direct backend access)
+  // Otherwise, use empty string to make relative API calls (proxied through nginx)
+  // In development, default to localhost:8000
+  const url = import.meta.env.VITE_API_BASE_URL ||
+              (import.meta.env.DEV ? 'http://localhost:8000' : '')
   // Remove trailing slash if present
   return url.replace(/\/$/, '')
 }
