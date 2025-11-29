@@ -322,32 +322,34 @@ const LandingTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
   }, [imageUrl, composited_preview_image_url, primary_image_base64, screenshot_url])
   
   return (
-    <div className="relative overflow-hidden rounded-2xl shadow-xl">
-      {/* Main composited image - show prominently like social preview */}
-      {imageUrl ? (
-        <div className="relative">
-            <img 
-              src={imageUrl}
-              alt={title}
-              className="w-full h-auto object-cover"
-              onLoad={() => {
-                console.log('[LandingTemplate] Main image loaded successfully:', imageUrl)
-              }}
-              onError={(e) => {
-                console.error('[LandingTemplate] Main image failed to load:', imageUrl, e)
-              }}
-            />
-          </div>
-      ) : (
-        // Fallback: gradient background if no image
-        <div 
-          className="relative overflow-hidden rounded-2xl shadow-xl min-h-[300px]"
-          style={{ 
-            background: `linear-gradient(135deg, ${blueprint.primary_color}, ${blueprint.secondary_color})` 
-          }}
-        >
-          {/* Content */}
-          <div className="relative p-8 flex flex-col justify-center min-h-[300px]">
+    <div 
+      className="relative overflow-hidden rounded-2xl shadow-xl min-h-[300px]"
+      style={{ 
+        background: imageUrl 
+          ? `linear-gradient(135deg, ${blueprint.primary_color}, ${blueprint.secondary_color})` 
+          : `linear-gradient(135deg, ${blueprint.primary_color}, ${blueprint.secondary_color})` 
+      }}
+    >
+      {/* Background image with overlay - using composited_preview_image_url */}
+      {imageUrl && (
+        <div className="absolute inset-0">
+          <img 
+            src={imageUrl}
+            alt={title}
+            className="w-full h-full object-cover opacity-20"
+            onLoad={() => {
+              console.log('[LandingTemplate] Background image loaded successfully:', imageUrl)
+            }}
+            onError={(e) => {
+              console.error('[LandingTemplate] Background image failed to load:', imageUrl, e)
+            }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-transparent" />
+        </div>
+      )}
+      
+      {/* Content */}
+      <div className="relative p-8 flex flex-col justify-center min-h-[300px]">
         {/* Tags */}
         {tags.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-4">
@@ -395,9 +397,7 @@ const LandingTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
             </button>
           </div>
         )}
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   )
 }

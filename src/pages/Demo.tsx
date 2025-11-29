@@ -25,7 +25,7 @@ import GenerationProgress from '../components/GenerationProgress'
 
 type Step = 'input' | 'preview'
 
-// Force rebuild: v2025-11-29-og-image-fix-v8-landing-template-visual-match
+// Force rebuild: v2025-11-29-og-image-fix-v9-restore-design-keep-same-image
 export default function Demo() {
   const [step, setStep] = useState<Step>('input')
   const [email, setEmail] = useState('')
