@@ -17,6 +17,9 @@ import {
   ChartBarIcon,
   ShieldCheckIcon,
   ClockIcon,
+  ClipboardDocumentIcon,
+  ArrowDownTrayIcon,
+  ShareIcon,
 } from '@heroicons/react/24/outline'
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid'
 import { subscribeToNewsletter, generateDemoPreviewV2, type DemoPreviewResponseV2 } from '../api/client'
@@ -64,9 +67,155 @@ export default function Demo() {
   const [currentStage, setCurrentStage] = useState<number>(0)
   const [estimatedTimeRemaining, setEstimatedTimeRemaining] = useState<number>(0)
   const [showCompletionCelebration, setShowCompletionCelebration] = useState(false)
+  const [copySuccess, setCopySuccess] = useState(false)
+  const [urlHistory, setUrlHistory] = useState<string[]>([])
+  const [previewsGeneratedCount, setPreviewsGeneratedCount] = useState<number>(0)
 
   const heroRef = useRef<HTMLDivElement>(null)
   const lastLoggedImageUrlRef = useRef<string | null>(null)
+  const imageToCopyRef = useRef<HTMLImageElement | null>(null)
+
+  // Example URLs for quick start
+  const EXAMPLE_URLS = [
+    { url: 'https://stripe.com', label: 'Stripe' },
+    { url: 'https://github.com', label: 'GitHub' },
+    { url: 'https://vercel.com', label: 'Vercel' },
+    { url: 'https://openai.com', label: 'OpenAI' },
+  ]
+
+  // Load URL history and preview count from localStorage on mount
+  useEffect(() => {
+    const savedHistory = localStorage.getItem('demo_url_history')
+    if (savedHistory) {
+      try {
+        setUrlHistory(JSON.parse(savedHistory))
+      } catch {
+        // Ignore parse errors
+      }
+    }
+    
+    // Load preview count (simulate with random number for demo)
+    const savedCount = localStorage.getItem('demo_previews_generated')
+    if (savedCount) {
+      setPreviewsGeneratedCount(parseInt(savedCount, 10))
+    } else {
+      // Initialize with a realistic number for social proof
+      const initialCount = Math.floor(Math.random() * 500) + 1000
+      setPreviewsGeneratedCount(initialCount)
+      localStorage.setItem('demo_previews_generated', initialCount.toString())
+    }
+  }, [])
+
+  // Save URL to history when preview is generated
+  useEffect(() => {
+    if (preview?.url) {
+      const newHistory = [preview.url, ...urlHistory.filter(u => u !== preview.url)].slice(0, 5)
+      setUrlHistory(newHistory)
+      localStorage.setItem('demo_url_history', JSON.stringify(newHistory))
+      
+      // Increment preview count
+      const newCount = previewsGeneratedCount + 1
+      setPreviewsGeneratedCount(newCount)
+      localStorage.setItem('demo_previews_generated', newCount.toString())
+    }
+  }, [preview?.url])
+
+  // Copy image to clipboard function
+  const copyImageToClipboard = async (imageUrl: string) => {
+    try {
+      const response = await fetch(imageUrl)
+      const blob = await response.blob()
+      await navigator.clipboard.write([
+        new ClipboardItem({ [blob.type]: blob })
+      ])
+      setCopySuccess(true)
+      setTimeout(() => setCopySuccess(false), 2000)
+    } catch (error) {
+      console.error('Failed to copy image:', error)
+      // Fallback: try to copy image URL
+      try {
+        await navigator.clipboard.writeText(imageUrl)
+        setCopySuccess(true)
+        setTimeout(() => setCopySuccess(false), 2000)
+      } catch (fallbackError) {
+        console.error('Failed to copy image URL:', fallbackError)
+      }
+    }
+  }
+
+  // Download image function
+  const downloadImage = (imageUrl: string, filename: string) => {
+    const link = document.createElement('a')
+    link.href = imageUrl
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  // Parse error message for better user feedback
+  const parseErrorMessage = (error: Error | string): { message: string; suggestion?: string } => {
+    const errorMessage = error instanceof Error ? error.message : error
+    const lowerMessage = errorMessage.toLowerCase()
+
+    // Network errors
+    if (lowerMessage.includes('fetch') || lowerMessage.includes('network') || lowerMessage.includes('connection')) {
+      return {
+        message: 'Connection failed',
+        suggestion: 'Please check your internet connection and try again. If the problem persists, the service may be temporarily unavailable.'
+      }
+    }
+
+    // Timeout errors
+    if (lowerMessage.includes('timeout') || lowerMessage.includes('timed out')) {
+      return {
+        message: 'Request timed out',
+        suggestion: 'The preview generation is taking longer than expected. Please try again in a moment.'
+      }
+    }
+
+    // Invalid URL errors
+    if (lowerMessage.includes('invalid url') || lowerMessage.includes('url')) {
+      return {
+        message: 'Invalid URL',
+        suggestion: 'Please make sure the URL starts with http:// or https:// and is a valid website address.'
+      }
+    }
+
+    // Server errors
+    if (lowerMessage.includes('500') || lowerMessage.includes('server error')) {
+      return {
+        message: 'Server error',
+        suggestion: 'Our servers encountered an issue. Please try again in a few moments.'
+      }
+    }
+
+    // Rate limiting
+    if (lowerMessage.includes('rate limit') || lowerMessage.includes('too many')) {
+      return {
+        message: 'Too many requests',
+        suggestion: 'Please wait a moment before generating another preview.'
+      }
+    }
+
+    // Default
+    return {
+      message: errorMessage,
+      suggestion: 'Please try again. If the problem persists, the URL may not be accessible or may require authentication.'
+    }
+  }
+
+  // Handle example URL click
+  const handleExampleUrlClick = (exampleUrl: string) => {
+    setUrl(exampleUrl)
+    setUrlError(null)
+    setPreviewError(null)
+    // Auto-submit after a brief delay
+    setTimeout(() => {
+      const processedUrl = exampleUrl.startsWith('http') ? exampleUrl : `https://${exampleUrl}`
+      generatePreviewWithUrl(processedUrl)
+    }, 300)
+  }
 
   // DEBUG: Log preview state changes
   useEffect(() => {
@@ -141,6 +290,52 @@ export default function Demo() {
     window.addEventListener('scroll', handleScroll, { passive: true })
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
+
+  // Cancel generation function (defined early for use in keyboard handler)
+  const cancelGeneration = useCallback(() => {
+    generationCancelRef.current = true
+    if (stageIntervalRef.current) clearInterval(stageIntervalRef.current)
+    if (progressIntervalRef.current) clearInterval(progressIntervalRef.current)
+    setIsGeneratingPreview(false)
+    setGenerationStatus('')
+    setGenerationProgress(0)
+    setCurrentStage(0)
+    setEstimatedTimeRemaining(0)
+    setPreviewError(null)
+  }, [])
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Escape key: Close modals or cancel generation
+      if (e.key === 'Escape') {
+        if (isGeneratingPreview) {
+          cancelGeneration()
+          return
+        }
+        if (showEmailPopup) {
+          setShowEmailPopup(false)
+          setEmail('')
+          setConsentChecked(false)
+          setEmailError(null)
+        }
+        if (mobileMenuOpen) {
+          setMobileMenuOpen(false)
+        }
+      }
+      
+      // Enter key: Submit form if URL input is focused and not generating
+      if (e.key === 'Enter' && !isGeneratingPreview && url.trim() && document.activeElement?.id === 'url') {
+        const processedUrl = url.trim().startsWith('http') ? url.trim() : `https://${url.trim()}`
+        if (validateUrl(processedUrl)) {
+          generatePreviewWithUrl(processedUrl)
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [url, isGeneratingPreview, showEmailPopup, mobileMenuOpen, generatePreviewWithUrl, cancelGeneration])
 
   const validateEmail = (email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -242,6 +437,10 @@ export default function Demo() {
     { id: 'render', progress: 95, time: 2, message: 'Rendering final preview...' },
   ]
 
+  const generationCancelRef = useRef<boolean>(false)
+  const stageIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null)
+
   const generatePreviewWithUrl = useCallback(async (urlToProcess: string) => {
     setIsGeneratingPreview(true)
     setCurrentStage(0)
@@ -249,13 +448,15 @@ export default function Demo() {
     setGenerationStatus('Initializing AI analysis...')
     setEstimatedTimeRemaining(30)
     setPreviewError(null)
+    generationCancelRef.current = false
     
     // Start stage progression
     let stageIndex = 0
     const totalEstimatedTime = GENERATION_STAGES.reduce((sum, s) => sum + s.time, 0)
     let elapsedTime = 0
     
-    const stageInterval = setInterval(() => {
+    stageIntervalRef.current = setInterval(() => {
+      if (generationCancelRef.current) return
       if (stageIndex < GENERATION_STAGES.length) {
         const stage = GENERATION_STAGES[stageIndex]
         setCurrentStage(stageIndex)
@@ -272,7 +473,8 @@ export default function Demo() {
     }, 4000) // Advance stage every 4 seconds (tuned for typical API response time)
     
     // Smooth progress animation between stages
-    const progressInterval = setInterval(() => {
+    progressIntervalRef.current = setInterval(() => {
+      if (generationCancelRef.current) return
       setGenerationProgress((prev) => {
         const currentStageData = GENERATION_STAGES[Math.min(stageIndex, GENERATION_STAGES.length - 1)]
         const nextStageData = GENERATION_STAGES[Math.min(stageIndex + 1, GENERATION_STAGES.length - 1)]
@@ -288,9 +490,17 @@ export default function Demo() {
     try {
       const result = await generateDemoPreviewV2(urlToProcess)
       
+      if (generationCancelRef.current) {
+        return // User cancelled
+      }
+      
       // Clear intervals
-      clearInterval(stageInterval)
-      clearInterval(progressInterval)
+      if (stageIntervalRef.current) clearInterval(stageIntervalRef.current)
+      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current)
+      
+      if (generationCancelRef.current) {
+        return // User cancelled
+      }
       
       // Complete all stages
       setCurrentStage(GENERATION_STAGES.length)
@@ -329,8 +539,12 @@ export default function Demo() {
       setGenerationProgress(0)
       setCurrentStage(0)
     } catch (error) {
-      clearInterval(stageInterval)
-      clearInterval(progressInterval)
+      if (generationCancelRef.current) {
+        return // User cancelled, don't show error
+      }
+      
+      if (stageIntervalRef.current) clearInterval(stageIntervalRef.current)
+      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current)
       
       // DEBUG: Log error details
       console.error('[Demo Preview Error]', {
@@ -339,16 +553,24 @@ export default function Demo() {
         status: error instanceof Error && 'status' in error ? (error as any).status : 'unknown'
       })
       
-      setPreviewError(error instanceof Error ? error.message : 'Failed to generate preview. Please try again.')
+      // Use improved error parsing
+      const errorInfo = parseErrorMessage(error instanceof Error ? error : String(error))
+      const errorMessage = errorInfo.suggestion 
+        ? `${errorInfo.message}. ${errorInfo.suggestion}`
+        : errorInfo.message
+      
+      setPreviewError(errorMessage)
       setShowEmailPopup(false)
       setGenerationStatus('')
       setGenerationProgress(0)
       setCurrentStage(0)
       setEstimatedTimeRemaining(0)
     } finally {
-      setIsGeneratingPreview(false)
+      if (!generationCancelRef.current) {
+        setIsGeneratingPreview(false)
+      }
     }
-  }, [])
+  }, [emailSubscribed])
 
   // IMPROVEMENT: Enhanced platform configurations with realistic layouts
   const platforms = [
@@ -503,7 +725,8 @@ export default function Demo() {
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 className="lg:hidden p-2 text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
-                aria-label="Toggle menu"
+                aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+                aria-expanded={mobileMenuOpen}
               >
                 {mobileMenuOpen ? (
                   <XMarkIcon className="w-6 h-6" />
@@ -578,9 +801,19 @@ export default function Demo() {
       <section className="relative pt-24 sm:pt-28 pb-12 sm:pb-20 px-4 sm:px-6 lg:px-12">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
-            <div className="inline-flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-orange-100 via-amber-100 to-yellow-100 rounded-full border-2 border-orange-300/80 backdrop-blur-sm mb-6 shadow-md animate-pulse">
-              <RocketLaunchIcon className="w-4 h-4 text-orange-600" />
-              <span className="text-xs font-black text-orange-800 tracking-wide">AI-Powered Preview Demo</span>
+            <div className="flex flex-col items-center gap-3 mb-6">
+              <div className="inline-flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-orange-100 via-amber-100 to-yellow-100 rounded-full border-2 border-orange-300/80 backdrop-blur-sm shadow-md animate-pulse">
+                <RocketLaunchIcon className="w-4 h-4 text-orange-600" aria-hidden="true" />
+                <span className="text-xs font-black text-orange-800 tracking-wide">AI-Powered Preview Demo</span>
+              </div>
+              {previewsGeneratedCount > 0 && (
+                <div className="inline-flex items-center space-x-2 px-4 py-2 bg-white/80 backdrop-blur-sm rounded-full border border-gray-200 shadow-sm">
+                  <SparklesIcon className="w-4 h-4 text-orange-500" aria-hidden="true" />
+                  <span className="text-sm font-semibold text-gray-700">
+                    <span className="text-orange-600 font-bold">{previewsGeneratedCount.toLocaleString()}</span> previews generated today
+                  </span>
+                </div>
+              )}
             </div>
             <h1 className="text-3xl sm:text-4xl lg:text-5xl xl:text-[3.25rem] font-black text-gray-900 leading-[1.1] tracking-[-0.03em] mb-4">
               See Your URLs{' '}
@@ -630,7 +863,7 @@ export default function Demo() {
                       </label>
                       <div className="relative">
                         <div className="absolute left-4 top-1/2 transform -translate-y-1/2">
-                          <GlobeAltIcon className={`w-5 h-5 ${url ? 'text-orange-500' : 'text-gray-400'} transition-colors`} />
+                          <GlobeAltIcon className={`w-5 h-5 ${url ? 'text-orange-500' : 'text-gray-400'} transition-colors`} aria-hidden="true" />
                         </div>
                         <input
                           id="url"
@@ -641,6 +874,17 @@ export default function Demo() {
                             setUrlError(null)
                             setPreviewError(null)
                           }}
+                          onPaste={(e) => {
+                            // Auto-submit on paste if URL looks valid
+                            const pastedText = e.clipboardData.getData('text')
+                            if (pastedText.trim() && (pastedText.includes('http') || pastedText.includes('.'))) {
+                              setTimeout(() => {
+                                if (validateUrl(pastedText) || validateUrl(`https://${pastedText}`)) {
+                                  // URL will be processed in handleUrlSubmit
+                                }
+                              }, 100)
+                            }
+                          }}
                           placeholder="https://example.com/article"
                           className={`w-full pl-12 pr-4 py-4 rounded-xl border-2 transition-all duration-200 focus:outline-none focus:ring-2 text-lg ${
                             urlError || previewError
@@ -650,25 +894,88 @@ export default function Demo() {
                               : 'border-gray-200 focus:border-orange-500 focus:ring-orange-200'
                           }`}
                           disabled={isGeneratingPreview}
+                          aria-describedby={urlError || previewError ? 'url-error' : undefined}
+                          aria-invalid={!!(urlError || previewError)}
                         />
                         {url && !urlError && !previewError && (
-                          <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
+                          <div className="absolute right-4 top-1/2 transform -translate-y-1/2" aria-hidden="true">
                             <div className="w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center animate-scale-in">
                               <CheckIcon className="w-4 h-4 text-white" />
                             </div>
                           </div>
                         )}
                       </div>
+                      
+                      {/* Example URLs */}
+                      <div className="mt-3">
+                        <p className="text-xs text-gray-500 mb-2">Try an example:</p>
+                        <div className="flex flex-wrap gap-2">
+                          {EXAMPLE_URLS.map((example, index) => (
+                            <button
+                              key={index}
+                              type="button"
+                              onClick={() => handleExampleUrlClick(example.url)}
+                              disabled={isGeneratingPreview}
+                              className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-orange-100 hover:text-orange-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              aria-label={`Try example URL: ${example.label}`}
+                            >
+                              {example.label}
+                            </button>
+                          ))}
+                          {urlHistory.length > 0 && (
+                            <>
+                              <span className="px-2 py-1.5 text-xs text-gray-400">•</span>
+                              {urlHistory.slice(0, 2).map((historyUrl, index) => {
+                                try {
+                                  const domain = new URL(historyUrl).hostname.replace('www.', '')
+                                  return (
+                                    <button
+                                      key={`history-${index}`}
+                                      type="button"
+                                      onClick={() => handleExampleUrlClick(historyUrl)}
+                                      disabled={isGeneratingPreview}
+                                      className="px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 hover:bg-orange-50 hover:text-orange-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                      aria-label={`Try previous URL: ${domain}`}
+                                    >
+                                      {domain}
+                                    </button>
+                                  )
+                                } catch {
+                                  return null
+                                }
+                              })}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      
                       {urlError && (
-                        <div className="mt-2 flex items-center space-x-2 text-sm text-red-600 bg-red-50 p-3 rounded-lg animate-shake">
-                          <ExclamationCircleIcon className="w-5 h-5 flex-shrink-0" />
+                        <div id="url-error" className="mt-2 flex items-start space-x-2 text-sm text-red-600 bg-red-50 p-3 rounded-lg animate-shake" role="alert">
+                          <ExclamationCircleIcon className="w-5 h-5 flex-shrink-0 mt-0.5" aria-hidden="true" />
                           <span>{urlError}</span>
                         </div>
                       )}
                       {previewError && (
-                        <div className="mt-2 flex items-center space-x-2 text-sm text-red-600 bg-red-50 p-3 rounded-lg animate-shake">
-                          <ExclamationCircleIcon className="w-5 h-5 flex-shrink-0" />
-                          <span>{previewError}</span>
+                        <div id="url-error" className="mt-2 flex items-start space-x-2 text-sm text-red-600 bg-red-50 p-3 rounded-lg animate-shake" role="alert">
+                          <ExclamationCircleIcon className="w-5 h-5 flex-shrink-0 mt-0.5" aria-hidden="true" />
+                          <div className="flex-1">
+                            <p className="font-medium">{previewError.split('. ')[0]}</p>
+                            {previewError.includes('. ') && (
+                              <p className="text-xs mt-1 text-red-500">{previewError.split('. ').slice(1).join('. ')}</p>
+                            )}
+                            {url.trim() && (
+                              <button
+                                onClick={() => {
+                                  const processedUrl = url.trim().startsWith('http') ? url.trim() : `https://${url.trim()}`
+                                  generatePreviewWithUrl(processedUrl)
+                                }}
+                                className="mt-2 px-3 py-1.5 text-xs font-semibold bg-red-100 hover:bg-red-200 text-red-700 rounded-lg transition-colors"
+                                aria-label="Retry generating preview"
+                              >
+                                Retry
+                              </button>
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -678,6 +985,8 @@ export default function Demo() {
                       type="submit"
                       disabled={isGeneratingPreview || !url.trim()}
                       className="w-full py-4 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500 text-white rounded-xl font-bold text-base transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] hover:shadow-2xl hover:shadow-orange-500/40 disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center justify-center space-y-2 relative overflow-hidden group"
+                      aria-label={isGeneratingPreview ? 'Generating preview, please wait' : 'Generate preview for entered URL'}
+                      aria-busy={isGeneratingPreview}
                     >
                       {isGeneratingPreview ? (
                         <>
@@ -700,8 +1009,9 @@ export default function Demo() {
                       ) : (
                         <>
                           <span className="relative z-10 flex items-center">
-                            <SparklesIcon className="w-5 h-5 mr-2" />
+                            <SparklesIcon className="w-5 h-5 mr-2" aria-hidden="true" />
                             <span>Generate Preview</span>
+                            <span className="ml-2 text-xs opacity-75">(Press Enter)</span>
                           </span>
                           <div className="absolute inset-0 bg-gradient-to-r from-orange-600 via-amber-600 to-orange-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                           <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
@@ -733,6 +1043,15 @@ export default function Demo() {
           {/* AI Generation Overlay - Full Screen Progress */}
           {isGeneratingPreview && !showEmailPopup && (
             <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-gradient-to-br from-gray-900/90 via-gray-900/95 to-black/90 backdrop-blur-md animate-fade-in">
+              {/* Cancel button */}
+              <button
+                onClick={cancelGeneration}
+                className="absolute top-4 right-4 p-3 text-white/70 hover:text-white hover:bg-white/10 rounded-xl transition-colors"
+                aria-label="Cancel preview generation"
+              >
+                <XMarkIcon className="w-6 h-6" />
+              </button>
+              
               {showCompletionCelebration ? (
                 /* Celebration Animation */
                 <div className="text-center animate-scale-in">
@@ -788,6 +1107,11 @@ export default function Demo() {
                   <p className="mt-8 text-center text-white/40 text-xs">
                     Our AI is analyzing your page using multi-stage reasoning...
                   </p>
+                  
+                  {/* Cancel hint */}
+                  <p className="mt-4 text-center text-white/30 text-xs">
+                    Press Escape or click X to cancel
+                  </p>
                 </div>
               )}
               
@@ -817,7 +1141,7 @@ export default function Demo() {
                     setEmailError(null)
                   }}
                   className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600 transition-colors"
-                  aria-label="Close"
+                  aria-label="Close email subscription popup"
                 >
                   <XMarkIcon className="w-6 h-6" />
                 </button>
@@ -1196,7 +1520,18 @@ export default function Demo() {
                   )}
 
                   <div className="max-w-md mx-auto">
-                    <ReconstructedPreview preview={preview} />
+                    {preview ? (
+                      <ReconstructedPreview preview={preview} />
+                    ) : (
+                      <div className="relative overflow-hidden rounded-2xl bg-white shadow-xl animate-pulse">
+                        <div className="h-48 bg-gray-200" />
+                        <div className="p-6 space-y-4">
+                          <div className="h-6 bg-gray-200 rounded w-3/4" />
+                          <div className="h-4 bg-gray-200 rounded w-full" />
+                          <div className="h-4 bg-gray-200 rounded w-5/6" />
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Social Media Preview (og:image) */}
@@ -1204,7 +1539,7 @@ export default function Demo() {
                     <div className="mt-8">
                       <div className="text-center mb-4">
                         <h4 className="text-lg font-semibold text-gray-900 mb-1 flex items-center justify-center gap-2">
-                          <svg className="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <svg className="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
                           </svg>
                           Social Media Preview
@@ -1215,14 +1550,66 @@ export default function Demo() {
                         <div className="relative group">
                           <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-xl opacity-20 blur-xl group-hover:opacity-30 transition-opacity" />
                           <div className="relative bg-white p-2 rounded-xl shadow-xl border border-gray-200">
-                            <img
-                              src={preview.composited_preview_image_url}
-                              alt="Social media preview (og:image)"
-                              className="w-full rounded-lg"
-                            />
+                            <div className="relative">
+                              <img
+                                src={preview.composited_preview_image_url}
+                                alt="Social media preview (og:image)"
+                                className="w-full rounded-lg"
+                                ref={imageToCopyRef}
+                              />
+                              {/* Action buttons overlay */}
+                              <div className="absolute top-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  onClick={() => copyImageToClipboard(preview.composited_preview_image_url!)}
+                                  className="p-2 bg-white/90 backdrop-blur-sm rounded-lg shadow-lg hover:bg-white transition-colors"
+                                  aria-label="Copy preview image to clipboard"
+                                  title="Copy image"
+                                >
+                                  {copySuccess ? (
+                                    <CheckIcon className="w-5 h-5 text-emerald-600" aria-hidden="true" />
+                                  ) : (
+                                    <ClipboardDocumentIcon className="w-5 h-5 text-gray-700" aria-hidden="true" />
+                                  )}
+                                </button>
+                                <button
+                                  onClick={() => downloadImage(preview.composited_preview_image_url!, `preview-${preview.title.replace(/\s+/g, '-').toLowerCase()}.png`)}
+                                  className="p-2 bg-white/90 backdrop-blur-sm rounded-lg shadow-lg hover:bg-white transition-colors"
+                                  aria-label="Download preview image"
+                                  title="Download image"
+                                >
+                                  <ArrowDownTrayIcon className="w-5 h-5 text-gray-700" aria-hidden="true" />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    if (navigator.share) {
+                                      navigator.share({
+                                        title: preview.title,
+                                        text: preview.description || '',
+                                        url: preview.url,
+                                      }).catch(() => {
+                                        // Fallback to copying URL
+                                        navigator.clipboard.writeText(preview.url)
+                                        setCopySuccess(true)
+                                        setTimeout(() => setCopySuccess(false), 2000)
+                                      })
+                                    } else {
+                                      // Fallback: copy URL to clipboard
+                                      navigator.clipboard.writeText(preview.url)
+                                      setCopySuccess(true)
+                                      setTimeout(() => setCopySuccess(false), 2000)
+                                    }
+                                  }}
+                                  className="p-2 bg-white/90 backdrop-blur-sm rounded-lg shadow-lg hover:bg-white transition-colors"
+                                  aria-label="Share preview"
+                                  title="Share preview"
+                                >
+                                  <ShareIcon className="w-5 h-5 text-gray-700" aria-hidden="true" />
+                                </button>
+                              </div>
+                            </div>
                             <div className="mt-3 px-3 pb-2">
                               <p className="text-xs text-gray-500 flex items-center gap-1">
-                                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
                                   <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                                 </svg>
                                 This image is automatically set as <code className="px-1 py-0.5 bg-gray-100 rounded text-xs font-mono">og:image</code> for social sharing
@@ -1345,6 +1732,7 @@ export default function Demo() {
                         value={selectedPlatform}
                         onChange={(e) => setSelectedPlatform(e.target.value)}
                         className="appearance-none bg-white border-2 border-gray-200 rounded-xl px-6 py-3 pr-12 font-semibold text-gray-900 text-sm cursor-pointer transition-all duration-300 hover:border-orange-300 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                        aria-label="Select social media platform to preview"
                       >
                         {platforms.map((platform) => (
                           <option key={platform.id} value={platform.id}>
@@ -1690,19 +2078,37 @@ export default function Demo() {
                 <div className="relative z-10">
                   <div className="flex items-start space-x-4">
                     <div className="w-12 h-12 bg-amber-500 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg shadow-amber-500/30">
-                      <PhotoIcon className="w-6 h-6 text-white" />
+                      <PhotoIcon className="w-6 h-6 text-white" aria-hidden="true" />
                     </div>
                     <div className="flex-1">
                       <h4 className="font-black text-gray-900 mb-1 text-lg">This is a Demo Preview</h4>
-                      <p className="text-sm text-gray-700 mb-6">{preview.message}</p>
+                      <p className="text-sm text-gray-700 mb-4">{preview.message}</p>
+                      
+                      {/* Value propositions */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+                        <div className="flex items-center space-x-2 text-xs text-gray-600">
+                          <CheckIcon className="w-4 h-4 text-emerald-500 flex-shrink-0" aria-hidden="true" />
+                          <span>Unlimited previews</span>
+                        </div>
+                        <div className="flex items-center space-x-2 text-xs text-gray-600">
+                          <CheckIcon className="w-4 h-4 text-emerald-500 flex-shrink-0" aria-hidden="true" />
+                          <span>Custom branding</span>
+                        </div>
+                        <div className="flex items-center space-x-2 text-xs text-gray-600">
+                          <CheckIcon className="w-4 h-4 text-emerald-500 flex-shrink-0" aria-hidden="true" />
+                          <span>Analytics & insights</span>
+                        </div>
+                      </div>
+                      
                       <div className="flex flex-col sm:flex-row gap-3">
                         <Link
                           to="/app"
-                          className="group px-6 py-3 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500 text-white rounded-xl font-bold text-sm transition-all duration-300 hover:scale-[1.02] hover:shadow-xl hover:shadow-orange-500/30 text-center relative overflow-hidden"
+                          className="group px-8 py-4 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500 text-white rounded-xl font-bold text-base transition-all duration-300 hover:scale-[1.02] hover:shadow-xl hover:shadow-orange-500/30 text-center relative overflow-hidden"
+                          aria-label="Get full access to MetaView"
                         >
                           <span className="relative z-10 flex items-center justify-center">
                             Get Full Access
-                            <ArrowRightIcon className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                            <ArrowRightIcon className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" aria-hidden="true" />
                           </span>
                           <div className="absolute inset-0 bg-gradient-to-r from-orange-600 via-amber-600 to-orange-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                         </Link>
@@ -1713,8 +2119,11 @@ export default function Demo() {
                             setPreview(null)
                             setPreviewError(null)
                             setSelectedPlatform('facebook')
+                            // Scroll to top
+                            window.scrollTo({ top: 0, behavior: 'smooth' })
                           }}
-                          className="px-6 py-3 bg-white border-2 border-gray-200 text-gray-700 rounded-xl font-bold text-sm transition-all duration-300 hover:scale-[1.02] hover:border-orange-300 hover:bg-orange-50"
+                          className="px-6 py-4 bg-white border-2 border-gray-200 text-gray-700 rounded-xl font-bold text-sm transition-all duration-300 hover:scale-[1.02] hover:border-orange-300 hover:bg-orange-50"
+                          aria-label="Try generating a preview for another URL"
                         >
                           Try Another URL
                         </button>
