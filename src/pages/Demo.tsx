@@ -318,10 +318,9 @@ export default function Demo() {
       // IMPROVEMENT: Show optional email subscription after successful preview (non-intrusive)
       // Wait a bit so user can see the preview first, then offer subscription
       setTimeout(() => {
-        // Only show if user hasn't already subscribed and we have their email
+        // Only show if user hasn't already subscribed
         if (!emailSubscribed) {
-          // Show a subtle prompt - user can dismiss or subscribe
-          // We'll show this as a non-blocking banner or small modal
+          setShowEmailPopup(true)
         }
       }, 3000)
       
