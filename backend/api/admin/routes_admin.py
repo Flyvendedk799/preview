@@ -761,8 +761,27 @@ def deploy_merge_claude_branch(
     import subprocess
     import logging
     import re
+    import shutil
+    import os
     
     logger = logging.getLogger(__name__)
+    
+    def find_git():
+        """Find git executable path."""
+        # Try to find git in PATH
+        git_path = shutil.which("git")
+        if git_path:
+            return git_path
+        
+        # Try common paths on Linux/Unix
+        common_paths = ["/usr/bin/git", "/usr/local/bin/git", "/bin/git"]
+        for path in common_paths:
+            if os.path.exists(path) and os.access(path, os.X_OK):
+                return path
+        
+        # Try to find git in common installation locations
+        # On Railway, git is usually in /usr/bin/git
+        return "git"  # Fallback to just "git" and let subprocess handle the error
     
     try:
         # Log admin action
@@ -774,12 +793,32 @@ def deploy_merge_claude_branch(
             request=request
         )
         
+        # Find git executable
+        git_cmd = find_git()
+        logger.info(f"Using git at: {git_cmd}")
+        
+        # Verify git is available
+        try:
+            check_result = subprocess.run(
+                [git_cmd, "--version"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if check_result.returncode != 0:
+                raise Exception(f"Git not available: {check_result.stderr}")
+        except FileNotFoundError:
+            raise Exception(f"Git executable not found. Tried: {git_cmd}. Please ensure git is installed and available in PATH.")
+        except Exception as e:
+            raise Exception(f"Failed to verify git: {str(e)}")
+        
         output_lines = []
+        output_lines.append(f"Using git: {git_cmd}")
         
         # Step 1: Fetch latest changes from remote
         logger.info("Fetching latest changes from remote...")
         fetch_result = subprocess.run(
-            ["git", "fetch", "origin"],
+            [git_cmd, "fetch", "origin"],
             capture_output=True,
             text=True,
             timeout=30,
@@ -794,7 +833,7 @@ def deploy_merge_claude_branch(
         
         # Step 2: Get list of remote branches and find latest claude branch
         branch_result = subprocess.run(
-            ["git", "branch", "-r"],
+            [git_cmd, "branch", "-r"],
             capture_output=True,
             text=True,
             timeout=10,
@@ -826,7 +865,7 @@ def deploy_merge_claude_branch(
         for branch in claude_branches:
             branch_name = branch.replace('origin/', '')
             date_result = subprocess.run(
-                ["git", "log", "-1", "--format=%ct", branch],
+                [git_cmd, "log", "-1", "--format=%ct", branch],
                 capture_output=True,
                 text=True,
                 timeout=10,
@@ -846,7 +885,7 @@ def deploy_merge_claude_branch(
         
         # Step 3: Checkout main and ensure it's up to date
         checkout_result = subprocess.run(
-            ["git", "checkout", "main"],
+            [git_cmd, "checkout", "main"],
             capture_output=True,
             text=True,
             timeout=10,
@@ -859,7 +898,7 @@ def deploy_merge_claude_branch(
         # Step 4: Merge the claude branch
         logger.info(f"Merging {latest_branch} into main...")
         merge_result = subprocess.run(
-            ["git", "merge", f"origin/{latest_branch}", "--no-edit"],
+            [git_cmd, "merge", f"origin/{latest_branch}", "--no-edit"],
             capture_output=True,
             text=True,
             timeout=60,
@@ -884,7 +923,7 @@ def deploy_merge_claude_branch(
         # Step 5: Push to origin/main
         logger.info("Pushing to origin/main...")
         push_result = subprocess.run(
-            ["git", "push", "origin", "main"],
+            [git_cmd, "push", "origin", "main"],
             capture_output=True,
             text=True,
             timeout=30,
