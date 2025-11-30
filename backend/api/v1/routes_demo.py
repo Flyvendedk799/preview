@@ -8,10 +8,7 @@ from backend.db.session import get_db
 from backend.services.rate_limiter import check_rate_limit, get_rate_limit_key_for_ip
 from backend.services.activity_logger import get_client_ip
 from backend.utils.url_sanitizer import validate_url_security
-from backend.services.playwright_screenshot import capture_screenshot
-from backend.services.r2_client import upload_file_to_r2
-from backend.services.preview_reasoning import generate_reasoned_preview
-from backend.services.preview_image_generator import generate_and_upload_preview_image
+from backend.services.preview_engine import PreviewEngine, PreviewEngineConfig
 from backend.services.preview_cache import (
     generate_cache_key,
     get_redis_client,
@@ -157,139 +154,72 @@ def generate_demo_preview(
             detail=str(e)
         )
     
-    # Step 1: Capture screenshot
-    screenshot_bytes = None
-    try:
-        logger.info(f"Capturing screenshot for: {url_str}")
-        screenshot_bytes = capture_screenshot(url_str)
-    except Exception as e:
-        error_msg = str(e)
-        logger.error(f"Screenshot capture failed: {error_msg}", exc_info=True)
-        # Pass through the descriptive error message from capture_screenshot
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to capture page screenshot: {error_msg}"
-        )
+    # Use unified preview engine
+    logger.info(f"🚀 Using unified preview engine for: {url_str}")
     
-    # Step 2: Upload full screenshot to R2 (as fallback)
-    screenshot_url = None
-    try:
-        filename = f"screenshots/demo/{uuid4()}.png"
-        screenshot_url = upload_file_to_r2(screenshot_bytes, filename, "image/png")
-        logger.info(f"Demo screenshot uploaded: {screenshot_url}")
-    except Exception as e:
-        logger.warning(f"Screenshot upload failed: {e}")
+    config = PreviewEngineConfig(
+        is_demo=True,
+        enable_brand_extraction=True,
+        enable_ai_reasoning=True,
+        enable_composited_image=True,
+        enable_cache=True
+    )
     
-    # Step 3: Run multi-stage reasoning
-    try:
-        logger.info(f"Running multi-stage reasoning for: {url_str}")
-        result = generate_reasoned_preview(screenshot_bytes, url_str)
-    except Exception as e:
-        error_msg = str(e)
-        logger.error(f"Preview reasoning failed: {error_msg}", exc_info=True)
-        
-        # Check if it's a rate limit error
-        if "429" in error_msg or "rate limit" in error_msg.lower():
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="OpenAI rate limit reached. Please wait a moment and try again."
-            )
-        
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to analyze page: {error_msg}. Please try again."
-        )
+    engine = PreviewEngine(config)
+    engine_result = engine.generate(url_str, cache_key_prefix="demo:preview:")
     
-    # Step 4: Generate designed og:image (matching React component card design)
-    composited_image_url = None
-    try:
-        logger.info("Generating designed og:image matching React component")
-        
-        # Create a beautifully designed preview image that matches the React component:
-        # - White card background with accent bar
-        # - Icon/image, title, subtitle, description
-        # - Tags as features with checkmarks
-        # - Context items (if available)
-        # - CTA button at bottom
-        # This creates an image that matches the AI Reconstructed Preview component
-        composited_image_url = generate_and_upload_preview_image(
-            screenshot_bytes=screenshot_bytes,
-            url=str(request_data.url),
-            title=result.title,
-            subtitle=result.subtitle,
-            description=result.description,
-            cta_text=result.cta_text,
-            blueprint={
-                "primary_color": result.blueprint.primary_color,
-                "secondary_color": result.blueprint.secondary_color,
-                "accent_color": result.blueprint.accent_color
-            },
-            template_type=result.blueprint.template_type,
-            tags=result.tags,
-            context_items=[
-                {"icon": c["icon"], "text": c["text"]}
-                for c in result.context_items
-            ],
-            credibility_items=[
-                {"type": c["type"], "value": c["value"]}
-                for c in result.credibility_items
-            ],
-            primary_image_base64=result.primary_image_base64
-        )
-        if composited_image_url:
-            logger.info(f"Designed og:image generated: {composited_image_url}")
-    except Exception as e:
-        logger.warning(f"Failed to generate og:image: {e}", exc_info=True)
-        # Fallback to raw screenshot URL if available
-        if screenshot_url:
-            composited_image_url = screenshot_url
-            logger.info(f"Using raw screenshot as fallback: {screenshot_url}")
-    
-    # Step 5: Build response
+    # Convert PreviewEngineResult to DemoPreviewResponse
     response = DemoPreviewResponse(
-        url=url_str,
+        url=engine_result.url,
         
-        # Rendered content
-        title=result.title,
-        subtitle=result.subtitle,
-        description=result.description,
-        tags=result.tags,
+        # Content
+        title=engine_result.title,
+        subtitle=engine_result.subtitle,
+        description=engine_result.description,
+        tags=engine_result.tags,
         context_items=[
             ContextItem(icon=c["icon"], text=c["text"])
-            for c in result.context_items
+            for c in engine_result.context_items
         ],
         credibility_items=[
             CredibilityItem(type=c["type"], value=c["value"])
-            for c in result.credibility_items
+            for c in engine_result.credibility_items
         ],
-        cta_text=result.cta_text,
+        cta_text=engine_result.cta_text,
         
         # Images
-        primary_image_base64=result.primary_image_base64,
-        screenshot_url=screenshot_url,
-        composited_preview_image_url=composited_image_url,  # This is the og:image
+        primary_image_base64=engine_result.primary_image_base64,
+        screenshot_url=engine_result.screenshot_url,
+        composited_preview_image_url=engine_result.composited_preview_image_url,
         
-        # Layout blueprint
-        blueprint=LayoutBlueprint(
-            template_type=result.blueprint.template_type,
-            primary_color=result.blueprint.primary_color,
-            secondary_color=result.blueprint.secondary_color,
-            accent_color=result.blueprint.accent_color,
-            coherence_score=result.blueprint.coherence_score,
-            balance_score=result.blueprint.balance_score,
-            clarity_score=result.blueprint.clarity_score,
-            overall_quality=result.blueprint.overall_quality,
-            layout_reasoning=result.blueprint.layout_reasoning,
-            composition_notes=result.blueprint.composition_notes
+        # Brand elements
+        brand=BrandElements(
+            brand_name=engine_result.brand.get("brand_name"),
+            logo_base64=engine_result.brand.get("logo_base64"),
+            hero_image_base64=engine_result.brand.get("hero_image_base64")
         ),
         
-        # Quality metrics
-        reasoning_confidence=result.reasoning_confidence,
-        processing_time_ms=result.processing_time_ms,
+        # Blueprint
+        blueprint=LayoutBlueprint(
+            template_type=engine_result.blueprint.get("template_type", "article"),
+            primary_color=engine_result.blueprint.get("primary_color", "#2563EB"),
+            secondary_color=engine_result.blueprint.get("secondary_color", "#1E40AF"),
+            accent_color=engine_result.blueprint.get("accent_color", "#F59E0B"),
+            coherence_score=engine_result.blueprint.get("coherence_score", 0.0),
+            balance_score=engine_result.blueprint.get("balance_score", 0.0),
+            clarity_score=engine_result.blueprint.get("clarity_score", 0.0),
+            overall_quality=engine_result.blueprint.get("overall_quality", 0.0),
+            layout_reasoning=engine_result.blueprint.get("layout_reasoning", ""),
+            composition_notes=engine_result.blueprint.get("composition_notes", "")
+        ),
         
-        # Demo metadata
+        # Metrics
+        reasoning_confidence=engine_result.reasoning_confidence,
+        processing_time_ms=engine_result.processing_time_ms,
+        
+        # Metadata
         is_demo=True,
-        message="AI-reconstructed preview using multi-stage reasoning."
+        message=engine_result.message
     )
     
     # IMPROVEMENT: Cache the result for future requests (24 hour TTL)

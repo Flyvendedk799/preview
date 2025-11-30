@@ -28,11 +28,7 @@ from backend.db.session import get_db
 from backend.services.rate_limiter import check_rate_limit, get_rate_limit_key_for_ip
 from backend.services.activity_logger import get_client_ip
 from backend.utils.url_sanitizer import validate_url_security
-from backend.services.playwright_screenshot import capture_screenshot_and_html
-from backend.services.r2_client import upload_file_to_r2
-from backend.services.preview_reasoning import generate_reasoned_preview
-from backend.services.preview_image_generator import generate_and_upload_preview_image
-from backend.services.brand_extractor import extract_all_brand_elements
+from backend.services.preview_engine import PreviewEngine, PreviewEngineConfig
 from backend.services.preview_cache import (
     generate_cache_key,
     get_redis_client,
@@ -376,202 +372,73 @@ def generate_demo_preview_optimized(
             )
 
         # =========================================================================
-        # STEP 1: Capture screenshot + HTML (single browser session)
+        # Use unified preview engine
         # =========================================================================
-        try:
-            logger.info(f"📸 Capturing screenshot + HTML for: {url_str}")
-            screenshot_bytes, html_content = capture_screenshot_and_html(url_str)
-            logger.info(f"✅ Screenshot captured ({len(screenshot_bytes)} bytes)")
-        except Exception as e:
-            error_msg = str(e)
-            logger.error(f"❌ Screenshot capture failed: {error_msg}", exc_info=True)
-            # Pass through the descriptive error message from capture_screenshot_and_html
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to capture page screenshot: {error_msg}"
-            )
-
-        # =========================================================================
-        # STEP 2: Parallel processing - Brand extraction + Screenshot upload
-        # =========================================================================
-        screenshot_url = None
-        brand_elements = None
-
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            futures = {}
-
-            # Task 1: Upload screenshot to R2
-            future_upload = executor.submit(
-                upload_file_to_r2,
-                screenshot_bytes,
-                f"screenshots/demo/{uuid4()}.png",
-                "image/png"
-            )
-            futures[future_upload] = "screenshot_upload"
-
-            # Task 2: Extract brand elements (logo, colors, hero image)
-            future_brand = executor.submit(
-                extract_all_brand_elements,
-                html_content,
-                url_str,
-                screenshot_bytes
-            )
-            futures[future_brand] = "brand_extraction"
-
-            # Wait for both to complete
-            for future in as_completed(futures):
-                task_name = futures[future]
-                try:
-                    if task_name == "screenshot_upload":
-                        screenshot_url = future.result()
-                        logger.info(f"✅ Screenshot uploaded: {screenshot_url}")
-                    elif task_name == "brand_extraction":
-                        brand_elements = future.result()
-                        logger.info(f"✅ Brand elements extracted: {brand_elements.get('brand_name') if brand_elements and isinstance(brand_elements, dict) else 'N/A'}")
-                except Exception as e:
-                    logger.warning(f"⚠️  {task_name} failed: {e}")
-
-        # =========================================================================
-        # STEP 3: Run multi-stage AI reasoning
-        # =========================================================================
-        try:
-            logger.info(f"🤖 Running AI reasoning for: {url_str}")
-            result = generate_reasoned_preview(screenshot_bytes, url_str)
-            logger.info(f"✅ AI reasoning complete")
-        except Exception as e:
-            error_msg = str(e)
-            logger.error(f"❌ AI reasoning failed: {error_msg}", exc_info=True)
-
-            if "429" in error_msg or "rate limit" in error_msg.lower():
-                raise HTTPException(
-                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                    detail="OpenAI rate limit reached. Please wait a moment and try again."
-                )
-
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to analyze page: {error_msg}. Please try again."
-            )
-
-        # =========================================================================
-        # STEP 4: Generate og:image with enhanced brand elements
-        # =========================================================================
-        composited_image_url = None
-        try:
-            logger.info("🎨 Generating brand-aligned og:image")
-
-            # Use brand colors if available, otherwise use AI-extracted colors
-            if brand_elements and isinstance(brand_elements, dict) and "colors" in brand_elements:
-                brand_colors = brand_elements.get("colors", {})
-                blueprint_colors = {
-                    "primary_color": brand_colors.get("primary_color", result.blueprint.primary_color) if isinstance(brand_colors, dict) else result.blueprint.primary_color,
-                    "secondary_color": brand_colors.get("secondary_color", result.blueprint.secondary_color) if isinstance(brand_colors, dict) else result.blueprint.secondary_color,
-                    "accent_color": brand_colors.get("accent_color", result.blueprint.accent_color) if isinstance(brand_colors, dict) else result.blueprint.accent_color,
-                }
-            else:
-                blueprint_colors = {
-                    "primary_color": result.blueprint.primary_color,
-                    "secondary_color": result.blueprint.secondary_color,
-                    "accent_color": result.blueprint.accent_color,
-                }
-
-            # Use logo if available, otherwise use primary_image from AI
-            image_for_preview = None
-            if brand_elements and isinstance(brand_elements, dict) and brand_elements.get("logo_base64"):
-                image_for_preview = brand_elements["logo_base64"]
-                logger.info("Using extracted brand logo for preview")
-            elif brand_elements and isinstance(brand_elements, dict) and brand_elements.get("hero_image_base64"):
-                image_for_preview = brand_elements["hero_image_base64"]
-                logger.info("Using extracted hero image for preview")
-            else:
-                image_for_preview = result.primary_image_base64
-                logger.info("Using AI-extracted primary image for preview")
-
-            composited_image_url = generate_and_upload_preview_image(
-                screenshot_bytes=screenshot_bytes,
-                url=url_str,
-                title=result.title,
-                subtitle=result.subtitle,
-                description=result.description,
-                cta_text=result.cta_text,
-                blueprint=blueprint_colors,
-                template_type=result.blueprint.template_type,
-                tags=result.tags,
-                context_items=[
-                    {"icon": c["icon"], "text": c["text"]}
-                    for c in result.context_items
-                ],
-                credibility_items=[
-                    {"type": c["type"], "value": c["value"]}
-                    for c in result.credibility_items
-                ],
-                primary_image_base64=image_for_preview
-            )
-
-            if composited_image_url:
-                logger.info(f"✅ og:image generated: {composited_image_url}")
-        except Exception as e:
-            logger.warning(f"⚠️  og:image generation failed: {e}", exc_info=True)
-            if screenshot_url:
-                composited_image_url = screenshot_url
-                logger.info(f"Using screenshot as fallback")
-
-        # =========================================================================
-        # STEP 5: Build response
-        # =========================================================================
-        processing_time_ms = int((time.time() - start_time) * 1000)
-
+        logger.info(f"🚀 Using unified preview engine for: {url_str}")
+        
+        config = PreviewEngineConfig(
+            is_demo=True,
+            enable_brand_extraction=True,
+            enable_ai_reasoning=True,
+            enable_composited_image=True,
+            enable_cache=True
+        )
+        
+        engine = PreviewEngine(config)
+        engine_result = engine.generate(url_str, cache_key_prefix="demo:preview:v2:")
+        
+        # Convert PreviewEngineResult to DemoPreviewResponse
         response = DemoPreviewResponse(
-            url=url_str,
-
+            url=engine_result.url,
+            
             # Content
-            title=result.title,
-            subtitle=result.subtitle,
-            description=result.description,
-            tags=result.tags,
+            title=engine_result.title,
+            subtitle=engine_result.subtitle,
+            description=engine_result.description,
+            tags=engine_result.tags,
             context_items=[
                 ContextItem(icon=c["icon"], text=c["text"])
-                for c in result.context_items
+                for c in engine_result.context_items
             ],
             credibility_items=[
                 CredibilityItem(type=c["type"], value=c["value"])
-                for c in result.credibility_items
+                for c in engine_result.credibility_items
             ],
-            cta_text=result.cta_text,
-
+            cta_text=engine_result.cta_text,
+            
             # Images
-            primary_image_base64=result.primary_image_base64,
-            screenshot_url=screenshot_url,
-            composited_preview_image_url=composited_image_url,
-
+            primary_image_base64=engine_result.primary_image_base64,
+            screenshot_url=engine_result.screenshot_url,
+            composited_preview_image_url=engine_result.composited_preview_image_url,
+            
             # Brand elements
             brand=BrandElements(
-                brand_name=brand_elements.get("brand_name") if (brand_elements and isinstance(brand_elements, dict)) else None,
-                logo_base64=brand_elements.get("logo_base64") if (brand_elements and isinstance(brand_elements, dict)) else None,
-                hero_image_base64=brand_elements.get("hero_image_base64") if (brand_elements and isinstance(brand_elements, dict)) else None
+                brand_name=engine_result.brand.get("brand_name"),
+                logo_base64=engine_result.brand.get("logo_base64"),
+                hero_image_base64=engine_result.brand.get("hero_image_base64")
             ),
-
-            # Blueprint (use enhanced colors)
+            
+            # Blueprint
             blueprint=LayoutBlueprint(
-                template_type=result.blueprint.template_type,
-                primary_color=blueprint_colors["primary_color"],
-                secondary_color=blueprint_colors["secondary_color"],
-                accent_color=blueprint_colors["accent_color"],
-                coherence_score=result.blueprint.coherence_score,
-                balance_score=result.blueprint.balance_score,
-                clarity_score=result.blueprint.clarity_score,
-                overall_quality=result.blueprint.overall_quality,
-                layout_reasoning=result.blueprint.layout_reasoning,
-                composition_notes=result.blueprint.composition_notes
+                template_type=engine_result.blueprint.get("template_type", "article"),
+                primary_color=engine_result.blueprint.get("primary_color", "#2563EB"),
+                secondary_color=engine_result.blueprint.get("secondary_color", "#1E40AF"),
+                accent_color=engine_result.blueprint.get("accent_color", "#F59E0B"),
+                coherence_score=engine_result.blueprint.get("coherence_score", 0.0),
+                balance_score=engine_result.blueprint.get("balance_score", 0.0),
+                clarity_score=engine_result.blueprint.get("clarity_score", 0.0),
+                overall_quality=engine_result.blueprint.get("overall_quality", 0.0),
+                layout_reasoning=engine_result.blueprint.get("layout_reasoning", ""),
+                composition_notes=engine_result.blueprint.get("composition_notes", "")
             ),
-
+            
             # Metrics
-            reasoning_confidence=result.reasoning_confidence,
-            processing_time_ms=processing_time_ms,
-
+            reasoning_confidence=engine_result.reasoning_confidence,
+            processing_time_ms=engine_result.processing_time_ms,
+            
             # Metadata
             is_demo=True,
-            message="AI-reconstructed preview with enhanced brand extraction."
+            message=engine_result.message
         )
 
         # Cache the result
@@ -584,7 +451,7 @@ def generate_demo_preview_optimized(
             except Exception as e:
                 logger.warning(f"⚠️  Failed to cache result: {e}")
 
-        logger.info(f"🎉 Preview generated in {processing_time_ms}ms")
+        logger.info(f"🎉 Preview generated in {engine_result.processing_time_ms}ms")
         return response
     except HTTPException:
         # Re-raise HTTP exceptions (rate limits, validation errors, etc.)

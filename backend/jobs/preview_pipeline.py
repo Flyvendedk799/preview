@@ -5,21 +5,13 @@ from backend.models.domain import Domain as DomainModel
 from backend.models.brand import BrandSettings as BrandSettingsModel
 from backend.schemas.brand import BrandSettings as BrandSettingsSchema
 from backend.utils.url_sanitizer import sanitize_url
-from backend.services.preview_generator import fetch_page_html
-from backend.services.metadata_extractor import extract_metadata_from_html
-from backend.services.semantic_extractor import extract_semantic_structure
-from backend.jobs.ai_generation import generate_ai_metadata
-from backend.services.ai_validation import validate_ai_output
+from backend.services.preview_engine import PreviewEngine, PreviewEngineConfig, PreviewEngineResult
 from backend.services.preview_type_predictor import predict_preview_type
-from backend.jobs.screenshot_generation import generate_screenshot
 from backend.jobs.preview_upsert import upsert_preview
 from backend.services.brand_rewriter import rewrite_to_brand_voice
-from backend.services.preview_image_generator import generate_and_upload_preview_image
-from backend.services.playwright_screenshot import capture_screenshot
 from backend.models.preview_variant import PreviewVariant as PreviewVariantModel
 from backend.models.preview_job_failure import PreviewJobFailure as PreviewJobFailureModel
 from backend.core.config import settings
-from backend.exceptions.screenshot_failed import ScreenshotFailedException
 from backend.services.activity_logger import log_activity
 import logging
 import traceback
@@ -67,16 +59,7 @@ def generate_preview_job(user_id: int, organization_id: int, url: str, domain: s
         # Step 2: Sanitize URL
         sanitized_url = sanitize_url(url, domain)
         
-        # Step 3: Fetch HTML
-        html_content = fetch_page_html(sanitized_url)
-        
-        # Step 4: Extract metadata using BeautifulSoup
-        metadata = extract_metadata_from_html(html_content)
-        
-        # Step 4.5: Extract semantic structure for validation and fallbacks
-        semantic_data = extract_semantic_structure(html_content)
-        
-        # Step 5: Load brand settings
+        # Step 3: Load brand settings
         brand_settings = db.query(BrandSettingsModel).filter(
             BrandSettingsModel.organization_id == organization_id
         ).first()
@@ -96,108 +79,110 @@ def generate_preview_job(user_id: int, organization_id: int, url: str, domain: s
             db.commit()
             db.refresh(brand_settings)
         
-        # Step 6: Convert to schema for AI generator
+        # Step 4: Convert to schema for brand rewriting
         brand_schema = BrandSettingsSchema.model_validate(brand_settings)
         
-        # Step 7: Generate AI metadata with enhanced prompt
-        ai_result = generate_ai_metadata(sanitized_url, brand_schema, html_content)
+        # Step 5: Use unified preview engine for core generation
+        logger.info(f"Using unified preview engine for: {sanitized_url}")
+        config = PreviewEngineConfig(
+            is_demo=False,  # SaaS mode
+            enable_brand_extraction=True,
+            enable_ai_reasoning=True,
+            enable_composited_image=True,
+            enable_cache=True,
+            brand_settings={
+                "primary_color": brand_schema.primary_color,
+                "secondary_color": brand_schema.secondary_color,
+                "accent_color": brand_schema.accent_color,
+                "font_family": brand_schema.font_family,
+            }
+        )
         
-        # Step 8: Validate AI output with semantic data and brand tone
-        brand_tone_hint = _derive_brand_tone_hint(brand_schema)
-        validated_ai = validate_ai_output(ai_result, metadata, brand_tone_hint, semantic_data)
+        engine = PreviewEngine(config)
+        engine_result = engine.generate(sanitized_url, cache_key_prefix="saas:preview:")
         
-        # Step 9: Predict preview type
-        preview_type = predict_preview_type(metadata, sanitized_url, validated_ai)
+        # Step 6: Apply brand voice rewriting to description
+        rewritten_description = rewrite_to_brand_voice(engine_result.description, brand_schema)
         
-        # Step 10: Apply brand tone rewriting to main description
-        main_description = validated_ai.get("description") or ""
-        rewritten_description = rewrite_to_brand_voice(main_description, brand_schema)
+        # Step 7: Predict preview type (for database storage)
+        # Use blueprint template_type from engine, or fallback to predictor
+        preview_type = engine_result.blueprint.get("template_type", "article")
+        if preview_type == "unknown":
+            # Fallback to type predictor if needed
+            from backend.services.metadata_extractor import extract_metadata_from_html
+            from backend.services.preview_generator import fetch_page_html
+            try:
+                html_content = fetch_page_html(sanitized_url)
+                metadata = extract_metadata_from_html(html_content)
+                preview_type = predict_preview_type(metadata, sanitized_url, {
+                    "title": engine_result.title,
+                    "description": rewritten_description,
+                    "type": preview_type
+                })
+            except Exception as e:
+                logger.warning(f"Type prediction failed: {e}, using default")
+                preview_type = "article"
         
-        # Step 11: Capture screenshot and upload to R2 (returns main + highlight)
-        main_image_url = None
-        highlight_image_url = None
-        try:
-            main_image_url, highlight_image_url = generate_screenshot(sanitized_url)
-        except ScreenshotFailedException as e:
-            logger.error("Screenshot generation failed, using fallback", exc_info=True)
-            # Fallback to AI-generated image URL if available
-            main_image_url = ai_result.get("image_url") or ""
-            highlight_image_url = main_image_url
+        # Step 8: Prepare image URLs
+        # Use composited image as main, screenshot as highlight
+        main_image_url = engine_result.composited_preview_image_url or engine_result.screenshot_url
+        highlight_image_url = engine_result.screenshot_url or main_image_url
         
-        # Step 12: Use placeholder if both screenshot and AI image failed
+        # Fallback to placeholder if no images
         if not main_image_url:
             main_image_url = settings.PLACEHOLDER_IMAGE_URL
             highlight_image_url = settings.PLACEHOLDER_IMAGE_URL
             logger.warning(f"Using placeholder image for URL: {sanitized_url}")
         
-        # Step 12.5: Generate composited preview image (designed UI card)
-        composited_image_url = None
-        try:
-            # Capture screenshot bytes for composited image generation
-            screenshot_bytes = capture_screenshot(sanitized_url)
-            
-            # Generate designed og:image with typography overlay
-            composited_image_url = generate_and_upload_preview_image(
-                screenshot_bytes=screenshot_bytes,
-                url=sanitized_url,
-                title=validated_ai["title"],
-                subtitle=None,  # Can be enhanced later
-                description=rewritten_description,
-                cta_text=None,  # Can be enhanced later
-                blueprint={
-                    "primary_color": brand_schema.primary_color,
-                    "secondary_color": brand_schema.secondary_color,
-                    "accent_color": brand_schema.accent_color
-                },
-                template_type=preview_type
-            )
-            if composited_image_url:
-                logger.info(f"Generated composited preview image: {composited_image_url}")
-        except Exception as e:
-            logger.warning(f"Failed to generate composited preview image: {e}", exc_info=True)
-            # Continue without composited image - will use highlight_image_url as fallback
-        
-        # Step 13: Upsert preview in database with all metadata
-        keywords_str = ",".join(validated_ai.get("keywords", [])) if validated_ai.get("keywords") else None
+        # Step 9: Upsert preview in database with all metadata
+        keywords_str = ",".join(engine_result.tags) if engine_result.tags else None
         
         preview = upsert_preview(
             db=db,
             url=sanitized_url,
             domain=domain,
-            title=validated_ai["title"],
-            description=rewritten_description,  # Use rewritten description
+            title=engine_result.title,
+            description=rewritten_description,
             image_url=main_image_url,
             highlight_image_url=highlight_image_url,
-            composited_image_url=composited_image_url,
+            composited_image_url=engine_result.composited_preview_image_url,
             preview_type=preview_type,
             user_id=user_id,
             organization_id=organization_id,
             keywords=keywords_str,
-            tone=validated_ai.get("tone"),
-            ai_reasoning=validated_ai.get("reasoning")
+            tone=None,  # Can be extracted from blueprint if needed
+            ai_reasoning=engine_result.blueprint.get("layout_reasoning") or engine_result.message
         )
         
-        # Step 14: Create preview variants
-        variants_data = [
-            ("a", validated_ai.get("variant_a", {})),
-            ("b", validated_ai.get("variant_b", {})),
-            ("c", validated_ai.get("variant_c", {})),
+        # Step 10: Create preview variants from engine result
+        # For SaaS, we create variants based on engine's context items and credibility items
+        # This is a simplified variant generation - can be enhanced later
+        variant_titles = [
+            engine_result.title,
+            engine_result.subtitle or engine_result.title,  # Use subtitle if available
+            engine_result.title  # Third variant same as first for now
         ]
         
-        for variant_key, variant_info in variants_data:
-            if variant_info and variant_info.get("title"):
-                # Apply brand rewriting to variant descriptions
-                variant_desc = variant_info.get("description", "")
-                rewritten_variant_desc = rewrite_to_brand_voice(variant_desc, brand_schema) if variant_desc else None
-                
+        variant_descriptions = [
+            rewritten_description,
+            rewritten_description[:150] + "..." if len(rewritten_description) > 150 else rewritten_description,
+            rewritten_description
+        ]
+        
+        for idx, (variant_key, variant_title, variant_desc) in enumerate(zip(
+            ["a", "b", "c"],
+            variant_titles,
+            variant_descriptions
+        )):
+            if variant_title:
                 variant = PreviewVariantModel(
                     preview_id=preview.id,
                     variant_key=variant_key,
-                    title=variant_info.get("title", "")[:200],
-                    description=rewritten_variant_desc[:500] if rewritten_variant_desc else None,
-                    tone=validated_ai.get("tone"),
-                    keywords=keywords_str,  # Reuse main keywords
-                    image_url=highlight_image_url,  # Use highlight image for variants
+                    title=variant_title[:200],
+                    description=variant_desc[:500] if variant_desc else None,
+                    tone=None,
+                    keywords=keywords_str,
+                    image_url=highlight_image_url,
                 )
                 db.add(variant)
         
