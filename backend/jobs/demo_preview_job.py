@@ -79,7 +79,7 @@ def generate_demo_preview_job(url: str) -> Dict[str, Any]:
             
             # Images
             "primary_image_base64": result.primary_image_base64,
-            "screenshot_url": screenshot_url,
+            "screenshot_url": result.screenshot_url,
             "composited_preview_image_url": result.composited_preview_image_url,
             
             # Brand elements
