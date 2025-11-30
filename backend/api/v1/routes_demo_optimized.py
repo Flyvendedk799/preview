@@ -272,13 +272,24 @@ def get_demo_job_status(
         
         if job_status == 'finished':
             try:
+                # Try to get result - might need to wait a moment for RQ to save it
                 job_result = job.result
                 if job_result:
                     # Convert dict result to DemoPreviewResponse
                     result = DemoPreviewResponse(**job_result)
+                else:
+                    # Result not available yet - might be a race condition
+                    logger.warning(f"Job {job_id} finished but result not yet available")
+                    # Don't set error, just return None result - frontend will retry
             except Exception as e:
-                logger.error(f"Error parsing job result: {e}", exc_info=True)
-                error = f"Failed to parse result: {str(e)}"
+                error_msg = str(e)
+                logger.error(f"Error parsing job result for {job_id}: {error_msg}", exc_info=True)
+                # If it's a deserialization error, the result might not be ready yet
+                if "No such key" in error_msg or "not found" in error_msg.lower():
+                    logger.warning(f"Job {job_id} result not yet available in Redis")
+                    # Don't set error, frontend will retry
+                else:
+                    error = f"Failed to parse result: {error_msg}"
         elif job_status == 'failed':
             try:
                 # Extract clean error message from exc_info
