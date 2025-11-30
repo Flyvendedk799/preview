@@ -204,143 +204,141 @@ class ReasonedPreview:
 # AI PROMPTS - Multi-Stage Reasoning
 # =============================================================================
 
-STAGE_1_2_3_PROMPT = """You are an elite UI/UX analyst performing systematic visual analysis with 7X enhanced intelligence.
+STAGE_1_2_3_PROMPT = """You are an elite marketing strategist and UI/UX analyst creating PREMIUM social media previews.
 
-TASK: Analyze this webpage screenshot through a rigorous multi-stage process with maximum precision and context awareness.
+Your goal: Create a preview that makes people STOP SCROLLING and CLICK. Think like a conversion expert.
 
-=== STAGE 1: SEGMENTATION (7X ENHANCED) ===
-Identify ALL distinct UI regions visible with exceptional accuracy. For each region, note:
-- What type of content it contains (image, text, badge, button, etc.)
-- Its precise position and spatial relationships
-- Its exact content (no paraphrasing, preserve original wording)
-- Visual hierarchy indicators (size, color, position)
+TASK: Analyze this webpage screenshot to extract the most COMPELLING content for a social media preview card.
 
-7X ENHANCEMENTS - Pay CRITICAL attention to:
-- LOGO detection: Systematically scan header, nav, favicon area, hero section, footer for brand marks
-- TRUST SIGNALS: Ratings, reviews, certifications, security badges, statistics, user counts, testimonials
-- BENEFIT BULLETS: Feature lists, value propositions, key selling points, unique differentiators
-- SOCIAL PROOF: Testimonials, user counts, success metrics, case studies, press mentions
-- CONTEXT CLUES: Location, date, company info, contact details, pricing indicators
-- INTENT SIGNALS: CTAs, forms, buttons, links that reveal user journey and conversion goals
+=== STAGE 1: CONTENT DISCOVERY ===
+Find the BEST content for a high-converting preview. Scan the entire page for:
 
-=== STAGE 2: PURPOSE ANALYSIS (7X ENHANCED) ===
-For each region, determine its COMMUNICATION PURPOSE with deep understanding:
-- identity: Who/what this is (name, logo, profile image, brand mark) - CRITICAL for recognition
-- value_prop: Core message or what they offer - the ONE thing they want users to remember
-- benefits: Supporting benefits, features, or selling points - extract 2-4 most compelling benefits
-- context: Supporting info (location, date, company, industry) - only if it adds meaningful context
-- credibility: Trust signals (ratings, reviews, certifications, statistics, security badges, social proof)
-- action: CTAs and conversion elements - what action do they want users to take?
-- navigation: Menu items, tabs (usually exclude from preview unless they reveal page purpose)
-- decoration: Pure visual enhancement (usually exclude unless it's brand-defining)
+MUST-FIND ELEMENTS (in order of importance):
+1. **HEADLINE** - The single most compelling statement. Look for:
+   - Main H1 or hero text (exact wording)
+   - Value proposition that answers "Why should I care?"
+   - Should be punchy, benefit-focused, under 60 characters ideally
 
-7X ENHANCEMENT: Deep reasoning required - explain WHY each region has its assigned purpose based on:
-- Visual prominence (size, color, position)
-- Content semantics (what it actually says/means)
-- User intent (what users would infer from this)
-- Brand context (how it fits into overall brand story)
+2. **VISUAL ANCHOR** - The most eye-catching visual:
+   - Product shot, hero image, or featured graphic
+   - Logo/brand mark (for brand recognition)
+   - Person/team photo (for personal brands/services)
 
-=== STAGE 3: PRIORITY ASSIGNMENT (7X ENHANCED) ===
-Assign visual weight based on what users should see FIRST in a preview with strategic thinking:
-- hero: ONE dominant element (usually the main image, headline, or primary visual) - must be instantly recognizable
-- primary: 1-2 key supporting elements (main value prop, primary benefit, core differentiator)
-- secondary: 2-4 supporting details (additional benefits, trust signals, context that adds value)
-- tertiary: Minor details (use sparingly - only if they significantly enhance understanding)
-- omit: Should not appear (navigation, redundant info, clutter, low-value decorative elements)
+3. **PROOF/CREDIBILITY** - What makes this trustworthy:
+   - Star ratings (e.g., "4.9★ from 2,847 reviews")
+   - User counts (e.g., "50,000+ users", "Trusted by 500 companies")
+   - Press logos or "As seen in" badges
+   - Certifications, awards, security badges
+   - Testimonial quotes with attribution
 
-7X ENHANCEMENT: Strategic priority logic - explain WHY based on:
-- User value (what helps users understand/decide fastest)
-- Brand impact (what makes the brand memorable)
-- Conversion potential (what drives action)
-- Information hierarchy (what must be seen vs nice-to-have)
+4. **KEY BENEFITS** - 2-3 bullet points that sell:
+   - Feature highlights that solve problems
+   - Unique differentiators ("Only platform that...")
+   - Time/money savings ("Save 10 hours/week")
 
-OUTPUT STRICT JSON:
+5. **CALL-TO-ACTION** - What they want users to do:
+   - Primary button text (exact wording)
+   - Action-oriented, creates urgency
+
+=== STAGE 2: MARKETING ANALYSIS ===
+For each element found, assess its MARKETING VALUE:
+- identity: Brand name/logo - instant recognition
+- hook: The attention-grabber, the "wow" factor
+- value_prop: Core promise - what problem does this solve?
+- proof: Social proof, trust signals, credibility builders
+- benefits: Specific advantages users get
+- action: CTA that drives clicks
+- filler: Nice-to-have but not essential (often omit)
+
+Ask: "Would this make someone click?" If not, mark as lower priority.
+
+=== STAGE 3: PRIORITY FOR PREVIEW ===
+A great preview shows ONLY what matters in 3 seconds. Assign:
+- hero: ONE dominant element (headline OR visual - not both fighting for attention)
+- primary: 1-2 supporting elements (proof, key benefit)
+- secondary: 1-2 extras if space allows (additional proof, minor context)
+- omit: Everything else (navigation, footers, repetitive content, decorative elements)
+
+MARKETING RULE: Less is more. A preview with 3 strong elements beats one with 7 weak ones.
+
+OUTPUT JSON:
 {{
-    "page_type": "<profile|product|landing|article|service|unknown>",
+    "page_type": "<saas|ecommerce|agency|portfolio|blog|startup|enterprise|personal|unknown>",
+    "marketing_angle": "<what's the main selling point in one sentence>",
     "regions": [
         {{
             "id": "<unique_id>",
-            "content_type": "<image|headline|subheadline|body_text|badge|button|rating|location|tag|logo|benefit|statistic|testimonial|other>",
-            "raw_content": "<exact content>",
+            "content_type": "<headline|subheadline|hero_image|logo|rating|user_count|testimonial|benefit|cta|badge|statistic|other>",
+            "raw_content": "<EXACT text, no paraphrasing>",
             "bbox": {{"x": <0-1>, "y": <0-1>, "width": <0-1>, "height": <0-1>}},
-            "purpose": "<identity|value_prop|benefits|context|credibility|action|navigation|decoration>",
-            "purpose_reasoning": "<why this purpose>",
-            "visual_weight": "<hero|primary|secondary|tertiary|omit>",
+            "purpose": "<identity|hook|value_prop|proof|benefits|action|filler>",
+            "marketing_value": "<high|medium|low>",
+            "purpose_reasoning": "<why this matters for conversion>",
+            "visual_weight": "<hero|primary|secondary|omit>",
             "priority_score": <0.0-1.0>,
-            "priority_reasoning": "<why this priority>",
-            "is_logo": <true|false>  // NEW: Explicitly identify if this is a logo/brand mark
+            "is_logo": <true|false>
         }}
     ],
     "detected_palette": {{
-        "primary": "<hex>",  // Extract from hero section, main buttons, or brand colors
-        "secondary": "<hex>",  // Extract from secondary elements
-        "accent": "<hex>"  // Extract from CTAs, highlights, or brand accent
+        "primary": "<hex from brand/buttons>",
+        "secondary": "<hex from backgrounds>",
+        "accent": "<hex from CTAs/highlights>"
     }},
     "detected_logo": {{
-        "region_id": "<region_id or null>",  // NEW: Reference to logo region if found
-        "confidence": <0.0-1.0>  // NEW: Confidence that this is actually a logo
+        "region_id": "<id or null>",
+        "confidence": <0.0-1.0>
     }},
-    "analysis_confidence": <0.0-1.0>
+    "analysis_confidence": <0.0-1.0>,
+    "preview_strategy": "<brief note on how to compose the preview for maximum impact>"
 }}
 
-CRITICAL RULES:
-1. Extract EXACT text content - no paraphrasing
-2. Be PRECISE with bounding boxes - use normalized coordinates (0-1)
-3. Provide GENUINE reasoning, not templates
-4. Identify ALL visible regions, then filter by weight
-5. HERO weight should be assigned to only ONE element
-6. Navigation elements should usually be weight=omit
-7. Duplicate/redundant content should be weight=omit
-
-BOUNDING BOX PRECISION (very important):
-- For PROFILE IMAGES (circular avatars): 
-  * The bbox should encompass the ENTIRE circular avatar area
-  * Include slight padding around the circle to capture the full image
-  * x,y should be the top-left corner of the bounding rectangle containing the circle
-  * width,height should cover the full circular avatar
-- For rectangular images: bbox should tightly fit the image bounds
-- All coordinates are normalized (0-1 relative to image dimensions)
-
-Example for a profile avatar at position (100,50) with size 80x80 on a 800x600 image:
-bbox: {"x": 0.1, "y": 0.067, "width": 0.1, "height": 0.133}"""
+CRITICAL:
+- Extract EXACT text (users will read it!)
+- Prioritize SPECIFIC numbers over vague claims ("10,000+ users" > "Many customers")
+- Headlines should be compelling, not just descriptive
+- If you find a great testimonial quote, include it!
+- Bounding boxes must be precise for image cropping"""
 
 
-STAGE_4_5_PROMPT = """You are an elite visual designer creating an optimal preview layout with 7X enhanced intelligence.
+STAGE_4_5_PROMPT = """You are a conversion-focused designer creating a preview that DRIVES CLICKS.
 
-ANALYZED REGIONS:
+ANALYZED CONTENT:
 {regions_json}
 
 PAGE TYPE: {page_type}
-COLORS: Primary={primary}, Secondary={secondary}, Accent={accent}
+BRAND COLORS: Primary={primary}, Secondary={secondary}, Accent={accent}
 
-=== STAGE 4: COMPOSITION DECISION (7X ENHANCED) ===
-For each region, decide with strategic precision:
-- INCLUDE: Essential for communicating the page's core message AND valuable to users
-- EXCLUDE: Redundant, noisy, low-value, or distracting for a preview
+=== STAGE 4: CONTENT SELECTION ===
+Select ONLY what creates desire to click. Ask: "Does this make someone want to learn more?"
 
-7X ENHANCED Rules for exceptional previews:
-1. ONE clear identity (name/title) - no duplicates, clean and memorable
-2. ONE primary image maximum - choose the MOST impactful visual
-3. NO navigation elements - they don't belong in previews
-4. NO redundant headers - if name is shown, don't repeat "About [Name]"
-5. MAX 4 tags/badges - select ONLY the most relevant and compelling
-6. Prefer concise, punchy value propositions over long descriptions
-7. Include location/context ONLY if it adds meaningful value (e.g., "San Francisco" for location-based service)
-8. Include credibility items if visually prominent - even "0 reviews" can signal transparency
-9. Prioritize UNIQUE differentiators over generic features
-10. Extract the ESSENCE - what makes this page special, not everything it contains
+INCLUDE (high-value for conversion):
+✓ Compelling headline that creates curiosity
+✓ ONE strong visual (product, hero, or logo)
+✓ Social proof with NUMBERS (ratings, user counts, testimonials)
+✓ 1-2 key benefits that solve real problems
+✓ CTA text that indicates the action
 
-=== STAGE 5: LAYOUT SYNTHESIS ===
-Assign included regions to layout slots:
-- identity_slot: Main name/title (clean, no prefix like "Om" or "About")
-- identity_image_slot: Profile image/avatar/logo (PRIORITIZE detected logo if available)
-- tagline_slot: Brief professional descriptor (role, specialty)
-- value_slot: Core value proposition or about text
-- benefits_slots: Key benefits or features (max 2-3, NEW - extract supporting benefits)
-- context_slots: Location, date, company (max 2)
-- credibility_slots: Ratings, testimonials, statistics, security badges (max 2-3, include if visually prominent even if zero)
-- action_slot: Primary CTA
-- tags_slots: Skills, categories (max 4)
+EXCLUDE (no conversion value):
+✗ Navigation menus, footers
+✗ Generic descriptions without specific value
+✗ Multiple similar images
+✗ Vague claims without proof
+✗ Internal links and secondary CTAs
+
+=== STAGE 5: PREVIEW LAYOUT ===
+Create a layout that SELLS. Order matters - most important first:
+
+PRIMARY ZONE (always visible):
+- headline_slot: The hook - most compelling statement (SHORT and punchy)
+- visual_slot: One strong image (logo OR hero, not both)
+
+PROOF ZONE (builds trust):
+- proof_slot: Best social proof element ("4.9★ • 10k+ users")
+- benefit_slot: Single strongest benefit or differentiator
+
+OPTIONAL (only if exceptional):
+- secondary_benefit_slot: Another strong selling point
+- cta_slot: Action text if compelling
 
 OUTPUT JSON:
 {{
@@ -348,74 +346,74 @@ OUTPUT JSON:
         {{
             "region_id": "<id>",
             "include": <true|false>,
-            "decision_reasoning": "<why include/exclude>"
+            "conversion_value": "<high|medium|low>",
+            "decision_reasoning": "<why this helps/hurts conversion>"
         }}
     ],
     "layout": {{
-        "template_type": "<profile|product|landing|article|service>",
-        "identity_slot": "<region_id or null>",
-        "identity_image_slot": "<region_id or null>",  // PRIORITIZE logo if detected
-        "tagline_slot": "<region_id or null>",
-        "value_slot": "<region_id or null>",
-        "benefits_slots": ["<region_id>"],  // NEW: 2-3 key benefits
-        "context_slots": ["<region_id>"],
-        "credibility_slots": ["<region_id>"],  // Can include up to 3 for rich trust signals
-        "action_slot": "<region_id or null>",
-        "tags_slots": ["<region_id>"]
+        "template_style": "<bold|minimal|professional|vibrant>",
+        "headline_slot": "<region_id - the main hook>",
+        "visual_slot": "<region_id - primary visual>",
+        "proof_slot": "<region_id - best social proof>",
+        "benefit_slot": "<region_id - key benefit>",
+        "secondary_benefit_slot": "<region_id or null>",
+        "cta_slot": "<region_id or null>"
     }},
-    "layout_reasoning": "<explain the overall layout strategy>",
-    "composition_notes": "<any adjustments made to content>"
+    "layout_reasoning": "<explain the conversion strategy>",
+    "visual_balance": "<text-heavy|visual-heavy|balanced>",
+    "energy_level": "<calm|confident|energetic|urgent>"
 }}
 
-QUALITY GUIDELINES:
-1. A preview should tell a clear story in 2-3 seconds
-2. Visual hierarchy: Identity → Value → Context → Credibility
-3. Avoid redundancy: Same info shouldn't appear twice
-4. Clean over complete: Better to omit than clutter
-5. Professional feel: Every element should feel intentional"""
+DESIGN PHILOSOPHY:
+1. LESS IS MORE - 3-4 elements max
+2. HIERARCHY MATTERS - Most important = most prominent
+3. PROOF CONVERTS - Always include social proof if available
+4. SPECIFICITY WINS - "4.9★ from 2,847 reviews" > "Great reviews"
+5. ACTION ORIENTED - Preview should hint at what clicking does"""
 
 
-STAGE_6_PROMPT = """Perform final quality validation on this preview layout with 7X enhanced standards.
+STAGE_6_PROMPT = """Rate this preview's CONVERSION POTENTIAL.
 
-LAYOUT PLAN:
+LAYOUT:
 {layout_json}
 
-INCLUDED REGIONS:
+CONTENT:
 {included_regions}
 
-=== STAGE 6: COHERENCE CHECK (7X ENHANCED) ===
-Evaluate with exceptional rigor:
+=== CONVERSION QUALITY CHECK ===
 
-1. COHERENCE (0-1): Does the preview tell a unified, compelling story?
-   - Is the identity crystal clear and memorable?
-   - Does the value proposition make immediate sense?
-   - Are context elements relevant and additive?
-   - Does everything work together to create ONE clear message?
-   - Would a user understand the page's purpose instantly?
+1. HOOK POWER (0-1): Does the headline make people STOP scrolling?
+   - Is it specific, not generic?
+   - Does it create curiosity or promise value?
+   - Would YOU click based on this headline alone?
 
-2. BALANCE (0-1): Is the visual composition perfectly balanced?
-   - Not too empty (feels incomplete) or too crowded (feels overwhelming)
-   - Proper hierarchy from top to bottom (most important first)
-   - Appropriate number of elements (enough to be informative, not so many it's cluttered)
-   - Visual rhythm and flow feel natural
+2. TRUST FACTOR (0-1): Does it feel credible?
+   - Is there proof (numbers, ratings, testimonials)?
+   - Does it look professional, not spammy?
+   - Would a skeptical user give it a chance?
 
-3. CLARITY (0-1): Will users understand this in 2 seconds?
-   - Is the main message immediately obvious?
-   - Are there any confusing or ambiguous elements?
-   - Is the purpose of the page crystal clear?
-   - Would someone scrolling past understand what this is?
-   - Is the preview self-contained (makes sense without context)?
+3. CLARITY (0-1): Can someone understand it in 2 seconds?
+   - Is the main offer/value immediately obvious?
+   - Is there too much text or too little?
+   - Is the visual hierarchy clear?
+
+4. CLICK MOTIVATION (0-1): Does it create desire to click?
+   - Is there a clear benefit to clicking?
+   - Does it leave something to discover (curiosity gap)?
+   - Is the CTA clear if present?
 
 OUTPUT JSON:
 {{
-    "coherence_score": <0.0-1.0>,
-    "coherence_notes": "<specific observations>",
-    "balance_score": <0.0-1.0>,
-    "balance_notes": "<specific observations>",
+    "hook_score": <0.0-1.0>,
+    "hook_notes": "<what makes it strong/weak>",
+    "trust_score": <0.0-1.0>,
+    "trust_notes": "<credibility assessment>",
     "clarity_score": <0.0-1.0>,
-    "clarity_notes": "<specific observations>",
+    "clarity_notes": "<readability assessment>",
+    "click_motivation_score": <0.0-1.0>,
+    "click_notes": "<why would/wouldn't someone click>",
     "overall_quality": "<excellent|good|fair|poor>",
-    "improvement_suggestions": ["<suggestion>"]
+    "improvement_suggestions": ["<actionable improvement>"]
 }}"""
 
 
@@ -610,17 +608,15 @@ def run_stages_4_5(regions: List[Dict], page_type: str, palette: Dict[str, str])
     Run Stages 4-5: Composition Decision, Layout Synthesis.
     
     Returns:
-        Layout plan dictionary
+        Layout plan dictionary with normalized slot names for backward compatibility.
     """
     # Filter to non-omit regions for composition decisions
     relevant_regions = [r for r in regions if r.get("visual_weight") != "omit"]
     
     # OPTIMIZATION: Remove image_data from regions to reduce token usage
-    # We don't need the actual image data for composition/layout decisions, only metadata
     regions_for_ai = []
     for r in relevant_regions:
         region_copy = {k: v for k, v in r.items() if k != "image_data"}
-        # Keep a flag that image exists, but not the data itself
         if r.get("image_data"):
             region_copy["has_image"] = True
         regions_for_ai.append(region_copy)
@@ -632,7 +628,7 @@ def run_stages_4_5(regions: List[Dict], page_type: str, palette: Dict[str, str])
         messages=[
             {
                 "role": "system",
-                "content": "You are an elite visual designer creating optimal preview layouts with strategic precision. Your layouts must be clean, compelling, and conversion-focused. Make intelligent decisions about what to include/exclude. Output valid JSON only."
+                "content": "You are a conversion-focused designer. Create layouts that DRIVE CLICKS. Be decisive - include only high-value content. Output valid JSON only."
             },
             {
                 "role": "user",
@@ -645,8 +641,8 @@ def run_stages_4_5(regions: List[Dict], page_type: str, palette: Dict[str, str])
                 )
             }
         ],
-        max_tokens=2000,  # 7X: Increased for better layout decisions
-        temperature=0.2  # 7X: Lower temperature for more consistent layouts
+        max_tokens=2000,
+        temperature=0.15  # Low temperature for consistent, decisive layouts
     )
     
     content = response.choices[0].message.content.strip()
@@ -655,15 +651,48 @@ def run_stages_4_5(regions: List[Dict], page_type: str, palette: Dict[str, str])
     elif "```" in content:
         content = content.split("```")[1].split("```")[0].strip()
     
-    return json.loads(content)
+    result = json.loads(content)
+    
+    # Normalize new-style layout to include old-style slots for backward compatibility
+    layout = result.get("layout", {})
+    
+    # Map new slots to old slots if they exist
+    if "headline_slot" in layout and "identity_slot" not in layout:
+        layout["identity_slot"] = layout["headline_slot"]
+    if "visual_slot" in layout and "identity_image_slot" not in layout:
+        layout["identity_image_slot"] = layout["visual_slot"]
+    if "benefit_slot" in layout and "value_slot" not in layout:
+        layout["value_slot"] = layout["benefit_slot"]
+    if "cta_slot" in layout and "action_slot" not in layout:
+        layout["action_slot"] = layout["cta_slot"]
+    if "proof_slot" in layout:
+        if "credibility_slots" not in layout:
+            layout["credibility_slots"] = [layout["proof_slot"]]
+        elif layout["proof_slot"] not in layout["credibility_slots"]:
+            layout["credibility_slots"].insert(0, layout["proof_slot"])
+    
+    # Ensure required fields exist
+    layout.setdefault("template_type", layout.get("template_style", page_type))
+    layout.setdefault("context_slots", [])
+    layout.setdefault("tags_slots", [])
+    layout.setdefault("credibility_slots", [])
+    layout.setdefault("benefits_slots", [])
+    
+    # Add secondary benefit to benefits if present
+    if layout.get("secondary_benefit_slot"):
+        if layout["secondary_benefit_slot"] not in layout["benefits_slots"]:
+            layout["benefits_slots"].append(layout["secondary_benefit_slot"])
+    
+    result["layout"] = layout
+    return result
 
 
 def run_stage_6(layout: Dict[str, Any], included_regions: List[Dict]) -> Dict[str, Any]:
     """
-    Run Stage 6: Coherence Check.
+    Run Stage 6: Conversion Quality Check.
     
     Returns:
-        Quality scores dictionary
+        Quality scores dictionary with normalized field names.
     """
     client = OpenAI(api_key=settings.OPENAI_API_KEY, timeout=30)
     
@@ -672,7 +701,7 @@ def run_stage_6(layout: Dict[str, Any], included_regions: List[Dict]) -> Dict[st
         messages=[
             {
                 "role": "system",
-                "content": "You are an elite quality reviewer for visual designs with exceptional standards. Evaluate coherence, balance, and clarity with rigor. Provide specific, actionable feedback. Output valid JSON only."
+                "content": "You are a conversion expert. Rate this preview's ability to drive clicks. Be critical but fair. Output valid JSON only."
             },
             {
                 "role": "user",
@@ -682,8 +711,8 @@ def run_stage_6(layout: Dict[str, Any], included_regions: List[Dict]) -> Dict[st
                 )
             }
         ],
-        max_tokens=800,  # 7X: Increased for more detailed quality feedback
-        temperature=0.1  # 7X: Lower temperature for consistent quality assessment
+        max_tokens=600,
+        temperature=0.1
     )
     
     content = response.choices[0].message.content.strip()
@@ -692,7 +721,33 @@ def run_stage_6(layout: Dict[str, Any], included_regions: List[Dict]) -> Dict[st
     elif "```" in content:
         content = content.split("```")[1].split("```")[0].strip()
     
-    return json.loads(content)
+    result = json.loads(content)
+    
+    # Normalize new-style scores to old-style for backward compatibility
+    if "hook_score" in result and "coherence_score" not in result:
+        result["coherence_score"] = result["hook_score"]
+    if "trust_score" in result and "balance_score" not in result:
+        result["balance_score"] = result["trust_score"]
+    if "click_motivation_score" in result:
+        # Use click motivation as a factor in overall quality
+        click_score = result["click_motivation_score"]
+        if click_score >= 0.8:
+            result["overall_quality"] = "excellent"
+        elif click_score >= 0.6:
+            result["overall_quality"] = "good"
+        elif click_score >= 0.4:
+            result["overall_quality"] = "fair"
+        else:
+            result["overall_quality"] = "poor"
+    
+    # Ensure required fields exist
+    result.setdefault("coherence_score", 0.7)
+    result.setdefault("balance_score", 0.7)
+    result.setdefault("clarity_score", 0.7)
+    result.setdefault("overall_quality", "good")
+    result.setdefault("improvement_suggestions", [])
+    
+    return result
 
 
 # =============================================================================
@@ -729,6 +784,9 @@ def extract_final_content(
 ) -> Dict[str, Any]:
     """
     Extract final content for rendering based on layout slots.
+    
+    Works with both old-style (identity_slot, tagline_slot, etc.) and 
+    new-style (headline_slot, visual_slot, proof_slot) layouts.
     """
     # Build region lookup
     region_map = {r["id"]: r for r in regions}
@@ -752,64 +810,124 @@ def extract_final_content(
         region = region_map[region_id]
         return region.get("image_data")
     
-    # Extract primary identity with comprehensive fallbacks
-    title = get_region_content(layout_slots.get("identity_slot"), "identity")
-    
-    # Fallback: Search all included regions for identity content
-    if not title or title == "Untitled":
-        # Try tagline slot as fallback
+    # === TITLE EXTRACTION (with fallbacks) ===
+    # Try new-style first, then old-style
+    title = get_region_content(layout_slots.get("headline_slot"), "hook")
+    if not title:
+        title = get_region_content(layout_slots.get("identity_slot"), "identity")
+    if not title:
         title = get_region_content(layout_slots.get("tagline_slot"), "tagline")
-        
-        # If still no title, search included regions for identity purpose
-        if not title or title == "Untitled":
-            for region_id, include_flag in included.items():
-                if include_flag and region_id in region_map:
-                    region = region_map[region_id]
-                    if region.get("purpose") == "identity":
-                        title = get_region_content(region_id, "identity")
-                        if title and title != "Untitled":
-                            break
-            
-            # Last resort: find any high-priority text region
-            if not title or title == "Untitled":
-                for region in regions:
-                    if included.get(region["id"], False):
-                        raw = region.get("raw_content", "")
-                        if raw and len(raw.strip()) > 3 and len(raw.strip()) < 100:
-                            # Check if it looks like a title (not too long, has some structure)
-                            cleaned = clean_display_text(raw, "identity")
-                            if cleaned and cleaned != "Untitled":
-                                title = cleaned
-                                break
     
-    # Final fallback
+    # Fallback: Search included regions for best title candidate
+    if not title or title == "Untitled":
+        for region_id, include_flag in included.items():
+            if include_flag and region_id in region_map:
+                region = region_map[region_id]
+                # Look for hook, identity, or headline content types
+                if region.get("purpose") in ["hook", "identity", "value_prop"]:
+                    candidate = get_region_content(region_id, region.get("purpose", ""))
+                    if candidate and len(candidate) > 3 and len(candidate) < 120:
+                        title = candidate
+                        break
+                if region.get("content_type") == "headline":
+                    candidate = get_region_content(region_id, "headline")
+                    if candidate and len(candidate) > 3 and len(candidate) < 120:
+                        title = candidate
+                        break
+    
+    # Last resort: find any high-priority text
+    if not title or title == "Untitled":
+        for region in sorted(regions, key=lambda r: r.get("priority_score", 0), reverse=True):
+            if included.get(region["id"], False):
+                raw = region.get("raw_content", "")
+                if raw and 5 < len(raw.strip()) < 100:
+                    title = clean_display_text(raw, "identity")
+                    if title and title != "Untitled":
+                        break
+    
     if not title or title == "Untitled":
         title = "Untitled"
     
-    # Extract subtitle/tagline
-    subtitle = get_region_content(layout_slots.get("tagline_slot"), "tagline")
+    # === SUBTITLE/PROOF EXTRACTION ===
+    # Try new proof_slot first (for social proof), then fallback to tagline
+    subtitle = get_region_content(layout_slots.get("proof_slot"), "proof")
+    if not subtitle:
+        subtitle = get_region_content(layout_slots.get("tagline_slot"), "tagline")
     
-    # Extract value/description with fallback
-    description = get_region_content(layout_slots.get("value_slot"), "value_prop")
+    # If proof slot had content, also check for dedicated subtitle
+    proof_text = get_region_content(layout_slots.get("proof_slot"), "proof")
     
-    # Fallback: If no description, try to find value_prop purpose in included regions
+    # === DESCRIPTION/BENEFIT EXTRACTION ===
+    description = get_region_content(layout_slots.get("benefit_slot"), "benefits")
+    if not description:
+        description = get_region_content(layout_slots.get("value_slot"), "value_prop")
+    
+    # Try secondary benefit as additional description
+    secondary_benefit = get_region_content(layout_slots.get("secondary_benefit_slot"), "benefits")
+    
+    # Fallback: search for value_prop in included regions
     if not description:
         for region_id, include_flag in included.items():
             if include_flag and region_id in region_map:
                 region = region_map[region_id]
-                if region.get("purpose") == "value_prop":
-                    description = get_region_content(region_id, "value_prop")
+                if region.get("purpose") in ["value_prop", "benefits"]:
+                    description = get_region_content(region_id, region.get("purpose", ""))
                     if description:
                         break
     
-    # Extract tags
+    # === BENEFITS EXTRACTION ===
+    benefits = []
+    benefit_text = get_region_content(layout_slots.get("benefit_slot"), "benefits")
+    if benefit_text:
+        benefits.append(benefit_text)
+    if secondary_benefit and secondary_benefit not in benefits:
+        benefits.append(secondary_benefit)
+    
+    # Old-style benefits slots
+    for benefit_id in layout_slots.get("benefits_slots", [])[:3]:
+        benefit_text = get_region_content(benefit_id, "benefits")
+        if benefit_text and benefit_text not in benefits:
+            benefits.append(benefit_text)
+    
+    # === CREDIBILITY/PROOF EXTRACTION ===
+    credibility_items = []
+    
+    # New-style: proof_slot
+    if proof_text:
+        credibility_items.append({"type": "proof", "value": proof_text})
+    
+    # Old-style: credibility_slots
+    for cred_id in layout_slots.get("credibility_slots", [])[:3]:
+        if cred_id in region_map:
+            region = region_map[cred_id]
+            cred_type = region.get("content_type", "other")
+            cred_text = get_region_content(cred_id)
+            if cred_text and cred_text not in [c["value"] for c in credibility_items]:
+                credibility_items.append({"type": cred_type, "value": cred_text})
+    
+    # Search for proof/credibility in included regions
+    if not credibility_items:
+        for region_id, include_flag in included.items():
+            if include_flag and region_id in region_map:
+                region = region_map[region_id]
+                if region.get("purpose") in ["proof", "credibility"]:
+                    cred_text = get_region_content(region_id)
+                    if cred_text:
+                        credibility_items.append({
+                            "type": region.get("content_type", "proof"),
+                            "value": cred_text
+                        })
+                        if len(credibility_items) >= 2:
+                            break
+    
+    # === TAGS EXTRACTION ===
     tags = []
     for tag_id in layout_slots.get("tags_slots", [])[:4]:
         tag_text = get_region_content(tag_id)
         if tag_text:
             tags.append(tag_text)
     
-    # Extract context items
+    # === CONTEXT EXTRACTION ===
     context_items = []
     for ctx_id in layout_slots.get("context_slots", [])[:2]:
         if ctx_id in region_map:
@@ -820,61 +938,41 @@ def extract_final_content(
                 icon = "location" if "location" in ctx_type.lower() else "info"
                 context_items.append({"icon": icon, "text": ctx_text})
     
-    # IMPROVEMENT: Extract benefits (2-3 key benefits/features)
-    benefits = []
-    for benefit_id in layout_slots.get("benefits_slots", [])[:3]:
-        benefit_text = get_region_content(benefit_id, "benefits")
-        if benefit_text:
-            benefits.append(benefit_text)
+    # === CTA EXTRACTION ===
+    cta_text = get_region_content(layout_slots.get("cta_slot"))
+    if not cta_text:
+        cta_text = get_region_content(layout_slots.get("action_slot"))
     
-    # If no explicit benefits slots, try to extract from value_prop or secondary regions
-    if not benefits:
-        # Look for regions with purpose="benefits" or secondary value_prop regions
-        for region_id, include_flag in included.items():
-            if include_flag and region_id in region_map:
-                region = region_map[region_id]
-                if region.get("purpose") == "benefits" and len(benefits) < 3:
-                    benefit_text = get_region_content(region_id, "benefits")
-                    if benefit_text and benefit_text not in benefits:
-                        benefits.append(benefit_text)
-    
-    # IMPROVEMENT: Extract more credibility items (up to 3 for rich trust signals)
-    credibility_items = []
-    for cred_id in layout_slots.get("credibility_slots", [])[:3]:
-        if cred_id in region_map:
-            region = region_map[cred_id]
-            cred_type = region.get("content_type", "other")
-            cred_text = get_region_content(cred_id)
-            # Include all credibility items if they were selected by AI (even zero ratings)
-            if cred_text:
-                credibility_items.append({"type": cred_type, "value": cred_text})
-    
-    # IMPROVEMENT: If description is thin, try to enrich it with first benefit
-    if description and len(description) < 50 and benefits:
-        # Append first benefit to description for richer content
-        description = f"{description} {benefits[0]}"
-    
-    # Extract CTA
-    cta_text = get_region_content(layout_slots.get("action_slot"))
-    
-    # IMPROVEMENT: Extract primary image, prioritizing logo if detected
-    primary_image = get_region_image(layout_slots.get("identity_image_slot"))
-    
-    # If no primary image but we have logo detection, try to find it
+    # === PRIMARY IMAGE EXTRACTION ===
+    # Try new visual_slot first, then old identity_image_slot
+    primary_image = get_region_image(layout_slots.get("visual_slot"))
     if not primary_image:
-        # Look for regions marked as logo
+        primary_image = get_region_image(layout_slots.get("identity_image_slot"))
+    
+    # Fallback: look for detected logo
+    if not primary_image:
         for region in regions:
             if region.get("is_logo") and region.get("image_data"):
                 primary_image = region.get("image_data")
                 logger.info("Using detected logo as primary image")
                 break
     
+    # === ENRICH THIN CONTENT ===
+    # If description is thin, enrich with benefit
+    if description and len(description) < 60 and benefits:
+        if benefits[0] not in description:
+            description = f"{description} {benefits[0]}"
+    
+    # If subtitle is missing but we have proof, use that
+    if not subtitle and credibility_items:
+        subtitle = credibility_items[0]["value"]
+    
     return {
         "title": title,
         "subtitle": subtitle,
         "description": description,
         "tags": tags,
-        "benefits": benefits,  # NEW: Extracted benefits
+        "benefits": benefits,
         "context_items": context_items,
         "credibility_items": credibility_items,
         "cta_text": cta_text,
