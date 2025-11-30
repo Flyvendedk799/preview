@@ -1065,7 +1065,7 @@ export async function generateDemoPreviewV2(url: string): Promise<DemoPreviewRes
   return fetchApi<DemoPreviewResponseV2>('/api/v1/demo-v2/preview', {
     method: 'POST',
     body: JSON.stringify({ url }),
-    timeout: 180000, // 3 minutes for preview generation (can take 30-60s)
+    timeout: 300000, // 5 minutes for preview generation (can take 30-90s, with buffer for slow pages)
   }, false) // No auth required
 }
 
