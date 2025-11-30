@@ -204,44 +204,55 @@ class ReasonedPreview:
 # AI PROMPTS - Multi-Stage Reasoning
 # =============================================================================
 
-STAGE_1_2_3_PROMPT = """You are a senior UI/UX analyst performing systematic visual analysis.
+STAGE_1_2_3_PROMPT = """You are an elite UI/UX analyst performing systematic visual analysis with 7X enhanced intelligence.
 
-TASK: Analyze this webpage screenshot through a rigorous multi-stage process.
+TASK: Analyze this webpage screenshot through a rigorous multi-stage process with maximum precision and context awareness.
 
-=== STAGE 1: SEGMENTATION ===
-Identify ALL distinct UI regions visible. For each region, note:
+=== STAGE 1: SEGMENTATION (7X ENHANCED) ===
+Identify ALL distinct UI regions visible with exceptional accuracy. For each region, note:
 - What type of content it contains (image, text, badge, button, etc.)
-- Its approximate position
-- Its exact content
+- Its precise position and spatial relationships
+- Its exact content (no paraphrasing, preserve original wording)
+- Visual hierarchy indicators (size, color, position)
 
-IMPROVEMENT: Pay special attention to:
-- LOGO detection: Look for brand logos in header, favicon area, or prominent positions
-- TRUST SIGNALS: Ratings, reviews, certifications, security badges, statistics
-- BENEFIT BULLETS: Feature lists, value propositions, key selling points
-- SOCIAL PROOF: Testimonials, user counts, success metrics
+7X ENHANCEMENTS - Pay CRITICAL attention to:
+- LOGO detection: Systematically scan header, nav, favicon area, hero section, footer for brand marks
+- TRUST SIGNALS: Ratings, reviews, certifications, security badges, statistics, user counts, testimonials
+- BENEFIT BULLETS: Feature lists, value propositions, key selling points, unique differentiators
+- SOCIAL PROOF: Testimonials, user counts, success metrics, case studies, press mentions
+- CONTEXT CLUES: Location, date, company info, contact details, pricing indicators
+- INTENT SIGNALS: CTAs, forms, buttons, links that reveal user journey and conversion goals
 
-=== STAGE 2: PURPOSE ANALYSIS ===
-For each region, determine its COMMUNICATION PURPOSE:
-- identity: Who/what this is (name, logo, profile image)
-- value_prop: Core message or what they offer
-- benefits: Supporting benefits, features, or selling points (NEW - extract 2-3 key benefits)
-- context: Supporting info (location, date, company)
-- credibility: Trust signals (ratings, reviews, certifications, statistics, security badges)
-- action: CTAs and conversion elements
-- navigation: Menu items, tabs (usually exclude from preview)
-- decoration: Pure visual enhancement (usually exclude)
+=== STAGE 2: PURPOSE ANALYSIS (7X ENHANCED) ===
+For each region, determine its COMMUNICATION PURPOSE with deep understanding:
+- identity: Who/what this is (name, logo, profile image, brand mark) - CRITICAL for recognition
+- value_prop: Core message or what they offer - the ONE thing they want users to remember
+- benefits: Supporting benefits, features, or selling points - extract 2-4 most compelling benefits
+- context: Supporting info (location, date, company, industry) - only if it adds meaningful context
+- credibility: Trust signals (ratings, reviews, certifications, statistics, security badges, social proof)
+- action: CTAs and conversion elements - what action do they want users to take?
+- navigation: Menu items, tabs (usually exclude from preview unless they reveal page purpose)
+- decoration: Pure visual enhancement (usually exclude unless it's brand-defining)
 
-REASONING REQUIRED: Explain WHY each region has its assigned purpose.
+7X ENHANCEMENT: Deep reasoning required - explain WHY each region has its assigned purpose based on:
+- Visual prominence (size, color, position)
+- Content semantics (what it actually says/means)
+- User intent (what users would infer from this)
+- Brand context (how it fits into overall brand story)
 
-=== STAGE 3: PRIORITY ASSIGNMENT ===
-Assign visual weight based on what users should see FIRST in a preview:
-- hero: ONE dominant element (usually the main image or headline)
-- primary: 1-2 key supporting elements (main value prop, primary benefit)
-- secondary: 2-4 supporting details (additional benefits, trust signals)
-- tertiary: Minor details (use sparingly in previews)
-- omit: Should not appear (navigation, redundant info, clutter)
+=== STAGE 3: PRIORITY ASSIGNMENT (7X ENHANCED) ===
+Assign visual weight based on what users should see FIRST in a preview with strategic thinking:
+- hero: ONE dominant element (usually the main image, headline, or primary visual) - must be instantly recognizable
+- primary: 1-2 key supporting elements (main value prop, primary benefit, core differentiator)
+- secondary: 2-4 supporting details (additional benefits, trust signals, context that adds value)
+- tertiary: Minor details (use sparingly - only if they significantly enhance understanding)
+- omit: Should not appear (navigation, redundant info, clutter, low-value decorative elements)
 
-REASONING REQUIRED: Explain the priority logic.
+7X ENHANCEMENT: Strategic priority logic - explain WHY based on:
+- User value (what helps users understand/decide fastest)
+- Brand impact (what makes the brand memorable)
+- Conversion potential (what drives action)
+- Information hierarchy (what must be seen vs nice-to-have)
 
 OUTPUT STRICT JSON:
 {{
@@ -294,7 +305,7 @@ Example for a profile avatar at position (100,50) with size 80x80 on a 800x600 i
 bbox: {"x": 0.1, "y": 0.067, "width": 0.1, "height": 0.133}"""
 
 
-STAGE_4_5_PROMPT = """You are a senior visual designer creating an optimal preview layout.
+STAGE_4_5_PROMPT = """You are an elite visual designer creating an optimal preview layout with 7X enhanced intelligence.
 
 ANALYZED REGIONS:
 {regions_json}
@@ -302,20 +313,22 @@ ANALYZED REGIONS:
 PAGE TYPE: {page_type}
 COLORS: Primary={primary}, Secondary={secondary}, Accent={accent}
 
-=== STAGE 4: COMPOSITION DECISION ===
-For each region, decide:
-- INCLUDE: Essential for communicating the page's core message
-- EXCLUDE: Redundant, noisy, or low-value for a preview
+=== STAGE 4: COMPOSITION DECISION (7X ENHANCED) ===
+For each region, decide with strategic precision:
+- INCLUDE: Essential for communicating the page's core message AND valuable to users
+- EXCLUDE: Redundant, noisy, low-value, or distracting for a preview
 
-Rules for high-quality previews:
-1. ONE clear identity (name/title) - no duplicates
-2. ONE primary image maximum
-3. NO navigation elements
-4. NO redundant "About [Name]" headers if name is already shown
-5. MAX 4 tags/badges (select most relevant)
-6. Prefer concise value propositions over long descriptions
-7. Include location/context only if it adds value
-8. Include credibility items if they are visually prominent, even if the value is zero (e.g., "0 reviews" can be important for transparency)
+7X ENHANCED Rules for exceptional previews:
+1. ONE clear identity (name/title) - no duplicates, clean and memorable
+2. ONE primary image maximum - choose the MOST impactful visual
+3. NO navigation elements - they don't belong in previews
+4. NO redundant headers - if name is shown, don't repeat "About [Name]"
+5. MAX 4 tags/badges - select ONLY the most relevant and compelling
+6. Prefer concise, punchy value propositions over long descriptions
+7. Include location/context ONLY if it adds meaningful value (e.g., "San Francisco" for location-based service)
+8. Include credibility items if visually prominent - even "0 reviews" can signal transparency
+9. Prioritize UNIQUE differentiators over generic features
+10. Extract the ESSENCE - what makes this page special, not everything it contains
 
 === STAGE 5: LAYOUT SYNTHESIS ===
 Assign included regions to layout slots:
@@ -362,7 +375,7 @@ QUALITY GUIDELINES:
 5. Professional feel: Every element should feel intentional"""
 
 
-STAGE_6_PROMPT = """Perform final quality validation on this preview layout.
+STAGE_6_PROMPT = """Perform final quality validation on this preview layout with 7X enhanced standards.
 
 LAYOUT PLAN:
 {layout_json}
@@ -370,23 +383,28 @@ LAYOUT PLAN:
 INCLUDED REGIONS:
 {included_regions}
 
-=== STAGE 6: COHERENCE CHECK ===
-Evaluate:
+=== STAGE 6: COHERENCE CHECK (7X ENHANCED) ===
+Evaluate with exceptional rigor:
 
-1. COHERENCE (0-1): Does the preview tell a unified story?
-   - Is the identity clear?
-   - Does the value proposition make sense?
-   - Are context elements relevant?
+1. COHERENCE (0-1): Does the preview tell a unified, compelling story?
+   - Is the identity crystal clear and memorable?
+   - Does the value proposition make immediate sense?
+   - Are context elements relevant and additive?
+   - Does everything work together to create ONE clear message?
+   - Would a user understand the page's purpose instantly?
 
-2. BALANCE (0-1): Is the visual composition balanced?
-   - Not too empty, not too crowded
-   - Proper hierarchy from top to bottom
-   - Appropriate number of elements
+2. BALANCE (0-1): Is the visual composition perfectly balanced?
+   - Not too empty (feels incomplete) or too crowded (feels overwhelming)
+   - Proper hierarchy from top to bottom (most important first)
+   - Appropriate number of elements (enough to be informative, not so many it's cluttered)
+   - Visual rhythm and flow feel natural
 
 3. CLARITY (0-1): Will users understand this in 2 seconds?
-   - Is the main message obvious?
-   - Are there confusing elements?
-   - Is the purpose of the page clear?
+   - Is the main message immediately obvious?
+   - Are there any confusing or ambiguous elements?
+   - Is the purpose of the page crystal clear?
+   - Would someone scrolling past understand what this is?
+   - Is the preview self-contained (makes sense without context)?
 
 OUTPUT JSON:
 {{
@@ -526,12 +544,13 @@ def run_stages_1_2_3(screenshot_bytes: bytes) -> Tuple[List[Dict], Dict[str, str
     
     client = OpenAI(api_key=settings.OPENAI_API_KEY, timeout=60)
     
+    # 7X QUALITY: Enhanced system prompt and parameters
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[
             {
                 "role": "system",
-                "content": "You are a UI/UX expert performing systematic visual analysis. Output valid JSON only."
+                "content": "You are an elite UI/UX expert performing systematic visual analysis with exceptional precision. Your analysis must be thorough, accurate, and context-aware. Extract exact content, provide genuine reasoning, and identify all meaningful elements. Output valid JSON only."
             },
             {
                 "role": "user",
@@ -544,8 +563,8 @@ def run_stages_1_2_3(screenshot_bytes: bytes) -> Tuple[List[Dict], Dict[str, str
                 ]
             }
         ],
-        max_tokens=3000,
-        temperature=0.2
+        max_tokens=4000,  # 7X: Increased for more detailed analysis
+        temperature=0.1  # 7X: Lower temperature for more consistent, precise results
     )
     
     content = response.choices[0].message.content.strip()
@@ -613,7 +632,7 @@ def run_stages_4_5(regions: List[Dict], page_type: str, palette: Dict[str, str])
         messages=[
             {
                 "role": "system",
-                "content": "You are a visual designer creating optimal preview layouts. Output valid JSON only."
+                "content": "You are an elite visual designer creating optimal preview layouts with strategic precision. Your layouts must be clean, compelling, and conversion-focused. Make intelligent decisions about what to include/exclude. Output valid JSON only."
             },
             {
                 "role": "user",
@@ -626,8 +645,8 @@ def run_stages_4_5(regions: List[Dict], page_type: str, palette: Dict[str, str])
                 )
             }
         ],
-        max_tokens=1500,
-        temperature=0.3
+        max_tokens=2000,  # 7X: Increased for better layout decisions
+        temperature=0.2  # 7X: Lower temperature for more consistent layouts
     )
     
     content = response.choices[0].message.content.strip()
@@ -653,7 +672,7 @@ def run_stage_6(layout: Dict[str, Any], included_regions: List[Dict]) -> Dict[st
         messages=[
             {
                 "role": "system",
-                "content": "You are a quality reviewer for visual designs. Output valid JSON only."
+                "content": "You are an elite quality reviewer for visual designs with exceptional standards. Evaluate coherence, balance, and clarity with rigor. Provide specific, actionable feedback. Output valid JSON only."
             },
             {
                 "role": "user",
@@ -663,8 +682,8 @@ def run_stage_6(layout: Dict[str, Any], included_regions: List[Dict]) -> Dict[st
                 )
             }
         ],
-        max_tokens=500,
-        temperature=0.2
+        max_tokens=800,  # 7X: Increased for more detailed quality feedback
+        temperature=0.1  # 7X: Lower temperature for consistent quality assessment
     )
     
     content = response.choices[0].message.content.strip()
