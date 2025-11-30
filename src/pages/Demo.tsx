@@ -440,6 +440,25 @@ export default function Demo() {
               throw new Error(userFriendlyError)
             }
             
+            // CRITICAL: Check finished status FIRST, even if progress is null
+            // This handles fast jobs (like cache hits) that finish before progress updates
+            if (statusResponse.status === 'finished') {
+              // Update UI to show completion
+              setCurrentStage(GENERATION_STAGES.length)
+              setGenerationProgress(100)
+              setGenerationStatus('Preview complete!')
+              setEstimatedTimeRemaining(0)
+              
+              if (statusResponse.result) {
+                return statusResponse.result
+              } else {
+                // Job finished but no result - might be a race condition, wait a bit and retry
+                logger.warn('[Demo] Job finished but result not yet available, retrying...')
+                await new Promise(resolve => setTimeout(resolve, 500))
+                continue
+              }
+            }
+            
             // Update progress based on job status - ensure monotonic (only increases)
             if (statusResponse.progress !== null) {
               const backendProgressPercent = statusResponse.progress * 100
@@ -450,9 +469,7 @@ export default function Demo() {
                 lastBackendProgressRef.current = backendProgressPercent
                 
                 // Cap at 95% until complete to avoid showing 100% prematurely
-                const progressPercent = statusResponse.status === 'finished' 
-                  ? 100 
-                  : Math.min(95, backendProgressPercent)
+                const progressPercent = Math.min(95, backendProgressPercent)
                 
                 setGenerationProgress(progressPercent)
                 
@@ -460,7 +477,6 @@ export default function Demo() {
                 const statusMessage = statusResponse.message || 
                   (statusResponse.status === 'queued' ? 'Job queued...' :
                    statusResponse.status === 'started' ? 'Processing page...' :
-                   statusResponse.status === 'finished' ? 'Preview complete!' :
                    'Processing...')
                 
                 setGenerationStatus(statusMessage)
@@ -489,27 +505,11 @@ export default function Demo() {
                   } else if (progressPercent >= 95) {
                     setEstimatedTimeRemaining(0)
                   }
-                } else if (statusResponse.status === 'finished') {
-                  setCurrentStage(GENERATION_STAGES.length)
-                  setGenerationProgress(100)
-                  setGenerationStatus('Preview complete!')
-                  setEstimatedTimeRemaining(0)
-                  
-                  if (statusResponse.result) {
-                    return statusResponse.result
-                  } else {
-                    throw new Error('Job finished but no result returned')
-                  }
                 }
               } else {
                 // Backend sent a lower progress value - ignore it to prevent jumping backwards
                 logger.warn(`[Demo] Ignoring backend progress decrease: ${backendProgressPercent}% < ${lastBackendProgressRef.current}%`)
               }
-            }
-            
-            // If finished, return result
-            if (statusResponse.status === 'finished' && statusResponse.result) {
-              return statusResponse.result
             }
             
             // Wait before next poll
