@@ -22,7 +22,7 @@ import {
   ShareIcon,
 } from '@heroicons/react/24/outline'
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid'
-import { subscribeToNewsletter, generateDemoPreviewV2, type DemoPreviewResponseV2 } from '../api/client'
+import { subscribeToNewsletter, generateDemoPreviewV2, createDemoJob, getDemoJobStatus, type DemoPreviewResponseV2, type DemoJobStatusResponse } from '../api/client'
 import ReconstructedPreview from '../components/ReconstructedPreview'
 import GenerationProgress from '../components/GenerationProgress'
 
@@ -484,7 +484,80 @@ export default function Demo() {
     }, 150)
     
     try {
-      const result = await generateDemoPreviewV2(urlToProcess)
+      // Create async job (returns immediately to avoid Railway timeout)
+      const jobResponse = await createDemoJob(urlToProcess)
+      const jobId = jobResponse.job_id
+      
+      if (generationCancelRef.current) {
+        return // User cancelled
+      }
+      
+      console.log(`[Demo] Job created: ${jobId}`)
+      
+      // Poll for job status
+      const pollInterval = 2000 // Poll every 2 seconds
+      const maxPollTime = 300000 // 5 minutes max
+      const startPollTime = Date.now()
+      
+      const pollJobStatus = async (): Promise<DemoPreviewResponseV2> => {
+        while (Date.now() - startPollTime < maxPollTime) {
+          if (generationCancelRef.current) {
+            throw new Error('Generation cancelled')
+          }
+          
+          try {
+            const statusResponse: DemoJobStatusResponse = await getDemoJobStatus(jobId)
+            
+            // Update progress based on job status
+            if (statusResponse.progress !== null) {
+              const progressPercent = Math.min(95, statusResponse.progress * 100) // Cap at 95% until complete
+              setGenerationProgress(progressPercent)
+              
+              // Update stage based on progress
+              if (statusResponse.status === 'queued') {
+                setCurrentStage(0)
+                setGenerationStatus('Job queued...')
+              } else if (statusResponse.status === 'started') {
+                setCurrentStage(1)
+                setGenerationStatus('Processing page...')
+              } else if (statusResponse.status === 'finished') {
+                setCurrentStage(GENERATION_STAGES.length)
+                setGenerationProgress(100)
+                setGenerationStatus('Preview complete!')
+                
+                if (statusResponse.result) {
+                  return statusResponse.result
+                } else {
+                  throw new Error('Job finished but no result returned')
+                }
+              } else if (statusResponse.status === 'failed') {
+                throw new Error(statusResponse.error || 'Job failed with unknown error')
+              }
+            }
+            
+            // If finished, return result
+            if (statusResponse.status === 'finished' && statusResponse.result) {
+              return statusResponse.result
+            }
+            
+            // Wait before next poll
+            await new Promise(resolve => setTimeout(resolve, pollInterval))
+          } catch (error) {
+            // If it's a cancellation, re-throw
+            if (error instanceof Error && error.message === 'Generation cancelled') {
+              throw error
+            }
+            
+            // For other errors, log and continue polling (might be transient)
+            console.warn('[Demo] Poll error (will retry):', error)
+            await new Promise(resolve => setTimeout(resolve, pollInterval))
+          }
+        }
+        
+        throw new Error('Job polling timeout - preview generation took too long')
+      }
+      
+      const result = await pollJobStatus()
       
       if (generationCancelRef.current) {
         return // User cancelled

@@ -12,6 +12,10 @@ ENHANCEMENTS:
 2. Hero image extraction
 3. Better brand color detection
 4. Improved og:image generation with brand elements
+
+ASYNC PROCESSING:
+- Added async job endpoints to work around Railway's 60-second load balancer timeout
+- Jobs run in background workers, client polls for status
 """
 from uuid import uuid4
 from typing import Optional, List, Dict, Any
@@ -34,6 +38,9 @@ from backend.services.preview_cache import (
     get_redis_client,
     CacheConfig
 )
+from backend.queue.queue_connection import get_rq_redis_connection
+from backend.jobs.demo_preview_job import generate_demo_preview_job
+from rq import Queue, Job
 import json
 import logging
 
@@ -114,6 +121,158 @@ class DemoPreviewResponse(BaseModel):
     # ===== DEMO METADATA =====
     is_demo: bool = True
     message: str = "AI-reconstructed preview using multi-stage reasoning."
+
+
+class DemoJobRequest(BaseModel):
+    """Schema for demo job creation request."""
+    url: HttpUrl
+
+
+class DemoJobResponse(BaseModel):
+    """Schema for demo job creation response."""
+    job_id: str
+    status: str = "queued"
+    message: str = "Preview generation started. Poll /demo-v2/jobs/{job_id}/status for updates."
+
+
+class DemoJobStatusResponse(BaseModel):
+    """Schema for demo job status response."""
+    job_id: str
+    status: str  # "queued", "started", "finished", "failed"
+    result: Optional[DemoPreviewResponse] = None
+    error: Optional[str] = None
+    progress: Optional[float] = None  # 0.0 to 1.0
+
+
+@router.post("/jobs", status_code=status.HTTP_202_ACCEPTED, response_model=DemoJobResponse)
+def create_demo_job(
+    request_data: DemoJobRequest,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """
+    Create an async background job to generate demo preview.
+    
+    This endpoint returns immediately with a job_id to avoid Railway's 60-second
+    load balancer timeout. The client should poll /demo-v2/jobs/{job_id}/status
+    to get status updates and the final result.
+    
+    Rate limited to prevent abuse.
+    """
+    url_str = str(request_data.url)
+    
+    # Rate limiting
+    client_ip = get_client_ip(request)
+    rate_limit_key = get_rate_limit_key_for_ip(client_ip, "demo_job_v2")
+    if not check_rate_limit(rate_limit_key, limit=10, window_seconds=3600):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Rate limit exceeded. Please try again later."
+        )
+    
+    # Validate URL
+    try:
+        validate_url_security(url_str)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    
+    # Enqueue job
+    try:
+        redis_conn = get_rq_redis_connection()
+        queue = Queue("preview_generation", connection=redis_conn)
+        job = queue.enqueue(
+            generate_demo_preview_job,
+            url_str,
+            job_timeout='5m'  # 5 minute timeout for AI generation
+        )
+        
+        logger.info(f"✅ Demo job created: {job.id} for URL: {url_str[:50]}...")
+        
+        return DemoJobResponse(
+            job_id=job.id,
+            status="queued",
+            message="Preview generation started. Poll /demo-v2/jobs/{job_id}/status for updates."
+        )
+    except Exception as e:
+        logger.error(f"❌ Failed to create demo job: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create job: {str(e)}"
+        )
+
+
+@router.get("/jobs/{job_id}/status", response_model=DemoJobStatusResponse)
+def get_demo_job_status(
+    job_id: str,
+    request: Request
+):
+    """
+    Get the status of a demo preview generation job.
+    
+    Returns:
+        - status: "queued", "started", "finished", or "failed"
+        - result: Preview data if finished, None otherwise
+        - error: Error message if failed, None otherwise
+        - progress: Estimated progress (0.0 to 1.0) if available
+    """
+    try:
+        redis_conn = get_rq_redis_connection()
+        job = Job.fetch(job_id, connection=redis_conn)
+        
+        status_map = {
+            'queued': 'queued',
+            'started': 'started',
+            'finished': 'finished',
+            'failed': 'failed',
+        }
+        
+        job_status = status_map.get(job.get_status(), 'unknown')
+        
+        # Estimate progress based on status
+        progress = None
+        if job_status == 'queued':
+            progress = 0.1
+        elif job_status == 'started':
+            progress = 0.3
+        elif job_status == 'finished':
+            progress = 1.0
+        elif job_status == 'failed':
+            progress = 0.0
+        
+        result = None
+        error = None
+        
+        if job_status == 'finished':
+            try:
+                job_result = job.result
+                if job_result:
+                    # Convert dict result to DemoPreviewResponse
+                    result = DemoPreviewResponse(**job_result)
+            except Exception as e:
+                logger.error(f"Error parsing job result: {e}", exc_info=True)
+                error = f"Failed to parse result: {str(e)}"
+        elif job_status == 'failed':
+            try:
+                error = str(job.exc_info) if job.exc_info else "Job failed with unknown error"
+            except Exception:
+                error = "Job failed with unknown error"
+        
+        return DemoJobStatusResponse(
+            job_id=job_id,
+            status=job_status,
+            result=result,
+            error=error,
+            progress=progress
+        )
+    except Exception as e:
+        logger.error(f"Error fetching job status: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch job status: {str(e)}"
+        )
 
 
 @router.post("/preview", response_model=DemoPreviewResponse)

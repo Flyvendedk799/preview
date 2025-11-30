@@ -1070,3 +1070,33 @@ export async function generateDemoPreviewV2(url: string): Promise<DemoPreviewRes
   }, false) // No auth required
 }
 
+// Async demo job endpoints (work around Railway's 60-second load balancer timeout)
+export interface DemoJobResponse {
+  job_id: string
+  status: string
+  message: string
+}
+
+export interface DemoJobStatusResponse {
+  job_id: string
+  status: 'queued' | 'started' | 'finished' | 'failed'
+  result: DemoPreviewResponseV2 | null
+  error: string | null
+  progress: number | null // 0.0 to 1.0
+}
+
+export async function createDemoJob(url: string): Promise<DemoJobResponse> {
+  return fetchApi<DemoJobResponse>('/api/v1/demo-v2/jobs', {
+    method: 'POST',
+    body: JSON.stringify({ url }),
+    timeout: 30000, // 30 seconds for job creation (should be instant)
+  }, false) // No auth required
+}
+
+export async function getDemoJobStatus(jobId: string): Promise<DemoJobStatusResponse> {
+  return fetchApi<DemoJobStatusResponse>(`/api/v1/demo-v2/jobs/${jobId}/status`, {
+    method: 'GET',
+    timeout: 10000, // 10 seconds for status check
+  }, false) // No auth required
+}
+
