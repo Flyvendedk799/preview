@@ -187,6 +187,8 @@ class PreviewEngine:
             cached_result = self._check_cache(url_str, cache_key_prefix)
             if cached_result:
                 self.logger.info(f"✅ [7X] Cache hit for: {url_str[:50]}...")
+                # Update progress to 100% for cache hits so frontend knows it's complete
+                self._update_progress(1.0, "Preview loaded from cache")
                 return cached_result
         
         # 7X INTELLIGENCE: Predict page type early for optimization

@@ -50,6 +50,9 @@ def generate_demo_preview_job(url: str) -> Dict[str, Any]:
         url_str = str(url)
         logger.info(f"🚀 Starting demo preview job for: {url_str}")
         
+        # Update initial progress
+        _update_job_progress(0.05, "Starting preview generation...")
+        
         # Configure engine for demo mode
         config = PreviewEngineConfig(
             is_demo=True,
@@ -63,6 +66,9 @@ def generate_demo_preview_job(url: str) -> Dict[str, Any]:
         # Create engine and generate preview
         engine = PreviewEngine(config)
         result = engine.generate(url_str, cache_key_prefix="demo:preview:v2:")
+        
+        # Ensure progress is at 100% when job completes successfully
+        _update_job_progress(1.0, "Preview generation complete!")
         
         # Convert PreviewEngineResult to response dict
         response_data = {

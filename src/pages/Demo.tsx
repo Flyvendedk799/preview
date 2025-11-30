@@ -415,6 +415,9 @@ export default function Demo() {
       const startPollTime = Date.now()
       
       const pollJobStatus = async (): Promise<DemoPreviewResponseV2> => {
+        let consecutiveErrors = 0
+        const maxConsecutiveErrors = 5
+        
         while (Date.now() - startPollTime < maxPollTime) {
           if (generationCancelRef.current) {
             throw new Error('Generation cancelled')
@@ -422,6 +425,7 @@ export default function Demo() {
           
           try {
             const statusResponse: DemoJobStatusResponse = await getDemoJobStatus(jobId)
+            consecutiveErrors = 0 // Reset error count on successful poll
             
             // Check if job failed - stop polling immediately
             if (statusResponse.status === 'failed') {
@@ -523,20 +527,19 @@ export default function Demo() {
               throw error
             }
             
-            // For transient network errors, log and retry a few times
-            const elapsed = Date.now() - startPollTime
-            const retryCount = Math.floor(elapsed / pollInterval)
-            if (retryCount < 3) {
-              logger.warn(`[Demo] Poll error (retry ${retryCount + 1}/3):`, error)
-              await new Promise(resolve => setTimeout(resolve, pollInterval))
-            } else {
-              // After 3 retries, give up
+            // For transient network errors, log and retry
+            consecutiveErrors++
+            if (consecutiveErrors >= maxConsecutiveErrors) {
               const errorMsg = error instanceof Error ? error.message : String(error)
               if (errorMsg.includes('404') || errorMsg.includes('not found')) {
                 throw new Error('Job not found. It may have expired. Please try generating a new preview.')
               }
-              throw new Error('Unable to check job status. Please try again.')
+              throw new Error(`Unable to check job status after ${maxConsecutiveErrors} attempts. Please try again.`)
             }
+            
+            logger.warn(`[Demo] Poll error (attempt ${consecutiveErrors}/${maxConsecutiveErrors}):`, error)
+            // Wait before retrying (exponential backoff)
+            await new Promise(resolve => setTimeout(resolve, pollInterval * Math.min(consecutiveErrors, 3)))
           }
         }
         
