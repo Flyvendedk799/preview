@@ -440,10 +440,12 @@ export default function Demo() {
         
         stageIndex++
       } else {
-        // If we've gone through all stages but still waiting, show "Finalizing"
+        // If we've gone through all stages but still waiting, show reassuring "Finalizing" message
         if (stageIndex >= GENERATION_STAGES.length) {
-          setGenerationStatus('Finalizing preview...')
+          setGenerationStatus('Finalizing visual assets...')
           setGenerationProgress(95)
+          // Remove countdown when in finalizing stage to avoid anxiety
+          setEstimatedTimeRemaining(0)
         }
       }
     }, 5000) // Advance stage every 5 seconds (more conservative estimate)
@@ -456,17 +458,29 @@ export default function Demo() {
         const targetProgress = currentStageData?.progress || prev
         
         // Never exceed 95% until API call completes
-        if (prev >= 95) return 95
+        if (prev >= 95) {
+          // In finalizing stage, remove countdown and show reassuring message
+          setEstimatedTimeRemaining(0)
+          return 95
+        }
         if (prev >= targetProgress) return prev
         
         // Smooth increment
-        return Math.min(prev + 0.3, targetProgress, 95)
+        const newProgress = Math.min(prev + 0.3, targetProgress, 95)
+        
+        // Only show time estimate if we're not in finalizing stage (92%+)
+        // This prevents anxiety from countdowns that stall
+        const actualElapsed = (Date.now() - startTime) / 1000
+        if (newProgress < 92) {
+          const remaining = Math.max(5, totalEstimatedTime - actualElapsed)
+          setEstimatedTimeRemaining(Math.ceil(remaining))
+        } else {
+          // In finalizing stage, remove countdown
+          setEstimatedTimeRemaining(0)
+        }
+        
+        return newProgress
       })
-      
-      // Update time estimate based on actual elapsed time
-      const actualElapsed = (Date.now() - startTime) / 1000
-      const remaining = Math.max(5, totalEstimatedTime - actualElapsed)
-      setEstimatedTimeRemaining(Math.ceil(remaining))
     }, 150)
     
     try {
@@ -1572,7 +1586,10 @@ export default function Demo() {
                           This is how your link appears when shared on social platforms
                         </p>
                         <p className="text-xs text-gray-500 italic">
-                          Preview images are non-interactive — this is exactly how platforms render your link
+                          Preview images are non-interactive — this is exactly how platforms render your link. Images are optimized for maximum readability and brand recognition.
+                        </p>
+                        <p className="text-xs text-gray-400 mt-2">
+                          💡 Tip: The preview image is automatically set as <code className="px-1 py-0.5 bg-gray-100 rounded text-xs font-mono">og:image</code> for social sharing
                         </p>
                       </div>
                       <div className="max-w-2xl mx-auto">
@@ -1782,6 +1799,9 @@ export default function Demo() {
                     <p className="text-xs text-gray-500 text-center max-w-md">
                       Switch between platforms to see how your preview adapts to each platform's design conventions
                     </p>
+                    <p className="text-xs text-gray-400 text-center max-w-md italic">
+                      Try this URL with your own site · See how this looks on LinkedIn
+                    </p>
                   </div>
                 </div>
 
@@ -1869,23 +1889,27 @@ export default function Demo() {
                                     </button>
                                   </div>
 
-                                  {/* Post Text */}
-                                  <div className="px-3 pb-2">
-                                    <p className="text-[13px] text-gray-900 leading-relaxed">
-                                      {preview.cta_text ? (
-                                        <>Check this out! {preview.cta_text}</>
-                                      ) : (
-                                        <>Check out this link! 🔗</>
-                                      )}
-                                    </p>
-                                  </div>
+                                  {/* Post Text - Platform-specific */}
+                                  {selectedPlatform !== 'slack' && (
+                                    <div className="px-3 pb-2">
+                                      <p className="text-[13px] text-gray-900 leading-relaxed">
+                                        {preview.cta_text ? (
+                                          <>Check this out! {preview.cta_text}</>
+                                        ) : (
+                                          <>Check out this link! 🔗</>
+                                        )}
+                                      </p>
+                                    </div>
+                                  )}
 
                                   {/* Link Preview Card - Platform-Specific Layout */}
                                   <div className={`mx-3 mb-2 border border-gray-200 rounded-lg overflow-hidden ${
                                     selectedPlatform === 'linkedin' ? 'bg-white' : 
                                     selectedPlatform === 'twitter' ? 'bg-white' : 
+                                    selectedPlatform === 'slack' ? 'bg-white border-l-4' : 
+                                    selectedPlatform === 'instagram' ? 'bg-white' :
                                     'bg-gray-50'
-                                  }`}>
+                                  }`} style={selectedPlatform === 'slack' ? { borderLeftColor: preview.blueprint.primary_color } : {}}>
                                     {/* Preview Image - Platform-specific aspect ratio */}
                                     {(() => {
                                       const platformData = getPlatformPreviewData(selectedPlatform)
@@ -1894,6 +1918,8 @@ export default function Demo() {
                                           className="bg-gray-200 overflow-hidden relative"
                                           style={{ aspectRatio: platformData.aspectRatio }}
                                         >
+                                          {/* Subtle gradient overlay for better text readability on images */}
+                                          <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent pointer-events-none z-10" />
                                       {(() => {
                                         // DEBUG: Log image source selection with full details
                                         const currentImageUrl = preview.composited_preview_image_url || null
@@ -1913,7 +1939,7 @@ export default function Demo() {
                                           <img
                                             src={imageUrl}
                                             alt={platformData.title}
-                                            className="w-full h-full object-cover"
+                                            className="w-full h-full object-cover relative z-0"
                                             onLoad={() => {
                                               if (lastLoggedImageUrlRef.current === imageUrl) {
                                                 console.log('[Social Preview Image] ✓ Loaded successfully:', imageUrl)
@@ -1981,47 +2007,110 @@ export default function Demo() {
                                       const isLinkedIn = selectedPlatform === 'linkedin'
                                       const isTwitter = selectedPlatform === 'twitter'
                                       const isSlack = selectedPlatform === 'slack'
+                                      const isInstagram = selectedPlatform === 'instagram'
                                       
+                                      // Slack has a different layout - message-style embed
+                                      if (isSlack) {
+                                        return (
+                                          <div className="px-3 py-2.5 bg-white">
+                                            <div className="flex items-start space-x-2">
+                                              <div className="w-4 h-4 rounded mt-0.5" style={{ backgroundColor: preview.blueprint.primary_color }}></div>
+                                              <div className="flex-1 min-w-0">
+                                                <div className="text-[11px] text-gray-500 font-medium mb-1">{domain}</div>
+                                                {platformData.title && platformData.title !== "Untitled" && (
+                                                  <h4 className="text-[13px] font-semibold text-gray-900 leading-tight line-clamp-2 mb-1">
+                                                    {platformData.title}
+                                                  </h4>
+                                                )}
+                                                {platformData.description && platformData.description !== platformData.title && (
+                                                  <p className="text-[12px] text-gray-600 leading-snug line-clamp-2">
+                                                    {platformData.description}
+                                                  </p>
+                                                )}
+                                                <div className="mt-1.5 text-[11px] text-gray-400 flex items-center gap-1">
+                                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                                  </svg>
+                                                  <span>Tap to open site →</span>
+                                                </div>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        )
+                                      }
+                                      
+                                      // Instagram - image-first, minimal text
+                                      if (isInstagram) {
+                                        return (
+                                          <div className="px-3 py-2 bg-white">
+                                            {platformData.title && platformData.title !== "Untitled" && (
+                                              <h4 className="text-[13px] font-semibold text-gray-900 leading-tight line-clamp-1 mb-1">
+                                                {platformData.title}
+                                              </h4>
+                                            )}
+                                            <div className="text-[11px] text-gray-500 flex items-center gap-1">
+                                              <span>{domain}</span>
+                                              <span>·</span>
+                                              <span className="text-gray-400">Tap to open →</span>
+                                            </div>
+                                          </div>
+                                        )
+                                      }
+                                      
+                                      // X (Twitter) - minimal, clean design with better contrast
+                                      if (isTwitter) {
+                                        return (
+                                          <div className="px-3 py-2.5 bg-white">
+                                            <div className="text-[11px] text-gray-500 font-medium mb-1.5">{domain}</div>
+                                            {platformData.title && platformData.title !== "Untitled" && (
+                                              <h4 className="text-[15px] font-bold text-gray-900 leading-tight line-clamp-2 mb-1.5" style={{ textShadow: '0 1px 2px rgba(255,255,255,0.8)' }}>
+                                                {platformData.title}
+                                              </h4>
+                                            )}
+                                            {platformData.description && platformData.description !== platformData.title && (
+                                              <p className="text-[13px] text-gray-700 leading-snug line-clamp-2 mb-1.5">
+                                                {platformData.description}
+                                              </p>
+                                            )}
+                                            <div className="text-[11px] text-gray-400 flex items-center gap-1">
+                                              <span>Tap to open site →</span>
+                                            </div>
+                                          </div>
+                                        )
+                                      }
+                                      
+                                      // LinkedIn - professional, larger text with better contrast
+                                      if (isLinkedIn) {
+                                        return (
+                                          <div className="px-3 py-3 bg-white border-t border-gray-100">
+                                            <div className="text-[11px] text-gray-500 font-medium mb-1.5">{domain}</div>
+                                            {platformData.title && platformData.title !== "Untitled" && (
+                                              <h4 className="text-[14px] font-semibold text-gray-900 leading-tight line-clamp-2 mb-1.5" style={{ textShadow: '0 1px 2px rgba(255,255,255,0.8)' }}>
+                                                {platformData.title}
+                                              </h4>
+                                            )}
+                                            {platformData.description && platformData.description !== platformData.title && (
+                                              <p className="text-[12px] text-gray-700 leading-relaxed line-clamp-2">
+                                                {platformData.description}
+                                              </p>
+                                            )}
+                                          </div>
+                                        )
+                                      }
+                                      
+                                      // Facebook - default layout
                                       return (
-                                        <div className={`px-3 py-2 ${
-                                          isLinkedIn ? 'bg-white border-t border-gray-100' :
-                                          isTwitter ? 'bg-white' :
-                                          isSlack ? 'bg-white' :
-                                          'bg-gray-50'
-                                        }`}>
-                                          {/* Domain - Platform-specific styling */}
-                                          <div className={`${
-                                            isLinkedIn ? 'text-[11px] text-gray-500' :
-                                            isTwitter ? 'text-[11px] text-gray-500' :
-                                            'text-[10px] text-gray-500 uppercase tracking-wide'
-                                          } font-medium mb-1`}>
+                                        <div className="px-3 py-2 bg-gray-50">
+                                          <div className="text-[10px] text-gray-500 uppercase tracking-wide font-medium mb-1">
                                             {domain}
                                           </div>
-                                          {/* Title - Platform-specific truncation */}
                                           {platformData.title && platformData.title !== "Untitled" && (
-                                            <h4 className={`${
-                                              isLinkedIn ? 'text-[14px] font-semibold' :
-                                              isTwitter ? 'text-[15px] font-bold' :
-                                              'text-[13px] font-semibold'
-                                            } text-gray-900 leading-tight ${
-                                              isLinkedIn ? 'line-clamp-2' : 
-                                              isTwitter ? 'line-clamp-2' :
-                                              'line-clamp-2'
-                                            } mb-0.5`}>
+                                            <h4 className="text-[13px] font-semibold text-gray-900 leading-tight line-clamp-2 mb-0.5">
                                               {platformData.title}
                                             </h4>
                                           )}
-                                          {/* Description - Platform-specific truncation */}
                                           {platformData.description && platformData.description !== platformData.title && (
-                                            <p className={`${
-                                              isLinkedIn ? 'text-[12px]' :
-                                              isTwitter ? 'text-[13px]' :
-                                              'text-[11px]'
-                                            } text-gray-600 leading-snug ${
-                                              isLinkedIn ? 'line-clamp-2' :
-                                              isTwitter ? 'line-clamp-2' :
-                                              'line-clamp-1'
-                                            }`}>
+                                            <p className="text-[11px] text-gray-600 leading-snug line-clamp-1">
                                               {platformData.description}
                                             </p>
                                           )}
@@ -2030,50 +2119,65 @@ export default function Demo() {
                                     })()}
                                   </div>
 
-                                  {/* Engagement Stats */}
-                                  <div className="px-3 py-1.5 flex items-center justify-between text-[11px] text-gray-500 border-t border-gray-100">
-                                    <div className="flex items-center space-x-1">
-                                      <div className="flex -space-x-1">
-                                        <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center ring-1 ring-white">
-                                          <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                            <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z" />
-                                          </svg>
+                                  {/* Engagement Stats - Only for Facebook and LinkedIn */}
+                                  {(selectedPlatform === 'facebook' || selectedPlatform === 'linkedin') && (
+                                    <div className="px-3 py-1.5 flex items-center justify-between text-[11px] text-gray-500 border-t border-gray-100">
+                                      <div className="flex items-center space-x-1">
+                                        <div className="flex -space-x-1">
+                                          <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center ring-1 ring-white">
+                                            <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                              <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z" />
+                                            </svg>
+                                          </div>
+                                          <div className="w-4 h-4 rounded-full bg-red-500 flex items-center justify-center ring-1 ring-white">
+                                            <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                              <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
+                                            </svg>
+                                          </div>
                                         </div>
-                                        <div className="w-4 h-4 rounded-full bg-red-500 flex items-center justify-center ring-1 ring-white">
-                                          <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
-                                          </svg>
-                                        </div>
+                                        <span>42</span>
                                       </div>
-                                      <span>42</span>
+                                      <div className="flex items-center space-x-3">
+                                        <span>12 comments</span>
+                                        <span>3 shares</span>
+                                      </div>
                                     </div>
-                                    <div className="flex items-center space-x-3">
-                                      <span>12 comments</span>
-                                      <span>3 shares</span>
-                                    </div>
-                                  </div>
+                                  )}
 
-                                  {/* Action Buttons */}
-                                  <div className="px-2 py-1 flex items-center justify-around border-t border-gray-200">
-                                    <button className="flex-1 flex items-center justify-center space-x-1.5 py-2 rounded-lg hover:bg-gray-100 transition-colors">
-                                      <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
-                                      </svg>
-                                      <span className="text-[12px] font-semibold text-gray-600">Like</span>
-                                    </button>
-                                    <button className="flex-1 flex items-center justify-center space-x-1.5 py-2 rounded-lg hover:bg-gray-100 transition-colors">
-                                      <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                                      </svg>
-                                      <span className="text-[12px] font-semibold text-gray-600">Comment</span>
-                                    </button>
-                                    <button className="flex-1 flex items-center justify-center space-x-1.5 py-2 rounded-lg hover:bg-gray-100 transition-colors">
-                                      <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                                      </svg>
-                                      <span className="text-[12px] font-semibold text-gray-600">Share</span>
-                                    </button>
-                                  </div>
+                                  {/* X (Twitter) - Engagement stats only */}
+                                  {selectedPlatform === 'twitter' && (
+                                    <div className="px-3 py-1.5 flex items-center justify-between text-[11px] text-gray-500 border-t border-gray-100">
+                                      <div className="flex items-center space-x-4">
+                                        <span>42</span>
+                                        <span>12</span>
+                                        <span>3</span>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Action Buttons - Only for Facebook and LinkedIn */}
+                                  {(selectedPlatform === 'facebook' || selectedPlatform === 'linkedin') && (
+                                    <div className="px-2 py-1 flex items-center justify-around border-t border-gray-200">
+                                      <button className="flex-1 flex items-center justify-center space-x-1.5 py-2 rounded-lg hover:bg-gray-100 transition-colors">
+                                        <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
+                                        </svg>
+                                        <span className="text-[12px] font-semibold text-gray-600">Like</span>
+                                      </button>
+                                      <button className="flex-1 flex items-center justify-center space-x-1.5 py-2 rounded-lg hover:bg-gray-100 transition-colors">
+                                        <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                        </svg>
+                                        <span className="text-[12px] font-semibold text-gray-600">Comment</span>
+                                      </button>
+                                      <button className="flex-1 flex items-center justify-center space-x-1.5 py-2 rounded-lg hover:bg-gray-100 transition-colors">
+                                        <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                                        </svg>
+                                        <span className="text-[12px] font-semibold text-gray-600">Share</span>
+                                      </button>
+                                    </div>
+                                  )}
                                 </div>
 
                                 {/* Separator / Next Post Teaser */}
@@ -2113,10 +2217,13 @@ export default function Demo() {
                 <div className="absolute inset-0 bg-gradient-to-r from-orange-500/10 via-amber-500/10 to-yellow-500/10" />
                 <div className="relative z-10 max-w-2xl mx-auto">
                   <h3 className="text-3xl font-black mb-3">Ready to Create Unlimited Previews?</h3>
-                  <p className="text-gray-300 mb-8 text-lg">
-                    Join teams using MetaView to create high-converting URL previews with AI-powered brand intelligence.
+                  <p className="text-gray-300 mb-2 text-lg font-semibold">
+                    Increase click-through rates with brand-aware social previews
                   </p>
-                  <div className="flex flex-wrap items-center justify-center gap-6 mb-8">
+                  <p className="text-gray-400 mb-6 text-sm">
+                    Used by marketers & founders to improve engagement
+                  </p>
+                  <div className="flex flex-wrap items-center justify-center gap-6 mb-6">
                     <div className="flex items-center space-x-2 text-sm text-gray-400">
                       <CheckIcon className="w-5 h-5 text-emerald-400" />
                       <span>Unlimited previews</span>
@@ -2129,6 +2236,12 @@ export default function Demo() {
                       <CheckIcon className="w-5 h-5 text-emerald-400" />
                       <span>Analytics & insights</span>
                     </div>
+                  </div>
+                  <div className="mb-6 text-sm text-gray-400">
+                    <span className="inline-flex items-center gap-1">
+                      <ShieldCheckIcon className="w-4 h-4 text-emerald-400" />
+                      Free trial · No credit card required
+                    </span>
                   </div>
                   <div className="flex flex-col sm:flex-row gap-4 justify-center">
                     <Link
@@ -2155,6 +2268,9 @@ export default function Demo() {
                       Try Another URL
                     </button>
                   </div>
+                  <p className="mt-6 text-xs text-gray-500">
+                    Save or customize this preview by creating an account
+                  </p>
                 </div>
               </div>
             </div>

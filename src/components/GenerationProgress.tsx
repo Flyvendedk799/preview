@@ -148,9 +148,11 @@ export default function GenerationProgress({
             </div>
             <div className="text-right">
               <div className="text-white font-bold text-2xl">{Math.round(progressPercent)}%</div>
-              {estimatedTimeRemaining && estimatedTimeRemaining > 0 && (
+              {estimatedTimeRemaining && estimatedTimeRemaining > 0 && progressPercent < 92 ? (
                 <div className="text-white/70 text-xs">~{Math.ceil(estimatedTimeRemaining)}s left</div>
-              )}
+              ) : progressPercent >= 92 && progressPercent < 100 ? (
+                <div className="text-white/70 text-xs">Almost done...</div>
+              ) : null}
             </div>
           </div>
           
