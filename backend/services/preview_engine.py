@@ -541,13 +541,8 @@ class PreviewEngine:
             self.logger.info(f"🤖 [7X] Running enhanced AI reasoning for: {url}")
             result = generate_reasoned_preview(screenshot_bytes, url)
             
-            # 7X QUALITY: Multi-pass enhancement with HTML data
-            if result.reasoning_confidence < self.config.min_content_confidence:
-                self.logger.warning(
-                    f"Low confidence ({result.reasoning_confidence:.2f}), "
-                    "enhancing with HTML extraction"
-                )
-                result = self._enhance_ai_result_with_html(result, html_content)
+            # 7X QUALITY: Always enhance with HTML data for better results
+            result = self._enhance_ai_result_with_html(result, html_content)
             
             self.logger.info(f"✅ [7X] AI reasoning complete (confidence: {result.reasoning_confidence:.2f})")
             return self._convert_reasoned_preview_to_dict(result)
