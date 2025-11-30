@@ -52,10 +52,11 @@ def capture_screenshot(url: str) -> bytes:
                         page.goto(url, wait_until="networkidle", timeout=45000)
                     except PlaywrightTimeoutError:
                         # Fallback to 'load' for heavy JavaScript sites
+                        logger.warning(f"Networkidle timeout for {url}, trying 'load' strategy")
                         page.goto(url, wait_until="load", timeout=30000)
                         page.wait_for_timeout(2000)
                 except PlaywrightTimeoutError as e:
-                    logger.error(f"Page navigation timeout for {url}: {e}")
+                    logger.error(f"Page navigation timeout for {url} (both strategies failed): {e}")
                     browser.close()
                     raise Exception(f"Page load timeout: The website took too long to load. Please try again or check if the URL is accessible.")
                 except PlaywrightError as e:
