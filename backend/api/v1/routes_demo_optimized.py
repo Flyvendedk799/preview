@@ -40,7 +40,8 @@ from backend.services.preview_cache import (
 )
 from backend.queue.queue_connection import get_rq_redis_connection
 from backend.jobs.demo_preview_job import generate_demo_preview_job
-from rq import Queue, Job
+from rq import Queue
+from rq.job import Job
 import json
 import logging
 
