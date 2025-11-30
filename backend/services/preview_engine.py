@@ -131,6 +131,7 @@ class PreviewEngine:
     def __init__(self, config: PreviewEngineConfig):
         self.config = config
         self.logger = logging.getLogger(__name__)
+        self._last_progress = 0.0  # Track last progress for monotonic updates
     
     def generate(
         self,
@@ -970,10 +971,30 @@ class PreviewEngine:
         return result
     
     def _update_progress(self, progress: float, message: str):
-        """Update progress if callback is provided."""
+        """
+        Update progress if callback is provided.
+        
+        Ensures progress only increases monotonically to prevent jumping backwards.
+        """
         if self.config.progress_callback:
             try:
-                self.config.progress_callback(progress, message)
+                # Ensure progress is between 0 and 1
+                clamped_progress = max(0.0, min(1.0, progress))
+                
+                # Store last progress to ensure monotonic updates
+                if not hasattr(self, '_last_progress'):
+                    self._last_progress = 0.0
+                
+                # Only update if progress has increased (monotonic)
+                if clamped_progress >= self._last_progress:
+                    self._last_progress = clamped_progress
+                    self.config.progress_callback(clamped_progress, message)
+                else:
+                    # Progress decreased - log warning but don't update
+                    self.logger.debug(
+                        f"Progress decreased from {self._last_progress:.2f} to {clamped_progress:.2f}, "
+                        "maintaining previous value to prevent UI jumping"
+                    )
             except Exception as e:
                 self.logger.warning(f"Progress callback failed: {e}")
 

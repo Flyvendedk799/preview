@@ -69,6 +69,7 @@ export default function Demo() {
   const [generationProgress, setGenerationProgress] = useState<number>(0)
   const [currentStage, setCurrentStage] = useState<number>(0)
   const [estimatedTimeRemaining, setEstimatedTimeRemaining] = useState<number>(0)
+  const lastBackendProgressRef = useRef<number>(0) // Track last backend progress to ensure monotonic updates
   const [showCompletionCelebration, setShowCompletionCelebration] = useState(false)
   const [copySuccess, setCopySuccess] = useState(false)
   const [urlHistory, setUrlHistory] = useState<string[]>([])
@@ -376,76 +377,19 @@ export default function Demo() {
   const generatePreviewWithUrl = useCallback(async (urlToProcess: string) => {
     setIsGeneratingPreview(true)
     setCurrentStage(0)
-    setGenerationProgress(5)
+    setGenerationProgress(2) // Start at 2% (backend will update this)
     setGenerationStatus('Initializing AI analysis...')
     setEstimatedTimeRemaining(30)
     setPreviewError(null)
     generationCancelRef.current = false
+    lastBackendProgressRef.current = 0 // Reset backend progress tracker
     
-    // Start stage progression with honest estimates
-    let stageIndex = 0
-    const totalEstimatedTime = GENERATION_STAGES.reduce((sum, s) => sum + s.time, 0)
-    let elapsedTime = 0
-    const startTime = Date.now()
+    // Clear any existing intervals
+    if (stageIntervalRef.current) clearInterval(stageIntervalRef.current)
+    if (progressIntervalRef.current) clearInterval(progressIntervalRef.current)
     
-    // More honest stage progression - stages advance based on estimated timing
-    stageIntervalRef.current = setInterval(() => {
-      if (generationCancelRef.current) return
-      if (stageIndex < GENERATION_STAGES.length) {
-        const stage = GENERATION_STAGES[stageIndex]
-        setCurrentStage(stageIndex)
-        setGenerationProgress(stage.progress)
-        setGenerationStatus(stage.message)
-        
-        // Update estimated time remaining based on actual elapsed time
-        elapsedTime = (Date.now() - startTime) / 1000
-        const remaining = Math.max(5, totalEstimatedTime - elapsedTime) // Minimum 5s remaining
-        setEstimatedTimeRemaining(Math.ceil(remaining))
-        
-        stageIndex++
-      } else {
-        // If we've gone through all stages but still waiting, show reassuring "Finalizing" message
-        if (stageIndex >= GENERATION_STAGES.length) {
-          setGenerationStatus('Finalizing visual assets...')
-          setGenerationProgress(95)
-          // Remove countdown when in finalizing stage to avoid anxiety
-          setEstimatedTimeRemaining(0)
-        }
-      }
-    }, 5000) // Advance stage every 5 seconds (more conservative estimate)
-    
-    // Smooth progress animation between stages - but cap at 95% until complete
-    progressIntervalRef.current = setInterval(() => {
-      if (generationCancelRef.current) return
-      setGenerationProgress((prev) => {
-        const currentStageData = GENERATION_STAGES[Math.min(stageIndex, GENERATION_STAGES.length - 1)]
-        const targetProgress = currentStageData?.progress || prev
-        
-        // Never exceed 95% until API call completes
-        if (prev >= 95) {
-          // In finalizing stage, remove countdown and show reassuring message
-          setEstimatedTimeRemaining(0)
-          return 95
-        }
-        if (prev >= targetProgress) return prev
-        
-        // Smooth increment
-        const newProgress = Math.min(prev + 0.3, targetProgress, 95)
-        
-        // Only show time estimate if we're not in finalizing stage (92%+)
-        // This prevents anxiety from countdowns that stall
-        const actualElapsed = (Date.now() - startTime) / 1000
-        if (newProgress < 92) {
-          const remaining = Math.max(5, totalEstimatedTime - actualElapsed)
-          setEstimatedTimeRemaining(Math.ceil(remaining))
-        } else {
-          // In finalizing stage, remove countdown
-          setEstimatedTimeRemaining(0)
-        }
-        
-        return newProgress
-      })
-    }, 150)
+    // Don't start frontend-only progress animation - rely entirely on backend progress updates
+    // This prevents conflicts and jumping between percentages
     
     try {
       // Create async job (returns immediately to avoid Railway timeout)
@@ -485,40 +429,70 @@ export default function Demo() {
               throw new Error(userFriendlyError)
             }
             
-            // Update progress based on job status
+            // Update progress based on job status - ensure monotonic (only increases)
             if (statusResponse.progress !== null) {
-              const progressPercent = Math.min(95, statusResponse.progress * 100) // Cap at 95% until complete
-              setGenerationProgress(progressPercent)
+              const backendProgressPercent = statusResponse.progress * 100
               
-              // Use message from backend if available, otherwise use status-based message
-              const statusMessage = statusResponse.message || 
-                (statusResponse.status === 'queued' ? 'Job queued...' :
-                 statusResponse.status === 'started' ? 'Processing page...' :
-                 statusResponse.status === 'finished' ? 'Preview complete!' :
-                 'Processing...')
-              
-              setGenerationStatus(statusMessage)
-              
-              // Update stage based on progress
-              if (statusResponse.status === 'queued') {
-                setCurrentStage(0)
-              } else if (statusResponse.status === 'started') {
-                // Map progress to stage (0-30% = stage 1, 30-60% = stage 2, etc.)
-                const stageIndex = Math.min(
-                  Math.floor((progressPercent / 100) * GENERATION_STAGES.length),
-                  GENERATION_STAGES.length - 1
-                )
-                setCurrentStage(stageIndex)
-              } else if (statusResponse.status === 'finished') {
-                setCurrentStage(GENERATION_STAGES.length)
-                setGenerationProgress(100)
-                setGenerationStatus('Preview complete!')
+              // CRITICAL: Only update if progress has increased (monotonic)
+              // This prevents jumping backwards when backend sends lower values
+              if (backendProgressPercent >= lastBackendProgressRef.current) {
+                lastBackendProgressRef.current = backendProgressPercent
                 
-                if (statusResponse.result) {
-                  return statusResponse.result
-                } else {
-                  throw new Error('Job finished but no result returned')
+                // Cap at 95% until complete to avoid showing 100% prematurely
+                const progressPercent = statusResponse.status === 'finished' 
+                  ? 100 
+                  : Math.min(95, backendProgressPercent)
+                
+                setGenerationProgress(progressPercent)
+                
+                // Use message from backend if available, otherwise use status-based message
+                const statusMessage = statusResponse.message || 
+                  (statusResponse.status === 'queued' ? 'Job queued...' :
+                   statusResponse.status === 'started' ? 'Processing page...' :
+                   statusResponse.status === 'finished' ? 'Preview complete!' :
+                   'Processing...')
+                
+                setGenerationStatus(statusMessage)
+                
+                // Update stage based on progress - map backend progress to stages
+                if (statusResponse.status === 'queued') {
+                  setCurrentStage(0)
+                } else if (statusResponse.status === 'started') {
+                  // Map progress to stage (0-15% = stage 0, 15-30% = stage 1, 30-50% = stage 2, etc.)
+                  let stageIndex = 0
+                  if (progressPercent >= 15) stageIndex = 1
+                  if (progressPercent >= 30) stageIndex = 2
+                  if (progressPercent >= 50) stageIndex = 3
+                  if (progressPercent >= 65) stageIndex = 4
+                  if (progressPercent >= 80) stageIndex = 5
+                  if (progressPercent >= 92) stageIndex = 6
+                  
+                  setCurrentStage(Math.min(stageIndex, GENERATION_STAGES.length - 1))
+                  
+                  // Update estimated time based on progress
+                  const elapsed = (Date.now() - startPollTime) / 1000
+                  if (progressPercent > 0 && progressPercent < 95) {
+                    const estimatedTotal = elapsed / (progressPercent / 100)
+                    const remaining = Math.max(3, estimatedTotal - elapsed)
+                    setEstimatedTimeRemaining(Math.ceil(remaining))
+                  } else if (progressPercent >= 95) {
+                    setEstimatedTimeRemaining(0)
+                  }
+                } else if (statusResponse.status === 'finished') {
+                  setCurrentStage(GENERATION_STAGES.length)
+                  setGenerationProgress(100)
+                  setGenerationStatus('Preview complete!')
+                  setEstimatedTimeRemaining(0)
+                  
+                  if (statusResponse.result) {
+                    return statusResponse.result
+                  } else {
+                    throw new Error('Job finished but no result returned')
+                  }
                 }
+              } else {
+                // Backend sent a lower progress value - ignore it to prevent jumping backwards
+                logger.warn(`[Demo] Ignoring backend progress decrease: ${backendProgressPercent}% < ${lastBackendProgressRef.current}%`)
               }
             }
             
