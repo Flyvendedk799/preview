@@ -450,11 +450,13 @@ export default function Demo() {
               setEstimatedTimeRemaining(0)
               
               if (statusResponse.result) {
+                logger.info(`[Demo] Job finished successfully, returning result`)
                 return statusResponse.result
               } else {
                 // Job finished but no result - might be a race condition, wait a bit and retry
-                logger.warn('[Demo] Job finished but result not yet available, retrying...')
-                await new Promise(resolve => setTimeout(resolve, 500))
+                logger.warn(`[Demo] Job finished but result not yet available (attempt ${consecutiveErrors + 1}), retrying...`)
+                // Wait longer for result to become available
+                await new Promise(resolve => setTimeout(resolve, 1000))
                 continue
               }
             }

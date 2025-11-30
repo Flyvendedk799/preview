@@ -220,6 +220,9 @@ def get_demo_job_status(
         redis_conn = get_rq_redis_connection()
         job = Job.fetch(job_id, connection=redis_conn)
         
+        # Refresh job status to get latest state (important for fast jobs)
+        job.refresh()
+        
         status_map = {
             'queued': 'queued',
             'started': 'started',

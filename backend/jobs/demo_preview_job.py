@@ -68,7 +68,12 @@ def generate_demo_preview_job(url: str) -> Dict[str, Any]:
         result = engine.generate(url_str, cache_key_prefix="demo:preview:v2:")
         
         # Ensure progress is at 100% when job completes successfully
+        # Do this BEFORE returning to ensure it's saved to Redis
         _update_job_progress(1.0, "Preview generation complete!")
+        
+        # Small delay to ensure progress update is saved before job completes
+        import time
+        time.sleep(0.1)
         
         # Convert PreviewEngineResult to response dict
         response_data = {
