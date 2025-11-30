@@ -8,6 +8,7 @@ from uuid import uuid4
 import time
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from rq.job import Job, get_current_job
 from backend.services.playwright_screenshot import capture_screenshot_and_html
 from backend.services.r2_client import upload_file_to_r2
 from backend.services.preview_reasoning import generate_reasoned_preview
@@ -21,6 +22,19 @@ from backend.services.preview_cache import (
 import json
 
 logger = logging.getLogger(__name__)
+
+
+def _update_job_progress(progress: float, message: str) -> None:
+    """Update job progress in Redis for frontend polling."""
+    try:
+        job = get_current_job()
+        if job:
+            job.meta['progress'] = progress
+            job.meta['message'] = message
+            job.save_meta()
+    except Exception as e:
+        # Don't fail the job if progress update fails
+        logger.warning(f"Failed to update job progress: {e}")
 
 
 def generate_demo_preview_job(url: str) -> Dict[str, Any]:
@@ -42,6 +56,9 @@ def generate_demo_preview_job(url: str) -> Dict[str, Any]:
         
         logger.info(f"🚀 Starting demo preview job for: {url_str}")
         
+        # Update initial progress
+        _update_job_progress(0.05, "Initializing...")
+        
         # Check cache first
         redis_client = get_redis_client()
         cache_key = generate_cache_key(url_str, "demo:preview:v2:")
@@ -51,6 +68,7 @@ def generate_demo_preview_job(url: str) -> Dict[str, Any]:
                 cached_data = redis_client.get(cache_key)
                 if cached_data:
                     logger.info(f"✅ Cache hit for: {url_str[:50]}...")
+                    _update_job_progress(1.0, "Loaded from cache")
                     return json.loads(cached_data)
             except Exception as e:
                 logger.warning(f"Cache read error: {e}")
@@ -58,6 +76,7 @@ def generate_demo_preview_job(url: str) -> Dict[str, Any]:
         # =========================================================================
         # STEP 1: Capture screenshot + HTML (single browser session)
         # =========================================================================
+        _update_job_progress(0.10, "Capturing page screenshot...")
         try:
             logger.info(f"📸 Capturing screenshot + HTML for: {url_str}")
             screenshot_bytes, html_content = capture_screenshot_and_html(url_str)
@@ -65,11 +84,13 @@ def generate_demo_preview_job(url: str) -> Dict[str, Any]:
         except Exception as e:
             error_msg = str(e)
             logger.error(f"❌ Screenshot capture failed: {error_msg}", exc_info=True)
+            _update_job_progress(0.0, f"Failed: {error_msg}")
             raise ValueError(f"Failed to capture page screenshot: {error_msg}")
         
         # =========================================================================
         # STEP 2: Parallel processing - Brand extraction + Screenshot upload
         # =========================================================================
+        _update_job_progress(0.30, "Extracting brand elements and uploading screenshot...")
         screenshot_url = None
         brand_elements = None
         
@@ -110,6 +131,7 @@ def generate_demo_preview_job(url: str) -> Dict[str, Any]:
         # =========================================================================
         # STEP 3: Run multi-stage AI reasoning
         # =========================================================================
+        _update_job_progress(0.60, "Running AI reasoning...")
         try:
             logger.info(f"🤖 Running AI reasoning for: {url_str}")
             result = generate_reasoned_preview(screenshot_bytes, url_str)
@@ -119,13 +141,16 @@ def generate_demo_preview_job(url: str) -> Dict[str, Any]:
             logger.error(f"❌ AI reasoning failed: {error_msg}", exc_info=True)
             
             if "429" in error_msg or "rate limit" in error_msg.lower():
+                _update_job_progress(0.0, "OpenAI rate limit reached")
                 raise ValueError("OpenAI rate limit reached. Please wait a moment and try again.")
             
+            _update_job_progress(0.0, f"AI reasoning failed: {error_msg}")
             raise ValueError(f"Failed to analyze page: {error_msg}. Please try again.")
         
         # =========================================================================
         # STEP 4: Generate og:image with enhanced brand elements
         # =========================================================================
+        _update_job_progress(0.80, "Generating final preview image...")
         composited_image_url = None
         try:
             logger.info("🎨 Generating brand-aligned og:image")
@@ -259,10 +284,18 @@ def generate_demo_preview_job(url: str) -> Dict[str, Any]:
             except Exception as e:
                 logger.warning(f"⚠️  Failed to cache result: {e}")
         
+        # Update final progress
+        _update_job_progress(1.0, "Preview generation complete!")
+        
         logger.info(f"🎉 Preview generated in {processing_time_ms}ms")
         return response_data
         
     except Exception as e:
-        logger.error(f"❌ Fatal error in demo preview job: {str(e)}", exc_info=True)
+        error_msg = str(e)
+        logger.error(f"❌ Fatal error in demo preview job: {error_msg}", exc_info=True)
+        try:
+            _update_job_progress(0.0, f"Failed: {error_msg}")
+        except:
+            pass  # Don't fail if progress update fails
         raise
 

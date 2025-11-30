@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowRightIcon,
@@ -25,6 +25,9 @@ import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid'
 import { subscribeToNewsletter, generateDemoPreviewV2, createDemoJob, getDemoJobStatus, type DemoPreviewResponseV2, type DemoJobStatusResponse } from '../api/client'
 import ReconstructedPreview from '../components/ReconstructedPreview'
 import GenerationProgress from '../components/GenerationProgress'
+import PlatformPreviewCard from '../components/PlatformPreviewCard'
+import { ErrorBoundary } from '../components/ErrorBoundary'
+import { logger } from '../utils/logger'
 
 type Step = 'input' | 'preview'
 
@@ -131,14 +134,14 @@ export default function Demo() {
       setCopySuccess(true)
       setTimeout(() => setCopySuccess(false), 2000)
     } catch (error) {
-      console.error('Failed to copy image:', error)
+      logger.error('Failed to copy image:', error)
       // Fallback: try to copy image URL
       try {
         await navigator.clipboard.writeText(imageUrl)
         setCopySuccess(true)
         setTimeout(() => setCopySuccess(false), 2000)
       } catch (fallbackError) {
-        console.error('Failed to copy image URL:', fallbackError)
+        logger.error('Failed to copy image URL:', fallbackError)
       }
     }
   }
@@ -205,8 +208,8 @@ export default function Demo() {
     }
   }
 
-  // Handle example URL click
-  const handleExampleUrlClick = (exampleUrl: string) => {
+  // Handle example URL click - memoized callback
+  const handleExampleUrlClick = useCallback((exampleUrl: string) => {
     setUrl(exampleUrl)
     setUrlError(null)
     setPreviewError(null)
@@ -215,12 +218,12 @@ export default function Demo() {
       const processedUrl = exampleUrl.startsWith('http') ? exampleUrl : `https://${exampleUrl}`
       generatePreviewWithUrl(processedUrl)
     }, 300)
-  }
+  }, [generatePreviewWithUrl])
 
-  // DEBUG: Log preview state changes
+  // Log preview state changes (dev only)
   useEffect(() => {
     if (preview) {
-      console.log('[Demo] Preview state updated:', {
+      logger.debug('[Demo] Preview state updated:', {
         composited_preview_image_url: preview.composited_preview_image_url || 'null',
         primary_image_base64: preview.primary_image_base64 ? 'present (base64)' : 'null',
         screenshot_url: preview.screenshot_url || 'null',
@@ -269,7 +272,7 @@ export default function Demo() {
       }
       twitterImage.setAttribute('content', preview.composited_preview_image_url)
       
-      console.log('[Demo] Set og:image meta tag to:', preview.composited_preview_image_url)
+      logger.debug('[Demo] Set og:image meta tag to:', preview.composited_preview_image_url)
     }
   }, [preview?.composited_preview_image_url])
 
@@ -309,22 +312,25 @@ export default function Demo() {
     return emailRegex.test(email)
   }
 
-  const validateUrl = (url: string): boolean => {
+  // Memoized URL validation function
+  const validateUrl = useCallback((url: string): boolean => {
+    if (!url || typeof url !== 'string') return false
     try {
       const urlObj = new URL(url)
       return urlObj.protocol === 'http:' || urlObj.protocol === 'https:'
     } catch {
       return false
     }
-  }
+  }, [])
 
-  const handleUrlSubmit = async (e: React.FormEvent) => {
+  // Memoized URL submit handler
+  const handleUrlSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault()
     setUrlError(null)
     setPreviewError(null)
 
     // Validate URL
-    if (!url.trim()) {
+    if (!url || !url.trim()) {
       setUrlError('URL is required')
       return
     }
@@ -346,7 +352,7 @@ export default function Demo() {
     // Email subscription is now optional - users can generate previews immediately
     // We'll offer email subscription as an optional enhancement after preview generation
     await generatePreviewWithUrl(processedUrl)
-  }
+  }, [url, validateUrl, generatePreviewWithUrl])
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -492,7 +498,7 @@ export default function Demo() {
         return // User cancelled
       }
       
-      console.log(`[Demo] Job created: ${jobId}`)
+      logger.info(`[Demo] Job created: ${jobId}`)
       
       // Poll for job status
       const pollInterval = 2000 // Poll every 2 seconds
@@ -526,13 +532,25 @@ export default function Demo() {
               const progressPercent = Math.min(95, statusResponse.progress * 100) // Cap at 95% until complete
               setGenerationProgress(progressPercent)
               
+              // Use message from backend if available, otherwise use status-based message
+              const statusMessage = statusResponse.message || 
+                (statusResponse.status === 'queued' ? 'Job queued...' :
+                 statusResponse.status === 'started' ? 'Processing page...' :
+                 statusResponse.status === 'finished' ? 'Preview complete!' :
+                 'Processing...')
+              
+              setGenerationStatus(statusMessage)
+              
               // Update stage based on progress
               if (statusResponse.status === 'queued') {
                 setCurrentStage(0)
-                setGenerationStatus('Job queued...')
               } else if (statusResponse.status === 'started') {
-                setCurrentStage(1)
-                setGenerationStatus('Processing page...')
+                // Map progress to stage (0-30% = stage 1, 30-60% = stage 2, etc.)
+                const stageIndex = Math.min(
+                  Math.floor((progressPercent / 100) * GENERATION_STAGES.length),
+                  GENERATION_STAGES.length - 1
+                )
+                setCurrentStage(stageIndex)
               } else if (statusResponse.status === 'finished') {
                 setCurrentStage(GENERATION_STAGES.length)
                 setGenerationProgress(100)
@@ -559,7 +577,9 @@ export default function Demo() {
               error.message === 'Generation cancelled' ||
               error.message.includes('Job failed') ||
               error.message.includes('took too long to load') ||
-              error.message.includes('Unable to capture')
+              error.message.includes('Unable to capture') ||
+              error.message.includes('not found') ||
+              error.message.includes('404')
             )) {
               throw error
             }
@@ -568,10 +588,14 @@ export default function Demo() {
             const elapsed = Date.now() - startPollTime
             const retryCount = Math.floor(elapsed / pollInterval)
             if (retryCount < 3) {
-              console.warn(`[Demo] Poll error (retry ${retryCount + 1}/3):`, error)
+              logger.warn(`[Demo] Poll error (retry ${retryCount + 1}/3):`, error)
               await new Promise(resolve => setTimeout(resolve, pollInterval))
             } else {
               // After 3 retries, give up
+              const errorMsg = error instanceof Error ? error.message : String(error)
+              if (errorMsg.includes('404') || errorMsg.includes('not found')) {
+                throw new Error('Job not found. It may have expired. Please try generating a new preview.')
+              }
               throw new Error('Unable to check job status. Please try again.')
             }
           }
@@ -604,8 +628,8 @@ export default function Demo() {
       setShowCompletionCelebration(true)
       await new Promise(resolve => setTimeout(resolve, 1200))
       
-      // DEBUG: Log what we received from backend
-      console.log('[Demo Preview Received]', {
+      // Log preview received (dev only)
+      logger.debug('[Demo Preview Received]', {
         composited_preview_image_url: result.composited_preview_image_url,
         primary_image_base64: result.primary_image_base64 ? 'present (base64)' : 'null',
         screenshot_url: result.screenshot_url,
@@ -638,18 +662,24 @@ export default function Demo() {
       if (stageIntervalRef.current) clearInterval(stageIntervalRef.current)
       if (progressIntervalRef.current) clearInterval(progressIntervalRef.current)
       
-      // DEBUG: Log error details
-      console.error('[Demo Preview Error]', {
+      // Log error details
+      logger.error('[Demo Preview Error]', {
         error: error instanceof Error ? error.message : String(error),
         url: urlToProcess,
-        status: error instanceof Error && 'status' in error ? (error as any).status : 'unknown'
+        status: error instanceof Error && 'status' in error ? (error as { status?: unknown }).status : 'unknown'
       })
       
       // Use improved error parsing
       const errorInfo = parseErrorMessage(error instanceof Error ? error : String(error))
-      const errorMessage = errorInfo.suggestion 
+      let errorMessage = errorInfo.suggestion 
         ? `${errorInfo.message}. ${errorInfo.suggestion}`
         : errorInfo.message
+      
+      // Handle job not found specifically
+      const errorStr = error instanceof Error ? error.message : String(error)
+      if (errorStr.includes('not found') || errorStr.includes('404') || errorStr.includes('expired')) {
+        errorMessage = 'The preview generation job was not found. It may have expired. Please try generating a new preview.'
+      }
       
       setPreviewError(errorMessage)
       setShowEmailPopup(false)
@@ -698,7 +728,7 @@ export default function Demo() {
   }, [url, isGeneratingPreview, showEmailPopup, mobileMenuOpen, generatePreviewWithUrl, cancelGeneration, validateUrl])
 
   // IMPROVEMENT: Enhanced platform configurations with realistic layouts
-  const platforms = [
+  const platforms = useMemo(() => [
     { 
       id: 'facebook', 
       name: 'Facebook', 
@@ -744,39 +774,16 @@ export default function Demo() {
       maxTitleLength: 50,
       maxDescLength: 125,
     },
-  ]
+  ], [])
   
-  // Helper to truncate text for platform-specific limits
-  const truncateForPlatform = (text: string, maxLength: number): string => {
-    if (!text) return ''
-    if (text.length <= maxLength) return text
-    return text.substring(0, maxLength - 3) + '...'
-  }
-  
-  // Get platform-specific preview data using unified PreviewData model
-  // Platform components only adapt rendering, never change underlying data
-  const getPlatformPreviewData = (platformId: string) => {
-    const platform = platforms.find(p => p.id === platformId) || platforms[0]
-    if (!preview) return { title: '', description: '', aspectRatio: platform.aspectRatio, imageUrl: null }
-    
-    // Unified data model - platform only adapts rendering, not data
-    const previewData = {
-      image: preview.composited_preview_image_url || preview.screenshot_url || null,
-      title: preview.title || 'Untitled',
-      description: preview.description || null,
-      url: preview.url,
-    }
-    
-    return {
-      title: truncateForPlatform(previewData.title, platform.maxTitleLength),
-      description: truncateForPlatform(previewData.description || '', platform.maxDescLength),
-      aspectRatio: platform.aspectRatio,
-      imageUrl: previewData.image,
-    }
-  }
+  // Get current platform config
+  const currentPlatform = useMemo(() => {
+    return platforms.find(p => p.id === selectedPlatform) || platforms[0]
+  }, [platforms, selectedPlatform])
 
   return (
-    <div className="min-h-screen bg-white overflow-x-hidden">
+    <ErrorBoundary>
+      <div className="min-h-screen bg-white overflow-x-hidden">
       {/* Premium Animated Background */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
         <div 
@@ -1001,7 +1008,8 @@ export default function Demo() {
                         </div>
                         <input
                           id="url"
-                          type="text"
+                          type="url"
+                          inputMode="url"
                           value={url}
                           onChange={(e) => {
                             setUrl(e.target.value)
@@ -1030,6 +1038,9 @@ export default function Demo() {
                           disabled={isGeneratingPreview}
                           aria-describedby={urlError || previewError ? 'url-error' : undefined}
                           aria-invalid={!!(urlError || previewError)}
+                          aria-required="true"
+                          autoComplete="url"
+                          spellCheck="false"
                         />
                         {url && !urlError && !previewError && (
                           <div className="absolute right-4 top-1/2 transform -translate-y-1/2" aria-hidden="true">
@@ -1998,222 +2009,16 @@ export default function Demo() {
                                     </div>
                                   )}
 
-                                  {/* Link Preview Card - Platform-Specific Layout */}
-                                  <div className={`mx-3 mb-2 border border-gray-200 rounded-lg overflow-hidden ${
-                                    selectedPlatform === 'linkedin' ? 'bg-white' : 
-                                    selectedPlatform === 'twitter' ? 'bg-white' : 
-                                    selectedPlatform === 'slack' ? 'bg-white border-l-4' : 
-                                    selectedPlatform === 'instagram' ? 'bg-white' :
-                                    'bg-gray-50'
-                                  }`} style={selectedPlatform === 'slack' ? { borderLeftColor: preview.blueprint.primary_color } : {}}>
-                                    {/* Preview Image - Platform-specific aspect ratio */}
-                                    {(() => {
-                                      const platformData = getPlatformPreviewData(selectedPlatform)
-                                      return (
-                                        <div 
-                                          className="bg-gray-200 overflow-hidden relative"
-                                          style={{ aspectRatio: platformData.aspectRatio }}
-                                        >
-                                          {/* Subtle gradient overlay for better text readability on images */}
-                                          <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent pointer-events-none z-10" />
-                                      {(() => {
-                                        // DEBUG: Log image source selection with full details
-                                        const currentImageUrl = preview.composited_preview_image_url || null
-                                        if (currentImageUrl !== lastLoggedImageUrlRef.current) {
-                                          console.log('[Social Preview Image] Source selection:', {
-                                            composited_preview_image_url: preview.composited_preview_image_url || 'null',
-                                            primary_image_base64: preview.primary_image_base64 ? 'present (base64)' : 'null',
-                                            screenshot_url: preview.screenshot_url || 'null',
-                                            selected_url: currentImageUrl || 'null',
-                                            using: preview.composited_preview_image_url ? 'composited' : 'fallback',
-                                            template_type: preview.blueprint?.template_type || 'unknown'
-                                          })
-                                          lastLoggedImageUrlRef.current = currentImageUrl
-                                        }
-                                        const imageUrl = platformData.imageUrl
-                                        return imageUrl ? (
-                                          <img
-                                            src={imageUrl}
-                                            alt={platformData.title}
-                                            className="w-full h-full object-cover relative z-0"
-                                            onLoad={() => {
-                                              if (lastLoggedImageUrlRef.current === imageUrl) {
-                                                console.log('[Social Preview Image] ✓ Loaded successfully:', imageUrl)
-                                              }
-                                            }}
-                                            onError={(e) => {
-                                              console.error('[Social Preview Image] ✗ Failed to load:', { url: imageUrl, error: e })
-                                              const target = e.target as HTMLImageElement
-                                              target.style.display = 'none'
-                                              const parent = target.parentElement
-                                              if (parent) {
-                                                parent.style.background = `linear-gradient(135deg, ${preview.blueprint.primary_color}, ${preview.blueprint.secondary_color})`
-                                                const placeholder = document.createElement('div')
-                                                placeholder.className = 'absolute inset-0 flex items-center justify-center'
-                                                placeholder.innerHTML = `
-                                                  <div class="text-center">
-                                                    <div class="w-16 h-16 mx-auto mb-2 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                                                      <svg class="w-8 h-8 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                                      </svg>
-                                                    </div>
-                                                    <p class="text-xs text-white/80 font-medium">${platformData.title}</p>
-                                                  </div>
-                                                `
-                                                parent.appendChild(placeholder)
-                                              }
-                                            }}
-                                          />
-                                        ) : (
-                                          <div 
-                                            className="w-full h-full relative"
-                                            style={{ 
-                                              background: `linear-gradient(135deg, ${preview.blueprint.primary_color}, ${preview.blueprint.secondary_color})`
-                                            }}
-                                          >
-                                            <div className="absolute inset-0 flex items-center justify-center">
-                                              <div className="text-center">
-                                                <div className="w-16 h-16 mx-auto mb-2 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                                                  <svg className="w-8 h-8 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                                  </svg>
-                                                </div>
-                                                <p className="text-xs text-white/80 font-medium">{platformData.title}</p>
-                                              </div>
-                                            </div>
-                                          </div>
-                                        )
-                                      })()}
-                                        </div>
-                                      )
-                                    })()}
-
-                                    {/* Link Meta - Platform-Specific Styling */}
-                                    {(() => {
-                                      const platformData = getPlatformPreviewData(selectedPlatform)
-                                      const domain = (() => {
-                                        try {
-                                          return new URL(preview.url).hostname.replace('www.', '')
-                                        } catch {
-                                          return 'website.com'
-                                        }
-                                      })()
-                                      
-                                      // Platform-specific styling
-                                      const isLinkedIn = selectedPlatform === 'linkedin'
-                                      const isTwitter = selectedPlatform === 'twitter'
-                                      const isSlack = selectedPlatform === 'slack'
-                                      const isInstagram = selectedPlatform === 'instagram'
-                                      
-                                      // Slack has a different layout - message-style embed
-                                      if (isSlack) {
-                                        return (
-                                          <div className="px-3 py-2.5 bg-white">
-                                            <div className="flex items-start space-x-2">
-                                              <div className="w-4 h-4 rounded mt-0.5" style={{ backgroundColor: preview.blueprint.primary_color }}></div>
-                                              <div className="flex-1 min-w-0">
-                                                <div className="text-[11px] text-gray-500 font-medium mb-1">{domain}</div>
-                                                {platformData.title && platformData.title !== "Untitled" && (
-                                                  <h4 className="text-[13px] font-semibold text-gray-900 leading-tight line-clamp-2 mb-1">
-                                                    {platformData.title}
-                                                  </h4>
-                                                )}
-                                                {platformData.description && platformData.description !== platformData.title && (
-                                                  <p className="text-[12px] text-gray-600 leading-snug line-clamp-2">
-                                                    {platformData.description}
-                                                  </p>
-                                                )}
-                                                <div className="mt-1.5 text-[11px] text-gray-400 flex items-center gap-1">
-                                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                                  </svg>
-                                                  <span>Tap to open site →</span>
-                                                </div>
-                                              </div>
-                                            </div>
-                                          </div>
-                                        )
-                                      }
-                                      
-                                      // Instagram - image-first, minimal text
-                                      if (isInstagram) {
-                                        return (
-                                          <div className="px-3 py-2 bg-white">
-                                            {platformData.title && platformData.title !== "Untitled" && (
-                                              <h4 className="text-[13px] font-semibold text-gray-900 leading-tight line-clamp-1 mb-1">
-                                                {platformData.title}
-                                              </h4>
-                                            )}
-                                            <div className="text-[11px] text-gray-500 flex items-center gap-1">
-                                              <span>{domain}</span>
-                                              <span>·</span>
-                                              <span className="text-gray-400">Tap to open →</span>
-                                            </div>
-                                          </div>
-                                        )
-                                      }
-                                      
-                                      // X (Twitter) - minimal, clean design with better contrast
-                                      if (isTwitter) {
-                                        return (
-                                          <div className="px-3 py-2.5 bg-white">
-                                            <div className="text-[11px] text-gray-500 font-medium mb-1.5">{domain}</div>
-                                            {platformData.title && platformData.title !== "Untitled" && (
-                                              <h4 className="text-[15px] font-bold text-gray-900 leading-tight line-clamp-2 mb-1.5" style={{ textShadow: '0 1px 2px rgba(255,255,255,0.8)' }}>
-                                                {platformData.title}
-                                              </h4>
-                                            )}
-                                            {platformData.description && platformData.description !== platformData.title && (
-                                              <p className="text-[13px] text-gray-700 leading-snug line-clamp-2 mb-1.5">
-                                                {platformData.description}
-                                              </p>
-                                            )}
-                                            <div className="text-[11px] text-gray-400 flex items-center gap-1">
-                                              <span>Tap to open site →</span>
-                                            </div>
-                                          </div>
-                                        )
-                                      }
-                                      
-                                      // LinkedIn - professional, larger text with better contrast
-                                      if (isLinkedIn) {
-                                        return (
-                                          <div className="px-3 py-3 bg-white border-t border-gray-100">
-                                            <div className="text-[11px] text-gray-500 font-medium mb-1.5">{domain}</div>
-                                            {platformData.title && platformData.title !== "Untitled" && (
-                                              <h4 className="text-[14px] font-semibold text-gray-900 leading-tight line-clamp-2 mb-1.5" style={{ textShadow: '0 1px 2px rgba(255,255,255,0.8)' }}>
-                                                {platformData.title}
-                                              </h4>
-                                            )}
-                                            {platformData.description && platformData.description !== platformData.title && (
-                                              <p className="text-[12px] text-gray-700 leading-relaxed line-clamp-2">
-                                                {platformData.description}
-                                              </p>
-                                            )}
-                                          </div>
-                                        )
-                                      }
-                                      
-                                      // Facebook - default layout
-                                      return (
-                                        <div className="px-3 py-2 bg-gray-50">
-                                          <div className="text-[10px] text-gray-500 uppercase tracking-wide font-medium mb-1">
-                                            {domain}
-                                          </div>
-                                          {platformData.title && platformData.title !== "Untitled" && (
-                                            <h4 className="text-[13px] font-semibold text-gray-900 leading-tight line-clamp-2 mb-0.5">
-                                              {platformData.title}
-                                            </h4>
-                                          )}
-                                          {platformData.description && platformData.description !== platformData.title && (
-                                            <p className="text-[11px] text-gray-600 leading-snug line-clamp-1">
-                                              {platformData.description}
-                                            </p>
-                                          )}
-                                        </div>
-                                      )
-                                    })()}
-                                  </div>
+                                  {/* Link Preview Card - Using PlatformPreviewCard Component */}
+                                  {preview && currentPlatform && (
+                                    <PlatformPreviewCard
+                                      preview={preview}
+                                      platform={currentPlatform}
+                                      onImageError={(error) => {
+                                        logger.error('[PlatformPreviewCard] Image error:', error)
+                                      }}
+                                    />
+                                  )}
 
                                   {/* Engagement Stats - Only for Facebook and LinkedIn */}
                                   {(selectedPlatform === 'facebook' || selectedPlatform === 'linkedin') && (
@@ -2425,7 +2230,8 @@ export default function Demo() {
           animation: shimmer 2s infinite;
         }
       `}</style>
-    </div>
+      </div>
+    </ErrorBoundary>
   )
 }
 

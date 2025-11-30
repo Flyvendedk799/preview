@@ -1,0 +1,126 @@
+/**
+ * Error Boundary Component
+ * 
+ * Catches React errors in component tree and displays a user-friendly error UI.
+ * Prevents the entire app from crashing when errors occur.
+ */
+import React, { Component, ErrorInfo, ReactNode } from 'react'
+import { ExclamationTriangleIcon, ArrowPathIcon } from '@heroicons/react/24/outline'
+
+interface Props {
+  children: ReactNode
+  fallback?: ReactNode
+  onError?: (error: Error, errorInfo: ErrorInfo) => void
+}
+
+interface State {
+  hasError: boolean
+  error: Error | null
+  errorInfo: ErrorInfo | null
+}
+
+export class ErrorBoundary extends Component<Props, State> {
+  constructor(props: Props) {
+    super(props)
+    this.state = {
+      hasError: false,
+      error: null,
+      errorInfo: null,
+    }
+  }
+
+  static getDerivedStateFromError(error: Error): State {
+    return {
+      hasError: true,
+      error,
+      errorInfo: null,
+    }
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    // Log error to console in development
+    if (import.meta.env.DEV) {
+      console.error('ErrorBoundary caught an error:', error, errorInfo)
+    }
+
+    // Call optional error handler
+    if (this.props.onError) {
+      this.props.onError(error, errorInfo)
+    }
+
+    this.setState({
+      error,
+      errorInfo,
+    })
+  }
+
+  handleReset = () => {
+    this.setState({
+      hasError: false,
+      error: null,
+      errorInfo: null,
+    })
+  }
+
+  render() {
+    if (this.state.hasError) {
+      // Use custom fallback if provided
+      if (this.props.fallback) {
+        return this.props.fallback
+      }
+
+      // Default error UI
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+          <div className="max-w-md w-full bg-white rounded-xl shadow-lg border border-red-200 p-6">
+            <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-100 rounded-full">
+              <ExclamationTriangleIcon className="w-6 h-6 text-red-600" aria-hidden="true" />
+            </div>
+            
+            <h2 className="text-xl font-bold text-gray-900 text-center mb-2">
+              Something went wrong
+            </h2>
+            
+            <p className="text-gray-600 text-center mb-6">
+              We encountered an unexpected error. Please try refreshing the page or contact support if the problem persists.
+            </p>
+
+            {import.meta.env.DEV && this.state.error && (
+              <details className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                <summary className="text-sm font-semibold text-gray-700 cursor-pointer mb-2">
+                  Error Details (Development Only)
+                </summary>
+                <pre className="text-xs text-gray-600 overflow-auto max-h-40">
+                  {this.state.error.toString()}
+                  {this.state.errorInfo?.componentStack}
+                </pre>
+              </details>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={this.handleReset}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg font-semibold hover:bg-orange-700 transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2"
+                aria-label="Try again"
+              >
+                <ArrowPathIcon className="w-5 h-5" aria-hidden="true" />
+                Try Again
+              </button>
+              
+              <button
+                onClick={() => window.location.reload()}
+                className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                aria-label="Reload page"
+              >
+                Reload Page
+              </button>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    return this.props.children
+  }
+}
+

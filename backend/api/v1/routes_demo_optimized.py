@@ -143,6 +143,7 @@ class DemoJobStatusResponse(BaseModel):
     result: Optional[DemoPreviewResponse] = None
     error: Optional[str] = None
     progress: Optional[float] = None  # 0.0 to 1.0
+    message: Optional[str] = None  # Human-readable status message
 
 
 @router.post("/jobs", status_code=status.HTTP_202_ACCEPTED, response_model=DemoJobResponse)
@@ -232,16 +233,40 @@ def get_demo_job_status(
         
         job_status = status_map.get(job.get_status(), 'unknown')
         
-        # Estimate progress based on status
+        # Get progress from job meta if available, otherwise estimate based on status
         progress = None
-        if job_status == 'queued':
-            progress = 0.1
-        elif job_status == 'started':
-            progress = 0.3
-        elif job_status == 'finished':
-            progress = 1.0
-        elif job_status == 'failed':
-            progress = 0.0
+        message = None
+        
+        try:
+            job_meta = job.get_meta(refresh=True)
+            if job_meta and 'progress' in job_meta:
+                progress = float(job_meta['progress'])
+            if job_meta and 'message' in job_meta:
+                message = str(job_meta['message'])
+        except Exception as e:
+            logger.warning(f"Failed to read job meta: {e}")
+        
+        # Fallback to status-based progress if meta not available
+        if progress is None:
+            if job_status == 'queued':
+                progress = 0.1
+            elif job_status == 'started':
+                progress = 0.3
+            elif job_status == 'finished':
+                progress = 1.0
+            elif job_status == 'failed':
+                progress = 0.0
+        
+        # Use meta message or default based on status
+        if not message:
+            if job_status == 'queued':
+                message = "Job is in queue"
+            elif job_status == 'started':
+                message = "Generating preview..."
+            elif job_status == 'finished':
+                message = "Preview generation complete"
+            elif job_status == 'failed':
+                message = "Preview generation failed"
         
         result = None
         error = None
@@ -257,7 +282,19 @@ def get_demo_job_status(
                 error = f"Failed to parse result: {str(e)}"
         elif job_status == 'failed':
             try:
-                error = str(job.exc_info) if job.exc_info else "Job failed with unknown error"
+                # Extract clean error message from exc_info
+                if job.exc_info:
+                    exc_info_str = str(job.exc_info)
+                    # Try to extract the actual error message (last line usually)
+                    lines = exc_info_str.split('\n')
+                    error = lines[-1] if lines else exc_info_str
+                    # Clean up common prefixes
+                    if error.startswith('ValueError: '):
+                        error = error.replace('ValueError: ', '')
+                    elif error.startswith('Exception: '):
+                        error = error.replace('Exception: ', '')
+                else:
+                    error = "Job failed with unknown error"
             except Exception:
                 error = "Job failed with unknown error"
         
@@ -266,13 +303,23 @@ def get_demo_job_status(
             status=job_status,
             result=result,
             error=error,
-            progress=progress
+            progress=progress,
+            message=message
         )
     except Exception as e:
+        error_msg = str(e)
         logger.error(f"Error fetching job status: {e}", exc_info=True)
+        
+        # Handle job not found
+        if "No such job" in error_msg or "does not exist" in error_msg.lower():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Job {job_id} not found. It may have expired or never existed."
+            )
+        
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch job status: {str(e)}"
+            detail=f"Failed to fetch job status: {error_msg}"
         )
 
 

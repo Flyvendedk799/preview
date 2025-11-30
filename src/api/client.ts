@@ -1083,6 +1083,7 @@ export interface DemoJobStatusResponse {
   result: DemoPreviewResponseV2 | null
   error: string | null
   progress: number | null // 0.0 to 1.0
+  message?: string | null // Human-readable status message
 }
 
 export async function createDemoJob(url: string): Promise<DemoJobResponse> {
