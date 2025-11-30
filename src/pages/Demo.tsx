@@ -174,12 +174,19 @@ export default function Demo() {
   // Cancel generation function (defined early for use in keyboard handler)
   const cancelGeneration = useCallback(() => {
     generationCancelRef.current = true
-    if (stageIntervalRef.current) clearInterval(stageIntervalRef.current)
-    if (progressIntervalRef.current) clearInterval(progressIntervalRef.current)
+    if (stageIntervalRef.current) {
+      clearInterval(stageIntervalRef.current)
+      stageIntervalRef.current = null
+    }
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current)
+      progressIntervalRef.current = null
+    }
     setIsGeneratingPreview(false)
     setGenerationStatus('')
     setGenerationProgress(0)
     setCurrentStage(0)
+    lastBackendProgressRef.current = 0
     setEstimatedTimeRemaining(0)
     setPreviewError(null)
   }, [])
