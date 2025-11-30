@@ -310,19 +310,6 @@ export default function Demo() {
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
-  // Cancel generation function (defined early for use in keyboard handler)
-  const cancelGeneration = useCallback(() => {
-    generationCancelRef.current = true
-    if (stageIntervalRef.current) clearInterval(stageIntervalRef.current)
-    if (progressIntervalRef.current) clearInterval(progressIntervalRef.current)
-    setIsGeneratingPreview(false)
-    setGenerationStatus('')
-    setGenerationProgress(0)
-    setCurrentStage(0)
-    setEstimatedTimeRemaining(0)
-    setPreviewError(null)
-  }, [])
-
   const validateEmail = (email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     return emailRegex.test(email)
@@ -338,37 +325,6 @@ export default function Demo() {
       return false
     }
   }, [])
-
-  // Memoized URL submit handler
-  const handleUrlSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault()
-    setUrlError(null)
-    setPreviewError(null)
-
-    // Validate URL
-    if (!url || !url.trim()) {
-      setUrlError('URL is required')
-      return
-    }
-
-    // Ensure URL has HTTPS protocol (always use HTTPS)
-    let processedUrl = url.trim()
-    if (!processedUrl.startsWith('http://') && !processedUrl.startsWith('https://')) {
-      processedUrl = `https://${processedUrl}`
-    } else if (processedUrl.startsWith('http://')) {
-      processedUrl = processedUrl.replace('http://', 'https://')
-    }
-
-    if (!validateUrl(processedUrl)) {
-      setUrlError('Please enter a valid URL')
-      return
-    }
-
-    // IMPROVEMENT: Allow instant preview without forced email/consent
-    // Email subscription is now optional - users can generate previews immediately
-    // We'll offer email subscription as an optional enhancement after preview generation
-    await generatePreviewWithUrl(processedUrl)
-  }, [url, validateUrl, generatePreviewWithUrl])
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
