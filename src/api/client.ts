@@ -199,7 +199,8 @@ export async function fetchApi<T>(
   } catch (error) {
     // Handle timeout errors
     if (error instanceof Error && error.name === 'AbortError') {
-      const errorMessage = 'Request timed out. The preview generation is taking longer than expected. Please try again in a moment.'
+      // Check if this is likely a Railway load balancer timeout (60s) vs our timeout (300s)
+      const errorMessage = 'Request timed out. Preview generation can take 30-90 seconds. Railway\'s load balancer has a 60-second limit. Please try again - the request may still be processing on the backend.'
       console.error(`[API Timeout] ${url}:`, errorMessage)
       throw new Error(errorMessage)
     }
