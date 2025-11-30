@@ -586,6 +586,15 @@ export default function Demo() {
       setGenerationStatus('')
       setGenerationProgress(0)
       setCurrentStage(0)
+      lastBackendProgressRef.current = 0
+      if (stageIntervalRef.current) {
+        clearInterval(stageIntervalRef.current)
+        stageIntervalRef.current = null
+      }
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current)
+        progressIntervalRef.current = null
+      }
     } catch (error) {
       if (generationCancelRef.current) {
         return // User cancelled, don't show error
@@ -619,6 +628,15 @@ export default function Demo() {
       setGenerationProgress(0)
       setCurrentStage(0)
       setEstimatedTimeRemaining(0)
+      lastBackendProgressRef.current = 0
+      if (stageIntervalRef.current) {
+        clearInterval(stageIntervalRef.current)
+        stageIntervalRef.current = null
+      }
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current)
+        progressIntervalRef.current = null
+      }
     } finally {
       if (!generationCancelRef.current) {
         setIsGeneratingPreview(false)
