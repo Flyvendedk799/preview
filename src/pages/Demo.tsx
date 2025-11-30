@@ -508,6 +508,19 @@ export default function Demo() {
           try {
             const statusResponse: DemoJobStatusResponse = await getDemoJobStatus(jobId)
             
+            // Check if job failed - stop polling immediately
+            if (statusResponse.status === 'failed') {
+              const errorMsg = statusResponse.error || 'Job failed with unknown error'
+              // Extract user-friendly error message
+              let userFriendlyError = errorMsg
+              if (errorMsg.includes('Page load timeout') || errorMsg.includes('Timeout')) {
+                userFriendlyError = 'The website took too long to load. Please try a different URL or try again later.'
+              } else if (errorMsg.includes('Failed to capture')) {
+                userFriendlyError = 'Unable to capture the website. The site may be blocking automated access or may require authentication.'
+              }
+              throw new Error(userFriendlyError)
+            }
+            
             // Update progress based on job status
             if (statusResponse.progress !== null) {
               const progressPercent = Math.min(95, statusResponse.progress * 100) // Cap at 95% until complete
@@ -530,8 +543,6 @@ export default function Demo() {
                 } else {
                   throw new Error('Job finished but no result returned')
                 }
-              } else if (statusResponse.status === 'failed') {
-                throw new Error(statusResponse.error || 'Job failed with unknown error')
               }
             }
             
@@ -543,14 +554,26 @@ export default function Demo() {
             // Wait before next poll
             await new Promise(resolve => setTimeout(resolve, pollInterval))
           } catch (error) {
-            // If it's a cancellation, re-throw
-            if (error instanceof Error && error.message === 'Generation cancelled') {
+            // If it's a cancellation or job failure, re-throw immediately
+            if (error instanceof Error && (
+              error.message === 'Generation cancelled' ||
+              error.message.includes('Job failed') ||
+              error.message.includes('took too long to load') ||
+              error.message.includes('Unable to capture')
+            )) {
               throw error
             }
             
-            // For other errors, log and continue polling (might be transient)
-            console.warn('[Demo] Poll error (will retry):', error)
-            await new Promise(resolve => setTimeout(resolve, pollInterval))
+            // For transient network errors, log and retry a few times
+            const elapsed = Date.now() - startPollTime
+            const retryCount = Math.floor(elapsed / pollInterval)
+            if (retryCount < 3) {
+              console.warn(`[Demo] Poll error (retry ${retryCount + 1}/3):`, error)
+              await new Promise(resolve => setTimeout(resolve, pollInterval))
+            } else {
+              // After 3 retries, give up
+              throw new Error('Unable to check job status. Please try again.')
+            }
           }
         }
         

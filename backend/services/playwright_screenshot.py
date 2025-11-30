@@ -47,7 +47,13 @@ def capture_screenshot(url: str) -> bytes:
                 )
 
                 try:
-                    page.goto(url, wait_until="networkidle", timeout=25000)
+                    # Try networkidle first (best for most sites)
+                    try:
+                        page.goto(url, wait_until="networkidle", timeout=45000)
+                    except PlaywrightTimeoutError:
+                        # Fallback to 'load' for heavy JavaScript sites
+                        page.goto(url, wait_until="load", timeout=30000)
+                        page.wait_for_timeout(2000)
                 except PlaywrightTimeoutError as e:
                     logger.error(f"Page navigation timeout for {url}: {e}")
                     browser.close()
@@ -133,11 +139,20 @@ def capture_screenshot_and_html(url: str) -> Tuple[bytes, str]:
                 )
 
                 try:
-                    page.goto(url, wait_until="networkidle", timeout=25000)
+                    # Try networkidle first (best for most sites)
+                    page.goto(url, wait_until="networkidle", timeout=45000)
                 except PlaywrightTimeoutError as e:
-                    logger.error(f"Page navigation timeout for {url}: {e}")
-                    browser.close()
-                    raise Exception(f"Page load timeout: The website took too long to load.")
+                    logger.warning(f"Networkidle timeout for {url}, trying 'load' strategy: {e}")
+                    try:
+                        # Fallback to 'load' for heavy JavaScript sites (like OpenAI.com)
+                        # This waits for the load event, which is more lenient than networkidle
+                        page.goto(url, wait_until="load", timeout=30000)
+                        # Give a small delay for any remaining JS to execute
+                        page.wait_for_timeout(2000)
+                    except PlaywrightTimeoutError as e2:
+                        logger.error(f"Page navigation timeout for {url} (both strategies failed): {e2}")
+                        browser.close()
+                        raise Exception(f"Page load timeout: The website took too long to load.")
                 except PlaywrightError as e:
                     logger.error(f"Playwright error navigating to {url}: {e}")
                     browser.close()
