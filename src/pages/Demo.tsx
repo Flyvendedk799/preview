@@ -156,6 +156,33 @@ export default function Demo() {
     document.body.removeChild(link)
   }
 
+  // Generation stages configuration (defined early for use in generatePreviewWithUrl)
+  const GENERATION_STAGES = [
+    { id: 'capture', progress: 15, time: 4, message: 'Capturing page screenshot...' },
+    { id: 'brand', progress: 30, time: 5, message: 'Extracting brand elements...' },
+    { id: 'analyze', progress: 50, time: 10, message: 'Analyzing visual structure...' },
+    { id: 'prioritize', progress: 65, time: 6, message: 'Identifying key elements...' },
+    { id: 'compose', progress: 80, time: 5, message: 'Designing optimal layout...' },
+    { id: 'render', progress: 92, time: 3, message: 'Rendering final preview...' },
+  ]
+
+  const generationCancelRef = useRef<boolean>(false)
+  const stageIntervalRef = useRef<number | null>(null)
+  const progressIntervalRef = useRef<number | null>(null)
+
+  // Cancel generation function (defined early for use in keyboard handler)
+  const cancelGeneration = useCallback(() => {
+    generationCancelRef.current = true
+    if (stageIntervalRef.current) clearInterval(stageIntervalRef.current)
+    if (progressIntervalRef.current) clearInterval(progressIntervalRef.current)
+    setIsGeneratingPreview(false)
+    setGenerationStatus('')
+    setGenerationProgress(0)
+    setCurrentStage(0)
+    setEstimatedTimeRemaining(0)
+    setPreviewError(null)
+  }, [])
+
   // Parse error message for better user feedback
   const parseErrorMessage = (error: Error | string): { message: string; suggestion?: string } => {
     const errorMessage = error instanceof Error ? error.message : error
@@ -208,17 +235,6 @@ export default function Demo() {
     }
   }
 
-  // Handle example URL click - memoized callback
-  const handleExampleUrlClick = useCallback((exampleUrl: string) => {
-    setUrl(exampleUrl)
-    setUrlError(null)
-    setPreviewError(null)
-    // Auto-submit after a brief delay
-    setTimeout(() => {
-      const processedUrl = exampleUrl.startsWith('http') ? exampleUrl : `https://${exampleUrl}`
-      generatePreviewWithUrl(processedUrl)
-    }, 300)
-  }, [generatePreviewWithUrl])
 
   // Log preview state changes (dev only)
   useEffect(() => {
@@ -400,21 +416,7 @@ export default function Demo() {
     }
   }
 
-  // AI Generation stages aligned with backend workflow
-  // Progress is estimated - actual timing varies based on page complexity
-  const GENERATION_STAGES = [
-    { id: 'capture', progress: 15, time: 4, message: 'Capturing page screenshot...' },
-    { id: 'brand', progress: 30, time: 5, message: 'Extracting brand elements...' },
-    { id: 'analyze', progress: 50, time: 10, message: 'Analyzing visual structure...' },
-    { id: 'prioritize', progress: 65, time: 6, message: 'Identifying key elements...' },
-    { id: 'compose', progress: 80, time: 5, message: 'Designing optimal layout...' },
-    { id: 'render', progress: 92, time: 3, message: 'Rendering final preview...' },
-  ]
-
-  const generationCancelRef = useRef<boolean>(false)
-  const stageIntervalRef = useRef<number | null>(null)
-  const progressIntervalRef = useRef<number | null>(null)
-
+  // Generate preview function - defined early so it can be used by other callbacks
   const generatePreviewWithUrl = useCallback(async (urlToProcess: string) => {
     setIsGeneratingPreview(true)
     setCurrentStage(0)
@@ -692,7 +694,49 @@ export default function Demo() {
         setIsGeneratingPreview(false)
       }
     }
-  }, [emailSubscribed])
+  }, [emailSubscribed, parseErrorMessage])
+
+  // Update handleExampleUrlClick to use generatePreviewWithUrl (defined after generatePreviewWithUrl)
+  const handleExampleUrlClickWithGenerate = useCallback((exampleUrl: string) => {
+    setUrl(exampleUrl)
+    setUrlError(null)
+    setPreviewError(null)
+    setTimeout(() => {
+      const processedUrl = exampleUrl.startsWith('http') ? exampleUrl : `https://${exampleUrl}`
+      generatePreviewWithUrl(processedUrl)
+    }, 300)
+  }, [generatePreviewWithUrl])
+
+  // Memoized URL submit handler (defined after generatePreviewWithUrl)
+  const handleUrlSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault()
+    setUrlError(null)
+    setPreviewError(null)
+
+    // Validate URL
+    if (!url || !url.trim()) {
+      setUrlError('URL is required')
+      return
+    }
+
+    // Ensure URL has HTTPS protocol (always use HTTPS)
+    let processedUrl = url.trim()
+    if (!processedUrl.startsWith('http://') && !processedUrl.startsWith('https://')) {
+      processedUrl = `https://${processedUrl}`
+    } else if (processedUrl.startsWith('http://')) {
+      processedUrl = processedUrl.replace('http://', 'https://')
+    }
+
+    if (!validateUrl(processedUrl)) {
+      setUrlError('Please enter a valid URL')
+      return
+    }
+
+    // IMPROVEMENT: Allow instant preview without forced email/consent
+    // Email subscription is now optional - users can generate previews immediately
+    // We'll offer email subscription as an optional enhancement after preview generation
+    await generatePreviewWithUrl(processedUrl)
+  }, [url, validateUrl, generatePreviewWithUrl])
 
   // Keyboard navigation (after generatePreviewWithUrl is defined)
   useEffect(() => {
@@ -1059,7 +1103,7 @@ export default function Demo() {
                             <button
                               key={index}
                               type="button"
-                              onClick={() => handleExampleUrlClick(example.url)}
+                              onClick={() => handleExampleUrlClickWithGenerate(example.url)}
                               disabled={isGeneratingPreview}
                               className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-orange-100 hover:text-orange-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                               aria-label={`Try example URL: ${example.label}`}
@@ -1077,7 +1121,7 @@ export default function Demo() {
                                     <button
                                       key={`history-${index}`}
                                       type="button"
-                                      onClick={() => handleExampleUrlClick(historyUrl)}
+                                      onClick={() => handleExampleUrlClickWithGenerate(historyUrl)}
                                       disabled={isGeneratingPreview}
                                       className="px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 hover:bg-orange-50 hover:text-orange-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                       aria-label={`Try previous URL: ${domain}`}
