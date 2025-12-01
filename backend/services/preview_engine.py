@@ -560,34 +560,68 @@ class PreviewEngine:
             return self._extract_from_html_only(html_content, url)
     
     def _enhance_ai_result_with_html(self, result, html_content: str):
-        """7X QUALITY: Enhance AI result with HTML data."""
+        """7X QUALITY: Smart enhancement with HTML data."""
         metadata = extract_metadata_from_html(html_content)
         semantic = extract_semantic_structure(html_content)
         
-        # Enhance title if weak
-        if not result.title or len(result.title) < 5:
-            result.title = (
-                metadata.get("priority_title") or
-                metadata.get("og_title") or
-                metadata.get("title") or
-                result.title or
-                "Untitled Page"
-            )
+        # === TITLE ENHANCEMENT ===
+        # Check if AI title is weak (short, generic, or missing)
+        ai_title = result.title or ""
+        generic_titles = ["home", "welcome", "untitled", "about us", "index", "404"]
+        title_is_weak = (
+            len(ai_title) < 5 or 
+            ai_title.lower().strip() in generic_titles
+        )
         
-        # Enhance description if weak
-        if not result.description or len(result.description) < 20:
-            result.description = (
-                metadata.get("priority_description") or
+        if title_is_weak:
+            # Priority order for title fallback
+            html_title = (
+                metadata.get("og_title") or  # OG title usually most optimized
+                metadata.get("priority_title") or
+                metadata.get("twitter_title") or
+                metadata.get("title") or
+                ai_title or
+                "Untitled"
+            )
+            if html_title and len(html_title) > len(ai_title):
+                result.title = html_title
+                self.logger.info(f"📌 Enhanced weak title '{ai_title}' → '{html_title[:40]}...'")
+        
+        # === DESCRIPTION ENHANCEMENT ===
+        ai_desc = result.description or ""
+        desc_is_weak = len(ai_desc) < 30
+        
+        if desc_is_weak:
+            html_desc = (
                 metadata.get("og_description") or
+                metadata.get("priority_description") or
+                metadata.get("twitter_description") or
                 metadata.get("description") or
-                semantic.get("primary_content", "")[:300] or
-                result.description or
                 ""
             )
+            # Prefer HTML description if it's longer and not just a longer version of title
+            if html_desc and len(html_desc) > len(ai_desc):
+                if html_desc.lower() != result.title.lower()[:50]:  # Not duplicate of title
+                    result.description = html_desc[:300]
+                    self.logger.info(f"📌 Enhanced description with HTML metadata")
         
-        # Enhance tags if missing
-        if not result.tags and semantic.get("topic_keywords"):
-            result.tags = semantic.get("topic_keywords", [])[:5]
+        # === SOCIAL PROOF FROM HTML ===
+        # Look for proof in metadata that AI might have missed
+        if not result.credibility_items:
+            # Check for ratings/reviews in schema data
+            schema_rating = metadata.get("aggregate_rating")
+            if schema_rating:
+                result.credibility_items = [{"type": "rating", "value": str(schema_rating)}]
+        
+        # === TAGS ENHANCEMENT ===
+        if not result.tags or len(result.tags) < 2:
+            keywords = semantic.get("topic_keywords", []) or metadata.get("keywords", "").split(",")
+            if keywords:
+                # Clean and filter keywords
+                clean_keywords = [k.strip() for k in keywords if k.strip() and len(k.strip()) > 2][:5]
+                if clean_keywords:
+                    result.tags = clean_keywords
+                    self.logger.info(f"📌 Added tags from HTML: {clean_keywords}")
         
         return result
     
@@ -668,53 +702,124 @@ class PreviewEngine:
         """
         Extract preview data from HTML only (fallback when AI fails).
         
-        This provides a basic but functional preview even when AI reasoning fails.
+        This provides a decent preview even when AI reasoning fails by
+        intelligently extracting and prioritizing HTML metadata.
         """
-        self.logger.info("Extracting preview from HTML only")
+        from urllib.parse import urlparse
+        
+        self.logger.info("📄 Extracting preview from HTML only")
         
         metadata = extract_metadata_from_html(html_content)
         semantic = extract_semantic_structure(html_content)
+        parsed_url = urlparse(url)
+        domain = parsed_url.netloc.replace('www.', '')
         
-        # Build result from HTML data
-        title = (
-            metadata.get("priority_title") or
-            metadata.get("og_title") or
-            metadata.get("title") or
-            "Untitled Page"
-        )
+        # === SMART TITLE EXTRACTION ===
+        # Try multiple sources, prefer OG/Twitter (usually most optimized)
+        title_candidates = [
+            metadata.get("og_title"),
+            metadata.get("twitter_title"),
+            metadata.get("priority_title"),
+            metadata.get("title"),
+        ]
         
-        description = (
-            metadata.get("priority_description") or
-            metadata.get("og_description") or
-            metadata.get("description") or
-            semantic.get("primary_content", "")[:300] or
-            ""
-        )
+        title = None
+        for candidate in title_candidates:
+            if candidate and len(candidate.strip()) > 5:
+                # Skip if it's just the domain name
+                if candidate.lower().strip() != domain.lower():
+                    title = candidate.strip()
+                    break
+        
+        if not title:
+            # Last resort: domain name formatted nicely
+            title = domain.replace('.', ' ').title()
+        
+        # === SMART DESCRIPTION EXTRACTION ===
+        desc_candidates = [
+            metadata.get("og_description"),
+            metadata.get("twitter_description"),
+            metadata.get("priority_description"),
+            metadata.get("description"),
+            semantic.get("primary_content", "")[:300] if semantic.get("primary_content") else None
+        ]
+        
+        description = ""
+        for candidate in desc_candidates:
+            if candidate and len(candidate.strip()) > 20:
+                description = candidate.strip()[:300]
+                break
+        
+        # === EXTRACT ANY AVAILABLE PROOF ===
+        credibility_items = []
+        
+        # Look for ratings
+        if metadata.get("aggregate_rating"):
+            credibility_items.append({
+                "type": "rating",
+                "value": str(metadata.get("aggregate_rating"))
+            })
+        
+        # === TAGS FROM KEYWORDS ===
+        tags = []
+        keywords = semantic.get("topic_keywords", [])
+        if not keywords:
+            # Try to extract from meta keywords
+            meta_keywords = metadata.get("keywords", "")
+            if meta_keywords:
+                keywords = [k.strip() for k in meta_keywords.split(",") if k.strip()]
+        
+        tags = [k for k in keywords if k and len(k) > 2][:5]
+        
+        # === DETERMINE PAGE TYPE ===
+        page_intent = semantic.get("intent", "unknown")
+        template_type = page_intent.replace(" page", "").lower() if page_intent else "unknown"
+        
+        # Map common intents to template types
+        intent_to_template = {
+            "saas": "saas",
+            "software": "saas",
+            "tool": "tool",
+            "product": "product",
+            "shop": "ecommerce",
+            "store": "ecommerce",
+            "blog": "blog",
+            "article": "article",
+            "portfolio": "portfolio",
+            "agency": "agency",
+            "company": "landing",
+            "startup": "startup"
+        }
+        
+        for intent_keyword, template in intent_to_template.items():
+            if intent_keyword in template_type or intent_keyword in url.lower():
+                template_type = template
+                break
+        
+        self.logger.info(f"📄 HTML extraction: title='{title[:40]}...', template={template_type}")
         
         return {
             "title": title,
             "subtitle": None,
             "description": description,
-            "tags": semantic.get("topic_keywords", [])[:5],
+            "tags": tags,
             "context_items": [],
-            "credibility_items": [],
+            "credibility_items": credibility_items,
             "cta_text": None,
             "primary_image_base64": None,
             "blueprint": {
-                "template_type": semantic.get("intent", "unknown").replace(" page", ""),
+                "template_type": template_type,
                 "primary_color": "#2563EB",
                 "secondary_color": "#1E40AF",
                 "accent_color": "#F59E0B",
                 "coherence_score": 0.5,
                 "balance_score": 0.5,
                 "clarity_score": 0.5,
-                "overall_quality": 0.5,
-                "layout_reasoning": "HTML-only extraction",
-                "composition_notes": "Fallback mode: AI reasoning unavailable"
+                "overall_quality": "fair",  # Fair because it's HTML-only
+                "layout_reasoning": "HTML metadata extraction (AI unavailable)",
+                "composition_notes": "Preview generated from page metadata"
             },
-            "reasoning_confidence": 0.4,  # Lower confidence for HTML-only
-            "context_items": [],
-            "credibility_items": []
+            "reasoning_confidence": 0.4  # Lower confidence for HTML-only
         }
     
     def _convert_reasoned_preview_to_dict(
@@ -951,24 +1056,75 @@ class PreviewEngine:
         result: PreviewEngineResult,
         url: str
     ) -> PreviewEngineResult:
-        """7X QUALITY: Validate and enhance result quality."""
+        """7X QUALITY: Comprehensive validation and enhancement."""
         from urllib.parse import urlparse
         
-        # Validate title
-        if not result.title or len(result.title.strip()) < 3:
-            result.warnings.append("Title is too short or missing")
-            parsed = urlparse(url)
-            result.title = parsed.netloc.replace('www.', '') or "Untitled Page"
+        parsed = urlparse(url)
+        domain = parsed.netloc.replace('www.', '')
         
-        # Validate description
-        if not result.description or len(result.description.strip()) < 10:
-            result.warnings.append("Description is too short")
-            parsed = urlparse(url)
-            result.description = f"Visit {parsed.netloc} to learn more."
+        # === TITLE VALIDATION ===
+        generic_titles = [
+            "home", "welcome", "untitled", "about", "404", "error",
+            "loading", "please wait", "document", "page"
+        ]
         
-        # Enhance quality scores
+        title_is_weak = (
+            not result.title or 
+            len(result.title.strip()) < 5 or
+            result.title.lower().strip() in generic_titles or
+            result.title.lower() == domain.lower()
+        )
+        
+        if title_is_weak:
+            result.warnings.append(f"Weak title detected: '{result.title}'")
+            # Try to use subtitle or domain as fallback
+            if result.subtitle and len(result.subtitle) > len(result.title or ""):
+                result.title = result.subtitle
+                result.subtitle = None
+            elif not result.title or result.title.lower() in generic_titles:
+                result.title = domain.replace('.', ' ').title()
+        
+        # === DESCRIPTION VALIDATION ===
+        generic_descriptions = [
+            "welcome to", "this is", "our website", "click here",
+            "learn more", "visit us", "contact us"
+        ]
+        
+        desc_is_weak = (
+            not result.description or 
+            len(result.description.strip()) < 20 or
+            any(gd in result.description.lower() for gd in generic_descriptions)
+        )
+        
+        if desc_is_weak:
+            result.warnings.append("Description is weak or generic")
+            # Try to generate a better description from tags or credibility
+            if result.credibility_items:
+                proof = result.credibility_items[0].get("value", "")
+                if proof and proof not in (result.title or ""):
+                    result.description = proof
+            elif result.tags and len(result.tags) >= 2:
+                result.description = " • ".join(result.tags[:3])
+        
+        # === ENSURE WE HAVE SOMETHING ===
+        if not result.description:
+            result.description = f"Discover what {domain} has to offer"
+        
+        # === SUBTITLE AS SOCIAL PROOF ===
+        # If subtitle looks like social proof, ensure it's in credibility_items too
+        if result.subtitle:
+            proof_indicators = ['★', '⭐', '+', 'users', 'reviews', 'customers', 'rating', '%']
+            if any(ind in result.subtitle.lower() for ind in proof_indicators):
+                if not result.credibility_items:
+                    result.credibility_items = [{"type": "proof", "value": result.subtitle}]
+        
+        # === QUALITY SCORE WARNINGS ===
         if result.reasoning_confidence < 0.5:
-            result.warnings.append("Low confidence score - using fallback data")
+            result.warnings.append("Low AI confidence - using enhanced fallbacks")
+        
+        # Log validation results
+        if result.warnings:
+            self.logger.info(f"⚠️  Quality validation warnings: {result.warnings}")
         
         return result
     

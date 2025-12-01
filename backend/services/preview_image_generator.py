@@ -199,11 +199,11 @@ def generate_designed_preview(
     Generate a PREMIUM og:image that stops the scroll.
     
     Design principles:
-    1. Bold, readable typography (hero headline that pops)
-    2. Sophisticated color usage (gradients, depth)
-    3. Visual hierarchy that guides the eye
-    4. Trust signals prominently displayed
-    5. Clean, modern aesthetic
+    1. Big, bold headlines that are impossible to ignore
+    2. Social proof prominently displayed (people trust numbers)
+    3. Strong visual hierarchy (1.5 seconds to make an impression)
+    4. Clean, premium aesthetic (no clutter)
+    5. Brand colors for recognition
     """
     if tags is None:
         tags = []
@@ -213,35 +213,71 @@ def generate_designed_preview(
         credibility_items = []
     
     try:
-        # Get brand colors
-        primary_color = _hex_to_rgb(blueprint.get("primary_color", "#3B82F6"))
-        secondary_color = _hex_to_rgb(blueprint.get("secondary_color", "#1E293B"))
+        # Ensure we have valid colors
+        primary_color = _hex_to_rgb(blueprint.get("primary_color", "#2563EB"))
+        secondary_color = _hex_to_rgb(blueprint.get("secondary_color", "#1E40AF"))
         accent_color = _hex_to_rgb(blueprint.get("accent_color", "#F59E0B"))
         
-        # Determine design style based on template type and content
-        has_proof = bool(credibility_items) or bool(subtitle and any(c in subtitle for c in ['★', '⭐', '+', 'users', 'review']))
-        has_image = bool(primary_image_base64)
+        # Smart template selection based on content and type
+        template_lower = template_type.lower() if template_type else ""
         
-        # Choose the best template based on content
-        if template_type in ["landing", "saas", "startup"]:
+        # Analyze what content we have
+        has_strong_proof = any(
+            c.get("value") and any(x in str(c.get("value", "")).lower() 
+            for x in ['★', '⭐', '+', 'users', 'reviews', 'customers', 'rating', 'star'])
+            for c in credibility_items
+        )
+        has_logo = bool(primary_image_base64)
+        has_tags = bool(tags and len(tags) > 0)
+        
+        logger.info(f"🎨 Generating preview: template={template_type}, has_proof={has_strong_proof}, has_logo={has_logo}")
+        
+        # === TEMPLATE SELECTION ===
+        # SaaS, Startup, Landing → Hero (bold gradient, big headline)
+        if template_lower in ["saas", "startup", "landing", "enterprise", "tool"]:
+            logger.info("Using HERO template (bold headline, gradient background)")
             return _generate_hero_template(
                 screenshot_bytes, title, subtitle, description, 
                 primary_color, secondary_color, accent_color,
                 credibility_items, tags, primary_image_base64
             )
-        elif template_type in ["product", "ecommerce"]:
+        
+        # Product, E-commerce → Product (split layout)
+        elif template_lower in ["product", "ecommerce", "marketplace"]:
+            logger.info("Using PRODUCT template (split layout, features)")
             return _generate_product_template(
                 screenshot_bytes, title, subtitle, description,
                 primary_color, secondary_color, accent_color,
                 credibility_items, tags, primary_image_base64
             )
-        else:
-            # Default: Modern card with gradient
+        
+        # Portfolio, Personal, Blog → Modern Card (clean, professional)
+        elif template_lower in ["portfolio", "personal", "blog", "article", "agency"]:
+            logger.info("Using MODERN CARD template (clean, professional)")
             return _generate_modern_card_template(
                 screenshot_bytes, title, subtitle, description,
                 primary_color, secondary_color, accent_color,
                 credibility_items, tags, primary_image_base64, domain
             )
+        
+        # Unknown/Default → Choose based on content
+        else:
+            # If we have strong social proof, use Hero (proof badge prominent)
+            if has_strong_proof:
+                logger.info("Using HERO template (strong social proof detected)")
+                return _generate_hero_template(
+                    screenshot_bytes, title, subtitle, description, 
+                    primary_color, secondary_color, accent_color,
+                    credibility_items, tags, primary_image_base64
+                )
+            else:
+                # Default to Modern Card (most versatile)
+                logger.info("Using MODERN CARD template (default)")
+                return _generate_modern_card_template(
+                    screenshot_bytes, title, subtitle, description,
+                    primary_color, secondary_color, accent_color,
+                    credibility_items, tags, primary_image_base64, domain
+                )
         
     except Exception as e:
         logger.error(f"Designed preview generation failed: {e}", exc_info=True)
@@ -261,113 +297,108 @@ def _generate_hero_template(
     primary_image_base64: Optional[str]
 ) -> bytes:
     """
-    Hero template: Bold headline with gradient background.
-    Best for: Landing pages, SaaS, startups.
+    PREMIUM Hero template: Bold headline with cinematic gradient.
+    Design philosophy: Big, bold, and impossible to ignore.
     """
-    # Create gradient background
-    img = Image.new('RGB', (OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT), primary_color)
-    img = _draw_gradient_background(img, primary_color, _darken_color(secondary_color, 0.6), "diagonal")
+    # Create deep, rich gradient (darker for text contrast)
+    dark_primary = _darken_color(primary_color, 0.4)
+    darker_secondary = _darken_color(secondary_color, 0.3)
+    img = Image.new('RGB', (OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT), dark_primary)
+    img = _draw_gradient_background(img, dark_primary, darker_secondary, "diagonal")
     
-    # Add screenshot as subtle background texture (20% opacity)
+    # Add subtle noise/texture pattern for depth
+    draw = ImageDraw.Draw(img)
+    
+    # Add screenshot as very subtle background (for texture)
     try:
         screenshot = Image.open(BytesIO(screenshot_bytes)).convert('RGB')
         screenshot = _prepare_screenshot_background(screenshot, OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT)
-        
-        # Blend screenshot with gradient (very subtle)
-        screenshot_alpha = Image.new('L', (OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT), 40)  # 15% opacity
+        screenshot_alpha = Image.new('L', (OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT), 25)
         screenshot_rgba = screenshot.convert('RGBA')
         screenshot_rgba.putalpha(screenshot_alpha)
         img = Image.alpha_composite(img.convert('RGBA'), screenshot_rgba).convert('RGB')
+        draw = ImageDraw.Draw(img)
     except:
         pass
     
-    draw = ImageDraw.Draw(img)
-    
-    # Content area with padding
+    # Content area - generous padding for premium feel
     padding = 80
     content_width = OG_IMAGE_WIDTH - (padding * 2)
+    
+    # LAYOUT: Logo top-left, Social Proof badge top-right, Big headline center
     content_y = padding
     
-    # === LOGO/IMAGE (top-left) ===
-    logo_size = 80
+    # === TOP BAR: Logo + Social Proof ===
+    logo_size = 72
+    
+    # Logo on left
     if primary_image_base64:
         try:
             logo_data = base64.b64decode(primary_image_base64)
             logo_img = Image.open(BytesIO(logo_data)).convert('RGBA')
             logo_img = logo_img.resize((logo_size, logo_size), Image.Resampling.LANCZOS)
             
-            # Add white background for contrast
-            logo_bg = Image.new('RGBA', (logo_size + 8, logo_size + 8), (255, 255, 255, 230))
-            img.paste(logo_bg.convert('RGB'), (padding - 4, content_y - 4))
+            # Rounded white background for logo
+            logo_bg = Image.new('RGBA', (logo_size + 16, logo_size + 16), (255, 255, 255, 250))
+            img.paste(logo_bg.convert('RGB'), (padding - 8, content_y - 8))
             img.paste(logo_img, (padding, content_y), logo_img)
-            content_y += logo_size + 40
         except Exception as e:
             logger.warning(f"Failed to load logo: {e}")
     
-    # === PROOF BADGE (if available) ===
+    # Social proof badge on RIGHT (premium positioning)
     if credibility_items:
         proof_text = credibility_items[0].get("value", "")
-        if proof_text:
-            proof_font = _load_font(24, bold=True)
-            
-            # Draw proof badge with accent background
+        if proof_text and len(proof_text) > 2:
+            proof_font = _load_font(22, bold=True)
             try:
                 bbox = draw.textbbox((0, 0), proof_text, font=proof_font)
-                badge_width = bbox[2] - bbox[0] + 32
-                badge_height = 44
+                badge_width = bbox[2] - bbox[0] + 40
+                badge_height = 48
             except:
-                badge_width = len(proof_text) * 12 + 32
-                badge_height = 44
+                badge_width = len(proof_text) * 12 + 40
+                badge_height = 48
             
-            # Badge background (accent color with transparency)
-            badge_img = Image.new('RGBA', (int(badge_width), badge_height), (*accent_color, 220))
-            img.paste(badge_img.convert('RGB'), (padding, content_y))
-            draw = ImageDraw.Draw(img)  # Refresh draw object
+            badge_x = OG_IMAGE_WIDTH - padding - int(badge_width)
             
-            draw.text((padding + 16, content_y + 10), proof_text, font=proof_font, fill=(255, 255, 255))
-            content_y += badge_height + 30
+            # Accent-colored badge with rounded feel
+            badge_img = Image.new('RGBA', (int(badge_width), badge_height), (*accent_color, 255))
+            img.paste(badge_img.convert('RGB'), (badge_x, content_y))
+            draw = ImageDraw.Draw(img)
+            draw.text((badge_x + 20, content_y + 12), proof_text, font=proof_font, fill=(255, 255, 255))
     
-    # === MAIN HEADLINE ===
-    title_font = _load_font(56, bold=True)
+    content_y += logo_size + 60
+    
+    # === MAIN HEADLINE - The star of the show ===
+    # Make it BIG and BOLD
+    title_font = _load_font(64, bold=True)  # Larger for impact
     if title and title != "Untitled":
         title_lines = _wrap_text(title, title_font, content_width, draw)
-        for i, line in enumerate(title_lines[:2]):  # Max 2 lines
-            y_pos = content_y + (i * 68)
-            _draw_text_with_shadow(draw, (padding, y_pos), line, title_font, (255, 255, 255), 3)
-        content_y += min(len(title_lines), 2) * 68 + 24
-    
-    # === SUBTITLE/DESCRIPTION ===
-    if subtitle or description:
-        text = subtitle or description
-        desc_font = _load_font(28, bold=False)
-        desc_lines = _wrap_text(text, desc_font, content_width, draw)
-        for i, line in enumerate(desc_lines[:2]):
-            y_pos = content_y + (i * 36)
-            draw.text((padding, y_pos), line, font=desc_font, fill=(255, 255, 255, 200))
-        content_y += min(len(desc_lines), 2) * 36 + 30
-    
-    # === TAGS (as pills at bottom) ===
-    if tags:
-        tag_font = _load_font(20, bold=True)
-        tag_x = padding
-        tag_y = OG_IMAGE_HEIGHT - padding - 36
         
-        for tag in tags[:3]:
-            try:
-                bbox = draw.textbbox((0, 0), tag, font=tag_font)
-                tag_width = bbox[2] - bbox[0] + 24
-            except:
-                tag_width = len(tag) * 10 + 24
-            
-            # Tag pill background
-            tag_bg = Image.new('RGBA', (int(tag_width), 36), (255, 255, 255, 50))
-            img.paste(tag_bg.convert('RGB'), (tag_x, tag_y), tag_bg)
-            draw = ImageDraw.Draw(img)
-            
-            draw.text((tag_x + 12, tag_y + 8), tag, font=tag_font, fill=(255, 255, 255))
-            tag_x += int(tag_width) + 12
+        # Center the headline vertically in the remaining space
+        total_title_height = min(len(title_lines), 2) * 78
+        remaining_space = OG_IMAGE_HEIGHT - content_y - padding - 60
+        title_y = content_y + (remaining_space - total_title_height) // 3
+        
+        for i, line in enumerate(title_lines[:2]):
+            y_pos = title_y + (i * 78)
+            # Strong shadow for depth and readability
+            _draw_text_with_shadow(draw, (padding, y_pos), line, title_font, (255, 255, 255), 4)
+        content_y = title_y + min(len(title_lines), 2) * 78 + 30
     
-    # Save
+    # === SUPPORTING TEXT (subtitle or description) ===
+    support_text = subtitle or description
+    if support_text and support_text != title:
+        desc_font = _load_font(26, bold=False)
+        desc_lines = _wrap_text(support_text, desc_font, content_width, draw)
+        for i, line in enumerate(desc_lines[:2]):
+            y_pos = content_y + (i * 34)
+            # Slightly transparent for visual hierarchy
+            draw.text((padding, y_pos), line, font=desc_font, fill=(255, 255, 255))
+    
+    # === BOTTOM ACCENT BAR (brand color stripe) ===
+    bar_height = 6
+    draw.rectangle([(0, OG_IMAGE_HEIGHT - bar_height), (OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT)], fill=accent_color)
+    
     buffer = BytesIO()
     img.save(buffer, format='PNG', optimize=True)
     return buffer.getvalue()
@@ -386,90 +417,121 @@ def _generate_product_template(
     primary_image_base64: Optional[str]
 ) -> bytes:
     """
-    Product template: Split layout with image on right.
-    Best for: E-commerce, products.
+    PREMIUM Product template: Clean split layout.
+    Design: Trust signals prominent, product/image on right.
     """
     # Clean white background
-    img = Image.new('RGB', (OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT), (250, 250, 252))
+    img = Image.new('RGB', (OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT), (255, 255, 255))
     draw = ImageDraw.Draw(img)
     
-    # Left side content
-    left_width = OG_IMAGE_WIDTH // 2 - 40
-    padding = 60
+    # Bold accent bar on left edge
+    draw.rectangle([(0, 0), (10, OG_IMAGE_HEIGHT)], fill=primary_color)
+    
+    # Left side content area (60% of width)
+    left_width = int(OG_IMAGE_WIDTH * 0.58)
+    padding = 64
     content_y = padding
     
-    # Accent line on left
-    draw.rectangle([(0, 0), (6, OG_IMAGE_HEIGHT)], fill=primary_color)
-    
-    # === PROOF/RATING ===
+    # === SOCIAL PROOF BADGE (prominent at top) ===
     if credibility_items:
         proof_text = credibility_items[0].get("value", "")
-        if proof_text:
+        if proof_text and len(proof_text) > 2:
             proof_font = _load_font(22, bold=True)
-            draw.text((padding, content_y), proof_text, font=proof_font, fill=accent_color)
-            content_y += 40
+            try:
+                bbox = draw.textbbox((0, 0), proof_text, font=proof_font)
+                badge_width = bbox[2] - bbox[0] + 24
+                badge_height = 38
+            except:
+                badge_width = len(proof_text) * 12 + 24
+                badge_height = 38
+            
+            # Accent badge
+            draw.rounded_rectangle(
+                [(padding, content_y), (padding + badge_width, content_y + badge_height)],
+                radius=19,
+                fill=accent_color
+            )
+            draw.text((padding + 12, content_y + 8), proof_text, font=proof_font, fill=(255, 255, 255))
+            content_y += badge_height + 32
     
-    # === TITLE ===
-    title_font = _load_font(44, bold=True)
+    # === TITLE (big and bold) ===
+    title_font = _load_font(46, bold=True)
     if title and title != "Untitled":
-        title_lines = _wrap_text(title, title_font, left_width - padding, draw)
+        title_lines = _wrap_text(title, title_font, left_width - padding - 40, draw)
         for i, line in enumerate(title_lines[:2]):
-            y_pos = content_y + (i * 54)
-            draw.text((padding, y_pos), line, font=title_font, fill=(20, 20, 30))
-        content_y += min(len(title_lines), 2) * 54 + 20
+            y_pos = content_y + (i * 56)
+            draw.text((padding, y_pos), line, font=title_font, fill=(15, 23, 42))
+        content_y += min(len(title_lines), 2) * 56 + 24
     
-    # === DESCRIPTION ===
+    # === DESCRIPTION/BENEFIT ===
     if description:
-        desc_font = _load_font(24, bold=False)
-        desc_lines = _wrap_text(description, desc_font, left_width - padding, draw)
+        desc_font = _load_font(22, bold=False)
+        desc_lines = _wrap_text(description, desc_font, left_width - padding - 40, draw)
         for i, line in enumerate(desc_lines[:3]):
-            y_pos = content_y + (i * 32)
-            draw.text((padding, y_pos), line, font=desc_font, fill=(80, 80, 100))
-        content_y += min(len(desc_lines), 3) * 32 + 30
+            y_pos = content_y + (i * 30)
+            draw.text((padding, y_pos), line, font=desc_font, fill=(71, 85, 105))
+        content_y += min(len(desc_lines), 3) * 30 + 28
     
-    # === TAGS ===
+    # === FEATURE CHECKMARKS ===
     if tags:
-        tag_font = _load_font(18, bold=False)
+        check_font = _load_font(18, bold=False)
         for i, tag in enumerate(tags[:3]):
-            tag_y = content_y + (i * 28)
-            # Checkmark
-            draw.text((padding, tag_y), "✓", font=tag_font, fill=primary_color)
-            draw.text((padding + 24, tag_y), tag, font=tag_font, fill=(60, 60, 80))
-        content_y += len(tags[:3]) * 28 + 30
+            tag_y = content_y + (i * 32)
+            # Checkmark circle
+            draw.ellipse(
+                [(padding, tag_y + 2), (padding + 22, tag_y + 24)],
+                fill=_lighten_color(primary_color, 0.85)
+            )
+            draw.text((padding + 5, tag_y + 3), "✓", font=check_font, fill=primary_color)
+            draw.text((padding + 32, tag_y + 3), tag, font=check_font, fill=(51, 65, 85))
     
-    # === RIGHT SIDE: PRODUCT IMAGE ===
-    right_x = OG_IMAGE_WIDTH // 2 + 20
-    right_width = OG_IMAGE_WIDTH // 2 - 60
+    # === RIGHT SIDE: PRODUCT/SCREENSHOT ===
+    right_x = left_width + 20
+    right_width = OG_IMAGE_WIDTH - right_x - 32
+    right_height = OG_IMAGE_HEIGHT - 64
+    
+    # Subtle background for image area
+    draw.rectangle(
+        [(right_x, 32), (OG_IMAGE_WIDTH - 32, OG_IMAGE_HEIGHT - 32)],
+        fill=(248, 250, 252)
+    )
     
     if primary_image_base64:
         try:
             product_data = base64.b64decode(primary_image_base64)
             product_img = Image.open(BytesIO(product_data)).convert('RGBA')
             
-            # Scale to fit right side
+            # Scale to fit
             img_ratio = product_img.width / product_img.height
-            target_height = OG_IMAGE_HEIGHT - 80
+            target_height = right_height - 40
             target_width = int(target_height * img_ratio)
             
-            if target_width > right_width:
-                target_width = right_width
+            if target_width > right_width - 40:
+                target_width = right_width - 40
                 target_height = int(target_width / img_ratio)
             
             product_img = product_img.resize((target_width, target_height), Image.Resampling.LANCZOS)
             
-            # Center on right side
+            # Center in right area
             img_x = right_x + (right_width - target_width) // 2
-            img_y = (OG_IMAGE_HEIGHT - target_height) // 2
+            img_y = 32 + (right_height - target_height) // 2
             
             img.paste(product_img, (img_x, img_y), product_img)
         except Exception as e:
             logger.warning(f"Failed to load product image: {e}")
+            # Fall back to screenshot
+            try:
+                screenshot = Image.open(BytesIO(screenshot_bytes)).convert('RGB')
+                screenshot = screenshot.resize((right_width - 20, right_height - 20), Image.Resampling.LANCZOS)
+                img.paste(screenshot, (right_x + 10, 42))
+            except:
+                pass
     else:
         # Use screenshot as product preview
         try:
             screenshot = Image.open(BytesIO(screenshot_bytes)).convert('RGB')
-            screenshot = screenshot.resize((right_width, OG_IMAGE_HEIGHT - 80), Image.Resampling.LANCZOS)
-            img.paste(screenshot, (right_x, 40))
+            screenshot = screenshot.resize((right_width - 20, right_height - 20), Image.Resampling.LANCZOS)
+            img.paste(screenshot, (right_x + 10, 42))
         except:
             pass
     
@@ -492,30 +554,33 @@ def _generate_modern_card_template(
     domain: str
 ) -> bytes:
     """
-    Modern card template: Elegant card with subtle gradient.
-    Best for: General purpose, professional.
+    PREMIUM Modern card: Clean, professional, high-converting.
+    Design: Big headline, prominent social proof, subtle branding.
     """
-    # Subtle gradient background
-    img = Image.new('RGB', (OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT), (248, 249, 252))
-    
-    # Draw very subtle diagonal lines pattern for texture
+    # Clean white background with subtle warmth
+    img = Image.new('RGB', (OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT), (252, 252, 254))
     draw = ImageDraw.Draw(img)
-    for i in range(0, OG_IMAGE_WIDTH + OG_IMAGE_HEIGHT, 40):
-        draw.line([(i, 0), (0, i)], fill=(240, 241, 245), width=1)
     
-    # Card dimensions
-    card_margin = 40
+    # Subtle gradient overlay for depth (top-left to bottom-right)
+    for y in range(OG_IMAGE_HEIGHT):
+        alpha = int(10 * (1 - y / OG_IMAGE_HEIGHT))  # Very subtle
+        draw.line([(0, y), (OG_IMAGE_WIDTH, y)], fill=(245 + alpha, 246 + alpha, 250))
+    
+    # Card dimensions - slightly inset for shadow room
+    card_margin = 32
     card_width = OG_IMAGE_WIDTH - (card_margin * 2)
     card_height = OG_IMAGE_HEIGHT - (card_margin * 2)
     card_x, card_y = card_margin, card_margin
     
-    # Card shadow
-    shadow_offset = 8
-    draw.rectangle(
-        [(card_x + shadow_offset, card_y + shadow_offset),
-         (card_x + card_width + shadow_offset, card_y + card_height + shadow_offset)],
-        fill=(200, 200, 210)
-    )
+    # Multi-layer shadow for premium depth
+    for offset in [12, 8, 4]:
+        alpha = 40 - (offset * 2)
+        shadow_color = (180 + alpha, 180 + alpha, 190 + alpha)
+        draw.rectangle(
+            [(card_x + offset, card_y + offset),
+             (card_x + card_width + offset, card_y + card_height + offset)],
+            fill=shadow_color
+        )
     
     # White card
     draw.rectangle(
@@ -523,101 +588,123 @@ def _generate_modern_card_template(
         fill=(255, 255, 255)
     )
     
-    # Top accent bar (gradient)
-    bar_height = 6
-    for x in range(card_width):
-        progress = x / card_width
-        r = int(primary_color[0] * (1 - progress) + accent_color[0] * progress)
-        g = int(primary_color[1] * (1 - progress) + accent_color[1] * progress)
-        b = int(primary_color[2] * (1 - progress) + accent_color[2] * progress)
-        draw.line([(card_x + x, card_y), (card_x + x, card_y + bar_height)], fill=(r, g, b))
+    # Bold accent bar (thicker for impact)
+    bar_height = 8
+    draw.rectangle(
+        [(card_x, card_y), (card_x + card_width, card_y + bar_height)],
+        fill=primary_color
+    )
     
-    # Content area
-    padding = 48
+    # Content layout
+    padding = 56
     content_x = card_x + padding
     content_y = card_y + bar_height + padding
     content_width = card_width - (padding * 2)
     
-    # === LOGO ===
-    logo_size = 64
+    # === TOP ROW: Logo + Social Proof ===
+    row_y = content_y
+    logo_size = 56
+    
+    # Logo on left
     if primary_image_base64:
         try:
             logo_data = base64.b64decode(primary_image_base64)
             logo_img = Image.open(BytesIO(logo_data)).convert('RGBA')
             logo_img = logo_img.resize((logo_size, logo_size), Image.Resampling.LANCZOS)
-            
-            # Create rounded mask
-            mask = _create_rounded_rectangle_mask((logo_size, logo_size), 12)
-            
-            # Paste logo
-            img.paste(logo_img, (content_x, content_y), mask)
-            content_y += logo_size + 24
+            mask = _create_rounded_rectangle_mask((logo_size, logo_size), 10)
+            img.paste(logo_img, (content_x, row_y), mask)
         except:
             pass
     
-    # === PROOF BADGE ===
+    # Social proof badge prominently on right (if available)
     if credibility_items:
         proof_text = credibility_items[0].get("value", "")
-        if proof_text:
+        if proof_text and len(proof_text) > 2:
             proof_font = _load_font(20, bold=True)
-            draw.text((content_x, content_y), proof_text, font=proof_font, fill=accent_color)
-            content_y += 36
+            try:
+                bbox = draw.textbbox((0, 0), proof_text, font=proof_font)
+                badge_width = bbox[2] - bbox[0] + 28
+                badge_height = 36
+            except:
+                badge_width = len(proof_text) * 11 + 28
+                badge_height = 36
+            
+            badge_x = content_x + content_width - int(badge_width)
+            
+            # Accent-colored badge
+            draw.rounded_rectangle(
+                [(badge_x, row_y + 10), (badge_x + badge_width, row_y + 10 + badge_height)],
+                radius=18,
+                fill=accent_color
+            )
+            draw.text((badge_x + 14, row_y + 17), proof_text, font=proof_font, fill=(255, 255, 255))
     
-    # === TITLE ===
-    title_font = _load_font(40, bold=True)
+    content_y = row_y + logo_size + 36
+    
+    # === HEADLINE - Make it COUNT ===
+    title_font = _load_font(48, bold=True)  # Big and bold
     if title and title != "Untitled":
         title_lines = _wrap_text(title, title_font, content_width, draw)
         for i, line in enumerate(title_lines[:2]):
-            y_pos = content_y + (i * 50)
-            draw.text((content_x, y_pos), line, font=title_font, fill=(20, 25, 35))
-        content_y += min(len(title_lines), 2) * 50 + 16
+            y_pos = content_y + (i * 58)
+            draw.text((content_x, y_pos), line, font=title_font, fill=(15, 23, 42))  # Near black
+        content_y += min(len(title_lines), 2) * 58 + 20
     
-    # === SUBTITLE ===
-    if subtitle:
+    # === SUBTITLE/PROOF (if not shown in badge) ===
+    show_subtitle = subtitle and subtitle not in str(credibility_items)
+    if show_subtitle:
         sub_font = _load_font(24, bold=False)
         sub_lines = _wrap_text(subtitle, sub_font, content_width, draw)
         for i, line in enumerate(sub_lines[:2]):
             y_pos = content_y + (i * 32)
-            draw.text((content_x, y_pos), line, font=sub_font, fill=(80, 85, 100))
+            draw.text((content_x, y_pos), line, font=sub_font, fill=(71, 85, 105))  # Slate-500
         content_y += min(len(sub_lines), 2) * 32 + 16
     
     # === DESCRIPTION ===
-    if description:
+    if description and description != subtitle:
         desc_font = _load_font(22, bold=False)
         desc_lines = _wrap_text(description, desc_font, content_width, draw)
         for i, line in enumerate(desc_lines[:2]):
             y_pos = content_y + (i * 30)
-            draw.text((content_x, y_pos), line, font=desc_font, fill=(100, 105, 120))
-        content_y += min(len(desc_lines), 2) * 30 + 24
+            draw.text((content_x, y_pos), line, font=desc_font, fill=(100, 116, 139))  # Slate-400
+        content_y += min(len(desc_lines), 2) * 30 + 20
     
-    # === TAGS ===
+    # === TAGS (bottom, as subtle chips) ===
     if tags:
-        tag_font = _load_font(18, bold=False)
+        tag_font = _load_font(16, bold=False)
+        tag_y = card_y + card_height - padding - 32
         tag_x = content_x
-        for tag in tags[:4]:
+        
+        for tag in tags[:3]:  # Max 3 tags
             try:
                 bbox = draw.textbbox((0, 0), tag, font=tag_font)
-                tag_width = bbox[2] - bbox[0] + 20
+                tag_width = bbox[2] - bbox[0] + 18
             except:
-                tag_width = len(tag) * 10 + 20
+                tag_width = len(tag) * 9 + 18
             
-            # Tag pill
+            # Subtle pill
             draw.rounded_rectangle(
-                [(tag_x, content_y), (tag_x + tag_width, content_y + 28)],
-                radius=14,
-                fill=_lighten_color(primary_color, 0.85)
+                [(tag_x, tag_y), (tag_x + tag_width, tag_y + 26)],
+                radius=13,
+                fill=_lighten_color(primary_color, 0.9)
             )
-            draw.text((tag_x + 10, content_y + 5), tag, font=tag_font, fill=primary_color)
-            tag_x += int(tag_width) + 10
+            draw.text((tag_x + 9, tag_y + 4), tag, font=tag_font, fill=_darken_color(primary_color, 0.7))
+            tag_x += int(tag_width) + 8
     
-    # === DOMAIN (bottom-right) ===
-    domain_font = _load_font(16, bold=False)
-    domain_clean = domain.replace('www.', '').upper()
+    # === DOMAIN (bottom-right, subtle) ===
+    domain_font = _load_font(14, bold=False)
+    domain_clean = domain.replace('www.', '')
+    try:
+        bbox = draw.textbbox((0, 0), domain_clean, font=domain_font)
+        domain_width = bbox[2] - bbox[0]
+    except:
+        domain_width = len(domain_clean) * 8
+    
     draw.text(
-        (card_x + card_width - padding - len(domain_clean) * 8, card_y + card_height - padding - 20),
+        (card_x + card_width - padding - domain_width, card_y + card_height - padding - 20),
         domain_clean,
         font=domain_font,
-        fill=(160, 165, 180)
+        fill=(148, 163, 184)  # Slate-400
     )
     
     buffer = BytesIO()
