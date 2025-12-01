@@ -256,7 +256,7 @@ Then find 2-3 supporting elements. That's it.
 
 === OUTPUT JSON ===
 {{
-    "page_type": "<saas|ecommerce|agency|portfolio|blog|startup|enterprise|personal|marketplace|tool|unknown>",
+    "page_type": "<saas|ecommerce|agency|portfolio|blog|startup|enterprise|marketplace|tool|landing|unknown>",
     "the_hook": "<THE single most compelling statement on this page - exact text>",
     "social_proof_found": "<best social proof with numbers, or null if none>",
     "key_benefit": "<most specific benefit found, or null>",
@@ -1080,10 +1080,41 @@ def generate_reasoned_preview(screenshot_bytes: bytes, url: str = "") -> Reasone
         except (ValueError, KeyError) as e:
             logger.warning(f"Error building analyzed region: {e}")
     
+    # Normalize page type to expected template types
+    # Maps AI page types to frontend template types
+    def normalize_template_type(page_type: str) -> str:
+        pt = (page_type or "unknown").lower()
+        
+        # Profile: personal pages
+        if pt in ["personal", "profile"]:
+            return "profile"
+        
+        # Product: e-commerce
+        if pt in ["product", "ecommerce", "marketplace", "shop"]:
+            return "product"
+        
+        # Article: content pages
+        if pt in ["article", "blog", "news", "documentation"]:
+            return "article"
+        
+        # Service: agencies, portfolios
+        if pt in ["service", "agency", "portfolio"]:
+            return "service"
+        
+        # Landing: SaaS, startups, companies (DEFAULT for most business pages)
+        # This should be the default for unknown types too
+        if pt in ["landing", "saas", "startup", "enterprise", "tool", "company", "unknown"]:
+            return "landing"
+        
+        # Fallback to landing (most versatile)
+        return "landing"
+    
     # Build layout blueprint
     layout_data = layout_result.get("layout", {})
+    normalized_type = normalize_template_type(page_type)
+    
     blueprint = LayoutBlueprint(
-        template_type=layout_data.get("template_type", page_type),
+        template_type=normalized_type,
         primary_color=palette.get("primary", "#3B82F6"),
         secondary_color=palette.get("secondary", "#1E293B"),
         accent_color=palette.get("accent", "#F59E0B"),

@@ -592,22 +592,45 @@ export default function ReconstructedPreview({ preview, className = '' }: Recons
   }, [blueprint.template_type, screenshot_url, primary_image_base64, preview.title])
   
   // Select template based on type
+  // Maps AI page types to visual templates
   const renderTemplate = () => {
-    switch (blueprint.template_type) {
-      case 'profile':
-        return <ProfileTemplate preview={preview} />
-      case 'product':
-        return <ProductTemplate preview={preview} />
-      case 'landing':
-        return <LandingTemplate preview={preview} />
-      case 'article':
-        return <ArticleTemplate preview={preview} />
-      case 'service':
-        return <ServiceTemplate preview={preview} />
-      default:
-        // Default to profile for unknown types
-        return <ProfileTemplate preview={preview} />
+    const templateType = (blueprint.template_type || '').toLowerCase()
+    
+    // Profile template: personal pages, freelancers, team members
+    if (templateType === 'profile' || templateType === 'personal') {
+      return <ProfileTemplate preview={preview} />
     }
+    
+    // Product template: e-commerce, products, marketplaces
+    if (templateType === 'product' || templateType === 'ecommerce' || templateType === 'marketplace') {
+      return <ProductTemplate preview={preview} />
+    }
+    
+    // Article template: blog posts, news, documentation
+    if (templateType === 'article' || templateType === 'blog' || templateType === 'news' || templateType === 'documentation') {
+      return <ArticleTemplate preview={preview} />
+    }
+    
+    // Service template: agencies, portfolios, services
+    if (templateType === 'service' || templateType === 'agency' || templateType === 'portfolio') {
+      return <ServiceTemplate preview={preview} />
+    }
+    
+    // Landing template: SaaS, startups, landing pages, homepages, tools, enterprise
+    // This is the DEFAULT for business/company pages (most common)
+    if (templateType === 'landing' || 
+        templateType === 'saas' || 
+        templateType === 'startup' || 
+        templateType === 'enterprise' || 
+        templateType === 'tool' ||
+        templateType === 'company') {
+      return <LandingTemplate preview={preview} />
+    }
+    
+    // DEFAULT: Use Landing template for unknown types
+    // Landing is the most versatile and professional-looking
+    // (was incorrectly defaulting to Profile before!)
+    return <LandingTemplate preview={preview} />
   }
   
   return (
