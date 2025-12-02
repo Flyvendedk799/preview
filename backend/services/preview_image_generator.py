@@ -472,7 +472,8 @@ def _generate_hero_template(
     
     # === MAIN HEADLINE - The star of the show ===
     # Make it BIG and BOLD
-    title_font = _load_font(64, bold=True)  # Larger for impact
+    # DESIGN FIX 1: Improved typography hierarchy - larger, bolder headlines
+    title_font = _load_font(72, bold=True)  # Increased from 64 for more impact
     if title and title != "Untitled":
         title_lines = _wrap_text(title, title_font, content_width, draw)
         
