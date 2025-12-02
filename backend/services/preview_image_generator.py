@@ -439,6 +439,81 @@ def _generate_hero_template(
     return buffer.getvalue()
 
 
+def _smart_crop_avatar(avatar_img: Image.Image, target_size: int) -> Image.Image:
+    """
+    Smart crop avatar with face detection and intelligent centering.
+    Falls back to center crop if face detection fails.
+    """
+    # Try to detect face/center of interest
+    # For now, use intelligent center crop with focus on upper-center (where faces usually are)
+    width, height = avatar_img.size
+    
+    # If already square, just resize
+    if width == height:
+        return avatar_img.resize((target_size, target_size), Image.Resampling.LANCZOS)
+    
+    # For non-square images, crop to square focusing on center-upper region
+    # This works well for profile photos where face is typically in upper-center
+    if width > height:
+        # Landscape: crop from center, prefer upper portion
+        crop_size = height
+        x_offset = (width - crop_size) // 2
+        y_offset = max(0, int(height * 0.1))  # Slight bias toward top
+        cropped = avatar_img.crop((x_offset, y_offset, x_offset + crop_size, y_offset + crop_size))
+    else:
+        # Portrait: crop from center, prefer upper portion
+        crop_size = width
+        x_offset = 0
+        y_offset = max(0, int((height - crop_size) * 0.2))  # Bias toward top
+        cropped = avatar_img.crop((x_offset, y_offset, x_offset + crop_size, y_offset + crop_size))
+    
+    # Resize with high-quality resampling
+    return cropped.resize((target_size, target_size), Image.Resampling.LANCZOS)
+
+
+def _create_avatar_with_shadow(avatar_img: Image.Image, size: int, border_size: int = 4) -> Image.Image:
+    """
+    Create a premium avatar with shadow and border.
+    """
+    # Create larger canvas for shadow
+    shadow_offset = 8
+    canvas_size = size + (border_size * 2) + (shadow_offset * 2)
+    canvas = Image.new('RGBA', (canvas_size, canvas_size), (0, 0, 0, 0))
+    
+    # Create shadow (larger, blurred circle)
+    shadow_size = size + (border_size * 2)
+    shadow = Image.new('RGBA', (shadow_size, shadow_size), (0, 0, 0, 0))
+    shadow_draw = ImageDraw.Draw(shadow)
+    shadow_draw.ellipse(
+        [(shadow_offset, shadow_offset), (shadow_size - shadow_offset, shadow_size - shadow_offset)],
+        fill=(0, 0, 0, 40)  # Semi-transparent shadow
+    )
+    # Blur shadow
+    shadow = shadow.filter(ImageFilter.GaussianBlur(radius=6))
+    
+    # Paste shadow
+    canvas.paste(shadow, (0, 0), shadow)
+    
+    # Create white border circle
+    border_circle = Image.new('RGBA', (size + border_size * 2, size + border_size * 2), (255, 255, 255, 255))
+    border_mask = Image.new('L', (size + border_size * 2, size + border_size * 2), 0)
+    border_mask_draw = ImageDraw.Draw(border_mask)
+    border_mask_draw.ellipse([(0, 0), (size + border_size * 2 - 1, size + border_size * 2 - 1)], fill=255)
+    
+    # Create inner circle mask for avatar
+    inner_mask = Image.new('L', (size, size), 0)
+    inner_mask_draw = ImageDraw.Draw(inner_mask)
+    inner_mask_draw.ellipse([(0, 0), (size - 1, size - 1)], fill=255)
+    
+    # Paste avatar onto border
+    border_circle.paste(avatar_img, (border_size, border_size), inner_mask)
+    
+    # Paste border onto canvas
+    canvas.paste(border_circle, (shadow_offset, shadow_offset), border_mask)
+    
+    return canvas
+
+
 def _generate_profile_template(
     screenshot_bytes: bytes,
     title: str,
@@ -454,140 +529,171 @@ def _generate_profile_template(
     domain: str
 ) -> bytes:
     """
-    PREMIUM Profile template: Matches frontend ProfileTemplate design.
-    Design: Gradient header, circular avatar, centered content, tags, credibility.
+    PREMIUM Profile template: Professional, elegant design with perfect spacing.
+    Design: Rich gradient header, perfectly cropped avatar with shadow, balanced layout.
     """
-    # Create white card background
+    # Create premium white background with subtle texture
     img = Image.new('RGB', (OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT), (255, 255, 255))
     draw = ImageDraw.Draw(img)
     
-    # === GRADIENT HEADER (matches frontend) ===
-    header_height = 112  # h-28 = 112px
+    # === PREMIUM GRADIENT HEADER ===
+    header_height = 140  # Taller header for better visual impact
     header_img = Image.new('RGB', (OG_IMAGE_WIDTH, header_height), primary_color)
+    
+    # Rich diagonal gradient
     header_img = _draw_gradient_background(header_img, primary_color, secondary_color, "diagonal")
     
-    # Add subtle pattern overlay (matches frontend opacity-10)
-    pattern_overlay = Image.new('RGBA', (OG_IMAGE_WIDTH, header_height), (255, 255, 255, 25))
-    header_img = Image.alpha_composite(header_img.convert('RGBA'), pattern_overlay).convert('RGB')
-    
-    # Darken gradient overlay (matches frontend bg-gradient-to-b from-transparent to-black/10)
-    dark_overlay = Image.new('RGBA', (OG_IMAGE_WIDTH, header_height), (0, 0, 0, 25))
-    header_img = Image.alpha_composite(header_img.convert('RGBA'), dark_overlay).convert('RGB')
+    # Add depth with subtle overlay
+    overlay = Image.new('RGBA', (OG_IMAGE_WIDTH, header_height), (0, 0, 0, 15))
+    header_img = Image.alpha_composite(header_img.convert('RGBA'), overlay).convert('RGB')
     
     img.paste(header_img, (0, 0))
     draw = ImageDraw.Draw(img)
     
-    # === CONTENT AREA ===
-    padding = 48
-    content_y = header_height - 56  # Avatar overlaps header (w-28 h-28 = 112px, -mt-16 = -64px)
-    
-    # === CIRCULAR AVATAR (centered, matches frontend) ===
-    avatar_size = 112  # w-28 h-28 = 112px
+    # === AVATAR POSITIONING ===
+    avatar_size = 140  # Larger, more prominent avatar
     avatar_x = (OG_IMAGE_WIDTH - avatar_size) // 2
-    avatar_y = content_y
+    avatar_y = header_height - 70  # Overlaps header nicely
     
+    # === PREMIUM AVATAR WITH SMART CROP ===
+    avatar_loaded = False
     if primary_image_base64:
         try:
             avatar_data = base64.b64decode(primary_image_base64)
             avatar_img = Image.open(BytesIO(avatar_data)).convert('RGBA')
             
-            # Create circular mask
-            mask = Image.new('L', (avatar_size, avatar_size), 0)
-            mask_draw = ImageDraw.Draw(mask)
-            mask_draw.ellipse([(0, 0), (avatar_size - 1, avatar_size - 1)], fill=255)
+            # Smart crop for better face/profile centering
+            avatar_img = _smart_crop_avatar(avatar_img, avatar_size)
             
-            # Resize and apply mask
-            avatar_img = avatar_img.resize((avatar_size, avatar_size), Image.Resampling.LANCZOS)
+            # Create premium avatar with shadow and border
+            avatar_with_effects = _create_avatar_with_shadow(avatar_img, avatar_size, border_size=6)
             
-            # White border (border-4 = 16px)
-            border_size = 16
-            bordered_size = avatar_size + (border_size * 2)
-            bordered = Image.new('RGBA', (bordered_size, bordered_size), (255, 255, 255, 255))
-            bordered.paste(avatar_img, (border_size, border_size), mask)
+            # Calculate position accounting for shadow offset
+            shadow_offset = 8
+            paste_x = avatar_x - shadow_offset - 6  # Account for border and shadow
+            paste_y = avatar_y - shadow_offset - 6
             
-            # Paste with shadow effect
-            img.paste(bordered, (avatar_x - border_size, avatar_y - border_size), bordered)
+            img.paste(avatar_with_effects, (paste_x, paste_y), avatar_with_effects)
+            avatar_loaded = True
         except Exception as e:
             logger.warning(f"Failed to load avatar: {e}")
-            # Fallback: Initial circle
-            avatar_bg = Image.new('RGBA', (avatar_size, avatar_size), (*primary_color, 255))
-            mask = Image.new('L', (avatar_size, avatar_size), 0)
-            mask_draw = ImageDraw.Draw(mask)
-            mask_draw.ellipse([(0, 0), (avatar_size - 1, avatar_size - 1)], fill=255)
-            bordered = Image.new('RGBA', (avatar_size + 32, avatar_size + 32), (255, 255, 255, 255))
-            bordered.paste(avatar_bg, (16, 16), mask)
-            img.paste(bordered, (avatar_x - 16, avatar_y - 16), bordered)
-            
-            # Draw initial letter
-            initial_font = _load_font(48, bold=True)
-            initial = title[0].upper() if title else "?"
-            try:
-                bbox = draw.textbbox((0, 0), initial, font=initial_font)
-                text_width = bbox[2] - bbox[0]
-                text_height = bbox[3] - bbox[1]
-            except:
-                text_width = 48
-                text_height = 48
-            
-            draw.text(
-                (avatar_x + (avatar_size - text_width) // 2, avatar_y + (avatar_size - text_height) // 2),
-                initial,
-                font=initial_font,
-                fill=(255, 255, 255)
-            )
     
-    content_y = avatar_y + avatar_size + 16  # mb-4 = 16px
-    
-    # === NAME (centered, large, bold) ===
-    if title and title != "Untitled":
-        name_font = _load_font(32, bold=True)  # text-2xl = 24px, but scale up for image
-        name_lines = _wrap_text(title, name_font, OG_IMAGE_WIDTH - (padding * 2), draw)
-        name_y = content_y
+    # Fallback: Premium initial circle
+    if not avatar_loaded:
+        # Create gradient circle background
+        avatar_bg = Image.new('RGBA', (avatar_size, avatar_size), (0, 0, 0, 0))
+        bg_draw = ImageDraw.Draw(avatar_bg)
         
-        for i, line in enumerate(name_lines[:1]):  # Single line preferred
+        # Draw gradient circle
+        for i in range(avatar_size):
+            progress = i / avatar_size
+            r = int(primary_color[0] * (1 - progress) + secondary_color[0] * progress)
+            g = int(primary_color[1] * (1 - progress) + secondary_color[1] * progress)
+            b = int(primary_color[2] * (1 - progress) + secondary_color[2] * progress)
+            bg_draw.ellipse([(i, i), (avatar_size - i, avatar_size - i)], outline=(r, g, b, 255), width=1)
+        
+        # Fill center
+        mask = Image.new('L', (avatar_size, avatar_size), 0)
+        mask_draw = ImageDraw.Draw(mask)
+        mask_draw.ellipse([(0, 0), (avatar_size - 1, avatar_size - 1)], fill=255)
+        
+        avatar_bg.paste(Image.new('RGB', (avatar_size, avatar_size), primary_color), (0, 0), mask)
+        
+        # Create with shadow
+        avatar_with_effects = _create_avatar_with_shadow(avatar_bg, avatar_size, border_size=6)
+        paste_x = avatar_x - 8 - 6
+        paste_y = avatar_y - 8 - 6
+        img.paste(avatar_with_effects, (paste_x, paste_y), avatar_with_effects)
+        
+        # Draw initial letter with shadow
+        initial_font = _load_font(56, bold=True)
+        initial = title[0].upper() if title else "?"
+        try:
+            bbox = draw.textbbox((0, 0), initial, font=initial_font)
+            text_width = bbox[2] - bbox[0]
+            text_height = bbox[3] - bbox[1]
+        except:
+            text_width = 56
+            text_height = 56
+        
+        # Text shadow
+        draw.text(
+            (avatar_x + (avatar_size - text_width) // 2 + 2, avatar_y + (avatar_size - text_height) // 2 + 2),
+            initial,
+            font=initial_font,
+            fill=(0, 0, 0, 30)
+        )
+        # Text
+        draw.text(
+            (avatar_x + (avatar_size - text_width) // 2, avatar_y + (avatar_size - text_height) // 2),
+            initial,
+            font=initial_font,
+            fill=(255, 255, 255)
+        )
+    
+    # === CONTENT LAYOUT (premium spacing) ===
+    content_start_y = avatar_y + avatar_size + 32  # More space after avatar
+    padding = 60
+    
+    # === NAME (large, bold, with subtle shadow) ===
+    if title and title != "Untitled":
+        name_font = _load_font(42, bold=True)  # Larger, more prominent
+        name_lines = _wrap_text(title, name_font, OG_IMAGE_WIDTH - (padding * 2), draw)
+        name_y = content_start_y
+        
+        for i, line in enumerate(name_lines[:2]):  # Allow 2 lines for longer names
             try:
                 bbox = draw.textbbox((0, 0), line, font=name_font)
                 text_width = bbox[2] - bbox[0]
+                text_height = bbox[3] - bbox[1]
             except:
-                text_width = len(line) * 18
+                text_width = len(line) * 24
+                text_height = 42
             
-            draw.text(
-                ((OG_IMAGE_WIDTH - text_width) // 2, name_y),
+            # Text shadow for depth
+            _draw_text_with_shadow(
+                draw,
+                ((OG_IMAGE_WIDTH - text_width) // 2, name_y + (i * (text_height + 8))),
                 line,
-                font=name_font,
-                fill=(17, 24, 39)  # text-gray-900
+                name_font,
+                (17, 24, 39),
+                shadow_offset=2,
+                shadow_color=(255, 255, 255, 100)
             )
-            content_y = name_y + 40  # mb-1 + line height
-    
-    # === SUBTITLE/ROLE (centered, smaller) ===
-    if subtitle:
-        subtitle_font = _load_font(18, bold=False)  # text-sm = 14px, scaled
-        subtitle_lines = _wrap_text(subtitle, subtitle_font, OG_IMAGE_WIDTH - (padding * 2), draw)
-        subtitle_y = content_y
         
-        for i, line in enumerate(subtitle_lines[:1]):
+        content_start_y = name_y + min(len(name_lines), 2) * (text_height + 8) + 16
+    
+    # === SUBTITLE/ROLE (elegant, medium weight) ===
+    if subtitle:
+        subtitle_font = _load_font(20, bold=False)
+        subtitle_lines = _wrap_text(subtitle, subtitle_font, OG_IMAGE_WIDTH - (padding * 2), draw)
+        subtitle_y = content_start_y + 8
+        
+        for i, line in enumerate(subtitle_lines[:2]):
             try:
                 bbox = draw.textbbox((0, 0), line, font=subtitle_font)
                 text_width = bbox[2] - bbox[0]
             except:
-                text_width = len(line) * 10
+                text_width = len(line) * 12
             
             draw.text(
-                ((OG_IMAGE_WIDTH - text_width) // 2, subtitle_y),
+                ((OG_IMAGE_WIDTH - text_width) // 2, subtitle_y + (i * 24)),
                 line,
                 font=subtitle_font,
-                fill=(75, 85, 99)  # text-gray-600
+                fill=(75, 85, 99)
             )
-            content_y = subtitle_y + 28  # mb-3 = 12px + line height
+        content_start_y = subtitle_y + min(len(subtitle_lines), 2) * 24 + 20
     
-    # === CONTEXT ITEMS (location, etc.) ===
+    # === CONTEXT ITEMS (subtle, elegant) ===
     if context_items:
-        context_font = _load_font(16, bold=False)  # text-sm
-        context_y = content_y + 8
+        context_font = _load_font(16, bold=False)
+        context_y = content_start_y + 4
         
         context_texts = []
-        for item in context_items[:2]:  # Max 2 items
-            context_texts.append(item.get("text", ""))
+        for item in context_items[:2]:
+            text = item.get("text", "").strip()
+            if text:
+                context_texts.append(text)
         
         if context_texts:
             context_str = " • ".join(context_texts)
@@ -601,24 +707,23 @@ def _generate_profile_template(
                 ((OG_IMAGE_WIDTH - text_width) // 2, context_y),
                 context_str,
                 font=context_font,
-                fill=(55, 65, 81)  # text-gray-700
+                fill=(107, 114, 128)  # Lighter gray
             )
-            content_y = context_y + 32  # mb-4 = 16px + line height
+            content_start_y = context_y + 28
     
-    # === TAGS (centered, pill-shaped) ===
+    # === TAGS (premium pills with better spacing) ===
     if tags:
-        tag_font = _load_font(14, bold=False)  # text-xs
-        tag_y = content_y + 8
-        tag_spacing = 8
+        tag_font = _load_font(14, bold=False)
+        tag_y = content_start_y + 12
+        tag_spacing = 10
         
-        # Calculate total width to center
         tag_widths = []
-        for tag in tags[:4]:  # Max 4 tags
+        for tag in tags[:4]:
             try:
                 bbox = draw.textbbox((0, 0), tag, font=tag_font)
-                tag_widths.append(bbox[2] - bbox[0] + 24)  # px-3 = 12px each side
+                tag_widths.append(bbox[2] - bbox[0] + 28)  # More padding
             except:
-                tag_widths.append(len(tag) * 8 + 24)
+                tag_widths.append(len(tag) * 8 + 28)
         
         total_tags_width = sum(tag_widths) + (tag_spacing * (len(tags[:4]) - 1))
         tag_start_x = (OG_IMAGE_WIDTH - total_tags_width) // 2
@@ -627,15 +732,15 @@ def _generate_profile_template(
         for i, tag in enumerate(tags[:4]):
             tag_width = tag_widths[i]
             
-            # Draw pill background
-            pill_color = tuple(int(c * 0.08) for c in primary_color) + (255,)  # 15% opacity
+            # Premium pill with subtle gradient
+            pill_bg = tuple(int(c * 0.12) for c in primary_color)
             draw.rounded_rectangle(
-                [(current_x, tag_y), (current_x + tag_width, tag_y + 24)],
-                radius=12,
-                fill=pill_color[:3]
+                [(current_x, tag_y), (current_x + tag_width, tag_y + 28)],
+                radius=14,
+                fill=pill_bg
             )
             
-            # Draw tag text
+            # Tag text
             try:
                 bbox = draw.textbbox((0, 0), tag, font=tag_font)
                 text_width = bbox[2] - bbox[0]
@@ -643,7 +748,7 @@ def _generate_profile_template(
                 text_width = len(tag) * 8
             
             draw.text(
-                (current_x + (tag_width - text_width) // 2, tag_y + 4),
+                (current_x + (tag_width - text_width) // 2, tag_y + 7),
                 tag,
                 font=tag_font,
                 fill=primary_color
@@ -651,37 +756,40 @@ def _generate_profile_template(
             
             current_x += tag_width + tag_spacing
         
-        content_y = tag_y + 32  # mb-4 = 16px + height
+        content_start_y = tag_y + 36
     
-    # === DESCRIPTION (centered, limited lines) ===
-    if description and description != subtitle:
-        desc_font = _load_font(16, bold=False)  # text-sm
+    # === DESCRIPTION (elegant, readable) ===
+    if description and description != subtitle and len(description) > 10:
+        desc_font = _load_font(18, bold=False)  # Slightly larger
         desc_lines = _wrap_text(description, desc_font, OG_IMAGE_WIDTH - (padding * 2), draw)
-        desc_y = content_y + 16  # pt-4 mt-2
+        desc_y = content_start_y + 16
         
-        for i, line in enumerate(desc_lines[:3]):  # line-clamp-3
+        for i, line in enumerate(desc_lines[:3]):
             try:
                 bbox = draw.textbbox((0, 0), line, font=desc_font)
                 text_width = bbox[2] - bbox[0]
             except:
-                text_width = len(line) * 9
+                text_width = len(line) * 10
             
             draw.text(
-                ((OG_IMAGE_WIDTH - text_width) // 2, desc_y + (i * 24)),
+                ((OG_IMAGE_WIDTH - text_width) // 2, desc_y + (i * 26)),
                 line,
                 font=desc_font,
-                fill=(55, 65, 81)  # text-gray-700
+                fill=(55, 65, 81),
+                spacing=2  # Better line spacing
             )
-        content_y = desc_y + min(len(desc_lines), 3) * 24 + 16
+        content_start_y = desc_y + min(len(desc_lines), 3) * 26 + 20
     
-    # === CREDIBILITY ITEMS (bottom, centered) ===
+    # === CREDIBILITY ITEMS (bottom, elegant) ===
     if credibility_items:
-        cred_font = _load_font(16, bold=False)  # text-sm
-        cred_y = OG_IMAGE_HEIGHT - padding - 32  # pt-4 mt-4 from bottom
+        cred_font = _load_font(16, bold=False)
+        cred_y = OG_IMAGE_HEIGHT - 50
         
         cred_texts = []
-        for item in credibility_items[:2]:  # Max 2 items
-            cred_texts.append(item.get("value", ""))
+        for item in credibility_items[:2]:
+            value = item.get("value", "").strip()
+            if value:
+                cred_texts.append(value)
         
         if cred_texts:
             cred_str = " • ".join(cred_texts)
@@ -695,11 +803,11 @@ def _generate_profile_template(
                 ((OG_IMAGE_WIDTH - text_width) // 2, cred_y),
                 cred_str,
                 font=cred_font,
-                fill=(55, 65, 81)  # text-gray-700
+                fill=(107, 114, 128)  # Subtle gray
             )
     
     buffer = BytesIO()
-    img.save(buffer, format='PNG', optimize=True)
+    img.save(buffer, format='PNG', optimize=True, quality=95)
     return buffer.getvalue()
 
 

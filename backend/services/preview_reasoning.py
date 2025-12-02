@@ -477,10 +477,10 @@ def prepare_image(screenshot_bytes: bytes) -> Tuple[str, Image.Image]:
 
 def crop_region(image: Image.Image, bbox: Dict[str, float], is_profile_image: bool = False) -> str:
     """
-    Crop a region from the image.
+    Crop a region from the image with intelligent handling.
     
-    For profile images, ensures a square, centered crop with padding
-    to handle imprecise bounding boxes from AI detection.
+    For profile images, ensures a square, centered crop with smart padding
+    and bias toward upper-center (where faces typically are).
     """
     # Calculate raw coordinates
     left = int(bbox['x'] * image.width)
@@ -488,9 +488,10 @@ def crop_region(image: Image.Image, bbox: Dict[str, float], is_profile_image: bo
     right = int((bbox['x'] + bbox['width']) * image.width)
     bottom = int((bbox['y'] + bbox['height']) * image.height)
     
-    # Add padding to make cropping more forgiving (15% of each dimension for better coverage)
-    padding_x = int((right - left) * 0.15)
-    padding_y = int((bottom - top) * 0.15)
+    # Add generous padding for better coverage (25% for profile images, 15% for others)
+    padding_factor = 0.25 if is_profile_image else 0.15
+    padding_x = int((right - left) * padding_factor)
+    padding_y = int((bottom - top) * padding_factor)
     
     left = max(0, left - padding_x)
     top = max(0, top - padding_y)
@@ -500,19 +501,20 @@ def crop_region(image: Image.Image, bbox: Dict[str, float], is_profile_image: bo
     if right <= left or bottom <= top:
         return ""
     
-    # For profile images, ensure square crop centered on the detected region
+    # For profile images, ensure square crop with smart centering
     if is_profile_image:
         width = right - left
         height = bottom - top
         
-        # Make it square by taking the larger dimension, with extra padding for circular avatars
+        # Make it square by taking the larger dimension
         size = max(width, height)
-        # Add 20% more to ensure we capture the full circular avatar
-        size = int(size * 1.2)
+        # Add 30% more to ensure we capture full circular avatar and some context
+        size = int(size * 1.3)
         
-        # Center the square on the original detection
+        # Smart centering: bias toward upper-center for profile photos
         center_x = (left + right) // 2
-        center_y = (top + bottom) // 2
+        # For vertical centering, bias slightly upward (faces are usually in upper 2/3)
+        center_y = top + int((bottom - top) * 0.35)  # 35% from top instead of 50%
         
         # Calculate new bounds
         half_size = size // 2
@@ -521,35 +523,41 @@ def crop_region(image: Image.Image, bbox: Dict[str, float], is_profile_image: bo
         right = min(image.width, center_x + half_size)
         bottom = min(image.height, center_y + half_size)
         
-        # Re-adjust if we hit image bounds (try to maintain square)
+        # Re-adjust if we hit image bounds (maintain square, prefer keeping top)
         actual_width = right - left
         actual_height = bottom - top
         
-        # If we lost size due to bounds, try to expand the other dimension
-        if actual_width < size and actual_height < size:
-            # Try to expand horizontally if possible
+        # If we lost size due to bounds, try to expand
+        if actual_width < size or actual_height < size:
+            # Try to expand horizontally first
             if right < image.width:
                 right = min(image.width, left + size)
             elif left > 0:
                 left = max(0, right - size)
-            # Try to expand vertically if possible
+            # Then vertically (but prefer keeping top position)
             if bottom < image.height:
                 bottom = min(image.height, top + size)
             elif top > 0:
-                top = max(0, bottom - size)
+                # Only adjust top if we have room, otherwise keep it
+                new_top = max(0, bottom - size)
+                if new_top >= 0:
+                    top = new_top
     
     if right <= left or bottom <= top:
         return ""
     
     cropped = image.crop((left, top, right, bottom))
     
-    # For profile images, resize to a consistent size for quality
+    # For profile images, resize to high quality
     if is_profile_image and cropped.width > 0:
-        target_size = 256
+        # Use larger target size for better quality
+        target_size = 400  # Increased from 256 for better quality
         cropped = cropped.resize((target_size, target_size), Image.Resampling.LANCZOS)
     
     buffer = BytesIO()
-    cropped.save(buffer, format='PNG', optimize=True)
+    # Use high quality for profile images
+    quality = 95 if is_profile_image else 85
+    cropped.save(buffer, format='PNG', optimize=True, quality=quality)
     return base64.b64encode(buffer.getvalue()).decode('utf-8')
 
 
@@ -613,17 +621,25 @@ def run_stages_1_2_3(screenshot_bytes: bytes) -> Tuple[List[Dict], Dict[str, str
     
     # Crop images for included regions
     for region in data.get("regions", []):
-        content_type = region.get("content_type", "")
-        if content_type in ["hero_image", "logo", "image"] and region.get("bbox"):
-            is_profile = region.get("purpose") == "identity"
+        content_type = region.get("content_type", "").lower()
+        if content_type in ["hero_image", "logo", "image", "profile_image", "avatar"] and region.get("bbox"):
+            # Detect profile images more accurately
+            is_profile = (
+                region.get("purpose") == "identity" or
+                content_type in ["profile_image", "avatar"] or
+                "profile" in content_type or
+                "avatar" in content_type
+            )
             is_logo = region.get("is_logo", False) or region.get("id") == logo_region_id or content_type == "logo"
             
             try:
-                image_data = crop_region(pil_image, region["bbox"], is_profile_image=(is_profile or is_logo))
+                image_data = crop_region(pil_image, region["bbox"], is_profile_image=(is_profile and not is_logo))
                 if image_data:
                     region["image_data"] = image_data
                     if is_logo:
                         region["is_logo"] = True
+                    if is_profile:
+                        logger.info(f"✅ Cropped profile image from region {region.get('id')}")
             except Exception as e:
                 logger.warning(f"Failed to crop region {region.get('id')}: {e}")
     
