@@ -763,12 +763,29 @@ class PreviewEngine:
             error_msg = str(e)
             self.logger.error(f"❌ AI reasoning failed: {error_msg}", exc_info=True)
             
+            # FIX 5: Better error handling with specific error types
             # Check for rate limit
             if "429" in error_msg or "rate limit" in error_msg.lower():
-                raise ValueError("OpenAI rate limit reached. Please wait a moment and try again.")
+                self.logger.warning("⚠️ Rate limit detected, falling back to HTML extraction")
+                return self._extract_from_html_only(html_content, url)
             
-            # Fallback to HTML-only extraction
-            self.logger.warning("Falling back to HTML-only extraction")
+            # Check for timeout
+            if "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
+                self.logger.warning("⚠️ Timeout detected, falling back to HTML extraction")
+                return self._extract_from_html_only(html_content, url)
+            
+            # Check for invalid API key
+            if "401" in error_msg or "unauthorized" in error_msg.lower():
+                self.logger.error("❌ Invalid API key, cannot proceed")
+                raise ValueError("OpenAI API authentication failed. Please check API key configuration.")
+            
+            # Check for JSON parsing errors (handled in reasoning layer, but log here)
+            if "json" in error_msg.lower() or "parse" in error_msg.lower():
+                self.logger.warning("⚠️ JSON parsing issue detected, falling back to HTML extraction")
+                return self._extract_from_html_only(html_content, url)
+            
+            # Generic fallback to HTML-only extraction
+            self.logger.warning("⚠️ Unknown error, falling back to HTML-only extraction")
             return self._extract_from_html_only(html_content, url)
     
     def _extract_from_html_only(

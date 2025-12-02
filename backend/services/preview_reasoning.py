@@ -604,7 +604,44 @@ def run_stages_1_2_3(screenshot_bytes: bytes) -> Tuple[List[Dict], Dict[str, str
     elif "```" in content:
         content = content.split("```")[1].split("```")[0].strip()
     
-    data = json.loads(content)
+    # FIX 1: Robust JSON parsing with fallbacks
+    try:
+        data = json.loads(content)
+    except json.JSONDecodeError as e:
+        logger.error(f"❌ JSON parsing failed: {e}. Content preview: {content[:200]}...")
+        # Try to extract JSON from content more aggressively
+        import re
+        json_match = re.search(r'\{.*\}', content, re.DOTALL)
+        if json_match:
+            try:
+                data = json.loads(json_match.group(0))
+                logger.info("✅ Recovered JSON using regex extraction")
+            except:
+                # Last resort: return minimal valid structure
+                logger.warning("⚠️ Using fallback structure due to JSON parse failure")
+                data = {
+                    "page_type": "unknown",
+                    "the_hook": None,
+                    "social_proof_found": None,
+                    "key_benefit": None,
+                    "regions": [],
+                    "detected_palette": {"primary": "#3B82F6", "secondary": "#1E293B", "accent": "#F59E0B"},
+                    "detected_logo": {},
+                    "analysis_confidence": 0.3
+                }
+        else:
+            # No JSON found, use fallback
+            logger.warning("⚠️ No JSON found in response, using fallback structure")
+            data = {
+                "page_type": "unknown",
+                "the_hook": None,
+                "social_proof_found": None,
+                "key_benefit": None,
+                "regions": [],
+                "detected_palette": {"primary": "#3B82F6", "secondary": "#1E293B", "accent": "#F59E0B"},
+                "detected_logo": {},
+                "analysis_confidence": 0.3
+            }
     
     # Extract highlights from the new prompt structure
     extracted_highlights = {
@@ -700,7 +737,46 @@ def run_stages_4_5(regions: List[Dict], page_type: str, palette: Dict[str, str])
     elif "```" in content:
         content = content.split("```")[1].split("```")[0].strip()
     
-    result = json.loads(content)
+    # FIX 1: Robust JSON parsing with fallbacks
+    try:
+        result = json.loads(content)
+    except json.JSONDecodeError as e:
+        logger.error(f"❌ JSON parsing failed in stage 4-5: {e}. Content preview: {content[:200]}...")
+        import re
+        json_match = re.search(r'\{.*\}', content, re.DOTALL)
+        if json_match:
+            try:
+                result = json.loads(json_match.group(0))
+                logger.info("✅ Recovered JSON using regex extraction")
+            except:
+                logger.warning("⚠️ Using fallback layout structure")
+                result = {
+                    "composition_decisions": [],
+                    "layout": {
+                        "template_style": page_type,
+                        "headline_slot": None,
+                        "visual_slot": None,
+                        "proof_slot": None,
+                        "benefit_slot": None,
+                        "cta_slot": None
+                    },
+                    "layout_reasoning": "Fallback due to JSON parse error",
+                    "preview_strength": "weak"
+                }
+        else:
+            result = {
+                "composition_decisions": [],
+                "layout": {
+                    "template_style": page_type,
+                    "headline_slot": None,
+                    "visual_slot": None,
+                    "proof_slot": None,
+                    "benefit_slot": None,
+                    "cta_slot": None
+                },
+                "layout_reasoning": "Fallback due to JSON parse error",
+                "preview_strength": "weak"
+            }
     
     # Normalize new-style layout to include old-style slots for backward compatibility
     layout = result.get("layout", {})
@@ -770,7 +846,46 @@ def run_stage_6(layout: Dict[str, Any], included_regions: List[Dict]) -> Dict[st
     elif "```" in content:
         content = content.split("```")[1].split("```")[0].strip()
     
-    result = json.loads(content)
+    # FIX 1: Robust JSON parsing with fallbacks
+    try:
+        result = json.loads(content)
+    except json.JSONDecodeError as e:
+        logger.error(f"❌ JSON parsing failed in stage 4-5: {e}. Content preview: {content[:200]}...")
+        import re
+        json_match = re.search(r'\{.*\}', content, re.DOTALL)
+        if json_match:
+            try:
+                result = json.loads(json_match.group(0))
+                logger.info("✅ Recovered JSON using regex extraction")
+            except:
+                logger.warning("⚠️ Using fallback layout structure")
+                result = {
+                    "composition_decisions": [],
+                    "layout": {
+                        "template_style": page_type,
+                        "headline_slot": None,
+                        "visual_slot": None,
+                        "proof_slot": None,
+                        "benefit_slot": None,
+                        "cta_slot": None
+                    },
+                    "layout_reasoning": "Fallback due to JSON parse error",
+                    "preview_strength": "weak"
+                }
+        else:
+            result = {
+                "composition_decisions": [],
+                "layout": {
+                    "template_style": page_type,
+                    "headline_slot": None,
+                    "visual_slot": None,
+                    "proof_slot": None,
+                    "benefit_slot": None,
+                    "cta_slot": None
+                },
+                "layout_reasoning": "Fallback due to JSON parse error",
+                "preview_strength": "weak"
+            }
     
     # Normalize new-style scores to old-style for backward compatibility
     if "hook_score" in result and "coherence_score" not in result:
@@ -804,6 +919,39 @@ def run_stage_6(layout: Dict[str, Any], included_regions: List[Dict]) -> Dict[st
 # =============================================================================
 
 def clean_display_text(raw_text: str, purpose: str) -> str:
+    """
+    Clean and validate display text.
+    FIX 2: Content validation and sanitization.
+    """
+    if not raw_text or not isinstance(raw_text, str):
+        return ""
+    
+    # Remove excessive whitespace
+    cleaned = " ".join(raw_text.split())
+    
+    # Remove control characters but keep normal punctuation
+    import re
+    cleaned = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', cleaned)
+    
+    # Limit length based on purpose
+    max_lengths = {
+        "hook": 100,
+        "identity": 80,
+        "proof": 60,
+        "benefits": 200,
+        "description": 300,
+        "tagline": 120
+    }
+    max_len = max_lengths.get(purpose, 200)
+    
+    if len(cleaned) > max_len:
+        cleaned = cleaned[:max_len].rsplit(' ', 1)[0] + "..."
+    
+    # Validate minimum length
+    if len(cleaned.strip()) < 3:
+        return ""
+    
+    return cleaned.strip()
     """
     Clean and refine text for display.
     

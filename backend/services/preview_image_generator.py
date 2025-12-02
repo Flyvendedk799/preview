@@ -27,11 +27,34 @@ OG_IMAGE_HEIGHT = 630
 
 
 def _hex_to_rgb(hex_color: str) -> Tuple[int, int, int]:
-    """Convert hex color to RGB tuple."""
-    hex_color = hex_color.lstrip('#')
+    """
+    Convert hex color to RGB tuple with validation.
+    FIX 3: Validates color format and provides safe fallbacks.
+    """
+    if not hex_color or not isinstance(hex_color, str):
+        return (59, 130, 246)  # Default blue
+    
+    hex_color = hex_color.lstrip('#').strip()
+    
+    # Validate hex format (3 or 6 characters)
+    if len(hex_color) not in [3, 6]:
+        logger.warning(f"Invalid hex color format: {hex_color}, using default")
+        return (59, 130, 246)
+    
+    # Expand 3-char hex to 6-char
+    if len(hex_color) == 3:
+        hex_color = ''.join([c * 2 for c in hex_color])
+    
     try:
-        return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-    except:
+        rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+        # Validate RGB values are in valid range
+        if all(0 <= c <= 255 for c in rgb):
+            return rgb
+        else:
+            logger.warning(f"RGB values out of range: {rgb}, using default")
+            return (59, 130, 246)
+    except (ValueError, IndexError) as e:
+        logger.warning(f"Failed to parse hex color '{hex_color}': {e}, using default")
         return (59, 130, 246)  # Default blue
 
 
