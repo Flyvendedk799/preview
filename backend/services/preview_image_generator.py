@@ -431,19 +431,40 @@ def _generate_hero_template(
     content_y = padding
     
     # === TOP BAR: Logo + Social Proof ===
-    logo_size = 72
+    # MOBILE-FIRST: Larger logo for mobile visibility
+    logo_size = 96  # Increased from 72 for better mobile visibility
     
-    # Logo on left
+    # LOGO FIX: Use full logo image (from brand_extractor) instead of cropped screenshot
+    # This ensures we get the actual logo file, properly sized and not cropped incorrectly
     if primary_image_base64:
         try:
             logo_data = base64.b64decode(primary_image_base64)
             logo_img = Image.open(BytesIO(logo_data)).convert('RGBA')
-            logo_img = logo_img.resize((logo_size, logo_size), Image.Resampling.LANCZOS)
             
-            # Rounded white background for logo
-            logo_bg = Image.new('RGBA', (logo_size + 16, logo_size + 16), (255, 255, 255, 250))
+            # Preserve aspect ratio for logos (don't force square if it's not square)
+            original_width, original_height = logo_img.size
+            aspect_ratio = original_width / original_height if original_height > 0 else 1
+            
+            # Calculate new size maintaining aspect ratio
+            if aspect_ratio > 1:  # Wider than tall
+                new_width = logo_size
+                new_height = int(logo_size / aspect_ratio)
+            else:  # Taller than wide or square
+                new_height = logo_size
+                new_width = int(logo_size * aspect_ratio)
+            
+            # Resize with high quality
+            logo_img = logo_img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+            
+            # Rounded white background for logo (larger to accommodate non-square logos)
+            bg_size = max(new_width, new_height) + 16
+            logo_bg = Image.new('RGBA', (bg_size, bg_size), (255, 255, 255, 250))
             img.paste(logo_bg.convert('RGB'), (padding - 8, content_y - 8))
-            img.paste(logo_img, (padding, content_y), logo_img)
+            
+            # Center logo on background
+            logo_x = padding + (bg_size - new_width) // 2 - 8
+            logo_y = content_y + (bg_size - new_height) // 2 - 8
+            img.paste(logo_img, (logo_x, logo_y), logo_img)
         except Exception as e:
             logger.warning(f"Failed to load logo: {e}")
     
@@ -451,11 +472,12 @@ def _generate_hero_template(
     if credibility_items:
         proof_text = credibility_items[0].get("value", "")
         if proof_text and len(proof_text) > 2:
-            proof_font = _load_font(22, bold=True)
+            # MOBILE-FIRST: Social proof badge readable on mobile
+            proof_font = _load_font(32, bold=True)  # Increased from 22 for mobile readability
             try:
                 bbox = draw.textbbox((0, 0), proof_text, font=proof_font)
                 badge_width = bbox[2] - bbox[0] + 40
-                badge_height = 48
+                badge_height = 56  # Increased from 48 for better mobile visibility
             except:
                 badge_width = len(proof_text) * 12 + 40
                 badge_height = 48
@@ -497,7 +519,7 @@ def _generate_hero_template(
         desc_font = _load_font(48, bold=True)  # Increased dramatically, made bold for mobile readability
         desc_lines = _wrap_text(support_text, desc_font, content_width, draw)
         for i, line in enumerate(desc_lines[:2]):
-            y_pos = content_y + (i * 38)  # Better line spacing
+            y_pos = content_y + (i * 60)  # Increased line spacing from 38 to 60 for 48px font
             # Subtle shadow for readability on gradient background
             _draw_text_with_shadow(draw, (padding, y_pos), line, desc_font, (240, 240, 245), 3)
     
@@ -708,7 +730,8 @@ def _generate_profile_template(
     
     # === NAME (large, bold, with subtle shadow) ===
     if title and title != "Untitled":
-        name_font = _load_font(42, bold=True)  # Larger, more prominent
+        # MOBILE-FIRST: Name must be readable on mobile (80px = 6.7% of width → ~27px on mobile)
+        name_font = _load_font(80, bold=True)  # Increased from 42 for mobile readability
         name_lines = _wrap_text(title, name_font, OG_IMAGE_WIDTH - (padding * 2), draw)
         name_y = content_start_y
         
@@ -736,7 +759,8 @@ def _generate_profile_template(
     
     # === SUBTITLE/ROLE (elegant, medium weight) ===
     if subtitle:
-        subtitle_font = _load_font(20, bold=False)
+        # MOBILE-FIRST: Subtitle readable on mobile
+        subtitle_font = _load_font(40, bold=True)  # Increased from 20, made bold
         subtitle_lines = _wrap_text(subtitle, subtitle_font, OG_IMAGE_WIDTH - (padding * 2), draw)
         subtitle_y = content_start_y + 8
         
@@ -831,7 +855,8 @@ def _generate_profile_template(
     
     # === DESCRIPTION (elegant, readable) ===
     if description and description != subtitle and len(description) > 10:
-        desc_font = _load_font(18, bold=False)  # Slightly larger
+        # MOBILE-FIRST: Description readable on mobile
+        desc_font = _load_font(36, bold=True)  # Increased from 18, made bold
         desc_lines = _wrap_text(description, desc_font, OG_IMAGE_WIDTH - (padding * 2), draw)
         desc_y = content_start_y + 16
         
@@ -1082,28 +1107,44 @@ def _generate_modern_card_template(
     
     # === TOP ROW: Logo + Social Proof ===
     row_y = content_y
-    logo_size = 56
+    # MOBILE-FIRST: Larger logo for mobile visibility
+    logo_size = 72  # Increased from 56 for better mobile visibility
     
-    # Logo on left
+    # LOGO FIX: Use full logo image with aspect ratio preservation
     if primary_image_base64:
         try:
             logo_data = base64.b64decode(primary_image_base64)
             logo_img = Image.open(BytesIO(logo_data)).convert('RGBA')
-            logo_img = logo_img.resize((logo_size, logo_size), Image.Resampling.LANCZOS)
-            mask = _create_rounded_rectangle_mask((logo_size, logo_size), 10)
+            
+            # Preserve aspect ratio for logos
+            original_width, original_height = logo_img.size
+            aspect_ratio = original_width / original_height if original_height > 0 else 1
+            
+            # Calculate new size maintaining aspect ratio
+            if aspect_ratio > 1:  # Wider than tall
+                new_width = logo_size
+                new_height = int(logo_size / aspect_ratio)
+            else:  # Taller than wide or square
+                new_height = logo_size
+                new_width = int(logo_size * aspect_ratio)
+            
+            # Resize with high quality
+            logo_img = logo_img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+            mask = _create_rounded_rectangle_mask((new_width, new_height), 10)
             img.paste(logo_img, (content_x, row_y), mask)
-        except:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to load logo: {e}")
     
     # Social proof badge prominently on right (if available)
     if credibility_items:
         proof_text = credibility_items[0].get("value", "")
         if proof_text and len(proof_text) > 2:
-            proof_font = _load_font(20, bold=True)
+            # MOBILE-FIRST: Social proof badge readable on mobile
+            proof_font = _load_font(32, bold=True)  # Increased from 20 for mobile readability
             try:
                 bbox = draw.textbbox((0, 0), proof_text, font=proof_font)
                 badge_width = bbox[2] - bbox[0] + 28
-                badge_height = 36
+                badge_height = 48  # Increased from 36 for better mobile visibility
             except:
                 badge_width = len(proof_text) * 11 + 28
                 badge_height = 36
