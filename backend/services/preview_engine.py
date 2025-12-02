@@ -192,11 +192,6 @@ class PreviewEngine:
                 self._update_progress(1.0, "Preview loaded from cache")
                 return cached_result
         
-        # 7X INTELLIGENCE: Predict page type early for optimization
-        predicted_page_type = self._predict_page_type(url_str)
-        if predicted_page_type:
-            self.logger.info(f"🔮 [7X] Predicted page type: {predicted_page_type}")
-        
         try:
             # 7X PERFORMANCE: Use triple parallelization when possible
             screenshot_bytes, html_content = self._capture_page(url_str)
