@@ -267,8 +267,8 @@ Then find 2-3 supporting elements. That's it.
 
 === OUTPUT JSON ===
 {{
-    "page_type": "<saas|ecommerce|agency|portfolio|blog|startup|enterprise|marketplace|tool|landing|unknown>",
-    "the_hook": "<THE single most compelling statement on this page - exact text>",
+    "page_type": "<saas|ecommerce|agency|portfolio|blog|startup|enterprise|marketplace|tool|landing|profile|unknown>",
+    "the_hook": "<THE single most compelling statement on this page - exact text. FOR PROFILE PAGES: This should be the PERSON'S NAME (2-4 words), NOT their bio description>",
     "social_proof_found": "<best social proof with numbers, or null if none>",
     "key_benefit": "<most specific benefit found, or null>",
     "regions": [
@@ -851,17 +851,44 @@ def extract_final_content(
     title = None
     
     if is_profile:
-        # For profiles: Prioritize identity/name regions
-        # PRIORITY 1: Identity slot (person's name)
-        title = get_region_content(layout_slots.get("identity_slot"), "identity")
+        # For profiles: Extract name from HTML metadata FIRST (most reliable)
+        # This will be enhanced by preview_engine with HTML metadata
+        # For now, look for short, name-like text in regions
+        
+        # PRIORITY 1: Look for short text that looks like a name (2-4 words, capitalized)
+        # Names are typically: "First Last" or "First Middle Last"
+        for region_id, include_flag in included.items():
+            if include_flag and region_id in region_map:
+                region = region_map[region_id]
+                raw = region.get("raw_content", "").strip()
+                
+                # Check if this looks like a name (2-4 words, each capitalized, total < 50 chars)
+                words = raw.split()
+                if 2 <= len(words) <= 4 and len(raw) < 50:
+                    # Check if most words start with capital letter (name pattern)
+                    capitalized_words = sum(1 for w in words if w and w[0].isupper())
+                    if capitalized_words >= len(words) * 0.75:  # At least 75% capitalized
+                        # Avoid common non-name patterns
+                        if not any(word.lower() in ["og", "and", "er", "is", "the", "med", "til"] for word in words):
+                            title = raw
+                            logger.info(f"📌 Using name-like region as profile name: '{title}'")
+                            break
+        
+        # PRIORITY 2: Identity slot (person's name)
         if not title:
-            # Look for identity-purpose regions
+            title = get_region_content(layout_slots.get("identity_slot"), "identity")
+            if title and len(title) < 80:  # Names are usually shorter
+                logger.info(f"📌 Using identity slot as profile name: '{title}'")
+        
+        # PRIORITY 3: Look for identity-purpose regions
+        if not title:
             for region_id, include_flag in included.items():
                 if include_flag and region_id in region_map:
                     region = region_map[region_id]
-                    if region.get("purpose") == "identity" or region.get("content_type") in ["headline", "subheadline"]:
+                    if region.get("purpose") == "identity":
                         candidate = get_region_content(region_id, "identity")
-                        if candidate and 2 < len(candidate) < 80:  # Names are usually shorter
+                        # Filter out long descriptions - names are short
+                        if candidate and 2 < len(candidate) < 60 and len(candidate.split()) <= 4:
                             title = candidate
                             logger.info(f"📌 Using identity region as profile name: '{title}'")
                             break

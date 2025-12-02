@@ -606,6 +606,24 @@ class PreviewEngine:
             ai_title.lower().strip() in generic_titles
         )
         
+        # For profile pages: Extract name from page title (before dash/pipe)
+        # Page titles like "Celeste Hansen - Kursushus | 99expert" → extract "Celeste Hansen"
+        page_title = metadata.get("title") or metadata.get("og_title") or ""
+        if page_title and ("profile" in result.blueprint.template_type.lower() or 
+                           semantic.get("has_profile_image", False)):
+            # Try to extract name from title (before first dash or pipe)
+            import re
+            # Pattern: "Name - ..." or "Name | ..."
+            name_match = re.match(r'^([^-|]+?)(?:\s*[-|])', page_title)
+            if name_match:
+                extracted_name = name_match.group(1).strip()
+                # Validate it looks like a name (2-4 words, reasonable length)
+                words = extracted_name.split()
+                if 2 <= len(words) <= 4 and 5 < len(extracted_name) < 60:
+                    result.title = extracted_name
+                    self.logger.info(f"📌 Extracted profile name from title: '{extracted_name}'")
+                    title_is_weak = False  # Don't override with generic fallback
+        
         if title_is_weak:
             # Priority order for title fallback
             html_title = (
@@ -617,12 +635,33 @@ class PreviewEngine:
                 "Untitled"
             )
             if html_title and len(html_title) > len(ai_title):
+                # For profile pages, try to extract name from title
+                if "profile" in result.blueprint.template_type.lower():
+                    import re
+                    name_match = re.match(r'^([^-|]+?)(?:\s*[-|])', html_title)
+                    if name_match:
+                        extracted_name = name_match.group(1).strip()
+                        words = extracted_name.split()
+                        if 2 <= len(words) <= 4 and 5 < len(extracted_name) < 60:
+                            html_title = extracted_name
+                
                 result.title = html_title
                 self.logger.info(f"📌 Enhanced weak title '{ai_title}' → '{html_title[:40]}...'")
         
         # === DESCRIPTION ENHANCEMENT ===
         ai_desc = result.description or ""
         desc_is_weak = len(ai_desc) < 30
+        
+        # For profile pages: Ensure description is NOT the name (should be bio/description)
+        is_profile = "profile" in result.blueprint.template_type.lower() or semantic.get("has_profile_image", False)
+        if is_profile and ai_desc:
+            # If description matches title (name), it's wrong - clear it
+            if ai_desc.strip().lower() == result.title.strip().lower():
+                ai_desc = ""
+                desc_is_weak = True
+            # If description is too short (likely just name), mark as weak
+            elif len(ai_desc) < 30:
+                desc_is_weak = True
         
         if desc_is_weak:
             html_desc = (
@@ -634,7 +673,12 @@ class PreviewEngine:
             )
             # Prefer HTML description if it's longer and not just a longer version of title
             if html_desc and len(html_desc) > len(ai_desc):
-                if html_desc.lower() != result.title.lower()[:50]:  # Not duplicate of title
+                # For profiles, ensure description is not the name
+                if is_profile:
+                    if html_desc.strip().lower() == result.title.strip().lower():
+                        html_desc = ""  # Don't use name as description
+                
+                if html_desc and html_desc.lower() != result.title.lower()[:50]:  # Not duplicate of title
                     result.description = html_desc[:300]
                     self.logger.info(f"📌 Enhanced description with HTML metadata")
         
