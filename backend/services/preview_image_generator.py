@@ -472,8 +472,9 @@ def _generate_hero_template(
     
     # === MAIN HEADLINE - The star of the show ===
     # Make it BIG and BOLD
-    # DESIGN FIX 1: Improved typography hierarchy - larger, bolder headlines
-    title_font = _load_font(72, bold=True)  # Increased from 64 for more impact
+    # MOBILE-FIRST DESIGN: Text must be readable at 300-400px width (mobile social feeds)
+    # Title: 120px = 10% of 1200px → scales to ~40px on 400px mobile (readable!)
+    title_font = _load_font(120, bold=True)  # Dramatically increased for mobile readability
     if title and title != "Untitled":
         title_lines = _wrap_text(title, title_font, content_width, draw)
         
@@ -482,17 +483,18 @@ def _generate_hero_template(
         remaining_space = OG_IMAGE_HEIGHT - content_y - padding - 60
         title_y = content_y + (remaining_space - total_title_height) // 3
         
+        # MOBILE-FIRST: Limit to 1-2 lines max, larger line spacing
         for i, line in enumerate(title_lines[:2]):
-            y_pos = title_y + (i * 78)
+            y_pos = title_y + (i * 100)  # Increased line spacing from 78 to 100
             # Enhanced shadow for better readability and premium look
             _draw_text_with_shadow(draw, (padding, y_pos), line, title_font, (255, 255, 255), 5)
-        content_y = title_y + min(len(title_lines), 2) * 78 + 40  # Increased spacing
+        content_y = title_y + min(len(title_lines), 2) * 100 + 40  # Increased spacing
     
     # === SUPPORTING TEXT (subtitle or description) ===
     support_text = subtitle or description
     if support_text and support_text != title:
-        # DESIGN FIX 1: Better font size ratio (title:desc = ~2.5:1)
-        desc_font = _load_font(30, bold=False)  # Increased from 28 for better readability
+        # MOBILE-FIRST: Description must be readable on mobile (48px = 4% of 1200px → ~16px on mobile)
+        desc_font = _load_font(48, bold=True)  # Increased dramatically, made bold for mobile readability
         desc_lines = _wrap_text(support_text, desc_font, content_width, draw)
         for i, line in enumerate(desc_lines[:2]):
             y_pos = content_y + (i * 38)  # Better line spacing
@@ -1118,8 +1120,8 @@ def _generate_modern_card_template(
     
     content_y = row_y + logo_size + 36
     
-    # === HEADLINE - Make it COUNT ===
-    title_font = _load_font(48, bold=True)  # Big and bold
+    # MOBILE-FIRST DESIGN: Headline must be readable on mobile feeds
+    title_font = _load_font(96, bold=True)  # Increased from 48 for mobile readability (8% of width)
     if title and title != "Untitled":
         title_lines = _wrap_text(title, title_font, content_width, draw)
         for i, line in enumerate(title_lines[:2]):
@@ -1130,7 +1132,8 @@ def _generate_modern_card_template(
     # === SUBTITLE/PROOF (if not shown in badge) ===
     show_subtitle = subtitle and subtitle not in str(credibility_items)
     if show_subtitle:
-        sub_font = _load_font(24, bold=False)
+        # MOBILE-FIRST: Subtitle readable on mobile
+        sub_font = _load_font(40, bold=True)  # Increased from 24, made bold
         sub_lines = _wrap_text(subtitle, sub_font, content_width, draw)
         for i, line in enumerate(sub_lines[:2]):
             y_pos = content_y + (i * 32)

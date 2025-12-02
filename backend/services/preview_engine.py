@@ -1091,6 +1091,8 @@ class PreviewEngine:
                     return product_img
             
             # Default priority: logo > hero > AI-extracted
+            # LOGO FIX: Use brand_extractor logo directly (full image, not cropped from screenshot)
+            # This gives us the actual logo file, not a cropped region from screenshot
             logo = brand_elements.get("logo_base64")
             if logo:
                 return logo
