@@ -1219,9 +1219,21 @@ def extract_final_content(
             if included.get(region.get("id"), False):
                 content_type = region.get("content_type", "").lower()
                 if content_type in ["profile_image", "avatar"] and region.get("image_data"):
-                    primary_image = region.get("image_data")
-                    logger.info("Using profile image/avatar as primary image")
-                    break
+                    # FIX 4: Validate image data before using
+                    image_data = region.get("image_data")
+                    if image_data and len(image_data) > 100:  # Basic validation: not empty, has some data
+                        try:
+                            # Try to decode to validate it's valid base64
+                            import base64
+                            decoded = base64.b64decode(image_data)
+                            if len(decoded) > 1000:  # At least 1KB
+                                primary_image = image_data
+                                logger.info("✅ Using validated profile image/avatar as primary image")
+                                break
+                        except Exception as e:
+                            logger.warning(f"Invalid image data in region {region.get('id')}: {e}")
+                    else:
+                        logger.warning(f"Image data too small or empty in region {region.get('id')}")
         
         # PRIORITY 2: Visual slot (may contain profile image)
         if not primary_image:
