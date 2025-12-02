@@ -816,8 +816,8 @@ export default function Demo() {
 
       {/* Premium Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-2xl border-b border-gray-100/80 transition-all duration-300" style={{ boxShadow: scrollY > 10 ? '0 4px 20px rgba(0,0,0,0.06)' : 'none' }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12">
-          <div className="flex items-center justify-between h-16 sm:h-18">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-12">
+          <div className="flex items-center justify-between h-14 sm:h-16 md:h-18">
             <Link to="/" className="flex items-center space-x-2 sm:space-x-3 group">
               <div className="relative">
                 <div className="w-9 h-9 sm:w-10 sm:h-10 bg-gradient-to-br from-orange-500 via-amber-500 to-yellow-500 rounded-xl flex items-center justify-center shadow-lg shadow-orange-500/25 group-hover:scale-110 group-hover:shadow-orange-500/40 transition-all duration-300">
@@ -943,9 +943,9 @@ export default function Demo() {
       </nav>
 
       {/* Hero Section */}
-      <section className="relative pt-24 sm:pt-28 pb-12 sm:pb-20 px-4 sm:px-6 lg:px-12">
+      <section className="relative pt-20 sm:pt-24 md:pt-28 pb-8 sm:pb-12 md:pb-20 px-3 sm:px-4 md:px-6 lg:px-12">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-12">
+          <div className="text-center mb-8 sm:mb-10 md:mb-12">
             <div className="flex flex-col items-center gap-3 mb-6">
               <div className="inline-flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-orange-100 via-amber-100 to-yellow-100 rounded-full border-2 border-orange-300/80 backdrop-blur-sm shadow-md animate-pulse">
                 <RocketLaunchIcon className="w-4 h-4 text-orange-600" aria-hidden="true" />
@@ -960,7 +960,7 @@ export default function Demo() {
                 </div>
               )}
             </div>
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl xl:text-[3.25rem] font-black text-gray-900 leading-[1.1] tracking-[-0.03em] mb-4">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-[3.25rem] font-black text-gray-900 leading-[1.1] tracking-[-0.03em] mb-3 sm:mb-4 px-2">
               See Your URLs{' '}
               <span className="relative inline-block">
                 <span className="bg-gradient-to-r from-orange-500 via-amber-500 to-yellow-500 bg-clip-text text-transparent">Come to Life</span>
@@ -975,7 +975,7 @@ export default function Demo() {
                 </svg>
               </span>
             </h1>
-            <p className="text-base sm:text-lg text-gray-600 leading-relaxed max-w-2xl mx-auto">
+            <p className="text-sm sm:text-base md:text-lg text-gray-600 leading-relaxed max-w-2xl mx-auto px-2">
               Experience our AI-powered preview generation. Enter any URL and see how it transforms into beautiful preview cards across all platforms.
             </p>
           </div>
@@ -983,10 +983,10 @@ export default function Demo() {
           {/* Input Step */}
           {step === 'input' && (
             <div className="max-w-2xl mx-auto">
-              <div className="bg-white rounded-2xl shadow-2xl border border-gray-200/80 overflow-hidden relative">
+              <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl border border-gray-200/80 overflow-hidden relative">
                 <div className="absolute inset-0 bg-gradient-to-br from-orange-50/50 via-amber-50/30 to-yellow-50/50 opacity-50" />
                 
-                <div className="relative p-8 sm:p-10">
+                <div className="relative p-4 sm:p-6 md:p-8 lg:p-10">
                   {/* Success overlay */}
                   {showEmailSuccess && (
                     <div className="absolute inset-0 bg-emerald-500/10 backdrop-blur-sm z-10 flex items-center justify-center animate-fade-in">
@@ -1032,7 +1032,7 @@ export default function Demo() {
                             }
                           }}
                           placeholder="https://example.com/article"
-                          className={`w-full pl-12 pr-4 py-4 rounded-xl border-2 transition-all duration-200 focus:outline-none focus:ring-2 text-lg ${
+                          className={`w-full pl-11 sm:pl-12 pr-3 sm:pr-4 py-3 sm:py-4 rounded-lg sm:rounded-xl border-2 transition-all duration-200 focus:outline-none focus:ring-2 text-base sm:text-lg ${
                             urlError || previewError
                               ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
                               : url
@@ -1133,7 +1133,7 @@ export default function Demo() {
                     <button
                       type="submit"
                       disabled={isGeneratingPreview || !url.trim()}
-                      className="w-full py-4 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500 text-white rounded-xl font-bold text-base transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] hover:shadow-2xl hover:shadow-orange-500/40 disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center justify-center space-y-2 relative overflow-hidden group"
+                      className="w-full py-3 sm:py-4 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500 text-white rounded-lg sm:rounded-xl font-bold text-sm sm:text-base transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] hover:shadow-2xl hover:shadow-orange-500/40 disabled:opacity-50 disabled:cursor-not-allowed flex flex-col items-center justify-center space-y-2 relative overflow-hidden group min-h-[48px] sm:min-h-[56px]"
                       aria-label={isGeneratingPreview ? 'Generating preview, please wait' : 'Generate preview for entered URL'}
                       aria-busy={isGeneratingPreview}
                     >
@@ -1398,35 +1398,35 @@ export default function Demo() {
           {step === 'preview' && preview && (
             <div className="space-y-12">
               {/* Success Banner */}
-              <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border-2 border-emerald-200 rounded-xl p-8 text-center relative overflow-hidden animate-fade-in">
+              <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border-2 border-emerald-200 rounded-lg sm:rounded-xl p-4 sm:p-6 md:p-8 text-center relative overflow-hidden animate-fade-in">
                 <div className="absolute inset-0 bg-gradient-to-r from-emerald-400/10 via-teal-400/10 to-emerald-400/10 animate-pulse" />
                 <div className="relative z-10">
-                  <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-emerald-500/30 animate-bounce">
-                    <CheckIcon className="w-8 h-8 text-white" />
+                  <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4 shadow-lg shadow-emerald-500/30 animate-bounce">
+                    <CheckIcon className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
                   </div>
-                  <h3 className="text-2xl font-black text-gray-900 mb-2">Preview Reconstructed!</h3>
-                  <p className="text-gray-600 mb-4">Multi-stage AI reasoning extracted and optimized your content</p>
+                  <h3 className="text-xl sm:text-2xl font-black text-gray-900 mb-2">Preview Reconstructed!</h3>
+                  <p className="text-sm sm:text-base text-gray-600 mb-3 sm:mb-4 px-2">Multi-stage AI reasoning extracted and optimized your content</p>
                   
                   {/* Quality Indicators */}
-                  <div className="flex flex-wrap items-center justify-center gap-3">
-                    <div className="flex items-center space-x-2 bg-white/80 px-4 py-2 rounded-full">
+                  <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3">
+                    <div className="flex items-center space-x-2 bg-white/80 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full">
                       <div className={`w-2 h-2 rounded-full ${
                         preview.blueprint.overall_quality === 'excellent' ? 'bg-emerald-500' :
                         preview.blueprint.overall_quality === 'good' ? 'bg-green-500' :
                         preview.blueprint.overall_quality === 'fair' ? 'bg-yellow-500' :
                         'bg-gray-400'
                       } animate-pulse`} />
-                      <span className="text-sm font-semibold text-gray-700 capitalize">
+                      <span className="text-xs sm:text-sm font-semibold text-gray-700 capitalize">
                         Quality: {preview.blueprint.overall_quality}
                       </span>
                     </div>
-                    <div className="bg-white/80 px-4 py-2 rounded-full">
-                      <span className="text-sm font-semibold text-gray-700">
+                    <div className="bg-white/80 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full">
+                      <span className="text-xs sm:text-sm font-semibold text-gray-700">
                         Confidence: {Math.round(preview.reasoning_confidence * 100)}%
                       </span>
                     </div>
-                    <div className="bg-white/80 px-4 py-2 rounded-full">
-                      <span className="text-sm font-semibold text-gray-700 capitalize">
+                    <div className="bg-white/80 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full">
+                      <span className="text-xs sm:text-sm font-semibold text-gray-700 capitalize">
                         Type: {preview.blueprint.template_type}
                       </span>
                     </div>
@@ -1435,10 +1435,10 @@ export default function Demo() {
               </div>
 
               {/* Reasoning Summary */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                 {/* Quality Scores */}
-                <div className="bg-gradient-to-br from-violet-50 to-purple-50 rounded-xl p-6 border border-violet-200">
-                  <h4 className="font-bold text-violet-900 mb-4 flex items-center">
+                <div className="bg-gradient-to-br from-violet-50 to-purple-50 rounded-lg sm:rounded-xl p-4 sm:p-6 border border-violet-200">
+                  <h4 className="font-bold text-violet-900 mb-3 sm:mb-4 flex items-center text-sm sm:text-base">
                     <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                     </svg>
@@ -1476,8 +1476,8 @@ export default function Demo() {
                 </div>
 
                 {/* Layout Template */}
-                <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl p-6 border border-blue-200">
-                  <h4 className="font-bold text-blue-900 mb-4 flex items-center">
+                <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-lg sm:rounded-xl p-4 sm:p-6 border border-blue-200">
+                  <h4 className="font-bold text-blue-900 mb-3 sm:mb-4 flex items-center text-sm sm:text-base">
                     <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
                     </svg>
@@ -1503,8 +1503,8 @@ export default function Demo() {
                 </div>
 
                 {/* Processing Info */}
-                <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-6 border border-amber-200">
-                  <h4 className="font-bold text-amber-900 mb-4 flex items-center">
+                <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-lg sm:rounded-xl p-4 sm:p-6 border border-amber-200">
+                  <h4 className="font-bold text-amber-900 mb-3 sm:mb-4 flex items-center text-sm sm:text-base">
                     <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                     </svg>
@@ -1533,19 +1533,19 @@ export default function Demo() {
 
               {/* AI Reasoning Summary - Always Visible */}
               {preview.blueprint.layout_reasoning && (
-                <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-xl p-6 border border-blue-200">
-                  <div className="flex items-start space-x-3">
-                    <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-lg sm:rounded-xl p-4 sm:p-6 border border-blue-200">
+                  <div className="flex items-start space-x-2 sm:space-x-3">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <svg className="w-5 h-5 sm:w-6 sm:h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                       </svg>
                     </div>
-                    <div className="flex-1">
-                      <h4 className="font-bold text-gray-900 mb-2 flex items-center">
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-bold text-gray-900 mb-2 flex items-center text-sm sm:text-base">
                         AI Analysis Summary
-                        <span className="ml-2 text-xs font-normal text-gray-500">(always visible)</span>
+                        <span className="ml-2 text-xs font-normal text-gray-500 hidden sm:inline">(always visible)</span>
                       </h4>
-                      <p className="text-sm text-gray-700 leading-relaxed">
+                      <p className="text-xs sm:text-sm text-gray-700 leading-relaxed">
                         {(() => {
                           // Extract a concise summary from the full reasoning
                           const fullReasoning = preview.blueprint.layout_reasoning
@@ -1617,7 +1617,7 @@ export default function Demo() {
                         </h4>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
                         {/* Logo */}
                         {preview.brand.logo_base64 && (
                           <div className="flex flex-col items-center p-4 bg-white rounded-xl shadow-sm">
@@ -1685,25 +1685,25 @@ export default function Demo() {
 
                   {/* Social Media Preview (og:image) */}
                   {preview.composited_preview_image_url && (
-                    <div className="mt-8">
-                      <div className="text-center mb-4">
-                        <h4 className="text-lg font-semibold text-gray-900 mb-1 flex items-center justify-center gap-2">
+                    <div className="mt-6 sm:mt-8">
+                      <div className="text-center mb-3 sm:mb-4">
+                        <h4 className="text-base sm:text-lg font-semibold text-gray-900 mb-1 flex items-center justify-center gap-2">
                           <svg className="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
                           </svg>
                           Social Media Preview
                         </h4>
-                        <p className="text-sm text-gray-600 mb-2">
+                        <p className="text-xs sm:text-sm text-gray-600 mb-2 px-2">
                           This is how your link appears when shared on social platforms
                         </p>
-                        <p className="text-xs text-gray-500 italic">
+                        <p className="text-xs text-gray-500 italic px-2 hidden sm:block">
                           Preview images are non-interactive — this is exactly how platforms render your link. Images are optimized for maximum readability and brand recognition.
                         </p>
-                        <p className="text-xs text-gray-400 mt-2">
+                        <p className="text-xs text-gray-400 mt-2 px-2">
                           💡 Tip: The preview image is automatically set as <code className="px-1 py-0.5 bg-gray-100 rounded text-xs font-mono">og:image</code> for social sharing
                         </p>
                       </div>
-                      <div className="max-w-2xl mx-auto">
+                      <div className="max-w-full sm:max-w-2xl mx-auto px-2 sm:px-0">
                         <div className="relative group">
                           <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-xl opacity-20 blur-xl group-hover:opacity-30 transition-opacity" />
                           <div className="relative bg-white p-2 rounded-xl shadow-xl border border-gray-200">
@@ -1877,10 +1877,10 @@ export default function Demo() {
               )}
 
               {/* Mobile Platform Showcase */}
-              <div className="bg-gradient-to-br from-gray-50 to-white rounded-2xl p-8 sm:p-10 border border-gray-200">
-                <div className="text-center mb-8">
-                  <h3 className="text-2xl sm:text-3xl font-black text-gray-900 mb-2">See It In Action</h3>
-                  <p className="text-gray-600 mb-6">How your preview appears on social media platforms</p>
+              <div className="bg-gradient-to-br from-gray-50 to-white rounded-xl sm:rounded-2xl p-4 sm:p-6 md:p-8 lg:p-10 border border-gray-200">
+                <div className="text-center mb-6 sm:mb-8">
+                  <h3 className="text-xl sm:text-2xl md:text-3xl font-black text-gray-900 mb-2">See It In Action</h3>
+                  <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6">How your preview appears on social media platforms</p>
                   
                   {/* Platform Selector - Enhanced Discoverability */}
                   <div className="flex flex-col items-center gap-3">
@@ -1923,9 +1923,9 @@ export default function Demo() {
                     return (
                       <div className="flex flex-col items-center w-full">
                         {/* Mobile Device Frame */}
-                        <div className="relative w-full max-w-[280px] mx-auto transform transition-all duration-300">
+                        <div className="relative w-full max-w-[260px] sm:max-w-[280px] mx-auto transform transition-all duration-300">
                           {/* Device Frame with Shadow - iPhone aspect ratio ~9:19.5 */}
-                          <div className="relative bg-gray-900 rounded-[2.5rem] p-1.5 shadow-2xl" style={{ aspectRatio: '9/19.5', minHeight: '600px' }}>
+                          <div className="relative bg-gray-900 rounded-[2rem] sm:rounded-[2.5rem] p-1 sm:p-1.5 shadow-2xl" style={{ aspectRatio: '9/19.5', minHeight: '500px' }}>
                             {/* Notch */}
                             <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-36 h-7 bg-gray-900 rounded-b-2xl z-10"></div>
                             
