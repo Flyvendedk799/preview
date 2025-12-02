@@ -809,7 +809,8 @@ def _generate_profile_template(
     
     # === TAGS (premium pills with better spacing) ===
     if tags:
-        tag_font = _load_font(14, bold=False)
+        # MOBILE-FIRST: Tags readable on mobile
+        tag_font = _load_font(20, bold=True)  # Increased from 14, made bold
         tag_y = content_start_y + 12
         tag_spacing = 10
         
@@ -879,7 +880,8 @@ def _generate_profile_template(
     
     # === CREDIBILITY ITEMS (bottom, elegant) ===
     if credibility_items:
-        cred_font = _load_font(16, bold=False)
+        # MOBILE-FIRST: Credibility items readable on mobile
+        cred_font = _load_font(24, bold=True)  # Increased from 16, made bold
         cred_y = OG_IMAGE_HEIGHT - 50
         
         cred_texts = []
@@ -960,7 +962,8 @@ def _generate_product_template(
             content_y += badge_height + 32
     
     # === TITLE (big and bold) ===
-    title_font = _load_font(46, bold=True)
+    # MOBILE-FIRST: Product title readable on mobile
+    title_font = _load_font(80, bold=True)  # Increased from 46 for mobile readability
     if title and title != "Untitled":
         title_lines = _wrap_text(title, title_font, left_width - padding - 40, draw)
         for i, line in enumerate(title_lines[:2]):
@@ -970,7 +973,8 @@ def _generate_product_template(
     
     # === DESCRIPTION/BENEFIT ===
     if description:
-        desc_font = _load_font(22, bold=False)
+        # MOBILE-FIRST: Product description readable on mobile
+        desc_font = _load_font(36, bold=True)  # Increased from 22, made bold
         desc_lines = _wrap_text(description, desc_font, left_width - padding - 40, draw)
         for i, line in enumerate(desc_lines[:3]):
             y_pos = content_y + (i * 30)
@@ -1186,7 +1190,8 @@ def _generate_modern_card_template(
     
     # === DESCRIPTION ===
     if description and description != subtitle:
-        desc_font = _load_font(22, bold=False)
+        # MOBILE-FIRST: Product description readable on mobile
+        desc_font = _load_font(36, bold=True)  # Increased from 22, made bold
         desc_lines = _wrap_text(description, desc_font, content_width, draw)
         for i, line in enumerate(desc_lines[:2]):
             y_pos = content_y + (i * 30)
@@ -1333,7 +1338,8 @@ def _generate_fallback_preview(
         content_width = OG_IMAGE_WIDTH - (padding * 2)
         
         # Title - large and bold
-        title_font = _load_font(52, bold=True)
+        # MOBILE-FIRST: Fallback title readable on mobile
+        title_font = _load_font(96, bold=True)  # Increased from 52 for mobile readability
         if title and title != "Untitled":
             title_lines = _wrap_text(title, title_font, content_width, draw)
             
