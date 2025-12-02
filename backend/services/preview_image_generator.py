@@ -782,7 +782,8 @@ def _generate_profile_template(
     
     # === CONTEXT ITEMS (subtle, elegant) ===
     if context_items:
-        context_font = _load_font(16, bold=False)
+        # MOBILE-FIRST: Context items readable on mobile
+        context_font = _load_font(24, bold=True)  # Increased from 16, made bold
         context_y = content_start_y + 4
         
         context_texts = []
@@ -983,7 +984,8 @@ def _generate_product_template(
     
     # === FEATURE CHECKMARKS ===
     if tags:
-        check_font = _load_font(18, bold=False)
+        # MOBILE-FIRST: Feature checkmarks readable on mobile
+        check_font = _load_font(24, bold=True)  # Increased from 18, made bold
         for i, tag in enumerate(tags[:3]):
             tag_y = content_y + (i * 32)
             # Checkmark circle
@@ -1200,7 +1202,8 @@ def _generate_modern_card_template(
     
     # === TAGS (bottom, as subtle chips) ===
     if tags:
-        tag_font = _load_font(16, bold=False)
+        # MOBILE-FIRST: Tags readable on mobile
+        tag_font = _load_font(20, bold=True)  # Increased from 16, made bold
         tag_y = card_y + card_height - padding - 32
         tag_x = content_x
         
