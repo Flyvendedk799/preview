@@ -501,7 +501,8 @@ def _generate_hero_template(
         title_lines = _wrap_text(title, title_font, content_width, draw)
         
         # Center the headline vertically in the remaining space
-        total_title_height = min(len(title_lines), 2) * 78
+        # MOBILE-FIRST: Larger line spacing for 120px font
+        total_title_height = min(len(title_lines), 2) * 140  # Increased from 78 to 140 for 120px font
         remaining_space = OG_IMAGE_HEIGHT - content_y - padding - 60
         title_y = content_y + (remaining_space - total_title_height) // 3
         
@@ -939,7 +940,8 @@ def _generate_product_template(
     if credibility_items:
         proof_text = credibility_items[0].get("value", "")
         if proof_text and len(proof_text) > 2:
-            proof_font = _load_font(22, bold=True)
+            # MOBILE-FIRST: Social proof badge readable on mobile
+            proof_font = _load_font(32, bold=True)  # Increased from 22 for mobile readability
             try:
                 bbox = draw.textbbox((0, 0), proof_text, font=proof_font)
                 badge_width = bbox[2] - bbox[0] + 24
@@ -1108,7 +1110,8 @@ def _generate_modern_card_template(
     # === TOP ROW: Logo + Social Proof ===
     row_y = content_y
     # MOBILE-FIRST: Larger logo for mobile visibility
-    logo_size = 72  # Increased from 56 for better mobile visibility
+    # MOBILE-FIRST: Larger logo for mobile visibility
+    logo_size = 96  # Increased from 72 for better mobile visibility  # Increased from 56 for better mobile visibility
     
     # LOGO FIX: Use full logo image with aspect ratio preservation
     if primary_image_base64:
