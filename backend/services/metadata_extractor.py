@@ -49,9 +49,11 @@ def extract_metadata_from_html(html: str) -> Dict[str, Optional[str]]:
         "description": None,
         "og_description": None,
         "og_image": None,
+        "og_type": None,  # For classification
         "canonical_url": None,
         "h1": None,
         "text_summary": None,
+        "schema_type": None,  # For classification
     }
     
     # Extract <title>
@@ -78,6 +80,47 @@ def extract_metadata_from_html(html: str) -> Dict[str, Optional[str]]:
     og_img = soup.find('meta', property='og:image')
     if og_img and og_img.get('content'):
         metadata["og_image"] = clean_text(og_img['content'])
+    
+    # Extract Open Graph type (for classification)
+    og_type = soup.find('meta', property='og:type')
+    if og_type and og_type.get('content'):
+        metadata["og_type"] = clean_text(og_type['content'])
+    
+    # Extract Schema.org type (for classification)
+    schema_types = []
+    # Check for JSON-LD schema
+    json_ld_scripts = soup.find_all('script', type='application/ld+json')
+    for script in json_ld_scripts:
+        try:
+            import json
+            data = json.loads(script.string)
+            if isinstance(data, dict):
+                schema_type = data.get('@type', '')
+                if schema_type:
+                    schema_types.append(schema_type)
+            elif isinstance(data, list):
+                for item in data:
+                    if isinstance(item, dict):
+                        schema_type = item.get('@type', '')
+                        if schema_type:
+                            schema_types.append(schema_type)
+        except:
+            pass
+    
+    # Check for microdata
+    itemtypes = soup.find_all(attrs={'itemtype': True})
+    for item in itemtypes:
+        itemtype = item.get('itemtype', '')
+        if itemtype:
+            # Extract just the type name from URL
+            if '/' in itemtype:
+                schema_types.append(itemtype.split('/')[-1])
+            else:
+                schema_types.append(itemtype)
+    
+    if schema_types:
+        # Use the most specific/important schema type
+        metadata["schema_type"] = schema_types[0]
     
     # Extract canonical URL
     canonical = soup.find('link', rel='canonical')

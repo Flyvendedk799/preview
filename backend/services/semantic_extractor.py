@@ -18,6 +18,26 @@ def extract_semantic_structure(html: str) -> Dict[str, any]:
             "sentiment": str,
             "topic_keywords": List[str],
             "named_entities": List[str],
+            # Page structure indicators for classification
+            "has_profile_image": bool,
+            "has_contact_info": bool,
+            "has_social_links": bool,
+            "has_bio": bool,
+            "has_price": bool,
+            "has_add_to_cart": bool,
+            "has_product_image": bool,
+            "has_reviews": bool,
+            "has_hero_section": bool,
+            "has_cta_buttons": bool,
+            "has_features": bool,
+            "has_testimonials": bool,
+            "has_author": bool,
+            "has_publish_date": bool,
+            "has_article_content": bool,
+            "has_tags": bool,
+            "has_dashboard": bool,
+            "has_login": bool,
+            "has_workspace": bool,
         }
     """
     soup = BeautifulSoup(html, 'lxml')
@@ -72,6 +92,9 @@ def extract_semantic_structure(html: str) -> Dict[str, any]:
     # Extract named entities (simple pattern matching for common entities)
     named_entities = _extract_named_entities(primary_content)
     
+    # Detect page structure indicators for classification
+    structure_indicators = _detect_structure_indicators(soup, primary_content, secondary_content)
+    
     return {
         "primary_content": primary_content[:2000],  # Limit length
         "secondary_content": secondary_content[:1000],
@@ -79,6 +102,7 @@ def extract_semantic_structure(html: str) -> Dict[str, any]:
         "sentiment": sentiment,
         "topic_keywords": topic_keywords,
         "named_entities": named_entities,
+        **structure_indicators  # Merge structure indicators
     }
 
 
@@ -236,4 +260,122 @@ def _extract_named_entities(content: str) -> List[str]:
                 break
     
     return unique_entities
+
+
+def _detect_structure_indicators(soup: BeautifulSoup, primary_content: str, secondary_content: str) -> Dict[str, bool]:
+    """Detect structural indicators that help classify page type."""
+    content_lower = (primary_content + " " + secondary_content).lower()
+    
+    # Profile indicators
+    has_profile_image = bool(
+        soup.find('img', class_=re.compile(r'avatar|profile|user|expert|person|headshot', re.I)) or
+        soup.find('img', alt=re.compile(r'profile|avatar|headshot|portrait', re.I))
+    )
+    has_contact_info = bool(
+        re.search(r'contact|email|phone|address|reach out|get in touch', content_lower) or
+        soup.find('a', href=re.compile(r'mailto:|tel:', re.I))
+    )
+    has_social_links = bool(
+        soup.find_all('a', href=re.compile(r'twitter|linkedin|github|facebook|instagram', re.I)) or
+        re.search(r'follow|connect|social', content_lower)
+    )
+    has_bio = bool(
+        re.search(r'bio|biography|about me|about.*background|introduction', content_lower) or
+        soup.find(['section', 'div'], class_=re.compile(r'bio|about', re.I))
+    )
+    
+    # Product indicators
+    has_price = bool(
+        re.search(r'\$[\d,]+|€[\d,]+|£[\d,]+|price|cost|pricing|\d+\.\d{2}', content_lower) or
+        soup.find(string=re.compile(r'\$|€|£|price', re.I))
+    )
+    has_add_to_cart = bool(
+        re.search(r'add to cart|buy now|purchase|checkout|add.*cart', content_lower) or
+        soup.find('button', string=re.compile(r'add|buy|purchase|cart', re.I)) or
+        soup.find('a', string=re.compile(r'buy|purchase|cart', re.I))
+    )
+    has_product_image = bool(
+        soup.find('img', class_=re.compile(r'product|item|merchandise', re.I)) or
+        soup.find('img', alt=re.compile(r'product|item', re.I))
+    )
+    has_reviews = bool(
+        re.search(r'review|rating|star|★|⭐|\d+ out of \d+', content_lower) or
+        soup.find(['div', 'section'], class_=re.compile(r'review|rating|testimonial', re.I))
+    )
+    
+    # Landing page indicators
+    has_hero_section = bool(
+        soup.find(['section', 'div'], class_=re.compile(r'hero|banner|jumbotron|headline', re.I)) or
+        soup.find('h1')  # Most landing pages have prominent H1
+    )
+    has_cta_buttons = bool(
+        soup.find_all('button', string=re.compile(r'get started|sign up|learn more|try|free|demo', re.I)) or
+        soup.find_all('a', string=re.compile(r'get started|sign up|learn more|try|free|demo', re.I)) or
+        re.search(r'get started|sign up|try.*free|start.*trial', content_lower)
+    )
+    has_features = bool(
+        soup.find(['section', 'div'], class_=re.compile(r'feature|benefit|capability', re.I)) or
+        re.search(r'feature|benefit|capability|what.*offer', content_lower)
+    )
+    has_testimonials = bool(
+        soup.find(['section', 'div'], class_=re.compile(r'testimonial|review|quote', re.I)) or
+        re.search(r'said|testimonial|customer.*said|client.*said', content_lower)
+    )
+    
+    # Content/article indicators
+    has_author = bool(
+        soup.find(['span', 'div', 'p'], class_=re.compile(r'author|byline|writer', re.I)) or
+        soup.find('meta', attrs={'name': re.compile(r'author', re.I)}) or
+        re.search(r'by\s+[A-Z][a-z]+\s+[A-Z]|written by|author', content_lower)
+    )
+    has_publish_date = bool(
+        soup.find(['time', 'span'], class_=re.compile(r'date|published|time', re.I)) or
+        soup.find('meta', property='article:published_time') or
+        re.search(r'published|posted|date.*\d{4}', content_lower)
+    )
+    has_article_content = bool(
+        soup.find('article') or
+        soup.find(['main', 'div'], class_=re.compile(r'article|post|content', re.I))
+    )
+    has_tags = bool(
+        soup.find(['div', 'span'], class_=re.compile(r'tag|category|topic', re.I)) or
+        soup.find_all('a', class_=re.compile(r'tag|category', re.I))
+    )
+    
+    # Tool/app indicators
+    has_dashboard = bool(
+        soup.find(['div', 'section'], class_=re.compile(r'dashboard|workspace|console', re.I)) or
+        re.search(r'dashboard|workspace|console|control.*panel', content_lower)
+    )
+    has_login = bool(
+        soup.find('form', class_=re.compile(r'login|sign.*in|auth', re.I)) or
+        soup.find('input', type='password') or
+        re.search(r'login|sign in|log in|password', content_lower)
+    )
+    has_workspace = bool(
+        soup.find(['div', 'section'], class_=re.compile(r'workspace|editor|canvas', re.I)) or
+        re.search(r'workspace|editor|canvas|work.*space', content_lower)
+    )
+    
+    return {
+        "has_profile_image": has_profile_image,
+        "has_contact_info": has_contact_info,
+        "has_social_links": has_social_links,
+        "has_bio": has_bio,
+        "has_price": has_price,
+        "has_add_to_cart": has_add_to_cart,
+        "has_product_image": has_product_image,
+        "has_reviews": has_reviews,
+        "has_hero_section": has_hero_section,
+        "has_cta_buttons": has_cta_buttons,
+        "has_features": has_features,
+        "has_testimonials": has_testimonials,
+        "has_author": has_author,
+        "has_publish_date": has_publish_date,
+        "has_article_content": has_article_content,
+        "has_tags": has_tags,
+        "has_dashboard": has_dashboard,
+        "has_login": has_login,
+        "has_workspace": has_workspace,
+    }
 

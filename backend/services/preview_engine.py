@@ -45,6 +45,7 @@ from backend.services.preview_image_generator import generate_and_upload_preview
 from backend.services.brand_extractor import extract_all_brand_elements
 from backend.services.metadata_extractor import extract_metadata_from_html
 from backend.services.semantic_extractor import extract_semantic_structure
+from backend.services.intelligent_page_classifier import get_page_classifier, PageCategory
 from backend.services.preview_cache import (
     generate_cache_key,
     get_redis_client,
@@ -200,6 +201,16 @@ class PreviewEngine:
             # 7X PERFORMANCE: Use triple parallelization when possible
             screenshot_bytes, html_content = self._capture_page(url_str)
             
+            # 7X INTELLIGENCE: Classify page type using intelligent multi-signal analysis
+            self._update_progress(0.15, "Classifying page type...")
+            page_classification = self._classify_page_intelligently(
+                url_str, html_content, screenshot_bytes
+            )
+            self.logger.info(
+                f"🧠 [7X] Page classified as {page_classification.primary_category.value} "
+                f"(confidence: {page_classification.confidence:.2f})"
+            )
+            
             # Start brand extraction, screenshot upload, and AI reasoning in parallel
             with ThreadPoolExecutor(max_workers=3) as executor:
                 futures = {}
@@ -221,9 +232,10 @@ class PreviewEngine:
                 futures[future_brand] = "brand"
                 
                 # Task 3: Run AI reasoning (most time-consuming, starts early)
+                # Pass classification to AI reasoning for context-aware processing
                 future_ai = executor.submit(
                     self._run_ai_reasoning_enhanced,
-                    screenshot_bytes, url_str, html_content, predicted_page_type
+                    screenshot_bytes, url_str, html_content, page_classification
                 )
                 futures[future_ai] = "ai"
                 
@@ -247,15 +259,15 @@ class PreviewEngine:
                     except Exception as e:
                         self.logger.warning(f"⚠️  [7X] {task_name} failed: {e}")
             
-            # Step 4: Generate composited image
+            # Step 4: Generate composited image (with classification-aware strategy)
             composited_image_url = self._generate_composited_image(
-                screenshot_bytes, url_str, ai_result, brand_elements
+                screenshot_bytes, url_str, ai_result, brand_elements, page_classification
             )
             
-            # Step 5: Build result
+            # Step 5: Build result (with classification-aware template)
             result = self._build_result(
                 url_str, ai_result, brand_elements, composited_image_url,
-                screenshot_url, start_time
+                screenshot_url, start_time, page_classification
             )
             
             # 7X QUALITY: Validate and enhance result
@@ -512,27 +524,53 @@ class PreviewEngine:
                 }
             }
     
-    def _predict_page_type(self, url: str) -> Optional[str]:
-        """7X INTELLIGENCE: Predict page type from URL patterns."""
-        url_lower = url.lower()
+    def _classify_page_intelligently(
+        self,
+        url: str,
+        html_content: str,
+        screenshot_bytes: bytes
+    ):
+        """
+        7X INTELLIGENCE: Intelligent page classification using multi-signal analysis.
         
-        if any(x in url_lower for x in ['/product', '/shop', '/store', '/buy']):
-            return "product"
-        elif any(x in url_lower for x in ['/blog', '/post', '/article', '/news']):
-            return "article"
-        elif any(x in url_lower for x in ['/about', '/team', '/company']):
-            return "about"
-        elif any(x in url_lower for x in ['/pricing', '/plans', '/purchase']):
-            return "pricing"
-        
-        return None
+        Analyzes URL patterns, HTML metadata, content structure, and visual layout
+        to make probabilistic, explainable classifications.
+        """
+        try:
+            classifier = get_page_classifier()
+            
+            # Extract metadata and structure in parallel
+            metadata = extract_metadata_from_html(html_content)
+            content_structure = extract_semantic_structure(html_content)
+            
+            # Classify page
+            classification = classifier.classify(
+                url=url,
+                html_metadata=metadata,
+                content_structure=content_structure,
+                ai_analysis=None,  # Will be updated after AI reasoning
+                visual_layout=None  # Can be enhanced later
+            )
+            
+            return classification
+            
+        except Exception as e:
+            self.logger.warning(f"⚠️  Intelligent classification failed: {e}, using fallback")
+            # Fallback to simple URL-based prediction
+            from backend.services.intelligent_page_classifier import PageClassification, PageCategory
+            return PageClassification(
+                primary_category=PageCategory.UNKNOWN,
+                confidence=0.0,
+                reasoning=f"Classification failed: {e}",
+                signals=[]
+            )
     
     def _run_ai_reasoning_enhanced(
         self,
         screenshot_bytes: bytes,
         url: str,
         html_content: str,
-        predicted_page_type: Optional[str]
+        page_classification
     ) -> Dict[str, Any]:
         """7X QUALITY: Enhanced AI reasoning with context awareness."""
         if not self.config.enable_ai_reasoning:
@@ -862,10 +900,11 @@ class PreviewEngine:
         screenshot_bytes: bytes,
         url: str,
         ai_result: Dict[str, Any],
-        brand_elements: Dict[str, Any]
+        brand_elements: Dict[str, Any],
+        page_classification=None
     ) -> Optional[str]:
         """
-        Generate composited preview image with brand alignment.
+        Generate composited preview image with brand alignment and classification-aware strategy.
         
         Handles edge cases:
         - Missing images
@@ -884,9 +923,18 @@ class PreviewEngine:
             blueprint_colors = self._determine_colors(ai_result, brand_elements)
             
             # Determine primary image (logo > hero > AI-extracted > screenshot)
+            # Use classification strategy to prioritize elements
             primary_image = self._determine_primary_image(
-                brand_elements, ai_result
+                brand_elements, ai_result, page_classification
             )
+            
+            # Use classification-aware template type (strategy > AI > fallback)
+            template_type = ai_result["blueprint"]["template_type"]
+            if page_classification and page_classification.preview_strategy:
+                strategy_template = page_classification.preview_strategy.get("template_type")
+                if strategy_template:
+                    template_type = strategy_template
+                    self.logger.info(f"🎯 Using classification-aware template: {template_type}")
             
             # Generate composited image
             composited_image_url = generate_and_upload_preview_image(
@@ -897,7 +945,7 @@ class PreviewEngine:
                 description=ai_result["description"],
                 cta_text=ai_result.get("cta_text"),
                 blueprint=blueprint_colors,
-                template_type=ai_result["blueprint"]["template_type"],
+                template_type=template_type,
                 tags=ai_result.get("tags", []),
                 context_items=ai_result.get("context_items", []),
                 credibility_items=ai_result.get("credibility_items", []),
@@ -948,11 +996,37 @@ class PreviewEngine:
     def _determine_primary_image(
         self,
         brand_elements: Dict[str, Any],
-        ai_result: Dict[str, Any]
+        ai_result: Dict[str, Any],
+        page_classification=None
     ) -> Optional[str]:
-        """Determine primary image with priority: logo > hero > AI > None."""
-        # Priority 1: Brand logo
+        """
+        Determine primary image with classification-aware priority.
+        
+        Uses classification strategy to prioritize elements based on page type:
+        - Profile: avatar/profile image > logo
+        - Product: product image > logo
+        - Landing: hero image > logo
+        - Content: article image > hero
+        """
+        # Get classification strategy if available
+        strategy = page_classification.preview_strategy if page_classification else {}
+        priority_elements = strategy.get("priority_elements", [])
+        
         if brand_elements and isinstance(brand_elements, dict):
+            # Classification-aware priority
+            if "avatar" in priority_elements or "profile_image" in priority_elements:
+                # Profile pages: prioritize avatar/profile image
+                profile_img = brand_elements.get("profile_image_base64") or brand_elements.get("hero_image_base64")
+                if profile_img:
+                    return profile_img
+            
+            if "product_image" in priority_elements:
+                # Product pages: prioritize product image
+                product_img = brand_elements.get("product_image_base64") or brand_elements.get("hero_image_base64")
+                if product_img:
+                    return product_img
+            
+            # Default priority: logo > hero > AI-extracted
             logo = brand_elements.get("logo_base64")
             if logo:
                 return logo
@@ -972,9 +1046,10 @@ class PreviewEngine:
         brand_elements: Dict[str, Any],
         composited_image_url: Optional[str],
         screenshot_url: Optional[str],
-        start_time: float
+        start_time: float,
+        page_classification=None
     ) -> PreviewEngineResult:
-        """Build final PreviewEngineResult."""
+        """Build final PreviewEngineResult with classification-aware template."""
         processing_time_ms = int((time.time() - start_time) * 1000)
         
         # Build brand dict
@@ -990,6 +1065,13 @@ class PreviewEngine:
         blueprint_colors = self._determine_colors(ai_result, brand_elements)
         blueprint = ai_result.get("blueprint", {}).copy()
         blueprint.update(blueprint_colors)
+        
+        # Override template_type with classification strategy if available
+        if page_classification and page_classification.preview_strategy:
+            strategy_template = page_classification.preview_strategy.get("template_type")
+            if strategy_template:
+                blueprint["template_type"] = strategy_template
+                self.logger.info(f"🎯 Updated blueprint template_type to {strategy_template} based on classification")
         
         return PreviewEngineResult(
             url=url,
