@@ -234,6 +234,7 @@ class IntelligentPageClassifier:
         # Tool/app patterns
         tool_patterns = [
             r'/app/',
+            r'/dashboard',
             r'/dashboard/',
             r'/tool[s]?/',
             r'/workspace/',
@@ -310,7 +311,8 @@ class IntelligentPageClassifier:
                 ))
         
         # Schema.org types
-        schema_type = metadata.get("schema_type", "").lower()
+        schema_type_raw = metadata.get("schema_type")
+        schema_type = schema_type_raw.lower() if schema_type_raw else ""
         if schema_type:
             if "person" in schema_type or "profilepage" in schema_type:
                 signals.append(ClassificationSignal(
