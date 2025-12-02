@@ -204,13 +204,20 @@ class ReasonedPreview:
 # AI PROMPTS - Multi-Stage Reasoning
 # =============================================================================
 
-STAGE_1_2_3_PROMPT = """You are a world-class conversion copywriter analyzing a webpage to create the PERFECT social media preview.
+STAGE_1_2_3_PROMPT = """You are a world-class conversion copywriter and UX expert analyzing a webpage to create the PERFECT social media preview.
 
 MISSION: Extract content that makes this preview IRRESISTIBLE. Someone scrolling will see this for 1.5 seconds - make it count.
 
 === THE ONE RULE ===
 Find THE SINGLE MOST COMPELLING THING about this page. Not everything - THE ONE THING.
 Then find 2-3 supporting elements. That's it.
+
+=== QUALITY STANDARDS ===
+- Extract EXACT text (no paraphrasing, no "improvements")
+- Prioritize SPECIFIC numbers over vague claims
+- Focus on OUTCOMES and BENEFITS, not features
+- Look for SOCIAL PROOF with concrete evidence
+- Ignore generic marketing speak and filler content
 
 === WHAT TO FIND ===
 
@@ -287,11 +294,14 @@ Then find 2-3 supporting elements. That's it.
 }}
 
 === CRITICAL RULES ===
-1. EXACT TEXT ONLY - No paraphrasing, no "improving" the copy
-2. NUMBERS WIN - "4.9★ from 2,847 reviews" beats "Great reviews" 
-3. SPECIFIC > GENERIC - "Save 10 hours/week" beats "Save time"
-4. ONE HERO ONLY - Don't mark multiple things as hero weight
-5. BBOX PRECISION - For logos and images, include padding for clean crops"""
+1. EXACT TEXT ONLY - No paraphrasing, no "improving" the copy, preserve original wording
+2. NUMBERS WIN - "4.9★ from 2,847 reviews" beats "Great reviews" - Always include counts
+3. SPECIFIC > GENERIC - "Save 10 hours/week" beats "Save time" - Quantify everything
+4. ONE HERO ONLY - Don't mark multiple things as hero weight - Pick THE best
+5. BBOX PRECISION - For logos and images, include padding for clean crops
+6. CONTEXT MATTERS - Consider page type (product vs blog vs landing) when prioritizing
+7. TRUST SIGNALS FIRST - Social proof, ratings, testimonials get highest priority
+8. AVOID FILLER - Skip "Welcome", "About Us", navigation text, legal disclaimers"""
 
 
 STAGE_4_5_PROMPT = """You're designing a preview that has 1.5 seconds to convince someone to click. Every element must earn its place.
@@ -362,13 +372,17 @@ OUTPUT JSON:
 }}
 
 GOLDEN RULES:
-- 3 elements is better than 5 mediocre ones
-- Numbers always beat vague claims
+- 3 elements is better than 5 mediocre ones - Quality over quantity
+- Numbers always beat vague claims - "50,000 users" > "Many users"
+- Specificity wins - "Save 10 hours/week" > "Save time"
+- Trust signals are non-negotiable - If there's proof, include it prominently
+- Visual hierarchy matters - Biggest = most important
+- Mobile-first thinking - Will this read well at small sizes?
 - If there's no good social proof, don't fake it
 - The hook must be SHORT (under 60 chars ideal) and SPECIFIC"""
 
 
-STAGE_6_PROMPT = """Rate this preview honestly. Would YOU click on this?
+STAGE_6_PROMPT = """Rate this preview honestly. Would YOU click on this? Be brutally honest.
 
 LAYOUT:
 {layout_json}
@@ -378,28 +392,29 @@ CONTENT:
 
 === BRUTAL HONESTY CHECK ===
 
-HOOK SCORE (0-1):
-- 0.9-1.0: "I need to click this right now"
-- 0.7-0.8: "This looks interesting"
-- 0.5-0.6: "It's okay, might click"
-- 0.3-0.4: "Meh, probably skip"
-- 0.0-0.2: "Generic/boring, definitely skip"
+HOOK SCORE (0-1): How compelling is the main headline?
+- 0.9-1.0: "I need to click this right now" - Specific, benefit-driven, creates urgency
+- 0.7-0.8: "This looks interesting" - Clear value prop, somewhat specific
+- 0.5-0.6: "It's okay, might click" - Generic but readable
+- 0.3-0.4: "Meh, probably skip" - Vague, no clear benefit
+- 0.0-0.2: "Generic/boring, definitely skip" - "Welcome", "About Us", filler text
 
-TRUST SCORE (0-1):
-- Has specific numbers (reviews, users, stats)? +0.3
-- Has recognizable proof (awards, logos, names)? +0.3
+TRUST SCORE (0-1): How trustworthy does this look?
+- Has SPECIFIC numbers (reviews, users, stats)? +0.3
+- Has recognizable proof (awards, logos, big names)? +0.3
 - Looks professional, not spammy? +0.2
-- Makes realistic claims? +0.2
+- Makes realistic, believable claims? +0.2
+- If NO social proof at all, cap at 0.5
 
-CLARITY SCORE (0-1):
-- Can understand in 2 seconds? +0.4
-- One clear message, not multiple? +0.3
-- Right amount of info (not too much/little)? +0.3
+CLARITY SCORE (0-1): Can someone understand this instantly?
+- Can understand the value in 2 seconds? +0.4
+- One clear message, not multiple competing messages? +0.3
+- Right amount of info (not overwhelming, not too sparse)? +0.3
 
-CLICK SCORE (0-1):
-- Clear benefit to clicking? +0.4
-- Creates curiosity gap? +0.3
-- Would share or remember this? +0.3
+CLICK MOTIVATION SCORE (0-1): What's the motivation to click?
+- Clear, specific benefit to clicking? +0.4
+- Creates curiosity gap or FOMO? +0.3
+- Would someone share or remember this? +0.3
 
 OUTPUT JSON:
 {{
@@ -562,7 +577,7 @@ def run_stages_1_2_3(screenshot_bytes: bytes) -> Tuple[List[Dict], Dict[str, str
                 ]
             }
         ],
-        max_tokens=4000,
+        max_tokens=3500,  # Optimized for faster responses while maintaining quality
         temperature=0.05  # Very low for consistent, precise extraction
     )
     
@@ -650,8 +665,8 @@ def run_stages_4_5(regions: List[Dict], page_type: str, palette: Dict[str, str])
                 )
             }
         ],
-        max_tokens=2000,
-        temperature=0.15  # Low temperature for consistent, decisive layouts
+        max_tokens=1800,  # Optimized for faster responses
+        temperature=0.1  # Lower temperature for more consistent, decisive layouts
     )
     
     content = response.choices[0].message.content.strip()
@@ -720,8 +735,8 @@ def run_stage_6(layout: Dict[str, Any], included_regions: List[Dict]) -> Dict[st
                 )
             }
         ],
-        max_tokens=600,
-        temperature=0.1
+        max_tokens=500,  # Reduced for faster responses
+        temperature=0.05  # Lower temperature for more consistent, precise extraction
     )
     
     content = response.choices[0].message.content.strip()
