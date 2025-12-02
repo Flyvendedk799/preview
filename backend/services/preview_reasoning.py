@@ -227,8 +227,13 @@ Then find 2-3 supporting elements. That's it.
    - A powerful stat or claim ("10x faster", "$2M saved", "50,000 users")
    - A compelling promise ("Never miss a deadline again")
    
-   BAD hooks: "Welcome to our website", "About Us", "Learn More"
-   GOOD hooks: "Ship 10x faster with AI", "The #1 rated CRM for startups"
+   FOR PROFILE PAGES: The hook should be the PERSON'S NAME (e.g., "John Doe"), NOT their bio/description
+   - Look for short text (2-4 words) that appears prominently (usually in title, h1, or dialog name)
+   - Names are typically capitalized: "Celeste Hansen", "John Smith"
+   - Avoid extracting long descriptions as names - names are concise
+   
+   BAD hooks: "Welcome to our website", "About Us", "Learn More", long bio descriptions
+   GOOD hooks: "Ship 10x faster with AI", "The #1 rated CRM for startups", "Celeste Hansen" (for profiles)
 
 2. **SOCIAL PROOF** (critical - makes people trust)
    Numbers and specifics ONLY. Find:
