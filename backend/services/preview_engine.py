@@ -1011,6 +1011,14 @@ class PreviewEngine:
             # Classification-aware priority
             if "avatar" in priority_elements or "profile_image" in priority_elements:
                 # Profile pages: prioritize avatar/profile image
+                # Check AI-extracted profile image first
+                ai_profile_img = ai_result.get("primary_image_base64")
+                if ai_profile_img:
+                    # Verify it's likely a profile image (check if AI marked it as profile_image)
+                    # For now, trust AI extraction for profile pages
+                    return ai_profile_img
+                
+                # Fallback to brand extraction
                 profile_img = brand_elements.get("profile_image_base64") or brand_elements.get("hero_image_base64")
                 if profile_img:
                     return profile_img

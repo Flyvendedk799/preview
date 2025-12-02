@@ -277,8 +277,17 @@ def generate_designed_preview(
                 credibility_items, tags, primary_image_base64
             )
         
-        # Portfolio, Personal, Blog → Modern Card (clean, professional)
-        elif template_lower in ["portfolio", "personal", "blog", "article", "agency"]:
+        # Profile, Personal → Profile Template (gradient header, circular avatar)
+        elif template_lower in ["profile", "personal"]:
+            logger.info("Using PROFILE template (gradient header, circular avatar)")
+            return _generate_profile_template(
+                screenshot_bytes, title, subtitle, description,
+                primary_color, secondary_color, accent_color,
+                credibility_items, tags, context_items, primary_image_base64, domain
+            )
+        
+        # Portfolio, Blog, Article → Modern Card (clean, professional)
+        elif template_lower in ["portfolio", "blog", "article", "agency"]:
             logger.info("Using MODERN CARD template (clean, professional)")
             return _generate_modern_card_template(
                 screenshot_bytes, title, subtitle, description,
@@ -424,6 +433,270 @@ def _generate_hero_template(
     # === BOTTOM ACCENT BAR (brand color stripe) ===
     bar_height = 6
     draw.rectangle([(0, OG_IMAGE_HEIGHT - bar_height), (OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT)], fill=accent_color)
+    
+    buffer = BytesIO()
+    img.save(buffer, format='PNG', optimize=True)
+    return buffer.getvalue()
+
+
+def _generate_profile_template(
+    screenshot_bytes: bytes,
+    title: str,
+    subtitle: Optional[str],
+    description: Optional[str],
+    primary_color: Tuple[int, int, int],
+    secondary_color: Tuple[int, int, int],
+    accent_color: Tuple[int, int, int],
+    credibility_items: List[Dict],
+    tags: List[str],
+    context_items: List[Dict],
+    primary_image_base64: Optional[str],
+    domain: str
+) -> bytes:
+    """
+    PREMIUM Profile template: Matches frontend ProfileTemplate design.
+    Design: Gradient header, circular avatar, centered content, tags, credibility.
+    """
+    # Create white card background
+    img = Image.new('RGB', (OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT), (255, 255, 255))
+    draw = ImageDraw.Draw(img)
+    
+    # === GRADIENT HEADER (matches frontend) ===
+    header_height = 112  # h-28 = 112px
+    header_img = Image.new('RGB', (OG_IMAGE_WIDTH, header_height), primary_color)
+    header_img = _draw_gradient_background(header_img, primary_color, secondary_color, "diagonal")
+    
+    # Add subtle pattern overlay (matches frontend opacity-10)
+    pattern_overlay = Image.new('RGBA', (OG_IMAGE_WIDTH, header_height), (255, 255, 255, 25))
+    header_img = Image.alpha_composite(header_img.convert('RGBA'), pattern_overlay).convert('RGB')
+    
+    # Darken gradient overlay (matches frontend bg-gradient-to-b from-transparent to-black/10)
+    dark_overlay = Image.new('RGBA', (OG_IMAGE_WIDTH, header_height), (0, 0, 0, 25))
+    header_img = Image.alpha_composite(header_img.convert('RGBA'), dark_overlay).convert('RGB')
+    
+    img.paste(header_img, (0, 0))
+    draw = ImageDraw.Draw(img)
+    
+    # === CONTENT AREA ===
+    padding = 48
+    content_y = header_height - 56  # Avatar overlaps header (w-28 h-28 = 112px, -mt-16 = -64px)
+    
+    # === CIRCULAR AVATAR (centered, matches frontend) ===
+    avatar_size = 112  # w-28 h-28 = 112px
+    avatar_x = (OG_IMAGE_WIDTH - avatar_size) // 2
+    avatar_y = content_y
+    
+    if primary_image_base64:
+        try:
+            avatar_data = base64.b64decode(primary_image_base64)
+            avatar_img = Image.open(BytesIO(avatar_data)).convert('RGBA')
+            
+            # Create circular mask
+            mask = Image.new('L', (avatar_size, avatar_size), 0)
+            mask_draw = ImageDraw.Draw(mask)
+            mask_draw.ellipse([(0, 0), (avatar_size - 1, avatar_size - 1)], fill=255)
+            
+            # Resize and apply mask
+            avatar_img = avatar_img.resize((avatar_size, avatar_size), Image.Resampling.LANCZOS)
+            
+            # White border (border-4 = 16px)
+            border_size = 16
+            bordered_size = avatar_size + (border_size * 2)
+            bordered = Image.new('RGBA', (bordered_size, bordered_size), (255, 255, 255, 255))
+            bordered.paste(avatar_img, (border_size, border_size), mask)
+            
+            # Paste with shadow effect
+            img.paste(bordered, (avatar_x - border_size, avatar_y - border_size), bordered)
+        except Exception as e:
+            logger.warning(f"Failed to load avatar: {e}")
+            # Fallback: Initial circle
+            avatar_bg = Image.new('RGBA', (avatar_size, avatar_size), (*primary_color, 255))
+            mask = Image.new('L', (avatar_size, avatar_size), 0)
+            mask_draw = ImageDraw.Draw(mask)
+            mask_draw.ellipse([(0, 0), (avatar_size - 1, avatar_size - 1)], fill=255)
+            bordered = Image.new('RGBA', (avatar_size + 32, avatar_size + 32), (255, 255, 255, 255))
+            bordered.paste(avatar_bg, (16, 16), mask)
+            img.paste(bordered, (avatar_x - 16, avatar_y - 16), bordered)
+            
+            # Draw initial letter
+            initial_font = _load_font(48, bold=True)
+            initial = title[0].upper() if title else "?"
+            try:
+                bbox = draw.textbbox((0, 0), initial, font=initial_font)
+                text_width = bbox[2] - bbox[0]
+                text_height = bbox[3] - bbox[1]
+            except:
+                text_width = 48
+                text_height = 48
+            
+            draw.text(
+                (avatar_x + (avatar_size - text_width) // 2, avatar_y + (avatar_size - text_height) // 2),
+                initial,
+                font=initial_font,
+                fill=(255, 255, 255)
+            )
+    
+    content_y = avatar_y + avatar_size + 16  # mb-4 = 16px
+    
+    # === NAME (centered, large, bold) ===
+    if title and title != "Untitled":
+        name_font = _load_font(32, bold=True)  # text-2xl = 24px, but scale up for image
+        name_lines = _wrap_text(title, name_font, OG_IMAGE_WIDTH - (padding * 2), draw)
+        name_y = content_y
+        
+        for i, line in enumerate(name_lines[:1]):  # Single line preferred
+            try:
+                bbox = draw.textbbox((0, 0), line, font=name_font)
+                text_width = bbox[2] - bbox[0]
+            except:
+                text_width = len(line) * 18
+            
+            draw.text(
+                ((OG_IMAGE_WIDTH - text_width) // 2, name_y),
+                line,
+                font=name_font,
+                fill=(17, 24, 39)  # text-gray-900
+            )
+            content_y = name_y + 40  # mb-1 + line height
+    
+    # === SUBTITLE/ROLE (centered, smaller) ===
+    if subtitle:
+        subtitle_font = _load_font(18, bold=False)  # text-sm = 14px, scaled
+        subtitle_lines = _wrap_text(subtitle, subtitle_font, OG_IMAGE_WIDTH - (padding * 2), draw)
+        subtitle_y = content_y
+        
+        for i, line in enumerate(subtitle_lines[:1]):
+            try:
+                bbox = draw.textbbox((0, 0), line, font=subtitle_font)
+                text_width = bbox[2] - bbox[0]
+            except:
+                text_width = len(line) * 10
+            
+            draw.text(
+                ((OG_IMAGE_WIDTH - text_width) // 2, subtitle_y),
+                line,
+                font=subtitle_font,
+                fill=(75, 85, 99)  # text-gray-600
+            )
+            content_y = subtitle_y + 28  # mb-3 = 12px + line height
+    
+    # === CONTEXT ITEMS (location, etc.) ===
+    if context_items:
+        context_font = _load_font(16, bold=False)  # text-sm
+        context_y = content_y + 8
+        
+        context_texts = []
+        for item in context_items[:2]:  # Max 2 items
+            context_texts.append(item.get("text", ""))
+        
+        if context_texts:
+            context_str = " • ".join(context_texts)
+            try:
+                bbox = draw.textbbox((0, 0), context_str, font=context_font)
+                text_width = bbox[2] - bbox[0]
+            except:
+                text_width = len(context_str) * 9
+            
+            draw.text(
+                ((OG_IMAGE_WIDTH - text_width) // 2, context_y),
+                context_str,
+                font=context_font,
+                fill=(55, 65, 81)  # text-gray-700
+            )
+            content_y = context_y + 32  # mb-4 = 16px + line height
+    
+    # === TAGS (centered, pill-shaped) ===
+    if tags:
+        tag_font = _load_font(14, bold=False)  # text-xs
+        tag_y = content_y + 8
+        tag_spacing = 8
+        
+        # Calculate total width to center
+        tag_widths = []
+        for tag in tags[:4]:  # Max 4 tags
+            try:
+                bbox = draw.textbbox((0, 0), tag, font=tag_font)
+                tag_widths.append(bbox[2] - bbox[0] + 24)  # px-3 = 12px each side
+            except:
+                tag_widths.append(len(tag) * 8 + 24)
+        
+        total_tags_width = sum(tag_widths) + (tag_spacing * (len(tags[:4]) - 1))
+        tag_start_x = (OG_IMAGE_WIDTH - total_tags_width) // 2
+        
+        current_x = tag_start_x
+        for i, tag in enumerate(tags[:4]):
+            tag_width = tag_widths[i]
+            
+            # Draw pill background
+            pill_color = tuple(int(c * 0.08) for c in primary_color) + (255,)  # 15% opacity
+            draw.rounded_rectangle(
+                [(current_x, tag_y), (current_x + tag_width, tag_y + 24)],
+                radius=12,
+                fill=pill_color[:3]
+            )
+            
+            # Draw tag text
+            try:
+                bbox = draw.textbbox((0, 0), tag, font=tag_font)
+                text_width = bbox[2] - bbox[0]
+            except:
+                text_width = len(tag) * 8
+            
+            draw.text(
+                (current_x + (tag_width - text_width) // 2, tag_y + 4),
+                tag,
+                font=tag_font,
+                fill=primary_color
+            )
+            
+            current_x += tag_width + tag_spacing
+        
+        content_y = tag_y + 32  # mb-4 = 16px + height
+    
+    # === DESCRIPTION (centered, limited lines) ===
+    if description and description != subtitle:
+        desc_font = _load_font(16, bold=False)  # text-sm
+        desc_lines = _wrap_text(description, desc_font, OG_IMAGE_WIDTH - (padding * 2), draw)
+        desc_y = content_y + 16  # pt-4 mt-2
+        
+        for i, line in enumerate(desc_lines[:3]):  # line-clamp-3
+            try:
+                bbox = draw.textbbox((0, 0), line, font=desc_font)
+                text_width = bbox[2] - bbox[0]
+            except:
+                text_width = len(line) * 9
+            
+            draw.text(
+                ((OG_IMAGE_WIDTH - text_width) // 2, desc_y + (i * 24)),
+                line,
+                font=desc_font,
+                fill=(55, 65, 81)  # text-gray-700
+            )
+        content_y = desc_y + min(len(desc_lines), 3) * 24 + 16
+    
+    # === CREDIBILITY ITEMS (bottom, centered) ===
+    if credibility_items:
+        cred_font = _load_font(16, bold=False)  # text-sm
+        cred_y = OG_IMAGE_HEIGHT - padding - 32  # pt-4 mt-4 from bottom
+        
+        cred_texts = []
+        for item in credibility_items[:2]:  # Max 2 items
+            cred_texts.append(item.get("value", ""))
+        
+        if cred_texts:
+            cred_str = " • ".join(cred_texts)
+            try:
+                bbox = draw.textbbox((0, 0), cred_str, font=cred_font)
+                text_width = bbox[2] - bbox[0]
+            except:
+                text_width = len(cred_str) * 9
+            
+            draw.text(
+                ((OG_IMAGE_WIDTH - text_width) // 2, cred_y),
+                cred_str,
+                font=cred_font,
+                fill=(55, 65, 81)  # text-gray-700
+            )
     
     buffer = BytesIO()
     img.save(buffer, format='PNG', optimize=True)

@@ -152,6 +152,7 @@ class IntelligentPageClassifier:
             r'/profile[s]?/',
             r'/user[s]?/',
             r'/expert[s]?/',
+            r'/shared/expert/',  # Specific pattern for 99expert.com
             r'/member[s]?/',
             r'/people/',
             r'/person/',

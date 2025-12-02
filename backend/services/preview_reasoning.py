@@ -250,7 +250,11 @@ Then find 2-3 supporting elements. That's it.
 4. **BRAND VISUAL** (logo or hero image for recognition)
    - Company logo (top-left, navigation, or footer)
    - Product screenshot or hero image
+   - **Profile avatar/image** (circular images, profile photos, headshots - CRITICAL for profile pages)
    - Founder/team photo (for personal brands)
+   
+   FOR PROFILE PAGES: Prioritize circular/rounded profile images, avatars, headshots
+   Look for images with classes like: avatar, profile, user, expert, person, headshot
 
 === WHAT TO IGNORE ===
 - Navigation menus
@@ -839,14 +843,37 @@ def extract_final_content(
         region = region_map[region_id]
         return region.get("image_data")
     
-    # === TITLE EXTRACTION (prioritize extracted hook) ===
-    # PRIORITY 1: Use the extracted "the_hook" - this is the most compelling headline
-    title = highlights.get("the_hook")
-    if title:
-        title = clean_display_text(title, "hook")
-        logger.info(f"📌 Using extracted hook as title: '{title[:50]}...'")
+    # === TITLE EXTRACTION (prioritize based on page type) ===
+    # For profile pages, prioritize identity/name over hook
+    page_type = layout.get("page_type", "").lower() if isinstance(layout, dict) else ""
+    is_profile = "profile" in page_type or any(r.get("content_type") == "profile_image" or r.get("content_type") == "avatar" for r in regions[:5])
     
-    # PRIORITY 2: Try slot-based extraction
+    title = None
+    
+    if is_profile:
+        # For profiles: Prioritize identity/name regions
+        # PRIORITY 1: Identity slot (person's name)
+        title = get_region_content(layout_slots.get("identity_slot"), "identity")
+        if not title:
+            # Look for identity-purpose regions
+            for region_id, include_flag in included.items():
+                if include_flag and region_id in region_map:
+                    region = region_map[region_id]
+                    if region.get("purpose") == "identity" or region.get("content_type") in ["headline", "subheadline"]:
+                        candidate = get_region_content(region_id, "identity")
+                        if candidate and 2 < len(candidate) < 80:  # Names are usually shorter
+                            title = candidate
+                            logger.info(f"📌 Using identity region as profile name: '{title}'")
+                            break
+    
+    # PRIORITY 2: Use the extracted "the_hook" (for non-profiles or fallback)
+    if not title:
+        title = highlights.get("the_hook")
+        if title:
+            title = clean_display_text(title, "hook")
+            logger.info(f"📌 Using extracted hook as title: '{title[:50]}...'")
+    
+    # PRIORITY 3: Try slot-based extraction
     if not title or len(title) < 5:
         title = get_region_content(layout_slots.get("headline_slot"), "hook")
     if not title:
@@ -987,17 +1014,43 @@ def extract_final_content(
         cta_text = get_region_content(layout_slots.get("action_slot"))
     
     # === PRIMARY IMAGE EXTRACTION ===
-    # Try new visual_slot first, then old identity_image_slot
-    primary_image = get_region_image(layout_slots.get("visual_slot"))
+    # For profile pages, prioritize profile images/avatars
+    primary_image = None
+    
+    if is_profile:
+        # PRIORITY 1: Look for profile_image or avatar content types
+        for region in regions:
+            if included.get(region.get("id"), False):
+                content_type = region.get("content_type", "").lower()
+                if content_type in ["profile_image", "avatar"] and region.get("image_data"):
+                    primary_image = region.get("image_data")
+                    logger.info("Using profile image/avatar as primary image")
+                    break
+        
+        # PRIORITY 2: Visual slot (may contain profile image)
+        if not primary_image:
+            primary_image = get_region_image(layout_slots.get("visual_slot"))
+    
+    # PRIORITY 3: Try new visual_slot first, then old identity_image_slot
+    if not primary_image:
+        primary_image = get_region_image(layout_slots.get("visual_slot"))
     if not primary_image:
         primary_image = get_region_image(layout_slots.get("identity_image_slot"))
     
-    # Fallback: look for detected logo
-    if not primary_image:
+    # PRIORITY 4: Fallback: look for detected logo (but not for profiles - they need avatar)
+    if not primary_image and not is_profile:
         for region in regions:
             if region.get("is_logo") and region.get("image_data"):
                 primary_image = region.get("image_data")
                 logger.info("Using detected logo as primary image")
+                break
+    
+    # PRIORITY 5: For profiles, look for any image in included regions
+    if not primary_image and is_profile:
+        for region in regions:
+            if included.get(region.get("id"), False) and region.get("image_data"):
+                primary_image = region.get("image_data")
+                logger.info("Using included region image as profile image")
                 break
     
     # === ENRICH THIN CONTENT ===
