@@ -818,99 +818,131 @@ def run_stage_6(layout: Dict[str, Any], included_regions: List[Dict]) -> Dict[st
     Returns:
         Quality scores dictionary with normalized field names.
     """
-    client = OpenAI(api_key=settings.OPENAI_API_KEY, timeout=30)
+    # OPTIMIZATION: Strip image_data and other large fields to reduce token usage
+    # Only keep essential text and metadata for quality assessment
+    regions_for_ai = []
+    for r in included_regions:
+        region_copy = {
+            "id": r.get("id"),
+            "content_type": r.get("content_type"),
+            "raw_content": r.get("raw_content", "")[:200],  # Truncate long content
+            "purpose": r.get("purpose"),
+            "marketing_value": r.get("marketing_value"),
+            "has_image": bool(r.get("image_data"))
+        }
+        regions_for_ai.append(region_copy)
     
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {
-                "role": "system",
-                "content": "You are a conversion expert. Rate this preview's ability to drive clicks. Be critical but fair. Output valid JSON only."
-            },
-            {
-                "role": "user",
-                "content": STAGE_6_PROMPT.format(
-                    layout_json=json.dumps(layout, indent=2),
-                    included_regions=json.dumps(included_regions, indent=2)
-                )
-            }
-        ],
-        max_tokens=500,  # Reduced for faster responses
-        temperature=0.05  # Lower temperature for more consistent, precise extraction
-    )
+    # Simplify layout - only keep essential fields
+    simplified_layout = {
+        "template_style": layout.get("layout", {}).get("template_style"),
+        "headline_slot": layout.get("layout", {}).get("headline_slot"),
+        "visual_slot": layout.get("layout", {}).get("visual_slot"),
+        "proof_slot": layout.get("layout", {}).get("proof_slot"),
+        "benefit_slot": layout.get("layout", {}).get("benefit_slot"),
+        "preview_strength": layout.get("preview_strength")
+    }
     
-    content = response.choices[0].message.content.strip()
-    if "```json" in content:
-        content = content.split("```json")[1].split("```")[0].strip()
-    elif "```" in content:
-        content = content.split("```")[1].split("```")[0].strip()
-    
-    # FIX 1: Robust JSON parsing with fallbacks
     try:
-        result = json.loads(content)
-    except json.JSONDecodeError as e:
-        logger.error(f"❌ JSON parsing failed in stage 4-5: {e}. Content preview: {content[:200]}...")
-        import re
-        json_match = re.search(r'\{.*\}', content, re.DOTALL)
-        if json_match:
-            try:
-                result = json.loads(json_match.group(0))
-                logger.info("✅ Recovered JSON using regex extraction")
-            except:
-                logger.warning("⚠️ Using fallback layout structure")
-                result = {
-                    "composition_decisions": [],
-                    "layout": {
-                        "template_style": page_type,
-                        "headline_slot": None,
-                        "visual_slot": None,
-                        "proof_slot": None,
-                        "benefit_slot": None,
-                        "cta_slot": None
-                    },
-                    "layout_reasoning": "Fallback due to JSON parse error",
-                    "preview_strength": "weak"
-                }
-        else:
-            result = {
-                "composition_decisions": [],
-                "layout": {
-                    "template_style": page_type,
-                    "headline_slot": None,
-                    "visual_slot": None,
-                    "proof_slot": None,
-                    "benefit_slot": None,
-                    "cta_slot": None
+        client = OpenAI(api_key=settings.OPENAI_API_KEY, timeout=30)
+        
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a conversion expert. Rate this preview's ability to drive clicks. Be critical but fair. Output valid JSON only."
                 },
-                "layout_reasoning": "Fallback due to JSON parse error",
-                "preview_strength": "weak"
-            }
-    
-    # Normalize new-style scores to old-style for backward compatibility
-    if "hook_score" in result and "coherence_score" not in result:
-        result["coherence_score"] = result["hook_score"]
-    if "trust_score" in result and "balance_score" not in result:
-        result["balance_score"] = result["trust_score"]
-    if "click_motivation_score" in result:
-        # Use click motivation as a factor in overall quality
-        click_score = result["click_motivation_score"]
-        if click_score >= 0.8:
-            result["overall_quality"] = "excellent"
-        elif click_score >= 0.6:
-            result["overall_quality"] = "good"
-        elif click_score >= 0.4:
-            result["overall_quality"] = "fair"
+                {
+                    "role": "user",
+                    "content": STAGE_6_PROMPT.format(
+                        layout_json=json.dumps(simplified_layout, indent=2),
+                        included_regions=json.dumps(regions_for_ai, indent=2)
+                    )
+                }
+            ],
+            max_tokens=500,  # Reduced for faster responses
+            temperature=0.05  # Lower temperature for more consistent, precise extraction
+        )
+        
+        content = response.choices[0].message.content.strip()
+        if "```json" in content:
+            content = content.split("```json")[1].split("```")[0].strip()
+        elif "```" in content:
+            content = content.split("```")[1].split("```")[0].strip()
+        
+        # FIX 1: Robust JSON parsing with fallbacks
+        try:
+            result = json.loads(content)
+        except json.JSONDecodeError as e:
+            logger.error(f"❌ JSON parsing failed in stage 6: {e}. Content preview: {content[:200]}...")
+            import re
+            json_match = re.search(r'\{.*\}', content, re.DOTALL)
+            if json_match:
+                try:
+                    result = json.loads(json_match.group(0))
+                    logger.info("✅ Recovered JSON using regex extraction")
+                except:
+                    logger.warning("⚠️ Using fallback quality scores due to JSON parse error")
+                    result = {
+                        "coherence_score": 0.7,
+                        "balance_score": 0.7,
+                        "clarity_score": 0.7,
+                        "overall_quality": "good",
+                        "improvement_suggestions": []
+                    }
+            else:
+                result = {
+                    "coherence_score": 0.7,
+                    "balance_score": 0.7,
+                    "clarity_score": 0.7,
+                    "overall_quality": "good",
+                    "improvement_suggestions": []
+                }
+        
+        # Normalize new-style scores to old-style for backward compatibility
+        if "hook_score" in result and "coherence_score" not in result:
+            result["coherence_score"] = result["hook_score"]
+        if "trust_score" in result and "balance_score" not in result:
+            result["balance_score"] = result["trust_score"]
+        if "click_motivation_score" in result:
+            # Use click motivation as a factor in overall quality
+            click_score = result["click_motivation_score"]
+            if click_score >= 0.8:
+                result["overall_quality"] = "excellent"
+            elif click_score >= 0.6:
+                result["overall_quality"] = "good"
+            elif click_score >= 0.4:
+                result["overall_quality"] = "fair"
+            else:
+                result["overall_quality"] = "poor"
+        
+        # Ensure required fields exist
+        result.setdefault("coherence_score", 0.7)
+        result.setdefault("balance_score", 0.7)
+        result.setdefault("clarity_score", 0.7)
+        result.setdefault("overall_quality", "good")
+        result.setdefault("improvement_suggestions", [])
+        
+        return result
+        
+    except Exception as e:
+        # Handle rate limits and other API errors gracefully
+        error_msg = str(e)
+        if "429" in error_msg or "rate_limit" in error_msg.lower() or "tokens per min" in error_msg.lower():
+            logger.warning(f"⚠️ Stage 6 rate limited, using fallback quality scores: {error_msg[:200]}")
         else:
-            result["overall_quality"] = "poor"
-    
-    # Ensure required fields exist
-    result.setdefault("coherence_score", 0.7)
-    result.setdefault("balance_score", 0.7)
-    result.setdefault("clarity_score", 0.7)
-    result.setdefault("overall_quality", "good")
-    result.setdefault("improvement_suggestions", [])
-    
-    return result
+            logger.warning(f"⚠️ Stage 6 failed, using fallback quality scores: {error_msg[:200]}")
+        # Return fallback scores
+        return {
+            "coherence_score": 0.7,
+            "balance_score": 0.7,
+            "clarity_score": 0.7,
+            "overall_quality": "good",
+            "improvement_suggestions": [],
+            "hook_score": 0.7,
+            "trust_score": 0.7,
+            "click_motivation_score": 0.7
+        }
 
 
 # =============================================================================
