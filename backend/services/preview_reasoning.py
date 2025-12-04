@@ -307,7 +307,7 @@ Then find 2-3 supporting elements. That's it.
 2. NUMBERS WIN - "4.9★ from 2,847 reviews" beats "Great reviews" - Always include counts
 3. SPECIFIC > GENERIC - "Save 10 hours/week" beats "Save time" - Quantify everything
 4. ONE HERO ONLY - Don't mark multiple things as hero weight - Pick THE best
-5. BBOX PRECISION - For logos and images, include padding for clean crops
+5. BBOX PRECISION - For logos and profile images, detect the EXACT boundaries of the visual element (the circular logo/avatar itself, not surrounding whitespace). The bounding box should tightly fit the actual logo/image shape.
 6. CONTEXT MATTERS - Consider page type (product vs blog vs landing) when prioritizing
 7. TRUST SIGNALS FIRST - Social proof, ratings, testimonials get highest priority
 8. AVOID FILLER - Skip "Welcome", "About Us", navigation text, legal disclaimers"""
@@ -479,69 +479,62 @@ def crop_region(image: Image.Image, bbox: Dict[str, float], is_profile_image: bo
     """
     Crop a region from the image with intelligent handling.
     
-    For profile images, ensures a square, centered crop with smart padding
-    and bias toward upper-center (where faces typically are).
+    For profile images/avatars, trusts AI detection and creates perfectly centered square crop.
+    The AI should detect circular logos accurately, so we use true center-based cropping.
     """
-    # Calculate raw coordinates
+    # Calculate raw coordinates from AI-detected bounding box
     left = int(bbox['x'] * image.width)
     top = int(bbox['y'] * image.height)
     right = int((bbox['x'] + bbox['width']) * image.width)
     bottom = int((bbox['y'] + bbox['height']) * image.height)
     
-    # Add generous padding for better coverage (25% for profile images, 15% for others)
-    padding_factor = 0.25 if is_profile_image else 0.15
-    padding_x = int((right - left) * padding_factor)
-    padding_y = int((bottom - top) * padding_factor)
-    
-    left = max(0, left - padding_x)
-    top = max(0, top - padding_y)
-    right = min(image.width, right + padding_x)
-    bottom = min(image.height, bottom + padding_y)
-    
     if right <= left or bottom <= top:
         return ""
     
-    # For profile images, ensure square crop with smart centering
+    # For profile images/avatars, trust AI detection and create perfectly centered square crop
     if is_profile_image:
+        # Calculate the center of the detected bounding box (AI should detect this accurately)
+        center_x = (left + right) // 2
+        center_y = (top + bottom) // 2
+        
+        # Use the larger dimension to ensure we capture the full circular logo
         width = right - left
         height = bottom - top
-        
-        # Make it square by taking the larger dimension
         size = max(width, height)
-        # Add 30% more to ensure we capture full circular avatar and some context
-        size = int(size * 1.3)
         
-        # Smart centering: bias toward upper-center for profile photos
-        center_x = (left + right) // 2
-        # For vertical centering, bias slightly upward (faces are usually in upper 2/3)
-        center_y = top + int((bottom - top) * 0.35)  # 35% from top instead of 50%
+        # Add minimal padding (10%) just to ensure we capture the full circle including any border
+        # The AI should detect the logo accurately, so we don't need excessive padding
+        size = int(size * 1.1)
         
-        # Calculate new bounds
+        # Create perfectly centered square crop
         half_size = size // 2
         left = max(0, center_x - half_size)
         top = max(0, center_y - half_size)
         right = min(image.width, center_x + half_size)
         bottom = min(image.height, center_y + half_size)
         
-        # Re-adjust if we hit image bounds (maintain square, prefer keeping top)
+        # If we hit image bounds, adjust symmetrically to maintain center
         actual_width = right - left
         actual_height = bottom - top
         
-        # If we lost size due to bounds, try to expand
-        if actual_width < size or actual_height < size:
-            # Try to expand horizontally first
-            if right < image.width:
-                right = min(image.width, left + size)
-            elif left > 0:
-                left = max(0, right - size)
-            # Then vertically (but prefer keeping top position)
-            if bottom < image.height:
-                bottom = min(image.height, top + size)
-            elif top > 0:
-                # Only adjust top if we have room, otherwise keep it
-                new_top = max(0, bottom - size)
-                if new_top >= 0:
-                    top = new_top
+        # Ensure square by taking the smaller dimension if we hit bounds
+        if actual_width != actual_height:
+            min_dim = min(actual_width, actual_height)
+            half_min = min_dim // 2
+            left = max(0, center_x - half_min)
+            top = max(0, center_y - half_min)
+            right = min(image.width, center_x + half_min)
+            bottom = min(image.height, center_y + half_min)
+    else:
+        # For non-profile images, add moderate padding
+        padding_factor = 0.15
+        padding_x = int((right - left) * padding_factor)
+        padding_y = int((bottom - top) * padding_factor)
+        
+        left = max(0, left - padding_x)
+        top = max(0, top - padding_y)
+        right = min(image.width, right + padding_x)
+        bottom = min(image.height, bottom + padding_y)
     
     if right <= left or bottom <= top:
         return ""
@@ -669,8 +662,14 @@ def run_stages_1_2_3(screenshot_bytes: bytes) -> Tuple[List[Dict], Dict[str, str
             )
             is_logo = region.get("is_logo", False) or region.get("id") == logo_region_id or content_type == "logo"
             
+            # For profile pages, profile logos/avatars should use profile cropping logic
+            # even if they're marked as logos (they're the identity element)
+            page_type = data.get("page_type", "").lower()
+            is_profile_logo = is_profile and (is_logo or page_type == "profile")
+            
             try:
-                image_data = crop_region(pil_image, region["bbox"], is_profile_image=(is_profile and not is_logo))
+                # Use profile image cropping for profile images/avatars, including profile logos
+                image_data = crop_region(pil_image, region["bbox"], is_profile_image=(is_profile or is_profile_logo))
                 if image_data:
                     region["image_data"] = image_data
                     if is_logo:
