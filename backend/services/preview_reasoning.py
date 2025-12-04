@@ -307,7 +307,7 @@ Then find 2-3 supporting elements. That's it.
 2. NUMBERS WIN - "4.9★ from 2,847 reviews" beats "Great reviews" - Always include counts
 3. SPECIFIC > GENERIC - "Save 10 hours/week" beats "Save time" - Quantify everything
 4. ONE HERO ONLY - Don't mark multiple things as hero weight - Pick THE best
-5. BBOX PRECISION - For logos and profile images, detect the EXACT boundaries of the visual element (the circular logo/avatar itself, not surrounding whitespace). The bounding box should tightly fit the actual logo/image shape.
+5. BBOX PRECISION - CRITICAL for profile images/avatars: Detect ONLY the circular/rounded profile image itself. The bounding box should tightly wrap around the actual face/avatar circle, excluding any surrounding whitespace, borders, or padding. For circular profile images, the bounding box should be roughly square and should include ONLY the visible circular image content, not the empty space around it.
 6. CONTEXT MATTERS - Consider page type (product vs blog vs landing) when prioritizing
 7. TRUST SIGNALS FIRST - Social proof, ratings, testimonials get highest priority
 8. AVOID FILLER - Skip "Welcome", "About Us", navigation text, legal disclaimers"""
@@ -475,12 +475,66 @@ def prepare_image(screenshot_bytes: bytes) -> Tuple[str, Image.Image]:
     return base64_str, image
 
 
+def _find_content_center(image: Image.Image) -> tuple[int, int]:
+    """
+    Find the center of actual content (non-background) in an image.
+    Uses variance analysis to detect where the actual image content is.
+    For circular profile images, this finds the center of the face/avatar.
+    """
+    from PIL import ImageStat
+    
+    # Convert to grayscale for analysis
+    gray = image.convert('L')
+    width, height = gray.size
+    
+    # Sample regions in a grid to find content density
+    grid_size = 8  # 8x8 grid
+    step_x = max(1, width // grid_size)
+    step_y = max(1, height // grid_size)
+    
+    # Calculate variance for each region (high variance = content, low = background)
+    max_variance = 0
+    weighted_x = 0
+    weighted_y = 0
+    total_weight = 0
+    
+    # Sample regions to find where content is
+    for y in range(0, height - step_y, step_y):
+        for x in range(0, width - step_x, step_x):
+            region = gray.crop((x, y, min(x + step_x, width), min(y + step_y, height)))
+            stat = ImageStat.Stat(region)
+            variance = stat.var[0] if stat.var else 0
+            
+            # Track max variance
+            if variance > max_variance:
+                max_variance = variance
+            
+            # Weight regions with significant content (at least 50% of max variance)
+            if variance > max_variance * 0.5 or max_variance == 0:
+                weight = variance if variance > 0 else 1
+                region_center_x = x + step_x // 2
+                region_center_y = y + step_y // 2
+                weighted_x += region_center_x * weight
+                weighted_y += region_center_y * weight
+                total_weight += weight
+    
+    # Calculate weighted center
+    if total_weight > 0:
+        content_center_x = int(weighted_x / total_weight)
+        content_center_y = int(weighted_y / total_weight)
+    else:
+        # Fallback to geometric center
+        content_center_x = width // 2
+        content_center_y = height // 2
+    
+    return content_center_x, content_center_y
+
+
 def crop_region(image: Image.Image, bbox: Dict[str, float], is_profile_image: bool = False) -> str:
     """
     Crop a region from the image with intelligent handling.
     
-    For profile images/avatars, trusts AI detection and creates perfectly centered square crop.
-    The AI should detect circular logos accurately, so we use true center-based cropping.
+    For profile images/avatars, detects actual content center and creates perfectly centered square crop.
     """
     # Calculate raw coordinates from AI-detected bounding box
     left = int(bbox['x'] * image.width)
@@ -491,40 +545,59 @@ def crop_region(image: Image.Image, bbox: Dict[str, float], is_profile_image: bo
     if right <= left or bottom <= top:
         return ""
     
-    # For profile images/avatars, trust AI detection and create perfectly centered square crop
+    # For profile images/avatars, find actual content center and create perfectly centered square crop
     if is_profile_image:
-        # Calculate the center of the detected bounding box (AI should detect this accurately)
-        center_x = (left + right) // 2
-        center_y = (top + bottom) // 2
-        
-        # Use the larger dimension to ensure we capture the full circular logo
+        # First, get an initial crop to analyze
         width = right - left
         height = bottom - top
-        size = max(width, height)
+        initial_size = max(width, height)
         
-        # Add minimal padding (10%) just to ensure we capture the full circle including any border
-        # The AI should detect the logo accurately, so we don't need excessive padding
-        size = int(size * 1.1)
+        # Add some padding to ensure we capture the full image
+        padded_size = int(initial_size * 1.2)
+        half_padded = padded_size // 2
         
-        # Create perfectly centered square crop
+        # Calculate initial center from bounding box
+        bbox_center_x = (left + right) // 2
+        bbox_center_y = (top + bottom) // 2
+        
+        # Get a larger crop area to analyze
+        analysis_left = max(0, bbox_center_x - half_padded)
+        analysis_top = max(0, bbox_center_y - half_padded)
+        analysis_right = min(image.width, bbox_center_x + half_padded)
+        analysis_bottom = min(image.height, bbox_center_y + half_padded)
+        
+        analysis_crop = image.crop((analysis_left, analysis_top, analysis_right, analysis_bottom))
+        
+        # Find the actual content center within the analysis crop
+        content_x, content_y = _find_content_center(analysis_crop)
+        
+        # Convert back to full image coordinates
+        actual_center_x = analysis_left + content_x
+        actual_center_y = analysis_top + content_y
+        
+        # Use the smaller dimension of the bounding box as the base size (circular images should be roughly square)
+        base_size = min(width, height) if abs(width - height) / max(width, height) < 0.3 else max(width, height)
+        
+        # For circular profile images, use the base size with minimal padding
+        size = int(base_size * 1.05)  # 5% padding to ensure we get the full circle
+        
+        # Create perfectly centered square crop on actual content center
         half_size = size // 2
-        left = max(0, center_x - half_size)
-        top = max(0, center_y - half_size)
-        right = min(image.width, center_x + half_size)
-        bottom = min(image.height, center_y + half_size)
+        left = max(0, actual_center_x - half_size)
+        top = max(0, actual_center_y - half_size)
+        right = min(image.width, actual_center_x + half_size)
+        bottom = min(image.height, actual_center_y + half_size)
         
-        # If we hit image bounds, adjust symmetrically to maintain center
+        # Ensure square
         actual_width = right - left
         actual_height = bottom - top
-        
-        # Ensure square by taking the smaller dimension if we hit bounds
         if actual_width != actual_height:
             min_dim = min(actual_width, actual_height)
             half_min = min_dim // 2
-            left = max(0, center_x - half_min)
-            top = max(0, center_y - half_min)
-            right = min(image.width, center_x + half_min)
-            bottom = min(image.height, center_y + half_min)
+            left = max(0, actual_center_x - half_min)
+            top = max(0, actual_center_y - half_min)
+            right = min(image.width, actual_center_x + half_min)
+            bottom = min(image.height, actual_center_y + half_min)
     else:
         # For non-profile images, add moderate padding
         padding_factor = 0.15
