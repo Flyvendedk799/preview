@@ -1,17 +1,15 @@
 # Multi-stage build for frontend
 FROM node:20-alpine as builder
 
-# Cache bust argument - change this value to force rebuild
-ARG CACHEBUST=2025-12-12-fix-railway-port
+# Cache bust argument
+ARG CACHEBUST=2025-12-12-fix-port-80
 
-# Accept build arguments for Vite environment variables
 ARG VITE_API_BASE_URL
 ARG VITE_STRIPE_PRICE_TIER_BASIC
 ARG VITE_STRIPE_PRICE_TIER_PRO
 ARG VITE_STRIPE_PRICE_TIER_AGENCY
 ARG VITE_FRONTEND_BASE_URL
 
-# Set as environment variables for the build process
 ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 ENV VITE_STRIPE_PRICE_TIER_BASIC=${VITE_STRIPE_PRICE_TIER_BASIC}
 ENV VITE_STRIPE_PRICE_TIER_PRO=${VITE_STRIPE_PRICE_TIER_PRO}
@@ -23,36 +21,20 @@ COPY package.json package-lock.json* ./
 RUN npm ci
 COPY . .
 
-RUN echo "=== CACHE BUST: ${CACHEBUST} ===" && \
-    echo "Timestamp: $(date)"
+RUN echo "=== Build: ${CACHEBUST} ===" && npm run build
 
-RUN npm run build && \
-    echo "=== Build Complete ===" && \
-    ls -lah dist/
-
-# Production stage with nginx
+# Production stage
 FROM nginx:alpine
 
-# Copy built assets from builder
 COPY --from=builder /app/dist /usr/share/nginx/html
-
-# Copy nginx configuration template
-# nginx:alpine's 20-envsubst-on-templates.sh processes .template files
-# and substitutes ${VAR} environment variables using envsubst
 COPY nginx.conf /etc/nginx/templates/default.conf.template
-
-# Copy custom entrypoint script
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint-custom.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint-custom.sh
 
-# Expose the port (documentation only, Railway uses $PORT)
 EXPOSE 80
 
-# Health check - uses $PORT since that's what nginx listens on
-# Note: Docker HEALTHCHECK runs inside container, needs shell for variable expansion
-HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD wget --quiet --tries=1 --spider http://localhost:${PORT:-80}/health || exit 1
+# Health check on port 80 (matches Railway dashboard config)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD wget --quiet --tries=1 --spider http://localhost:80/health || exit 1
 
-# Use custom entrypoint
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint-custom.sh"]
-CMD ["nginx", "-g", "daemon off;"]
