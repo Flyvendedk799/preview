@@ -37,5 +37,6 @@
         "VITE_FRONTEND_BASE_URL": "${VITE_FRONTEND_BASE_URL}"
       }
     }
-  }
+  },
+  "_redeployTrigger": "2024-12-19"
 }

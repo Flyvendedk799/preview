@@ -72,6 +72,18 @@ class BrandElements(BaseModel):
     favicon_url: Optional[str] = None
 
 
+class DesignDNA(BaseModel):
+    """Design DNA - extracted design philosophy for intelligent rendering."""
+    style: str = "corporate"
+    mood: str = "balanced"
+    formality: float = 0.5
+    typography_personality: str = "bold"
+    color_emotion: str = "trust"
+    spacing_feel: str = "balanced"
+    brand_adjectives: List[str] = []
+    design_reasoning: str = ""
+
+
 class LayoutBlueprint(BaseModel):
     """Layout blueprint with full reasoning."""
     template_type: str
@@ -81,13 +93,14 @@ class LayoutBlueprint(BaseModel):
     coherence_score: float
     balance_score: float
     clarity_score: float
+    design_fidelity_score: Optional[float] = None  # How well preview honors original design
     overall_quality: str
     layout_reasoning: str
     composition_notes: str
 
 
 class DemoPreviewResponse(BaseModel):
-    """Multi-stage reasoned preview response with brand elements."""
+    """Multi-stage reasoned preview response with brand elements and Design DNA."""
     # Source URL
     url: str
 
@@ -110,14 +123,18 @@ class DemoPreviewResponse(BaseModel):
 
     # ===== LAYOUT BLUEPRINT =====
     blueprint: LayoutBlueprint
+    
+    # ===== DESIGN DNA (NEW) =====
+    design_dna: Optional[DesignDNA] = None  # Design intelligence for adaptive rendering
 
     # ===== QUALITY METRICS =====
     reasoning_confidence: float
+    design_fidelity_score: Optional[float] = None  # How well preview honors original design
     processing_time_ms: int
 
     # ===== DEMO METADATA =====
     is_demo: bool = True
-    message: str = "AI-reconstructed preview using multi-stage reasoning."
+    message: str = "AI-reconstructed preview using multi-stage reasoning with Design DNA."
 
 
 class DemoJobRequest(BaseModel):
@@ -441,13 +458,18 @@ def generate_demo_preview_optimized(
                 coherence_score=engine_result.blueprint.get("coherence_score", 0.0),
                 balance_score=engine_result.blueprint.get("balance_score", 0.0),
                 clarity_score=engine_result.blueprint.get("clarity_score", 0.0),
+                design_fidelity_score=engine_result.blueprint.get("design_fidelity_score"),
                 overall_quality=engine_result.blueprint.get("overall_quality", 0.0),
                 layout_reasoning=engine_result.blueprint.get("layout_reasoning", ""),
                 composition_notes=engine_result.blueprint.get("composition_notes", "")
             ),
             
+            # Design DNA (NEW - for adaptive rendering)
+            design_dna=DesignDNA(**engine_result.design_dna) if hasattr(engine_result, 'design_dna') and engine_result.design_dna else None,
+            
             # Metrics
             reasoning_confidence=engine_result.reasoning_confidence,
+            design_fidelity_score=getattr(engine_result, 'design_fidelity_score', None),
             processing_time_ms=engine_result.processing_time_ms,
             
             # Metadata

@@ -981,6 +981,18 @@ export interface CredibilityItem {
   value: string  // '4.5 (10 reviews)'
 }
 
+// Design DNA - extracted design philosophy for intelligent rendering
+export interface DesignDNA {
+  style: 'minimalist' | 'maximalist' | 'corporate' | 'luxurious' | 'playful' | 'technical' | 'editorial' | 'brutalist' | 'organic' | string
+  mood: 'calm' | 'balanced' | 'dynamic' | 'dramatic' | string
+  formality: number  // 0-1, where 0=casual, 1=formal
+  typography_personality: 'authoritative' | 'friendly' | 'elegant' | 'technical' | 'bold' | 'subtle' | 'expressive' | string
+  color_emotion: 'trust' | 'energy' | 'calm' | 'sophistication' | 'warmth' | 'innovation' | 'playfulness' | string
+  spacing_feel: 'compact' | 'balanced' | 'spacious' | 'ultra-minimal' | string
+  brand_adjectives: string[]
+  design_reasoning: string
+}
+
 export interface LayoutBlueprint {
   template_type: string  // profile, product, landing, article, service
   primary_color: string
@@ -991,6 +1003,7 @@ export interface LayoutBlueprint {
   coherence_score: number  // 0-1
   balance_score: number    // 0-1
   clarity_score: number    // 0-1
+  design_fidelity_score?: number  // 0-1, how well preview honors original design
   overall_quality: 'excellent' | 'good' | 'fair' | 'poor'
   
   // Reasoning chain
@@ -1019,8 +1032,12 @@ export interface DemoPreviewResponse {
   // ===== LAYOUT BLUEPRINT =====
   blueprint: LayoutBlueprint
   
+  // ===== DESIGN DNA (NEW) =====
+  design_dna?: DesignDNA | null  // Design intelligence for adaptive rendering
+  
   // ===== QUALITY METRICS =====
   reasoning_confidence: number  // 0-1
+  design_fidelity_score?: number  // 0-1, how well preview honors original design
   processing_time_ms: number
   
   // ===== DEMO METADATA =====

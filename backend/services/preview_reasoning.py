@@ -1,9 +1,14 @@
 """
-Multi-Stage Preview Reasoning Framework.
+Multi-Stage Preview Reasoning Framework with Design DNA Integration.
 
 This module implements a systematic, step-by-step reasoning process for
 generating high-quality preview reconstructions. The framework is designed
 to generalize across different websites, layouts, and industries.
+
+ENHANCED WITH DESIGN DNA:
+- Now extracts design philosophy, typography personality, color psychology
+- Understands WHY designers made choices, not just WHAT they made
+- Produces previews that honor the original design's soul
 
 DESIGN PRINCIPLES:
 1. Explicit multi-stage reasoning (not heuristics)
@@ -11,6 +16,7 @@ DESIGN PRINCIPLES:
 3. Transparent decision framework
 4. Premium SaaS quality bar
 5. Modular and extensible
+6. Design fidelity - honor the original design's intent
 
 REASONING STAGES:
 1. SEGMENTATION: Identify distinct UI/UX regions
@@ -18,7 +24,7 @@ REASONING STAGES:
 3. PRIORITY ASSIGNMENT: Rank by visual importance
 4. COMPOSITION DECISION: What to keep, reorder, or remove
 5. LAYOUT SYNTHESIS: Generate optimized structure
-6. COHERENCE CHECK: Validate balance and flow
+6. COHERENCE CHECK: Validate balance, flow, and DESIGN FIDELITY
 """
 
 import json
@@ -32,6 +38,13 @@ from enum import Enum
 from PIL import Image
 from openai import OpenAI
 from backend.core.config import settings
+
+# Design DNA Integration
+try:
+    from backend.services.design_dna_extractor import extract_design_dna, extract_quick_dna, DesignDNA
+    DESIGN_DNA_AVAILABLE = True
+except ImportError:
+    DESIGN_DNA_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -179,9 +192,13 @@ class ReasonedPreview:
     # Images
     primary_image_base64: Optional[str]
     
+    # Design DNA (NEW - for design-intelligent rendering)
+    design_dna: Optional[Dict[str, Any]] = None
+    
     # Processing metadata
-    processing_time_ms: int
-    reasoning_confidence: float
+    processing_time_ms: int = 0
+    reasoning_confidence: float = 0.0
+    design_fidelity_score: float = 0.0
     
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -195,8 +212,10 @@ class ReasonedPreview:
             "credibility_items": self.credibility_items,
             "cta_text": self.cta_text,
             "has_primary_image": self.primary_image_base64 is not None,
+            "design_dna": self.design_dna,
             "processing_time_ms": self.processing_time_ms,
-            "reasoning_confidence": self.reasoning_confidence
+            "reasoning_confidence": self.reasoning_confidence,
+            "design_fidelity_score": self.design_fidelity_score
         }
 
 
@@ -299,6 +318,16 @@ Then find 2-3 supporting elements. That's it.
         "region_id": "<id or null>",
         "confidence": <0.0-1.0>
     }},
+    "design_dna": {{
+        "style": "<minimalist|maximalist|corporate|luxurious|playful|technical|editorial|brutalist|organic>",
+        "mood": "<calm|balanced|dynamic|dramatic>",
+        "formality": <0.0-1.0>,
+        "typography_personality": "<authoritative|friendly|elegant|technical|bold|subtle|expressive>",
+        "color_emotion": "<trust|energy|calm|sophistication|warmth|innovation|playfulness>",
+        "spacing_feel": "<compact|balanced|spacious|ultra-minimal>",
+        "brand_adjectives": ["<3-5 words describing brand personality>"],
+        "design_reasoning": "<1-2 sentences on why this design works for this brand>"
+    }},
     "analysis_confidence": <0.0-1.0>
 }}
 
@@ -399,6 +428,9 @@ LAYOUT:
 CONTENT:
 {included_regions}
 
+ORIGINAL DESIGN DNA:
+{design_dna_json}
+
 === BRUTAL HONESTY CHECK ===
 
 HOOK SCORE (0-1): How compelling is the main headline?
@@ -425,6 +457,14 @@ CLICK MOTIVATION SCORE (0-1): What's the motivation to click?
 - Creates curiosity gap or FOMO? +0.3
 - Would someone share or remember this? +0.3
 
+=== DESIGN FIDELITY CHECK (NEW) ===
+
+DESIGN FIDELITY SCORE (0-1): Does this preview honor the original design's soul?
+- Typography feels consistent with the brand? +0.25
+- Colors evoke the same emotional response? +0.25
+- Spacing/density matches original's personality? +0.25
+- Would someone familiar with the brand recognize it? +0.25
+
 OUTPUT JSON:
 {{
     "hook_score": <0.0-1.0>,
@@ -435,12 +475,15 @@ OUTPUT JSON:
     "clarity_notes": "<can someone get it instantly?>",
     "click_motivation_score": <0.0-1.0>,
     "click_notes": "<honest - would you click?>",
+    "design_fidelity_score": <0.0-1.0>,
+    "design_fidelity_notes": "<does this honor the original design's intent?>",
     "overall_quality": "<excellent|good|fair|poor>",
     "biggest_weakness": "<the ONE thing that would improve this most>",
     "improvement_suggestions": ["<specific, actionable fixes>"]
 }}
 
-BE HONEST: Most previews are "fair" or "good". Reserve "excellent" for previews you'd actually share."""
+BE HONEST: Most previews are "fair" or "good". Reserve "excellent" for previews you'd actually share.
+DESIGN FIDELITY: A preview should FEEL like it belongs to the original brand - same energy, same personality."""
 
 
 # =============================================================================
@@ -631,12 +674,14 @@ def crop_region(image: Image.Image, bbox: Dict[str, float], is_profile_image: bo
 # CORE REASONING ENGINE
 # =============================================================================
 
-def run_stages_1_2_3(screenshot_bytes: bytes) -> Tuple[List[Dict], Dict[str, str], str, float, Dict[str, Any]]:
+def run_stages_1_2_3(screenshot_bytes: bytes) -> Tuple[List[Dict], Dict[str, str], str, float, Dict[str, Any], Dict[str, Any]]:
     """
     Run Stages 1-3: Segmentation, Purpose Analysis, Priority Assignment.
     
+    Now also extracts Design DNA for design-intelligent rendering.
+    
     Returns:
-        Tuple of (regions_list, color_palette, page_type, confidence, extracted_highlights)
+        Tuple of (regions_list, color_palette, page_type, confidence, extracted_highlights, design_dna)
     """
     image_base64, pil_image = prepare_image(screenshot_bytes)
     
@@ -716,7 +761,20 @@ def run_stages_1_2_3(screenshot_bytes: bytes) -> Tuple[List[Dict], Dict[str, str
         "key_benefit": data.get("key_benefit")
     }
     
+    # Extract Design DNA (NEW - for design-intelligent rendering)
+    design_dna = data.get("design_dna", {
+        "style": "corporate",
+        "mood": "balanced",
+        "formality": 0.5,
+        "typography_personality": "bold",
+        "color_emotion": "trust",
+        "spacing_feel": "balanced",
+        "brand_adjectives": ["professional", "modern"],
+        "design_reasoning": "Default design DNA"
+    })
+    
     logger.info(f"🎯 Extracted highlights: hook='{extracted_highlights.get('the_hook', 'none')[:50]}...', proof='{extracted_highlights.get('social_proof_found', 'none')}'")
+    logger.info(f"🧬 Design DNA: style={design_dna.get('style')}, mood={design_dna.get('mood')}, typography={design_dna.get('typography_personality')}")
     
     # Extract logo information if detected
     detected_logo = data.get("detected_logo", {})
@@ -757,7 +815,8 @@ def run_stages_1_2_3(screenshot_bytes: bytes) -> Tuple[List[Dict], Dict[str, str
         data.get("detected_palette", {"primary": "#3B82F6", "secondary": "#1E293B", "accent": "#F59E0B"}),
         data.get("page_type", "unknown"),
         data.get("analysis_confidence", 0.7),
-        extracted_highlights
+        extracted_highlights,
+        design_dna
     )
 
 
@@ -884,12 +943,14 @@ def run_stages_4_5(regions: List[Dict], page_type: str, palette: Dict[str, str])
     return result
 
 
-def run_stage_6(layout: Dict[str, Any], included_regions: List[Dict]) -> Dict[str, Any]:
+def run_stage_6(layout: Dict[str, Any], included_regions: List[Dict], design_dna: Dict[str, Any] = None) -> Dict[str, Any]:
     """
-    Run Stage 6: Conversion Quality Check.
+    Run Stage 6: Conversion Quality Check with Design Fidelity.
+    
+    Now includes design fidelity scoring to ensure preview honors original design.
     
     Returns:
-        Quality scores dictionary with normalized field names.
+        Quality scores dictionary with normalized field names and design fidelity score.
     """
     # OPTIMIZATION: Strip image_data and other large fields to reduce token usage
     # Only keep essential text and metadata for quality assessment
@@ -929,7 +990,8 @@ def run_stage_6(layout: Dict[str, Any], included_regions: List[Dict]) -> Dict[st
                     "role": "user",
                     "content": STAGE_6_PROMPT.format(
                         layout_json=json.dumps(simplified_layout, indent=2),
-                        included_regions=json.dumps(regions_for_ai, indent=2)
+                        included_regions=json.dumps(regions_for_ai, indent=2),
+                        design_dna_json=json.dumps(design_dna or {}, indent=2)
                     )
                 }
             ],
@@ -960,6 +1022,7 @@ def run_stage_6(layout: Dict[str, Any], included_regions: List[Dict]) -> Dict[st
                         "coherence_score": 0.7,
                         "balance_score": 0.7,
                         "clarity_score": 0.7,
+                        "design_fidelity_score": 0.7,
                         "overall_quality": "good",
                         "improvement_suggestions": []
                     }
@@ -968,6 +1031,7 @@ def run_stage_6(layout: Dict[str, Any], included_regions: List[Dict]) -> Dict[st
                     "coherence_score": 0.7,
                     "balance_score": 0.7,
                     "clarity_score": 0.7,
+                    "design_fidelity_score": 0.7,
                     "overall_quality": "good",
                     "improvement_suggestions": []
                 }
@@ -993,6 +1057,7 @@ def run_stage_6(layout: Dict[str, Any], included_regions: List[Dict]) -> Dict[st
         result.setdefault("coherence_score", 0.7)
         result.setdefault("balance_score", 0.7)
         result.setdefault("clarity_score", 0.7)
+        result.setdefault("design_fidelity_score", 0.7)
         result.setdefault("overall_quality", "good")
         result.setdefault("improvement_suggestions", [])
         
@@ -1010,6 +1075,7 @@ def run_stage_6(layout: Dict[str, Any], included_regions: List[Dict]) -> Dict[st
             "coherence_score": 0.7,
             "balance_score": 0.7,
             "clarity_score": 0.7,
+            "design_fidelity_score": 0.7,
             "overall_quality": "good",
             "improvement_suggestions": [],
             "hook_score": 0.7,
@@ -1415,10 +1481,10 @@ def generate_reasoned_preview(screenshot_bytes: bytes, url: str = "") -> Reasone
     
     logger.info("Starting multi-stage preview reasoning")
     
-    # Stages 1-3: Analysis
-    logger.info("Running Stages 1-3: Segmentation, Purpose, Priority")
-    regions, palette, page_type, confidence, highlights = run_stages_1_2_3(screenshot_bytes)
-    logger.info(f"Identified {len(regions)} regions, page_type={page_type}")
+    # Stages 1-3: Analysis (now includes Design DNA extraction)
+    logger.info("Running Stages 1-3: Segmentation, Purpose, Priority + Design DNA")
+    regions, palette, page_type, confidence, highlights, design_dna = run_stages_1_2_3(screenshot_bytes)
+    logger.info(f"Identified {len(regions)} regions, page_type={page_type}, design_style={design_dna.get('style', 'unknown')}")
     
     # Stages 4-5: Layout
     logger.info("Running Stages 4-5: Composition, Layout")
@@ -1429,9 +1495,9 @@ def generate_reasoned_preview(screenshot_bytes: bytes, url: str = "") -> Reasone
     included_ids = {d["region_id"] for d in composition_decisions if d.get("include")}
     included_regions = [r for r in regions if r["id"] in included_ids]
     
-    # Stage 6: Quality Check
-    logger.info("Running Stage 6: Coherence Check")
-    quality = run_stage_6(layout_result, included_regions)
+    # Stage 6: Quality Check (now includes Design Fidelity scoring)
+    logger.info("Running Stage 6: Coherence Check + Design Fidelity")
+    quality = run_stage_6(layout_result, included_regions, design_dna)
     
     # Extract final content (pass highlights for prioritization)
     final_content = extract_final_content(regions, layout_result, composition_decisions, highlights)
@@ -1535,11 +1601,13 @@ def generate_reasoned_preview(screenshot_bytes: bytes, url: str = "") -> Reasone
         credibility_items=final_content["credibility_items"],
         cta_text=final_content["cta_text"],
         primary_image_base64=final_content["primary_image_base64"],
+        design_dna=design_dna,  # NEW: Design DNA for intelligent rendering
         processing_time_ms=processing_time,
-        reasoning_confidence=confidence
+        reasoning_confidence=confidence,
+        design_fidelity_score=quality.get("design_fidelity_score", 0.7)  # NEW: Design fidelity metric
     )
     
-    logger.info(f"Preview reasoning complete: quality={blueprint.overall_quality}, time={processing_time}ms")
+    logger.info(f"Preview reasoning complete: quality={blueprint.overall_quality}, fidelity={result.design_fidelity_score:.2f}, time={processing_time}ms")
     
     return result
 

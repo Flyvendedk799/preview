@@ -3,10 +3,15 @@
  * 
  * Renders an AI-reconstructed preview using multi-stage reasoning output.
  * Designed for premium SaaS quality with clean, intentional aesthetics.
+ * 
+ * NOW ENHANCED WITH DESIGN DNA:
+ * When design_dna is available, uses the AdaptivePreview component to
+ * dynamically style the preview based on the original design's philosophy.
  */
 
 import { useEffect, useRef } from 'react'
 import { DemoPreviewResponse } from '../api/client'
+import AdaptivePreview from './AdaptivePreview'
 
 interface ReconstructedPreviewProps {
   preview: DemoPreviewResponse
@@ -593,8 +598,22 @@ export default function ReconstructedPreview({ preview, className = '' }: Recons
   
   // Select template based on type
   // Maps AI page types to visual templates
+  // NEW: Uses AdaptivePreview when Design DNA is available for intelligent styling
   const renderTemplate = () => {
     const templateType = (blueprint.template_type || '').toLowerCase()
+    
+    // NEW: If Design DNA is available and confidence is high, use AdaptivePreview
+    // This creates previews that honor the original design's personality
+    if (preview.design_dna && preview.design_fidelity_score && preview.design_fidelity_score > 0.5) {
+      console.log('[ReconstructedPreview] Using AdaptivePreview with Design DNA:', {
+        style: preview.design_dna.style,
+        typography: preview.design_dna.typography_personality,
+        fidelity: preview.design_fidelity_score
+      })
+      return <AdaptivePreview preview={preview} />
+    }
+    
+    // Fallback to fixed templates when Design DNA is not available
     
     // Profile template: personal pages, freelancers, team members
     if (templateType === 'profile' || templateType === 'personal') {
@@ -649,8 +668,18 @@ export default function ReconstructedPreview({ preview, className = '' }: Recons
       </div>
       
       {/* Quality indicator (subtle) */}
-      <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-1 items-end">
         <QualityBadge quality={blueprint.overall_quality} score={blueprint.coherence_score} />
+        {/* Design fidelity badge when available */}
+        {preview.design_fidelity_score !== undefined && preview.design_fidelity_score > 0 && (
+          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${
+            preview.design_fidelity_score >= 0.8 ? 'bg-violet-100 text-violet-700 border-violet-200' :
+            preview.design_fidelity_score >= 0.6 ? 'bg-indigo-100 text-indigo-700 border-indigo-200' :
+            'bg-gray-100 text-gray-600 border-gray-200'
+          }`}>
+            🧬 {Math.round(preview.design_fidelity_score * 100)}% fidelity
+          </span>
+        )}
       </div>
     </div>
   )

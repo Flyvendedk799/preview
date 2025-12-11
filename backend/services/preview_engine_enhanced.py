@@ -60,6 +60,15 @@ from backend.services.preview_cache import (
     CacheConfig
 )
 
+# Design DNA Integration (NEW - for exceptional design quality)
+try:
+    from backend.services.design_fidelity_validator import quick_fidelity_check
+    DESIGN_DNA_VALIDATION_AVAILABLE = True
+except ImportError:
+    DESIGN_DNA_VALIDATION_AVAILABLE = False
+    def quick_fidelity_check(dna):
+        return 0.7  # Default fallback
+
 logger = logging.getLogger(__name__)
 
 
@@ -107,7 +116,7 @@ class EnhancedPreviewEngineConfig:
 
 @dataclass
 class EnhancedPreviewEngineResult:
-    """Enhanced result with quality metrics."""
+    """Enhanced result with quality metrics and Design DNA."""
     # Core content
     url: str
     title: str
@@ -141,6 +150,10 @@ class EnhancedPreviewEngineResult:
     quality_scores: Dict[str, float] = field(default_factory=dict)
     extraction_method: str = "standard"  # standard, enhanced, fallback
     optimization_applied: List[str] = field(default_factory=list)
+    
+    # Design DNA (NEW - for exceptional design quality)
+    design_dna: Optional[Dict[str, Any]] = None  # Design philosophy from extraction
+    design_fidelity_score: float = 0.0  # How well preview honors original design
     
     # Warnings
     warnings: List[str] = field(default_factory=list)
@@ -605,13 +618,23 @@ class EnhancedPreviewEngine:
         ai_result: Dict[str, Any],
         brand_elements: Dict[str, Any]
     ) -> Optional[str]:
-        """Enhanced composited image generation."""
+        """Enhanced composited image generation with Design DNA intelligence."""
         if not self.config.enable_composited_image:
             return None
         
         try:
             blueprint_colors = self._determine_colors_enhanced(ai_result, brand_elements)
             primary_image = self._determine_primary_image_enhanced(brand_elements, ai_result)
+            
+            # Get Design DNA for intelligent image generation (NEW)
+            design_dna = ai_result.get("design_dna", None)
+            
+            # Enrich design_dna with palette colors for the adaptive engine
+            if design_dna:
+                design_dna = {**design_dna}  # Copy to avoid mutation
+                design_dna["primary_color"] = blueprint_colors.get("primary_color", "#2563EB")
+                design_dna["secondary_color"] = blueprint_colors.get("secondary_color", "#1E40AF")
+                design_dna["accent_color"] = blueprint_colors.get("accent_color", "#F59E0B")
             
             composited_image_url = generate_and_upload_preview_image(
                 screenshot_bytes=screenshot_bytes,
@@ -625,7 +648,8 @@ class EnhancedPreviewEngine:
                 tags=ai_result.get("tags", []),
                 context_items=ai_result.get("context_items", []),
                 credibility_items=ai_result.get("credibility_items", []),
-                primary_image_base64=primary_image
+                primary_image_base64=primary_image,
+                design_dna=design_dna  # NEW - enables DNA-aware image generation
             )
             
             return composited_image_url
@@ -738,7 +762,7 @@ class EnhancedPreviewEngine:
         screenshot_url: Optional[str],
         start_time: float
     ) -> EnhancedPreviewEngineResult:
-        """Build enhanced result."""
+        """Build enhanced result with Design DNA."""
         processing_time_ms = int((time.time() - start_time) * 1000)
         
         brand_dict = {}
@@ -752,6 +776,18 @@ class EnhancedPreviewEngine:
         blueprint_colors = self._determine_colors_enhanced(ai_result, brand_elements)
         blueprint = ai_result.get("blueprint", {}).copy()
         blueprint.update(blueprint_colors)
+        
+        # Extract Design DNA from AI result (NEW - for exceptional design quality)
+        design_dna = ai_result.get("design_dna", None)
+        design_fidelity = ai_result.get("design_fidelity_score", 0.0)
+        
+        # If design_dna exists, calculate fidelity score
+        if design_dna and DESIGN_DNA_VALIDATION_AVAILABLE:
+            design_fidelity = max(design_fidelity, quick_fidelity_check(design_dna))
+        
+        # Add design fidelity to blueprint for frontend display
+        if design_fidelity > 0:
+            blueprint["design_fidelity_score"] = design_fidelity
         
         return EnhancedPreviewEngineResult(
             url=url,
@@ -770,14 +806,17 @@ class EnhancedPreviewEngine:
             reasoning_confidence=ai_result.get("reasoning_confidence", 0.0),
             processing_time_ms=processing_time_ms,
             is_demo=self.config.is_demo,
-            message="7X Enhanced AI-reconstructed preview with intelligent extraction.",
+            message="7X Enhanced AI-reconstructed preview with Design DNA intelligence.",
             quality_scores={
                 "coherence": blueprint.get("coherence_score", 0.0),
                 "balance": blueprint.get("balance_score", 0.0),
                 "clarity": blueprint.get("clarity_score", 0.0),
-                "overall": blueprint.get("overall_quality", 0.0)
+                "overall": blueprint.get("overall_quality", 0.0),
+                "design_fidelity": design_fidelity  # NEW
             },
-            extraction_method="enhanced"
+            extraction_method="enhanced",
+            design_dna=design_dna,  # NEW
+            design_fidelity_score=design_fidelity  # NEW
         )
     
     def _generate_with_graceful_degradation(

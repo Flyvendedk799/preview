@@ -1,13 +1,21 @@
 """
 Generate PREMIUM preview images for og:image.
 
-DESIGN PHILOSOPHY:
+DESIGN PHILOSOPHY - Enhanced with Design DNA Intelligence:
 Create social preview images that:
 1. Look like they were designed by a professional
 2. Use bold typography that pops at small sizes
 3. Have modern, sophisticated color usage
 4. Create visual interest that stops the scroll
 5. Feel premium and trustworthy
+6. NEW: Honor the original design's personality and intent
+7. NEW: Adapt typography, colors, and composition to match brand DNA
+
+This module now integrates with:
+- Design DNA Extractor for understanding design philosophy
+- Typography Intelligence for font personality matching
+- Color Psychology Engine for emotional accuracy
+- Adaptive Template Engine for dynamic compositions
 """
 
 import base64
@@ -18,6 +26,26 @@ from uuid import uuid4
 from typing import Optional, Dict, Any, List, Tuple
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
 from backend.services.r2_client import upload_file_to_r2
+
+# Design DNA Integration
+try:
+    from backend.services.adaptive_template_engine import (
+        AdaptiveTemplateEngine,
+        PreviewContent,
+        generate_adaptive_preview
+    )
+    from backend.services.design_dna_extractor import (
+        DesignDNA,
+        DesignPhilosophy,
+        TypographyDNA,
+        ColorPsychology,
+        SpatialIntelligence,
+        HeroElement,
+        BrandPersonality
+    )
+    ADAPTIVE_ENGINE_AVAILABLE = True
+except ImportError:
+    ADAPTIVE_ENGINE_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -1377,6 +1405,140 @@ def _generate_fallback_preview(
         return buffer.getvalue()
 
 
+def generate_dna_aware_preview(
+    screenshot_bytes: bytes,
+    title: str,
+    subtitle: Optional[str] = None,
+    description: Optional[str] = None,
+    proof_text: Optional[str] = None,
+    logo_base64: Optional[str] = None,
+    design_dna: Dict[str, Any] = None
+) -> Optional[bytes]:
+    """
+    Generate a Design DNA-aware preview using the Adaptive Template Engine.
+    
+    This creates previews that honor the original design's personality:
+    - Typography matches brand voice (authoritative, friendly, elegant, etc.)
+    - Colors evoke the same emotional response as the original
+    - Spacing and layout match the design's density philosophy
+    - Visual effects appropriate to the brand's style
+    
+    Args:
+        screenshot_bytes: Raw PNG bytes for background treatment
+        title: Main headline
+        subtitle: Optional subtitle
+        description: Optional description
+        proof_text: Social proof text
+        logo_base64: Optional logo image
+        design_dna: Design DNA dictionary from extraction
+        
+    Returns:
+        PNG image bytes, or None if generation fails
+    """
+    if not ADAPTIVE_ENGINE_AVAILABLE:
+        logger.warning("Adaptive Template Engine not available, falling back to classic generation")
+        return None
+    
+    if not design_dna:
+        logger.warning("No Design DNA provided, cannot generate DNA-aware preview")
+        return None
+    
+    try:
+        # Convert design_dna dict to DesignDNA object
+        dna = DesignDNA(
+            philosophy=DesignPhilosophy(
+                primary_style=design_dna.get("style", "corporate"),
+                visual_tension=design_dna.get("mood", "balanced"),
+                formality=design_dna.get("formality", 0.5),
+                design_era="contemporary",
+                reasoning=design_dna.get("design_reasoning", "")
+            ),
+            typography=TypographyDNA(
+                headline_personality=design_dna.get("typography_personality", "bold"),
+                body_personality="neutral",
+                weight_contrast="medium",
+                case_strategy="mixed",
+                spacing_character=_map_spacing_feel(design_dna.get("spacing_feel", "balanced")),
+                font_mood=""
+            ),
+            color_psychology=ColorPsychology(
+                dominant_emotion=design_dna.get("color_emotion", "trust"),
+                color_strategy="complementary",
+                saturation_character="balanced",
+                light_dark_balance=0.7,  # Default to light theme
+                accent_usage="",
+                # Use palette from blueprint if available, otherwise defaults
+                primary_hex=design_dna.get("primary_color", "#2563EB"),
+                secondary_hex=design_dna.get("secondary_color", "#1E40AF"),
+                accent_hex=design_dna.get("accent_color", "#F59E0B"),
+                background_hex=design_dna.get("background_color", "#FFFFFF"),
+                text_hex=design_dna.get("text_color", "#111827")
+            ),
+            spatial=SpatialIntelligence(
+                density=design_dna.get("spacing_feel", "balanced"),
+                rhythm="even",
+                alignment_philosophy="strict-grid",
+                whitespace_intention="",
+                padding_scale=_map_padding_scale(design_dna.get("spacing_feel", "balanced"))
+            ),
+            hero_element=HeroElement(
+                element_type="headline",
+                content=title,
+                why_important="Primary message",
+                how_to_honor="Use as main title",
+                visual_weight=1.0
+            ),
+            brand_personality=BrandPersonality(
+                adjectives=design_dna.get("brand_adjectives", ["professional", "modern"]),
+                target_feeling="",
+                voice_tone="professional",
+                design_confidence=0.8,
+                industry_context=""
+            ),
+            confidence=0.7
+        )
+        
+        # Generate using Adaptive Template Engine
+        image_bytes = generate_adaptive_preview(
+            design_dna=dna,
+            title=title,
+            subtitle=subtitle,
+            description=description,
+            proof_text=proof_text,
+            logo_base64=logo_base64,
+            screenshot_bytes=screenshot_bytes
+        )
+        
+        logger.info(f"🎨 Generated DNA-aware preview: style={dna.philosophy.primary_style}, typography={dna.typography.headline_personality}")
+        return image_bytes
+        
+    except Exception as e:
+        logger.error(f"DNA-aware preview generation failed: {e}", exc_info=True)
+        return None
+
+
+def _map_spacing_feel(spacing_feel: str) -> str:
+    """Map spacing feel to typography spacing character."""
+    mapping = {
+        "compact": "tight-dense",
+        "balanced": "balanced",
+        "spacious": "generous-luxury",
+        "ultra-minimal": "generous-luxury"
+    }
+    return mapping.get(spacing_feel.lower(), "balanced")
+
+
+def _map_padding_scale(spacing_feel: str) -> str:
+    """Map spacing feel to padding scale."""
+    mapping = {
+        "compact": "compact",
+        "balanced": "medium",
+        "spacious": "generous",
+        "ultra-minimal": "luxurious"
+    }
+    return mapping.get(spacing_feel.lower(), "medium")
+
+
 def generate_and_upload_preview_image(
     screenshot_bytes: bytes,
     url: str,
@@ -1389,16 +1551,22 @@ def generate_and_upload_preview_image(
     tags: List[str] = None,
     context_items: List[Dict[str, str]] = None,
     credibility_items: List[Dict[str, str]] = None,
-    primary_image_base64: Optional[str] = None
+    primary_image_base64: Optional[str] = None,
+    design_dna: Dict[str, Any] = None
 ) -> Optional[str]:
     """
     Generate designed og:image matching React component and upload to R2.
+    
+    NOW ENHANCED WITH DESIGN DNA INTELLIGENCE:
+    When design_dna is provided, uses the Adaptive Template Engine to create
+    previews that honor the original design's personality, typography, and colors.
     
     Creates a beautiful, designed preview image that:
     - Matches the React component card design (white card with accent bar)
     - Has proper typography hierarchy
     - Shows all elements (icon, title, subtitle, description, tags, CTA)
     - Is optimized for mobile social feeds
+    - NEW: Honors original design's DNA when available
     
     Args:
         screenshot_bytes: Raw PNG bytes of page screenshot (used for fallback)
@@ -1413,6 +1581,7 @@ def generate_and_upload_preview_image(
         context_items: List of context items with icon and text
         credibility_items: List of credibility items with type and value
         primary_image_base64: Base64 encoded primary image/icon
+        design_dna: Design DNA dictionary for intelligent rendering (NEW)
     
     Returns:
         Public URL of uploaded image, or None if failed
@@ -1434,21 +1603,55 @@ def generate_and_upload_preview_image(
         
         logger.info(f"Generating designed preview for: {domain}")
         
-        # Generate the image
-        image_bytes = generate_designed_preview(
-            screenshot_bytes=screenshot_bytes,
-            title=title,
-            subtitle=subtitle,
-            description=description,
-            cta_text=cta_text,
-            domain=domain,
-            blueprint=blueprint,
-            template_type=template_type,
-            tags=tags,
-            context_items=context_items,
-            credibility_items=credibility_items,
-            primary_image_base64=primary_image_base64
-        )
+        # NEW: Try DNA-aware generation first if design_dna is available
+        image_bytes = None
+        
+        if design_dna and ADAPTIVE_ENGINE_AVAILABLE:
+            # Merge palette colors into design_dna for the adaptive engine
+            enriched_dna = {**design_dna}
+            if blueprint:
+                enriched_dna["primary_color"] = blueprint.get("primary_color", design_dna.get("primary_color", "#2563EB"))
+                enriched_dna["secondary_color"] = blueprint.get("secondary_color", design_dna.get("secondary_color", "#1E40AF"))
+                enriched_dna["accent_color"] = blueprint.get("accent_color", design_dna.get("accent_color", "#F59E0B"))
+            
+            # Build proof text from credibility items
+            proof_text = None
+            if credibility_items:
+                proof_parts = [f"{item.get('value', '')}" for item in credibility_items[:2] if item.get('value')]
+                proof_text = " • ".join(proof_parts) if proof_parts else None
+            
+            logger.info(f"🧬 Attempting DNA-aware preview generation with style: {design_dna.get('style', 'unknown')}")
+            
+            image_bytes = generate_dna_aware_preview(
+                screenshot_bytes=screenshot_bytes,
+                title=title,
+                subtitle=subtitle,
+                description=description,
+                proof_text=proof_text,
+                logo_base64=primary_image_base64,
+                design_dna=enriched_dna
+            )
+            
+            if image_bytes:
+                logger.info("✅ Successfully generated DNA-aware preview")
+        
+        # Fall back to classic generation if DNA-aware failed or wasn't available
+        if not image_bytes:
+            logger.info("📋 Using classic template generation")
+            image_bytes = generate_designed_preview(
+                screenshot_bytes=screenshot_bytes,
+                title=title,
+                subtitle=subtitle,
+                description=description,
+                cta_text=cta_text,
+                domain=domain,
+                blueprint=blueprint,
+                template_type=template_type,
+                tags=tags,
+                context_items=context_items,
+                credibility_items=credibility_items,
+                primary_image_base64=primary_image_base64
+            )
         
         # Upload to R2
         filename = f"previews/demo/{uuid4()}.png"
