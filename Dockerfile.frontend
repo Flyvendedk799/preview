@@ -2,7 +2,7 @@
 FROM node:20-alpine as builder
 
 # Cache bust argument - change this value to force rebuild
-ARG CACHEBUST=2025-12-11-fix-nginx-port-substitution
+ARG CACHEBUST=2025-12-11-fix-envsubst-corruption
 
 # Accept build arguments for Vite environment variables
 # Railway passes environment variables, but we need to explicitly accept them as ARG
@@ -62,15 +62,17 @@ RUN echo "=== Starting Build ===" && \
 # Production stage with nginx
 FROM nginx:alpine
 
+# Remove the default nginx config and templates directory
+# This prevents the nginx entrypoint from running envsubst which would corrupt our config
+RUN rm -f /etc/nginx/conf.d/default.conf && \
+    rm -rf /etc/nginx/templates
+
 # Copy built assets from builder
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copy nginx configuration template
-# nginx:alpine automatically processes .template files in /etc/nginx/templates/
-# and substitutes ${VAR} environment variables using envsubst at container startup
-# Set BACKEND_API_URL environment variable in Railway to your backend Railway domain
-# Or it will be auto-derived from VITE_API_BASE_URL if available
-COPY nginx.conf /etc/nginx/templates/default.conf.template
+# Copy nginx configuration directly to conf.d (NOT as a template)
+# Our custom entrypoint will use sed to substitute placeholders
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Copy custom entrypoint script
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint-custom.sh
@@ -83,7 +85,5 @@ EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD wget --quiet --tries=1 --spider http://localhost:${PORT:-80}/ || exit 1
 
-# Use custom entrypoint that sets BACKEND_API_URL before nginx starts
+# Use custom entrypoint that does substitution and starts nginx directly
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint-custom.sh"]
-CMD ["nginx", "-g", "daemon off;"]
-

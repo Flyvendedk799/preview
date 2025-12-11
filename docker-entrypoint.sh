@@ -1,7 +1,9 @@
 #!/bin/sh
 # Docker entrypoint script for nginx frontend
-# This script substitutes LISTEN_PORT and BACKEND_API_URL in nginx config
-# We do this manually with sed instead of envsubst to avoid breaking nginx internal variables ($uri, $scheme, etc.)
+# This script substitutes LISTEN_PORT and BACKEND_URL_PLACEHOLDER in nginx config using sed
+# We do this manually instead of using envsubst to avoid breaking nginx internal variables ($uri, $scheme, etc.)
+
+set -e
 
 # Set default PORT if not provided (Railway sets this dynamically)
 if [ -z "$PORT" ]; then
@@ -22,22 +24,23 @@ fi
 if [ -z "$BACKEND_API_URL" ]; then
     echo "[Entrypoint] WARNING: BACKEND_API_URL is not set. Please set it in Railway environment variables."
     echo "[Entrypoint] WARNING: The /docs proxy will not work until BACKEND_API_URL is configured."
-    # Set a placeholder that will fail gracefully
     BACKEND_API_URL="https://placeholder.invalid"
 fi
 
 # Substitute our custom placeholders in nginx config
-# We use LISTEN_PORT and leave nginx $variables untouched
-echo "[Entrypoint] Configuring nginx to listen on port $PORT"
+# The config file uses LISTEN_PORT and BACKEND_URL_PLACEHOLDER as placeholders
+# We use sed to replace them, leaving nginx $variables (like $uri, $scheme) untouched
+echo "[Entrypoint] Configuring nginx..."
+echo "[Entrypoint]   - Port: $PORT"
+echo "[Entrypoint]   - Backend URL: $BACKEND_API_URL"
+
 sed -i "s|LISTEN_PORT|$PORT|g" /etc/nginx/conf.d/default.conf
+sed -i "s|BACKEND_URL_PLACEHOLDER|$BACKEND_API_URL|g" /etc/nginx/conf.d/default.conf
 
-# Also substitute in the template if envsubst hasn't run yet
-if [ -f /etc/nginx/templates/default.conf.template ]; then
-    sed -i "s|LISTEN_PORT|$PORT|g" /etc/nginx/templates/default.conf.template
-fi
+echo "[Entrypoint] Final nginx config:"
+cat /etc/nginx/conf.d/default.conf
 
-echo "[Entrypoint] Configuration complete"
+echo "[Entrypoint] Starting nginx..."
 
-# Execute the original nginx entrypoint
-exec /docker-entrypoint.sh "$@"
-
+# Start nginx directly (don't call the default entrypoint which would run envsubst)
+exec nginx -g "daemon off;"
