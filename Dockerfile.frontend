@@ -2,7 +2,7 @@
 FROM node:20-alpine as builder
 
 # Cache bust argument
-ARG CACHEBUST=2025-12-12-fix-port-80
+ARG CACHEBUST=2025-12-12-port-8080-fix
 
 ARG VITE_API_BASE_URL
 ARG VITE_STRIPE_PRICE_TIER_BASIC
@@ -31,10 +31,10 @@ COPY nginx.conf /etc/nginx/templates/default.conf.template
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint-custom.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint-custom.sh
 
-EXPOSE 80
+EXPOSE 8080
 
-# Health check on port 80 (matches Railway dashboard config)
+# Health check on $PORT (defaults to 8080)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD wget --quiet --tries=1 --spider http://localhost:80/health || exit 1
+    CMD wget --quiet --tries=1 --spider http://localhost:${PORT:-8080}/health || exit 1
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint-custom.sh"]
