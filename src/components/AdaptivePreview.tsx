@@ -106,18 +106,7 @@ const spacingStyles: Record<string, {
   }
 }
 
-// Background styles based on design style
-const backgroundStyles: Record<string, (colors: { primary: string; secondary: string }) => string> = {
-  minimalist: () => 'bg-white',
-  maximalist: (c) => `bg-gradient-to-br from-[${c.primary}] via-[${c.secondary}] to-[${c.primary}]`,
-  corporate: () => 'bg-gradient-to-b from-slate-50 to-white',
-  luxurious: (c) => `bg-gradient-to-br from-slate-900 via-[${c.primary}]/20 to-slate-950`,
-  playful: (c) => `bg-gradient-to-br from-[${c.primary}]/10 via-white to-[${c.secondary}]/10`,
-  technical: () => 'bg-slate-900',
-  editorial: () => 'bg-stone-50',
-  brutalist: () => 'bg-white',
-  organic: () => 'bg-gradient-to-b from-emerald-50 to-white'
-}
+// Background styles are handled inline in containerClasses for better Tailwind purging
 
 // Mood modifiers
 const moodModifiers: Record<string, string> = {
