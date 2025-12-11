@@ -2,10 +2,9 @@
 FROM node:20-alpine as builder
 
 # Cache bust argument - change this value to force rebuild
-ARG CACHEBUST=2025-11-29-force-rebuild-v12-refined-spacing
+ARG CACHEBUST=2025-12-12-fix-railway-port
 
 # Accept build arguments for Vite environment variables
-# Railway passes environment variables, but we need to explicitly accept them as ARG
 ARG VITE_API_BASE_URL
 ARG VITE_STRIPE_PRICE_TIER_BASIC
 ARG VITE_STRIPE_PRICE_TIER_PRO
@@ -19,45 +18,17 @@ ENV VITE_STRIPE_PRICE_TIER_PRO=${VITE_STRIPE_PRICE_TIER_PRO}
 ENV VITE_STRIPE_PRICE_TIER_AGENCY=${VITE_STRIPE_PRICE_TIER_AGENCY}
 ENV VITE_FRONTEND_BASE_URL=${VITE_FRONTEND_BASE_URL}
 
-# Set working directory
 WORKDIR /app
-
-# Copy package files
 COPY package.json package-lock.json* ./
-
-# Install dependencies
 RUN npm ci
-
-# Copy source code
 COPY . .
 
-# Bust Docker cache to force rebuild (uses CACHEBUST arg)
 RUN echo "=== CACHE BUST: ${CACHEBUST} ===" && \
-    echo "Timestamp: $(date)" && \
-    echo "Node version: $(node --version)" && \
-    echo "NPM version: $(npm --version)"
+    echo "Timestamp: $(date)"
 
-# Debug: Show environment variables (will be visible in build logs)
-RUN echo "=== Build-time Environment Variables ===" && \
-    echo "VITE_API_BASE_URL=${VITE_API_BASE_URL:-NOT_SET}" && \
-    env | grep VITE || echo "No VITE_ variables found"
-
-# Debug: Show source files that should trigger rebuild
-RUN echo "=== Source Files Check ===" && \
-    echo "Demo.tsx size: $(wc -c < src/pages/Demo.tsx) bytes" && \
-    echo "Demo.tsx last 5 lines:" && \
-    tail -5 src/pages/Demo.tsx && \
-    echo "package.json scripts:" && \
-    cat package.json | grep -A 3 "scripts"
-
-# Build the application
-RUN echo "=== Starting Build ===" && \
-    npm run build && \
+RUN npm run build && \
     echo "=== Build Complete ===" && \
-    echo "dist/ contents:" && \
-    ls -lah dist/assets/ && \
-    echo "=== Bundle Files ===" && \
-    ls -lh dist/assets/*.js dist/assets/*.css
+    ls -lah dist/
 
 # Production stage with nginx
 FROM nginx:alpine
@@ -66,24 +37,22 @@ FROM nginx:alpine
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Copy nginx configuration template
-# nginx:alpine automatically processes .template files in /etc/nginx/templates/
-# and substitutes ${VAR} environment variables using envsubst at container startup
-# Set BACKEND_API_URL environment variable in Railway to your backend Railway domain
-# Or it will be auto-derived from VITE_API_BASE_URL if available
+# nginx:alpine's 20-envsubst-on-templates.sh processes .template files
+# and substitutes ${VAR} environment variables using envsubst
 COPY nginx.conf /etc/nginx/templates/default.conf.template
 
 # Copy custom entrypoint script
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint-custom.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint-custom.sh
 
-# Expose port
+# Expose the port (documentation only, Railway uses $PORT)
 EXPOSE 80
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD wget --quiet --tries=1 --spider http://localhost/ || exit 1
+# Health check - uses $PORT since that's what nginx listens on
+# Note: Docker HEALTHCHECK runs inside container, needs shell for variable expansion
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD wget --quiet --tries=1 --spider http://localhost:${PORT:-80}/health || exit 1
 
-# Use custom entrypoint that sets BACKEND_API_URL before nginx starts
+# Use custom entrypoint
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint-custom.sh"]
 CMD ["nginx", "-g", "daemon off;"]
-
