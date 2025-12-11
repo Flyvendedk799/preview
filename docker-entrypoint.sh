@@ -1,6 +1,14 @@
 #!/bin/sh
 # Docker entrypoint script for nginx frontend
-# This script ensures BACKEND_API_URL is set before nginx starts
+# This script ensures BACKEND_API_URL and PORT are set before nginx starts
+
+# Set default PORT if not provided (Railway sets this dynamically)
+if [ -z "$PORT" ]; then
+    export PORT=80
+    echo "[Entrypoint] PORT not set, defaulting to 80"
+else
+    echo "[Entrypoint] PORT is set to: $PORT"
+fi
 
 # If BACKEND_API_URL is not set, try to derive it from VITE_API_BASE_URL
 if [ -z "$BACKEND_API_URL" ] && [ -n "$VITE_API_BASE_URL" ]; then
