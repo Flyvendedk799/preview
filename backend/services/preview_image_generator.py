@@ -547,25 +547,28 @@ def _generate_hero_template(
     content_y += logo_size + 60
     
     # === MAIN HEADLINE - The star of the show ===
-    # Make it BIG and BOLD
-    # MOBILE-FIRST DESIGN: Text must be readable at 300-400px width (mobile social feeds)
-    # Title: 120px = 10% of 1200px → scales to ~40px on 400px mobile (readable!)
-    title_font = _load_font(120, bold=True)  # Dramatically increased for mobile readability
+    # ENHANCED: Typography hierarchy using golden ratio
+    # Title font size: base_size * golden_ratio^2 for prominence
+    base_font_size = 72
+    title_font_size = int(base_font_size * (GOLDEN_RATIO ** 1.5))  # ~148px for maximum impact
+    title_font = _load_font(title_font_size, bold=True)
+    
+    # Line height: font_size * golden_ratio for optimal readability
+    title_line_height = int(title_font_size * GOLDEN_RATIO * 0.9)  # ~215px
     if title and title != "Untitled":
         title_lines = _wrap_text(title, title_font, content_width, draw)
         
-        # Center the headline vertically in the remaining space
-        # MOBILE-FIRST: Larger line spacing for 120px font
-        total_title_height = min(len(title_lines), 2) * 140  # Increased from 78 to 140 for 120px font
-        remaining_space = OG_IMAGE_HEIGHT - content_y - padding - 60
-        title_y = content_y + (remaining_space - total_title_height) // 3
+        # Center the headline vertically using golden ratio positioning
+        total_title_height = min(len(title_lines), 2) * title_line_height
+        remaining_space = OG_IMAGE_HEIGHT - content_y - padding - spacing_medium
+        title_y = content_y + int((remaining_space - total_title_height) / GOLDEN_RATIO)
         
-        # MOBILE-FIRST: Limit to 1-2 lines max, larger line spacing
+        # ENHANCED: Proper line spacing using golden ratio
         for i, line in enumerate(title_lines[:2]):
-            y_pos = title_y + (i * 100)  # Increased line spacing from 78 to 100
+            y_pos = title_y + (i * title_line_height)
             # Enhanced shadow for better readability and premium look
             _draw_text_with_shadow(draw, (padding, y_pos), line, title_font, (255, 255, 255), 5)
-        content_y = title_y + min(len(title_lines), 2) * 100 + 40  # Increased spacing
+        content_y = title_y + min(len(title_lines), 2) * title_line_height + spacing_medium
     
     # === SUPPORTING TEXT (subtitle or description) ===
     # ENHANCED: Typography hierarchy - subtitle is title_size / golden_ratio

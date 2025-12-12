@@ -529,9 +529,16 @@ MISSION: Extract what users actually SEE on the page, focusing on visual hierarc
                 desc_confidence = 0.3
         
         # CRITICAL: Validate description doesn't repeat title and enhance if needed
-        description = self._enhance_description_if_needed(
-            description, title, vision_data, html_data, semantic_data
-        )
+        # Ensure description is not None before enhancement
+        if description:
+            description = self._enhance_description_if_needed(
+                description, title, vision_data, html_data, semantic_data
+            )
+        elif not description:
+            # If no description, try to create one
+            description = self._enhance_description_if_needed(
+                "", title, vision_data, html_data, semantic_data
+            )
         
         # Image fusion
         image_candidates = [

@@ -1170,7 +1170,7 @@ class PreviewEngine:
                                     "secondary": design_dna_obj.color_palette.secondary if hasattr(design_dna_obj, 'color_palette') else "#1E40AF",
                                     "accent": design_dna_obj.color_palette.accent if hasattr(design_dna_obj, 'color_palette') else "#F59E0B"
                                 },
-                                "typography_personality": design_dna_obj.typography.personality if hasattr(design_dna_obj, 'typography') else "professional"
+                                "typography_personality": design_dna_obj.typography.headline_personality if hasattr(design_dna_obj, 'typography') and hasattr(design_dna_obj.typography, 'headline_personality') else "professional"
                             }
                             self.logger.info(f"✅ Design DNA extracted: style={design_dna.get('style')}")
                         except Exception as e:
@@ -1251,7 +1251,7 @@ class PreviewEngine:
                             "secondary": design_dna_obj.color_palette.secondary if hasattr(design_dna_obj, 'color_palette') else blueprint_colors.get("secondary_color", "#1E40AF"),
                             "accent": design_dna_obj.color_palette.accent if hasattr(design_dna_obj, 'color_palette') else blueprint_colors.get("accent_color", "#F59E0B")
                         },
-                        "typography_personality": design_dna_obj.typography.personality if hasattr(design_dna_obj, 'typography') else "professional"
+                        "typography_personality": design_dna_obj.typography.headline_personality if hasattr(design_dna_obj, 'typography') and hasattr(design_dna_obj.typography, 'headline_personality') else "professional"
                     }
                 except Exception as e:
                     self.logger.warning(f"Design DNA extraction for image failed: {e}")
