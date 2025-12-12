@@ -39,6 +39,9 @@ from PIL import Image
 from openai import OpenAI
 from backend.core.config import settings
 
+# Initialize logger FIRST (before any code that uses it)
+logger = logging.getLogger(__name__)
+
 # Design DNA Integration
 try:
     from backend.services.design_dna_extractor import extract_design_dna, extract_quick_dna, DesignDNA
@@ -57,8 +60,6 @@ try:
 except ImportError as e:
     QUALITY_ASSURANCE_AVAILABLE = False
     logger.warning(f"Quality assurance system not available: {e}")
-
-logger = logging.getLogger(__name__)
 
 
 # =============================================================================
