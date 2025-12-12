@@ -129,11 +129,34 @@ FONT_PERSONALITY_MAP = {
 # Cache directory for downloaded fonts
 FONT_CACHE_DIR = Path("/tmp/metaview_fonts")
 
-# Google Fonts download URL template
+# Google Fonts API URLs
 GOOGLE_FONTS_CSS_URL = "https://fonts.googleapis.com/css2?family={font_name}:wght@{weights}&display=swap"
+GOOGLE_FONTS_DOWNLOAD_URL = "https://fonts.google.com/download?family={font_name}"
 
 # Common weights to download
 DEFAULT_WEIGHTS = [400, 500, 600, 700]
+
+# Cache TTL in seconds (7 days)
+FONT_CACHE_TTL = 7 * 24 * 60 * 60
+
+# Popular fonts that can be downloaded (subset for performance)
+DOWNLOADABLE_FONTS = {
+    "Inter": "Inter",
+    "Roboto": "Roboto",
+    "Open Sans": "Open+Sans",
+    "Lato": "Lato",
+    "Montserrat": "Montserrat",
+    "Poppins": "Poppins",
+    "Nunito": "Nunito",
+    "Playfair Display": "Playfair+Display",
+    "Oswald": "Oswald",
+    "Source Sans Pro": "Source+Sans+Pro",
+    "Merriweather": "Merriweather",
+    "Raleway": "Raleway",
+    "Ubuntu": "Ubuntu",
+    "Fira Code": "Fira+Code",
+    "JetBrains Mono": "JetBrains+Mono"
+}
 
 
 # =============================================================================
@@ -310,9 +333,14 @@ class FontManager:
         fallback: str,
         weight: int,
         letter_spacing: float,
-        prefer_cached: bool
+        prefer_cached: bool,
+        download_if_missing: bool = True
     ) -> FontConfig:
-        """Find the best available font from a list."""
+        """
+        Find the best available font from a list.
+        
+        PHASE 2: Now includes font downloading capability.
+        """
         
         # Check cached fonts first
         if prefer_cached:
@@ -339,6 +367,20 @@ class FontManager:
                     is_system=True
                 )
         
+        # PHASE 2: Try downloading fonts if not found
+        if download_if_missing:
+            for font_name in primary_fonts:
+                if font_name in DOWNLOADABLE_FONTS:
+                    downloaded_path = self.download_font(font_name, weight)
+                    if downloaded_path and os.path.exists(downloaded_path):
+                        return FontConfig(
+                            name=font_name,
+                            path=downloaded_path,
+                            weight=weight,
+                            letter_spacing=letter_spacing,
+                            is_cached=True
+                        )
+        
         # Use fallback
         fallback_key = fallback.lower().replace("-", "")
         fallback_path = self._system_fonts.get(fallback_key)
@@ -357,9 +399,152 @@ class FontManager:
         cached_file = self.cache_dir / f"{safe_name}-{weight}.ttf"
         
         if cached_file.exists():
-            return str(cached_file)
+            # Check if cache is still valid (TTL check)
+            try:
+                import time
+                file_age = time.time() - cached_file.stat().st_mtime
+                if file_age < FONT_CACHE_TTL:
+                    return str(cached_file)
+                else:
+                    logger.debug(f"Font cache expired for {font_name}: {file_age}s old")
+            except:
+                pass
+            return str(cached_file)  # Use even if TTL check fails
         
         return None
+    
+    def download_font(
+        self,
+        font_name: str,
+        weight: int = 400,
+        force: bool = False
+    ) -> Optional[str]:
+        """
+        PHASE 2: Download a font from Google Fonts and cache it.
+        
+        Args:
+            font_name: Name of the font (e.g., "Inter", "Roboto")
+            weight: Font weight to download
+            force: Force re-download even if cached
+            
+        Returns:
+            Path to downloaded font file or None if download fails
+        """
+        # Check cache first (unless force)
+        if not force:
+            cached = self._get_cached_font_path(font_name, weight)
+            if cached:
+                logger.debug(f"Font {font_name} weight {weight} found in cache")
+                return cached
+        
+        # Check if font is in downloadable list
+        if font_name not in DOWNLOADABLE_FONTS:
+            logger.debug(f"Font {font_name} not in downloadable list")
+            return None
+        
+        try:
+            import re
+            
+            # Construct Google Fonts CSS URL
+            font_param = DOWNLOADABLE_FONTS[font_name]
+            weights_param = ";".join(str(w) for w in [weight])
+            css_url = f"https://fonts.googleapis.com/css2?family={font_param}:wght@{weights_param}&display=swap"
+            
+            logger.info(f"📥 Downloading font {font_name} weight {weight} from Google Fonts")
+            
+            # Fetch CSS to get font URL
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            }
+            
+            request = urllib.request.Request(css_url, headers=headers)
+            with urllib.request.urlopen(request, timeout=10) as response:
+                css_content = response.read().decode('utf-8')
+            
+            # Extract font URL from CSS (look for woff2 or ttf)
+            # Pattern: src: url(https://fonts.gstatic.com/...)
+            url_pattern = r'src:\s*url\((https://fonts\.gstatic\.com/[^)]+\.(?:woff2|ttf))\)'
+            matches = re.findall(url_pattern, css_content)
+            
+            if not matches:
+                logger.warning(f"No font URL found in CSS for {font_name}")
+                return None
+            
+            font_url = matches[0]
+            
+            # Download the font file
+            font_request = urllib.request.Request(font_url, headers=headers)
+            with urllib.request.urlopen(font_request, timeout=30) as response:
+                font_data = response.read()
+            
+            # Determine file extension
+            ext = ".woff2" if ".woff2" in font_url else ".ttf"
+            
+            # Save to cache
+            safe_name = font_name.lower().replace(" ", "-")
+            cached_file = self.cache_dir / f"{safe_name}-{weight}{ext}"
+            
+            with open(cached_file, 'wb') as f:
+                f.write(font_data)
+            
+            logger.info(f"✅ Font {font_name} cached at {cached_file} ({len(font_data)} bytes)")
+            
+            # For woff2, we need to convert to ttf for PIL compatibility
+            # For now, just return the path if it's woff2 (PIL may not support it)
+            if ext == ".woff2":
+                logger.warning(f"Font {font_name} is WOFF2 format - may not be compatible with PIL")
+                # Try to find a TTF fallback
+                return None
+            
+            return str(cached_file)
+            
+        except urllib.error.URLError as e:
+            logger.warning(f"Failed to download font {font_name}: {e}")
+            return None
+        except Exception as e:
+            logger.warning(f"Font download error for {font_name}: {e}")
+            return None
+    
+    def ensure_fonts_available(
+        self,
+        personality: str,
+        download_if_missing: bool = True
+    ) -> bool:
+        """
+        PHASE 2: Ensure fonts for a personality are available.
+        
+        Args:
+            personality: Typography personality
+            download_if_missing: Whether to download missing fonts
+            
+        Returns:
+            True if at least one font is available
+        """
+        config = FONT_PERSONALITY_MAP.get(personality.lower(), FONT_PERSONALITY_MAP["subtle"])
+        primary_fonts = config["primary"]
+        
+        # Check if any primary font is available
+        for font_name in primary_fonts:
+            # Check system fonts
+            font_key = font_name.lower().replace(" ", "")
+            if font_key in self._system_fonts:
+                return True
+            
+            # Check cache
+            cached = self._get_cached_font_path(font_name, config["weight"])
+            if cached:
+                return True
+            
+            # Try to download
+            if download_if_missing and font_name in DOWNLOADABLE_FONTS:
+                downloaded = self.download_font(font_name, config["weight"])
+                if downloaded:
+                    return True
+        
+        # Fallback should always be available (system font)
+        fallback = config["fallback"]
+        fallback_key = fallback.lower().replace("-", "")
+        return fallback_key in self._system_fonts
     
     def get_font_path(
         self,

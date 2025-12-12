@@ -684,12 +684,23 @@ class AdaptiveTemplateEngine:
     - Complete visual effects
     - UI component styling
     - Layout pattern adjustments
+    - PHASE 2: CompositionIntelligence integration for dynamic layout selection
     """
     
-    def __init__(self, design_dna: DesignDNA):
+    def __init__(
+        self,
+        design_dna: DesignDNA,
+        content: Optional['PreviewContent'] = None,
+        page_type: Optional[str] = None
+    ):
         self.dna = design_dna
         self.width = OG_IMAGE_WIDTH
         self.height = OG_IMAGE_HEIGHT
+        
+        # PHASE 2: Store content for composition intelligence
+        self._content = content
+        self._page_type = page_type
+        self._composition_decision = None
         
         # Get typography personality settings
         headline_personality = design_dna.typography.headline_personality
@@ -717,13 +728,24 @@ class AdaptiveTemplateEngine:
             light_dark_balance=design_dna.color_psychology.light_dark_balance
         )
         
-        # Select composition based on design philosophy
-        template_style = design_dna.get_template_recommendation()
+        # PHASE 2: Use CompositionIntelligence for dynamic composition selection
+        if COMPOSITION_INTELLIGENCE_AVAILABLE and content:
+            self._composition_decision = self._select_composition_intelligently(content, page_type)
+            template_style = self._composition_decision.selected_composition.value
+            logger.info(f"🎯 CompositionIntelligence selected: {template_style} (confidence={self._composition_decision.confidence:.2f})")
+        else:
+            # Fallback to design philosophy-based selection
+            template_style = design_dna.get_template_recommendation()
+        
         self.composition_class = COMPOSITION_MAP.get(template_style, ProfessionalCleanComposition)
         base_zones = self.composition_class.get_layout_zones(self.width, self.height)
         
         # Apply layout patterns from Design DNA (content_structure, content_width, section_spacing)
         self.zones = self._adjust_zones_for_layout(base_zones)
+        
+        # PHASE 2: Apply CompositionDecision zone adjustments
+        if self._composition_decision:
+            self.zones = self._apply_composition_decision(self.zones, self._composition_decision)
         
         # Apply spatial intelligence adjustments
         self.zones = self._apply_spatial_intelligence(self.zones)
@@ -749,12 +771,162 @@ class AdaptiveTemplateEngine:
             "unique_signature": getattr(brand, 'unique_visual_signature', '') if brand else ''
         }
         
+        # PHASE 2: Store feature flags from composition decision
+        self._feature_flags = {
+            "show_logo": True,
+            "show_accent_bar": True,
+            "show_proof": True,
+            "use_gradient_background": False
+        }
+        if self._composition_decision:
+            self._feature_flags["show_logo"] = self._composition_decision.show_logo
+            self._feature_flags["show_accent_bar"] = self._composition_decision.show_accent_bar
+            self._feature_flags["show_proof"] = self._composition_decision.show_proof
+            self._feature_flags["use_gradient_background"] = self._composition_decision.use_gradient_background
+        
         logger.info(
             f"🎨 AdaptiveTemplateEngine initialized: "
             f"style={design_dna.philosophy.primary_style}, "
             f"typography={headline_personality}, "
             f"composition={template_style}"
         )
+    
+    def _select_composition_intelligently(
+        self,
+        content: 'PreviewContent',
+        page_type: Optional[str]
+    ) -> 'CompositionDecision':
+        """
+        PHASE 2: Use CompositionIntelligence to select optimal composition.
+        
+        Args:
+            content: Preview content to analyze
+            page_type: Page type classification
+            
+        Returns:
+            CompositionDecision with selected composition and adjustments
+        """
+        try:
+            # Convert Design DNA to dict for CompositionIntelligence
+            dna_dict = {
+                "philosophy": {
+                    "primary_style": self.dna.philosophy.primary_style,
+                    "visual_tension": self.dna.philosophy.visual_tension,
+                    "formality": self.dna.philosophy.formality
+                },
+                "spatial": {
+                    "density": self.dna.spatial.density,
+                    "padding_scale": getattr(self.dna.spatial, 'padding_scale', 'medium')
+                },
+                "typography": {
+                    "weight_contrast": self.dna.typography.weight_contrast
+                },
+                "visual_effects": {
+                    "gradients": getattr(self.dna.visual_effects, 'gradients', 'none') if hasattr(self.dna, 'visual_effects') else 'none'
+                }
+            }
+            
+            decision = select_optimal_composition(
+                title=content.title,
+                subtitle=content.subtitle,
+                description=content.description,
+                proof_text=content.proof_text,
+                logo_base64=content.logo_base64,
+                design_dna=dna_dict,
+                page_type=page_type
+            )
+            
+            return decision
+            
+        except Exception as e:
+            logger.warning(f"CompositionIntelligence selection failed: {e}")
+            # Return a default decision
+            from backend.services.composition_intelligence import CompositionDecision, CompositionType
+            return CompositionDecision(
+                selected_composition=CompositionType.PROFESSIONAL_CLEAN,
+                confidence=0.5,
+                reasons=["Fallback due to error"]
+            )
+    
+    def _apply_composition_decision(
+        self,
+        zones: Dict[str, Tuple[int, int, int, int]],
+        decision: 'CompositionDecision'
+    ) -> Dict[str, Tuple[int, int, int, int]]:
+        """
+        PHASE 2: Apply CompositionDecision adjustments to layout zones.
+        
+        Applies:
+        - Zone adjustments from decision
+        - Font size multiplier
+        - Padding multiplier  
+        - Spacing multiplier
+        
+        Args:
+            zones: Base layout zones
+            decision: CompositionDecision with adjustments
+            
+        Returns:
+            Adjusted zones
+        """
+        adjusted = zones.copy()
+        
+        # Apply zone-specific adjustments
+        for zone_name, adjustment in decision.zone_adjustments.items():
+            if zone_name in adjusted:
+                x, y, w, h = adjusted[zone_name]
+                
+                # Handle height multiplier
+                if "height_mult" in zone_name or isinstance(adjustment, (int, float)):
+                    if isinstance(adjustment, (int, float)):
+                        h = int(h * adjustment)
+                    elif isinstance(adjustment, dict) and "height_mult" in adjustment:
+                        h = int(h * adjustment["height_mult"])
+                    adjusted[zone_name] = (x, y, w, h)
+        
+        # Apply global multipliers
+        font_mult = decision.font_size_multiplier
+        padding_mult = decision.padding_multiplier
+        spacing_mult = decision.spacing_multiplier
+        
+        # Store multipliers for use during rendering
+        self._font_size_multiplier = font_mult
+        self._padding_multiplier = padding_mult
+        self._spacing_multiplier = spacing_mult
+        
+        # Adjust zones based on padding multiplier
+        if padding_mult != 1.0:
+            base_padding = int(self.width * 0.07)
+            new_padding = int(base_padding * padding_mult)
+            
+            for zone_name in ['headline', 'subtitle', 'description', 'proof']:
+                if zone_name in adjusted:
+                    x, y, w, h = adjusted[zone_name]
+                    # Adjust x and width for new padding
+                    new_w = max(300, self.width - (new_padding * 2))
+                    adjusted[zone_name] = (new_padding, y, new_w, h)
+        
+        # Adjust vertical spacing based on spacing multiplier
+        if spacing_mult != 1.0:
+            zone_order = ['logo', 'headline', 'subtitle', 'description', 'proof']
+            prev_y_end = None
+            
+            for zone_name in zone_order:
+                if zone_name in adjusted:
+                    x, y, w, h = adjusted[zone_name]
+                    if prev_y_end is not None:
+                        current_spacing = y - prev_y_end
+                        new_spacing = int(current_spacing * spacing_mult)
+                        new_y = prev_y_end + new_spacing
+                        adjusted[zone_name] = (x, new_y, w, h)
+                    prev_y_end = y + h
+        
+        logger.debug(
+            f"Applied composition adjustments: "
+            f"font_mult={font_mult:.2f}, padding_mult={padding_mult:.2f}, spacing_mult={spacing_mult:.2f}"
+        )
+        
+        return adjusted
     
     def _apply_spatial_intelligence(self, zones: Dict[str, Tuple[int, int, int, int]]) -> Dict[str, Tuple[int, int, int, int]]:
         """
@@ -937,6 +1109,7 @@ class AdaptiveTemplateEngine:
         4. Logo with proper prominence
         5. Visual effects (shadows, textures, overlays)
         6. Post-processing based on design style
+        7. PHASE 2: Feature flags from CompositionDecision
         
         Args:
             content: Content to render
@@ -947,11 +1120,18 @@ class AdaptiveTemplateEngine:
         """
         logger.debug(f"🎨 Generating preview with DNA: style={self.dna.philosophy.primary_style}")
         
+        # PHASE 2: Update stored content for any late composition decisions
+        if self._content is None:
+            self._content = content
+        
         # Create base image
         image = Image.new('RGB', (self.width, self.height), self.colors.background)
         
-        # Apply background (with gradients from visual_effects)
-        image = self._apply_background(image, screenshot_bytes)
+        # PHASE 2: Check if gradient background is requested by composition decision
+        use_gradient = self._feature_flags.get("use_gradient_background", False)
+        
+        # Apply background (with gradients from visual_effects or composition decision)
+        image = self._apply_background(image, screenshot_bytes, force_gradient=use_gradient)
         
         # Apply card styling based on ui_components
         image = self._apply_card_styling(image)
@@ -959,23 +1139,29 @@ class AdaptiveTemplateEngine:
         draw = ImageDraw.Draw(image)
         
         # Render content in zones - order matters for layering
-        # 1. Accent bar (visual anchor)
-        self._render_accent_bar(draw)
+        # PHASE 2: Respect feature flags from CompositionDecision
         
-        # 2. Logo (brand identity - CRITICAL for brand fidelity)
-        if content.logo_base64:
+        # 1. Accent bar (visual anchor) - check feature flag
+        if self._feature_flags.get("show_accent_bar", True):
+            self._render_accent_bar(draw)
+        
+        # 2. Logo (brand identity) - check feature flag
+        if self._feature_flags.get("show_logo", True) and content.logo_base64:
             self._render_logo(image, content.logo_base64)
             logger.debug("✅ Logo rendered in preview")
+        elif content.logo_base64:
+            logger.debug("⚠️ Logo skipped by composition decision")
         else:
-            logger.warning("⚠️ No logo provided - brand identity may be weakened")
+            logger.debug("⚠️ No logo provided")
         
         # 3. Text content with full typography DNA
         self._render_headline(draw, content.title)
         self._render_subtitle(draw, content.subtitle)
         self._render_description(draw, content.description)
         
-        # 4. Social proof (builds credibility)
-        self._render_proof(draw, content.proof_text)
+        # 4. Social proof (builds credibility) - check feature flag
+        if self._feature_flags.get("show_proof", True):
+            self._render_proof(draw, content.proof_text)
         
         # 5. Apply comprehensive visual effects from Design DNA
         visual_effects = getattr(self.dna, 'visual_effects', None)
@@ -995,17 +1181,18 @@ class AdaptiveTemplateEngine:
     def _apply_background(
         self,
         image: Image.Image,
-        screenshot_bytes: Optional[bytes] = None
+        screenshot_bytes: Optional[bytes] = None,
+        force_gradient: bool = False
     ) -> Image.Image:
         """Apply background based on design style and visual effects from Design DNA."""
         style = self.dna.philosophy.primary_style.lower()
         visual_effects = getattr(self.dna, 'visual_effects', None)
         
-        # Check if gradients are enabled in visual effects
-        gradients_enabled = False
+        # PHASE 2: Check if gradients are enabled in visual effects or forced by composition
+        gradients_enabled = force_gradient
         gradient_direction = "horizontal"
         if visual_effects:
-            gradients_enabled = getattr(visual_effects, 'gradients', 'none') != 'none'
+            gradients_enabled = gradients_enabled or getattr(visual_effects, 'gradients', 'none') != 'none'
             gradient_direction = getattr(visual_effects, 'gradient_direction', 'horizontal')
         
         # Use gradient background (from color config or visual effects)
@@ -1398,6 +1585,10 @@ class AdaptiveTemplateEngine:
             'subtle': 0.9  # Smaller for subtle contrast
         }
         base_size = int(base_size * weight_size_adjust.get(weight_contrast, 1.0))
+        
+        # PHASE 2: Apply font size multiplier from CompositionDecision
+        font_size_mult = getattr(self, '_font_size_multiplier', 1.0)
+        base_size = int(base_size * font_size_mult)
         
         font_size = calculate_adaptive_font_size(title, base_size, w, min_size=48, max_size=160)
         

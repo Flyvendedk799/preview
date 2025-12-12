@@ -55,6 +55,26 @@ from backend.services.preview_cache import (
 # Framework-based quality system
 from backend.services.multi_modal_fusion import MultiModalFusionEngine
 
+# PHASE 2: Visual Quality Validator for post-render checks
+try:
+    from backend.services.visual_quality_validator import (
+        validate_visual_quality_from_bytes,
+        VisualQualityScore
+    )
+    VISUAL_QUALITY_VALIDATOR_AVAILABLE = True
+except ImportError:
+    VISUAL_QUALITY_VALIDATOR_AVAILABLE = False
+
+# PHASE 2: Composition Intelligence for layout selection
+try:
+    from backend.services.composition_intelligence import (
+        select_optimal_composition,
+        CompositionDecision
+    )
+    COMPOSITION_INTELLIGENCE_AVAILABLE = True
+except ImportError:
+    COMPOSITION_INTELLIGENCE_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 # 7-Layer Enhancement System Integration
@@ -401,6 +421,36 @@ class PreviewEngine:
                     quality_passed = True
                     break
             
+            # PHASE 2: Execute tier-specific enhancements if quality is ACCEPTABLE or STANDARD
+            if quality_passed and self.quality_orchestrator and 'quality_metrics' in locals():
+                try:
+                    enhancements = self.quality_orchestrator.get_tier_specific_enhancements(quality_metrics)
+                    if enhancements:
+                        self.logger.info(f"🔧 Executing tier-specific enhancements: {enhancements}")
+                        result = self._execute_tier_enhancements(
+                            result, enhancements, brand_elements, ai_result, screenshot_bytes
+                        )
+                except Exception as e:
+                    self.logger.warning(f"Tier enhancement execution failed: {e}")
+            
+            # PHASE 2: Visual Quality Validation after image generation
+            if quality_passed and result.composited_preview_image_url and VISUAL_QUALITY_VALIDATOR_AVAILABLE:
+                try:
+                    visual_quality = self._validate_visual_quality(
+                        result.composited_preview_image_url,
+                        brand_elements
+                    )
+                    if visual_quality:
+                        result.quality_scores["visual_quality"] = visual_quality.overall_score
+                        result.quality_scores["contrast_score"] = visual_quality.contrast_score
+                        result.quality_scores["composition_score"] = visual_quality.composition_score
+                        
+                        if not visual_quality.passes_minimum:
+                            result.warnings.extend(visual_quality.issues)
+                            self.logger.warning(f"⚠️ Visual quality issues: {visual_quality.issues}")
+                except Exception as e:
+                    self.logger.warning(f"Visual quality validation failed: {e}")
+            
             # If quality still failed after retries, use fallback
             if not quality_passed:
                 self.logger.error(
@@ -408,15 +458,24 @@ class PreviewEngine:
                     f"Using fallback preview - rejected preview will NOT be served."
                 )
                 
-                # Build fallback preview (minimal but always passes quality gates)
+                # PHASE 2: Build fallback preview with smart fallback colors
                 # This ensures user never gets a rejected preview
                 try:
+                    # Get smart fallback colors that preserve brand identity
+                    fallback_colors = None
+                    if self.quality_orchestrator and brand_elements:
+                        fallback_colors = self.quality_orchestrator.get_smart_fallback_colors(
+                            brand_elements.get("colors") if brand_elements else None
+                        )
+                        self.logger.info(f"🎨 Using smart fallback colors: {fallback_colors}")
+                    
                     fallback_result = self._build_fallback_result(
                         url_str,
                         html_content if 'html_content' in locals() else "",
                         start_time,
                         f"Quality gates failed after {retry_count} retries",
-                        screenshot_bytes=screenshot_bytes if 'screenshot_bytes' in locals() else None
+                        screenshot_bytes=screenshot_bytes if 'screenshot_bytes' in locals() else None,
+                        fallback_colors=fallback_colors
                     )
                     
                     # Verify fallback passes basic quality (it should always pass)
@@ -1625,13 +1684,16 @@ class PreviewEngine:
         html_content: str,
         start_time: float,
         error_msg: str,
-        screenshot_bytes: Optional[bytes] = None
+        screenshot_bytes: Optional[bytes] = None,
+        fallback_colors: Optional[Dict[str, str]] = None
     ) -> PreviewEngineResult:
         """
         Build fallback result when main generation fails.
         
         This ensures we ALWAYS return a valid preview that passes quality gates.
         Fallback previews are minimal but functional.
+        
+        PHASE 2: Now accepts fallback_colors for brand-aware fallbacks.
         """
         self.logger.warning("Building fallback result from HTML only")
         
@@ -1641,6 +1703,13 @@ class PreviewEngine:
         # Ensure we have valid title and description
         title = html_result.get("title") or "Untitled"
         description = html_result.get("description") or f"Visit {url} to learn more"
+        
+        # PHASE 2: Use smart fallback colors if provided
+        if fallback_colors:
+            html_result["blueprint"] = {
+                **html_result.get("blueprint", {}),
+                **fallback_colors
+            }
         
         # Generate fallback composited image (CRITICAL: must always have composited image)
         composited_image_url = None
@@ -1799,6 +1868,150 @@ class PreviewEngine:
             self.logger.info(f"⚠️  Quality validation warnings: {result.warnings}")
         
         return result
+    
+    def _execute_tier_enhancements(
+        self,
+        result: PreviewEngineResult,
+        enhancements: List[str],
+        brand_elements: Dict[str, Any],
+        ai_result: Dict[str, Any],
+        screenshot_bytes: bytes
+    ) -> PreviewEngineResult:
+        """
+        PHASE 2: Execute tier-specific enhancements based on quality tier.
+        
+        Args:
+            result: Current preview result
+            enhancements: List of enhancement actions to execute
+            brand_elements: Extracted brand elements
+            ai_result: AI reasoning result
+            screenshot_bytes: Original screenshot
+            
+        Returns:
+            Enhanced PreviewEngineResult
+        """
+        for enhancement in enhancements:
+            try:
+                if enhancement == "apply_stronger_brand_colors":
+                    # Ensure brand colors are prominently applied
+                    if brand_elements and brand_elements.get("colors"):
+                        colors = brand_elements["colors"]
+                        result.blueprint["primary_color"] = colors.get("primary_color", result.blueprint.get("primary_color"))
+                        result.blueprint["secondary_color"] = colors.get("secondary_color", result.blueprint.get("secondary_color"))
+                        result.blueprint["accent_color"] = colors.get("accent_color", result.blueprint.get("accent_color"))
+                        self.logger.info("✅ Applied stronger brand colors")
+                
+                elif enhancement == "verify_logo_present":
+                    # Verify logo is in the result
+                    if not result.brand.get("logo_base64") and brand_elements.get("logo_base64"):
+                        result.brand["logo_base64"] = brand_elements["logo_base64"]
+                        self.logger.info("✅ Added missing logo to result")
+                
+                elif enhancement == "enhance_content_extraction":
+                    # Re-validate content quality
+                    if len(result.description or "") < 30:
+                        # Try to enhance description from AI result
+                        ai_desc = ai_result.get("description", "")
+                        if len(ai_desc) > len(result.description or ""):
+                            result.description = ai_desc[:300]
+                            self.logger.info("✅ Enhanced description from AI")
+                
+                elif enhancement == "reapply_design_dna":
+                    # Ensure design DNA is fully applied
+                    design_dna = ai_result.get("design_dna")
+                    if design_dna:
+                        result.blueprint["design_style"] = design_dna.get("design_style", result.blueprint.get("design_style"))
+                        result.blueprint["typography"] = design_dna.get("typography", {})
+                        self.logger.info("✅ Reapplied design DNA")
+                
+                elif enhancement == "improve_layout_balance":
+                    # This would require re-rendering, log for now
+                    self.logger.info("📋 Layout balance improvement suggested")
+                
+                elif enhancement == "use_smart_fallback":
+                    # Use smart fallback colors
+                    if self.quality_orchestrator:
+                        fallback_colors = self.quality_orchestrator.get_smart_fallback_colors(
+                            brand_elements.get("colors") if brand_elements else None
+                        )
+                        result.blueprint.update(fallback_colors)
+                        self.logger.info("✅ Applied smart fallback colors")
+                
+                elif enhancement == "use_brand_colors_only":
+                    # Simplify to just brand colors
+                    if brand_elements and brand_elements.get("colors"):
+                        colors = brand_elements["colors"]
+                        result.blueprint["primary_color"] = colors.get("primary_color", "#F97316")
+                        result.blueprint["secondary_color"] = colors.get("secondary_color", "#1E293B")
+                        self.logger.info("✅ Applied brand colors only fallback")
+                
+            except Exception as e:
+                self.logger.warning(f"Enhancement '{enhancement}' failed: {e}")
+        
+        return result
+    
+    def _validate_visual_quality(
+        self,
+        image_url: str,
+        brand_elements: Dict[str, Any]
+    ) -> Optional['VisualQualityScore']:
+        """
+        PHASE 2: Validate visual quality of generated preview image.
+        
+        Args:
+            image_url: URL of the generated preview image
+            brand_elements: Brand elements for expected colors
+            
+        Returns:
+            VisualQualityScore or None if validation fails
+        """
+        if not VISUAL_QUALITY_VALIDATOR_AVAILABLE:
+            return None
+        
+        try:
+            import requests
+            from io import BytesIO
+            from PIL import Image
+            
+            # Fetch the image (with timeout)
+            response = requests.get(image_url, timeout=5)
+            if response.status_code != 200:
+                self.logger.warning(f"Could not fetch image for visual validation: {response.status_code}")
+                return None
+            
+            # Get expected colors from brand elements
+            expected_colors = None
+            if brand_elements and brand_elements.get("colors"):
+                colors = brand_elements["colors"]
+                expected_colors = {
+                    "primary_color": colors.get("primary_color"),
+                    "secondary_color": colors.get("secondary_color"),
+                    "background_color": "#FFFFFF",
+                    "text_color": "#111827"
+                }
+            
+            # Check if logo is expected
+            has_logo = bool(brand_elements and brand_elements.get("logo_base64"))
+            
+            # Validate visual quality
+            visual_score = validate_visual_quality_from_bytes(
+                response.content,
+                expected_colors,
+                has_logo
+            )
+            
+            self.logger.info(
+                f"📊 Visual quality validated: "
+                f"overall={visual_score.overall_score:.2f}, "
+                f"contrast={visual_score.contrast_score:.2f}, "
+                f"passes={visual_score.passes_minimum}"
+            )
+            
+            return visual_score
+            
+        except Exception as e:
+            self.logger.warning(f"Visual quality validation error: {e}")
+            return None
     
     def _update_progress(self, progress: float, message: str):
         """

@@ -35,6 +35,19 @@ except ImportError:
     AI_LOGO_DETECTION_AVAILABLE = False
     logger.warning("OpenAI not available for AI logo detection")
 
+# PHASE 2: Error Recovery Integration
+try:
+    from backend.services.error_recovery import (
+        classify_error,
+        get_recovery_action,
+        ErrorType,
+        RecoveryAction,
+        graceful_extract
+    )
+    ERROR_RECOVERY_AVAILABLE = True
+except ImportError:
+    ERROR_RECOVERY_AVAILABLE = False
+
 
 # =============================================================================
 # AI-POWERED LOGO DETECTION

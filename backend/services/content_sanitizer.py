@@ -26,6 +26,17 @@ from bs4 import BeautifulSoup, Comment
 
 logger = logging.getLogger(__name__)
 
+# PHASE 2: Error Recovery Integration
+try:
+    from backend.services.error_recovery import (
+        classify_error,
+        ErrorType,
+        graceful_extract
+    )
+    ERROR_RECOVERY_AVAILABLE = True
+except ImportError:
+    ERROR_RECOVERY_AVAILABLE = False
+
 
 # =============================================================================
 # COOKIE/CONSENT PATTERNS
