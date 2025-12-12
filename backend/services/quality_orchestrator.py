@@ -142,8 +142,8 @@ class QualityOrchestrator:
     
     def __init__(
         self,
-        min_quality_threshold: float = 0.40,  # Lowered from 0.75 - was rejecting everything
-        min_design_fidelity: float = 0.30,    # Lowered from 0.70 - too strict
+        min_quality_threshold: float = 0.65,  # High standards - improve quality, not lower bar
+        min_design_fidelity: float = 0.50,    # Reasonable fidelity requirement
         enable_auto_improvement: bool = True
     ):
         """

@@ -82,18 +82,23 @@ class ExtractionQualityScorer:
         Score extraction quality across all dimensions.
         
         Args:
-            result: AI extraction result dictionary
+            result: AI extraction result dictionary (supports both field naming conventions)
             
         Returns:
             QualityBreakdown with scores and recommendations
         """
+        # CRITICAL FIX: Normalize field names to handle both conventions
+        # Old format: the_hook, social_proof_found, key_benefit  
+        # New format: title, credibility_items, description
+        normalized = self._normalize_fields(result)
+        
         # Score individual components
-        hook_score = self._score_hook(result)
-        social_proof_score = self._score_social_proof(result)
-        benefit_score = self._score_benefit(result)
-        completeness_score = self._score_completeness(result)
-        consistency_score = self._score_consistency(result)
-        specificity_score = self._score_specificity(result)
+        hook_score = self._score_hook(normalized)
+        social_proof_score = self._score_social_proof(normalized)
+        benefit_score = self._score_benefit(normalized)
+        completeness_score = self._score_completeness(normalized)
+        consistency_score = self._score_consistency(normalized)
+        specificity_score = self._score_specificity(normalized)
         
         # Calculate weighted overall score
         # Hook is most important (40%), then proof (25%), then rest
@@ -118,10 +123,10 @@ class ExtractionQualityScorer:
         else:
             grade = QualityGrade.FAILING
         
-        # Analyze flags
-        hook = result.get("the_hook", "")
-        proof = result.get("social_proof_found", "") or ""
-        benefit = result.get("key_benefit", "") or ""
+        # Analyze flags (use normalized data)
+        hook = normalized.get("the_hook", "")
+        proof = normalized.get("social_proof_found", "") or ""
+        benefit = normalized.get("key_benefit", "") or ""
         all_text = f"{hook} {proof} {benefit}"
         
         has_numbers = any(char.isdigit() for char in all_text)
@@ -188,6 +193,43 @@ class ExtractionQualityScorer:
             logger.warning(f"⚠️  {grade.name.capitalize()} extraction quality: {overall_score:.2f} (Grade {grade.value}) - Consider retry")
         
         return breakdown
+    
+    def _normalize_fields(self, result: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Normalize field names to handle both old and new conventions.
+        
+        Old format (from preview_reasoning.py): the_hook, social_proof_found, key_benefit
+        New format (from preview_engine.py): title, credibility_items, description
+        """
+        normalized = dict(result)  # Copy original
+        
+        # Map title to the_hook if needed
+        if "the_hook" not in normalized and "title" in normalized:
+            normalized["the_hook"] = normalized["title"]
+        
+        # Map credibility_items to social_proof_found
+        if "social_proof_found" not in normalized:
+            credibility = normalized.get("credibility_items", [])
+            if credibility:
+                # Extract proof text from credibility items
+                if isinstance(credibility, list) and len(credibility) > 0:
+                    if isinstance(credibility[0], dict):
+                        proof_texts = [item.get("value", "") for item in credibility if item.get("value")]
+                    else:
+                        proof_texts = [str(item) for item in credibility if item]
+                    normalized["social_proof_found"] = " | ".join(proof_texts)
+                else:
+                    normalized["social_proof_found"] = str(credibility)
+        
+        # Map description to key_benefit
+        if "key_benefit" not in normalized and "description" in normalized:
+            normalized["key_benefit"] = normalized["description"]
+        
+        # Map subtitle as fallback
+        if not normalized.get("key_benefit") and normalized.get("subtitle"):
+            normalized["key_benefit"] = normalized["subtitle"]
+        
+        return normalized
     
     def _score_hook(self, result: Dict[str, Any]) -> float:
         """Score hook/title quality (0.0-1.0)."""

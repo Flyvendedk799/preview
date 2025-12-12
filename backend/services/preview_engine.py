@@ -154,7 +154,7 @@ class PreviewEngine:
         # Initialize quality orchestrator
         try:
                 self.quality_orchestrator = QualityOrchestrator(
-                    min_quality_threshold=0.40,  # Lowered from 0.75 - was rejecting everything
+                    min_quality_threshold=0.65,  # High standards - fix quality, don't lower bar
                 min_design_fidelity=0.70,
                 enable_auto_improvement=True
             )
