@@ -43,6 +43,13 @@ class CredibilityItem(BaseModel):
     value: str
 
 
+class BrandElements(BaseModel):
+    """Extracted brand elements."""
+    brand_name: Optional[str] = None
+    logo_base64: Optional[str] = None
+    hero_image_base64: Optional[str] = None
+
+
 class LayoutBlueprint(BaseModel):
     """Layout blueprint with full reasoning."""
     template_type: str  # profile, product, landing, article, service
@@ -85,6 +92,9 @@ class DemoPreviewResponse(BaseModel):
     primary_image_base64: Optional[str] = None
     screenshot_url: Optional[str] = None
     composited_preview_image_url: Optional[str] = None  # Final og:image with all elements
+    
+    # ===== BRAND ELEMENTS =====
+    brand: Optional[BrandElements] = None
     
     # ===== LAYOUT BLUEPRINT =====
     blueprint: LayoutBlueprint

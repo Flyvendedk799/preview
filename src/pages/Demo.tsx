@@ -399,6 +399,13 @@ export default function Demo() {
     // This prevents conflicts and jumping between percentages
     
     try {
+      // Validate URL format before sending to backend
+      try {
+        new URL(urlToProcess)
+      } catch (urlError) {
+        throw new Error('Invalid URL format. Please enter a valid URL (e.g., https://example.com)')
+      }
+
       // Create async job (returns immediately to avoid Railway timeout)
       const jobResponse = await createDemoJob(urlToProcess)
       const jobId = jobResponse.job_id
@@ -628,9 +635,19 @@ export default function Demo() {
         ? `${errorInfo.message}. ${errorInfo.suggestion}`
         : errorInfo.message
       
-      // Handle job not found specifically
+      // Handle specific error cases
       const errorStr = error instanceof Error ? error.message : String(error)
-      if (errorStr.includes('not found') || errorStr.includes('404') || errorStr.includes('expired')) {
+      
+      // Handle URL validation errors
+      if (errorStr.includes('Input should be a valid URL') || 
+          errorStr.includes('Invalid URL') || 
+          errorStr.includes('field required') ||
+          errorStr.includes('URL is required')) {
+        errorMessage = 'Please enter a valid URL (e.g., https://example.com)'
+        setUrlError('Please enter a valid URL')
+      }
+      // Handle job not found specifically
+      else if (errorStr.includes('not found') || errorStr.includes('404') || errorStr.includes('expired')) {
         errorMessage = 'The preview generation job was not found. It may have expired. Please try generating a new preview.'
       }
       
@@ -670,17 +687,22 @@ export default function Demo() {
   // Memoized URL submit handler (defined after generatePreviewWithUrl)
   const handleUrlSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault()
+    e.stopPropagation()
     setUrlError(null)
     setPreviewError(null)
 
+    // Get the current URL value directly from the input to avoid React state timing issues
+    const urlInput = document.getElementById('url') as HTMLInputElement
+    const currentUrl = urlInput?.value || url
+
     // Validate URL
-    if (!url || !url.trim()) {
-      setUrlError('URL is required')
+    if (!currentUrl || !currentUrl.trim()) {
+      setUrlError('Please enter a URL')
       return
     }
 
     // Ensure URL has HTTPS protocol (always use HTTPS)
-    let processedUrl = url.trim()
+    let processedUrl = currentUrl.trim()
     if (!processedUrl.startsWith('http://') && !processedUrl.startsWith('https://')) {
       processedUrl = `https://${processedUrl}`
     } else if (processedUrl.startsWith('http://')) {
@@ -688,9 +710,12 @@ export default function Demo() {
     }
 
     if (!validateUrl(processedUrl)) {
-      setUrlError('Please enter a valid URL')
+      setUrlError('Please enter a valid URL (e.g., https://example.com)')
       return
     }
+
+    // Update state with processed URL
+    setUrl(processedUrl)
 
     // IMPROVEMENT: Allow instant preview without forced email/consent
     // Email subscription is now optional - users can generate previews immediately
@@ -1012,11 +1037,12 @@ export default function Demo() {
                         </div>
                         <input
                           id="url"
-                          type="url"
+                          type="text"
                           inputMode="url"
                           value={url}
                           onChange={(e) => {
-                            setUrl(e.target.value)
+                            const newValue = e.target.value
+                            setUrl(newValue)
                             setUrlError(null)
                             setPreviewError(null)
                           }}
@@ -1045,6 +1071,7 @@ export default function Demo() {
                           aria-required="true"
                           autoComplete="url"
                           spellCheck="false"
+                          noValidate
                         />
                         {url && !urlError && !previewError && (
                           <div className="absolute right-4 top-1/2 transform -translate-y-1/2" aria-hidden="true">
