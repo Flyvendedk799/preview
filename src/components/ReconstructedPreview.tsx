@@ -77,8 +77,13 @@ const ProfileTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
 
   // UNIFIED IMAGE SOURCE: Always use composited_preview_image_url as primary source
   // Priority: Composited Preview Image > AI-extracted image > Screenshot
+  const [imageError, setImageError] = useState(false)
   const profileImageUrl = composited_preview_image_url || 
     (primary_image_base64 ? `data:image/png;base64,${primary_image_base64}` : screenshot_url)
+  
+  const handleImageError = () => {
+    setImageError(true)
+  }
   
   return (
     <div className="relative overflow-hidden rounded-2xl bg-white shadow-xl">
@@ -104,11 +109,12 @@ const ProfileTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
       <div className="relative px-6 pb-6">
         {/* Profile image */}
         <div className="flex justify-center -mt-16 mb-4">
-          {profileImageUrl ? (
+          {profileImageUrl && !imageError ? (
             <img 
               src={profileImageUrl}
               alt={title}
               className="w-28 h-28 rounded-full border-4 border-white shadow-lg object-cover ring-4 ring-white/50"
+              onError={handleImageError}
             />
           ) : (
             <div 
@@ -196,18 +202,24 @@ const ProductTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
 
   // UNIFIED IMAGE SOURCE: Always use composited_preview_image_url as primary source
   // Priority: Composited Preview Image > AI-extracted image > Screenshot
+  const [imageError, setImageError] = useState(false)
   const productImageUrl = composited_preview_image_url || 
     (primary_image_base64 ? `data:image/png;base64,${primary_image_base64}` : screenshot_url)
+  
+  const handleImageError = () => {
+    setImageError(true)
+  }
   
   return (
     <div className="relative overflow-hidden rounded-2xl bg-white shadow-xl">
       {/* Product image */}
-      {productImageUrl ? (
+      {productImageUrl && !imageError ? (
         <div className="aspect-[16/9] overflow-hidden bg-gray-100">
           <img 
             src={productImageUrl}
             alt={title}
             className="w-full h-full object-cover"
+            onError={handleImageError}
           />
         </div>
       ) : (
@@ -302,8 +314,13 @@ const LandingTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
 
   // UNIFIED IMAGE SOURCE: Always use composited_preview_image_url as primary source
   // Priority: Composited Preview Image > Screenshot > AI-extracted image
+  const [imageError, setImageError] = useState(false)
   const imageUrl = composited_preview_image_url || screenshot_url || 
     (primary_image_base64 ? `data:image/png;base64,${primary_image_base64}` : null)
+  
+  const handleImageError = () => {
+    setImageError(true)
+  }
 
   // DEBUG: Log image source selection for LandingTemplate (only when image URL changes)
   const imageUrlRef = useRef<string | null>(null)
@@ -329,7 +346,7 @@ const LandingTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
       }}
     >
       {/* Background image with overlay - using composited_preview_image_url */}
-      {imageUrl && (
+      {imageUrl && !imageError && (
         <div className="absolute inset-0">
           <img 
             src={imageUrl}
@@ -340,6 +357,7 @@ const LandingTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
             }}
             onError={(e) => {
               console.error('[LandingTemplate] Background image failed to load:', imageUrl, e)
+              handleImageError()
             }}
           />
           <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-transparent" />
@@ -415,12 +433,13 @@ const ArticleTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
   return (
     <div className="relative overflow-hidden rounded-2xl bg-white shadow-xl">
       {/* Article image */}
-      {articleImageUrl && (
+      {articleImageUrl && !imageError && (
         <div className="aspect-[2/1] overflow-hidden bg-gray-100">
           <img 
             src={articleImageUrl}
             alt={title}
             className="w-full h-full object-cover"
+            onError={handleImageError}
           />
         </div>
       )}
@@ -472,8 +491,13 @@ const ServiceTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
 
   // UNIFIED IMAGE SOURCE: Always use composited_preview_image_url as primary source
   // Priority: Composited Preview Image > AI-extracted image > Screenshot
+  const [imageError, setImageError] = useState(false)
   const serviceImageUrl = composited_preview_image_url || 
     (primary_image_base64 ? `data:image/png;base64,${primary_image_base64}` : screenshot_url)
+  
+  const handleImageError = () => {
+    setImageError(true)
+  }
   
   return (
     <div className="relative overflow-hidden rounded-2xl bg-white shadow-xl">
@@ -486,11 +510,12 @@ const ServiceTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
       <div className="p-6">
         {/* Icon or image */}
         <div className="mb-4">
-          {serviceImageUrl ? (
+          {serviceImageUrl && !imageError ? (
             <img 
               src={serviceImageUrl}
               alt={title}
               className="w-16 h-16 rounded-xl object-cover shadow-md"
+              onError={handleImageError}
             />
           ) : (
             <div 

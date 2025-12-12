@@ -167,16 +167,34 @@ def generate_demo_preview(
     # Use unified preview engine
     logger.info(f"🚀 Using unified preview engine for: {url_str}")
     
-    config = PreviewEngineConfig(
-        is_demo=True,
-        enable_brand_extraction=True,
-        enable_ai_reasoning=True,
-        enable_composited_image=True,
-        enable_cache=True
-    )
-    
-    engine = PreviewEngine(config)
-    engine_result = engine.generate(url_str, cache_key_prefix="demo:preview:")
+    try:
+        config = PreviewEngineConfig(
+            is_demo=True,
+            enable_brand_extraction=True,
+            enable_ai_reasoning=True,
+            enable_composited_image=True,
+            enable_cache=True
+        )
+        
+        engine = PreviewEngine(config)
+        engine_result = engine.generate(url_str, cache_key_prefix="demo:preview:")
+        
+    except ValueError as e:
+        # Quality gate failures or validation errors
+        error_msg = str(e)
+        logger.error(f"❌ Preview generation failed: {error_msg}")
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Preview generation failed quality checks: {error_msg}. Please try again or contact support."
+        )
+    except Exception as e:
+        # Unexpected errors
+        error_msg = str(e)
+        logger.error(f"❌ Unexpected error in preview generation: {error_msg}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate preview: {error_msg}. Please try again."
+        )
     
     # Convert PreviewEngineResult to DemoPreviewResponse
     response = DemoPreviewResponse(
@@ -226,6 +244,10 @@ def generate_demo_preview(
         # Metrics
         reasoning_confidence=engine_result.reasoning_confidence,
         processing_time_ms=engine_result.processing_time_ms,
+        
+        # Quality indicators
+        quality_scores=engine_result.quality_scores,
+        is_fallback=engine_result.quality_scores.get("is_fallback", False) if engine_result.quality_scores else False,
         
         # Metadata
         is_demo=True,
