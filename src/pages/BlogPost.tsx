@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import {
   CalendarIcon,
@@ -10,6 +10,7 @@ import {
   BookmarkIcon,
   ChevronRightIcon,
   SparklesIcon,
+  LinkIcon,
 } from '@heroicons/react/24/outline'
 import {
   fetchBlogPostBySlug,
@@ -19,6 +20,7 @@ import {
   type BlogPostListItem,
   type BlogCategory,
 } from '../api/client'
+import Toast from '../components/Toast'
 
 // Clean markdown renderer - requires proper markdown syntax
 function renderContent(content: string): JSX.Element {
@@ -199,19 +201,23 @@ function renderContent(content: string): JSX.Element {
           </div>
         )
 
-      case 'h2':
+      case 'h2': {
+        const id = block.content.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-')
         return (
-          <h2 key={index} className="text-2xl sm:text-3xl font-bold text-gray-900 mt-12 mb-4 leading-tight">
+          <h2 key={index} id={id} className="text-2xl sm:text-3xl font-bold text-gray-900 mt-12 mb-4 leading-tight">
             {block.content}
           </h2>
         )
+      }
 
-      case 'h3':
+      case 'h3': {
+        const id = block.content.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-')
         return (
-          <h3 key={index} className="text-xl sm:text-2xl font-bold text-gray-900 mt-10 mb-3 leading-tight">
+          <h3 key={index} id={id} className="text-xl sm:text-2xl font-bold text-gray-900 mt-10 mb-3 leading-tight">
             {block.content}
           </h3>
         )
+      }
 
       case 'numbered-section':
         // Clean up any stray asterisks from the title
@@ -310,6 +316,12 @@ function renderContent(content: string): JSX.Element {
   return <>{elements}</>
 }
 
+interface TocItem {
+  id: string
+  title: string
+  level: number
+}
+
 export default function BlogPost() {
   const { slug } = useParams<{ slug: string }>()
   const navigate = useNavigate()
@@ -318,6 +330,10 @@ export default function BlogPost() {
   const [categories, setCategories] = useState<BlogCategory[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [readingProgress, setReadingProgress] = useState(0)
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+  const [toc, setToc] = useState<TocItem[]>([])
+  const articleRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (slug) {
@@ -362,6 +378,80 @@ export default function BlogPost() {
     })
   }
 
+  // Generate table of contents from content
+  useEffect(() => {
+    if (!post?.content) return
+    
+    const lines = post.content.split('\n')
+    const tocItems: TocItem[] = []
+    
+    lines.forEach((line) => {
+      const trimmed = line.trim()
+      if (trimmed.startsWith('## ')) {
+        const title = trimmed.slice(3)
+        const id = title.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-')
+        tocItems.push({ id, title, level: 2 })
+      } else if (trimmed.startsWith('### ')) {
+        const title = trimmed.slice(4)
+        const id = title.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-')
+        tocItems.push({ id, title, level: 3 })
+      }
+    })
+    
+    setToc(tocItems)
+  }, [post])
+
+  // Reading progress calculation
+  useEffect(() => {
+    const handleScroll = () => {
+      if (!articleRef.current) return
+      
+      const articleTop = articleRef.current.offsetTop
+      const articleHeight = articleRef.current.offsetHeight
+      const windowHeight = window.innerHeight
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop
+      
+      const scrolled = scrollTop - articleTop + 100 // Account for header offset
+      const total = articleHeight - windowHeight + 100
+      const progress = Math.min(Math.max((scrolled / total) * 100, 0), 100)
+      
+      setReadingProgress(progress)
+    }
+    
+    window.addEventListener('scroll', handleScroll)
+    handleScroll() // Initial calculation
+    
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [post])
+
+  function shareToTwitter() {
+    if (!post) return
+    const url = encodeURIComponent(window.location.href)
+    const text = encodeURIComponent(post.title)
+    window.open(`https://twitter.com/intent/tweet?url=${url}&text=${text}`, '_blank', 'width=550,height=420')
+  }
+
+  function shareToFacebook() {
+    if (!post) return
+    const url = encodeURIComponent(window.location.href)
+    window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, '_blank', 'width=550,height=420')
+  }
+
+  function shareToLinkedIn() {
+    if (!post) return
+    const url = encodeURIComponent(window.location.href)
+    window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${url}`, '_blank', 'width=550,height=420')
+  }
+
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(window.location.href)
+      setToast({ message: 'Link copied to clipboard!', type: 'success' })
+    } catch (err) {
+      setToast({ message: 'Failed to copy link', type: 'error' })
+    }
+  }
+
   function sharePost() {
     if (navigator.share && post) {
       navigator.share({
@@ -370,9 +460,21 @@ export default function BlogPost() {
         url: window.location.href,
       })
     } else {
-      // Fallback: copy to clipboard
-      navigator.clipboard.writeText(window.location.href)
-      alert('Link copied to clipboard!')
+      copyLink()
+    }
+  }
+
+  function scrollToHeading(id: string) {
+    const element = document.getElementById(id)
+    if (element) {
+      const offset = 100 // Account for fixed header
+      const elementPosition = element.getBoundingClientRect().top
+      const offsetPosition = elementPosition + window.pageYOffset - offset
+      
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: 'smooth'
+      })
     }
   }
 
@@ -523,8 +625,25 @@ export default function BlogPost() {
 
   return (
     <div className="min-h-screen bg-white">
+        {/* Reading Progress Bar */}
+        <div className="fixed top-0 left-0 right-0 z-[60] h-1 bg-gray-100">
+          <div
+            className="h-full bg-gradient-to-r from-orange-500 to-amber-500 transition-all duration-150"
+            style={{ width: `${readingProgress}%` }}
+          />
+        </div>
+
+        {/* Toast Notification */}
+        {toast && (
+          <Toast
+            message={toast.message}
+            type={toast.type}
+            onClose={() => setToast(null)}
+          />
+        )}
+
         {/* Navigation */}
-        <nav className="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-2xl border-b border-gray-100/80">
+        <nav className="fixed top-1 left-0 right-0 z-50 bg-white/90 backdrop-blur-2xl border-b border-gray-100/80">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12">
             <div className="flex items-center justify-between h-16">
               <Link to="/" className="flex items-center space-x-2.5 group">
@@ -549,7 +668,7 @@ export default function BlogPost() {
         </nav>
 
         {/* Breadcrumb */}
-        <div className="pt-20 bg-gray-50 border-b border-gray-100">
+        <div className="pt-24 bg-gray-50 border-b border-gray-100">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4">
             <nav className="flex items-center space-x-2 text-sm">
               <Link to="/" className="text-gray-500 hover:text-gray-700">Home</Link>
@@ -629,17 +748,60 @@ export default function BlogPost() {
                 </div>
               </div>
               
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                {/* Social Sharing Buttons */}
                 <button
-                  onClick={sharePost}
-                  className="p-2.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors"
-                  aria-label="Share"
+                  onClick={shareToTwitter}
+                  className="p-2.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-colors"
+                  aria-label="Share on Twitter"
+                  title="Share on Twitter"
                 >
-                  <ShareIcon className="w-5 h-5" />
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                  </svg>
                 </button>
+                <button
+                  onClick={shareToFacebook}
+                  className="p-2.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-colors"
+                  aria-label="Share on Facebook"
+                  title="Share on Facebook"
+                >
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                  </svg>
+                </button>
+                <button
+                  onClick={shareToLinkedIn}
+                  className="p-2.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-colors"
+                  aria-label="Share on LinkedIn"
+                  title="Share on LinkedIn"
+                >
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                  </svg>
+                </button>
+                <button
+                  onClick={copyLink}
+                  className="p-2.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+                  aria-label="Copy Link"
+                  title="Copy Link"
+                >
+                  <LinkIcon className="w-5 h-5" />
+                </button>
+                {navigator.share && (
+                  <button
+                    onClick={sharePost}
+                    className="p-2.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+                    aria-label="Share"
+                    title="Share"
+                  >
+                    <ShareIcon className="w-5 h-5" />
+                  </button>
+                )}
                 <button
                   className="p-2.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors"
                   aria-label="Bookmark"
+                  title="Bookmark"
                 >
                   <BookmarkIcon className="w-5 h-5" />
                 </button>
@@ -664,7 +826,27 @@ export default function BlogPost() {
         {/* Article Content */}
         <article className="px-4 sm:px-6 pb-16">
           <div className="max-w-3xl mx-auto">
-            <div className="article-body">
+            {/* Table of Contents */}
+            {toc.length > 0 && (
+              <div className="mb-12 p-6 bg-gray-50 rounded-xl border border-gray-200">
+                <h2 className="text-lg font-bold text-gray-900 mb-4">Table of Contents</h2>
+                <nav className="space-y-2">
+                  {toc.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => scrollToHeading(item.id)}
+                      className={`block w-full text-left text-sm hover:text-orange-600 transition-colors ${
+                        item.level === 3 ? 'pl-4 text-gray-600' : 'font-medium text-gray-700'
+                      }`}
+                    >
+                      {item.title}
+                    </button>
+                  ))}
+                </nav>
+              </div>
+            )}
+            
+            <div className="article-body" ref={articleRef}>
               {renderContent(post.content)}
             </div>
             

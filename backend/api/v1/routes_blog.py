@@ -2,7 +2,7 @@
 import re
 from datetime import datetime
 from typing import Optional, List
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Response
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, asc, or_, func
 from pydantic import BaseModel, Field
@@ -444,6 +444,67 @@ def get_category_by_slug(
     response.post_count = post_count
     
     return response
+
+
+@router.get("/feed.xml")
+def get_rss_feed(
+    db: Session = Depends(get_db)
+):
+    """Generate RSS 2.0 feed for blog posts."""
+    # Get latest 20 published posts
+    posts = db.query(BlogPost).filter(
+        BlogPost.status == "published",
+        BlogPost.published_at <= datetime.utcnow()
+    ).order_by(desc(BlogPost.published_at)).limit(20).all()
+    
+    # Build RSS XML
+    base_url = "https://metaview.io"  # Update with your actual domain
+    rss_items = []
+    
+    for post in posts:
+        # Format date for RSS (RFC 822)
+        pub_date = post.published_at.strftime("%a, %d %b %Y %H:%M:%S +0000") if post.published_at else ""
+        
+        # Escape XML special characters
+        def escape_xml(text: str) -> str:
+            if not text:
+                return ""
+            return (text
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace('"', "&quot;")
+                .replace("'", "&apos;"))
+        
+        post_url = f"{base_url}/blog/{post.slug}"
+        title = escape_xml(post.title)
+        description = escape_xml(post.excerpt or post.meta_description or "")
+        author = escape_xml(post.author_name or "MetaView Team")
+        
+        item = f"""    <item>
+      <title>{title}</title>
+      <link>{post_url}</link>
+      <description>{description}</description>
+      <pubDate>{pub_date}</pubDate>
+      <guid isPermaLink="true">{post_url}</guid>
+      <author>{author}</author>
+    </item>"""
+        rss_items.append(item)
+    
+    rss_xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>MetaView Blog</title>
+    <link>{base_url}/blog</link>
+    <description>Tips, strategies, and best practices for optimizing your URL previews and boosting click-through rates.</description>
+    <language>en-us</language>
+    <lastBuildDate>{datetime.utcnow().strftime("%a, %d %b %Y %H:%M:%S +0000")}</lastBuildDate>
+    <atom:link href="{base_url}/api/v1/blog/feed.xml" rel="self" type="application/rss+xml"/>
+{chr(10).join(rss_items)}
+  </channel>
+</rss>"""
+    
+    return Response(content=rss_xml, media_type="application/rss+xml")
 
 
 # ============================================================================

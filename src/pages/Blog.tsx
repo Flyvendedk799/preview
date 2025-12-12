@@ -171,9 +171,21 @@ export default function Blog() {
         
         <div className="max-w-7xl mx-auto relative z-10">
           <div className="max-w-3xl">
-            <div className="inline-flex items-center space-x-2 px-3 py-1.5 bg-orange-500/20 rounded-full border border-orange-500/30 backdrop-blur-sm mb-6">
-              <SparklesIcon className="w-4 h-4 text-orange-400" />
-              <span className="text-xs font-bold text-orange-300">MetaView Blog</span>
+            <div className="flex items-center justify-between mb-6">
+              <div className="inline-flex items-center space-x-2 px-3 py-1.5 bg-orange-500/20 rounded-full border border-orange-500/30 backdrop-blur-sm">
+                <SparklesIcon className="w-4 h-4 text-orange-400" />
+                <span className="text-xs font-bold text-orange-300">MetaView Blog</span>
+              </div>
+              <a
+                href="/api/v1/blog/feed.xml"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full text-xs font-medium text-white hover:bg-white/20 transition-colors"
+                title="RSS Feed"
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M6.503 20.752c0 1.794-1.456 3.248-3.251 3.248-1.796 0-3.252-1.454-3.252-3.248 0-1.794 1.456-3.248 3.252-3.248 1.795.001 3.251 1.454 3.251 3.248zm-6.503-12.572v4.811c6.05.062 10.96 4.966 11.022 11.009h4.817c-.062-8.71-7.118-15.758-15.839-15.82zm0-7.18v4.81c9.88.058 17.883 8.094 17.94 17.971h4.817c-.057-12.65-10.28-22.872-22.757-22.781z"/>
+                </svg>
+                RSS
+              </a>
             </div>
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight mb-6">
               Insights & Resources
