@@ -33,7 +33,7 @@ ARCHITECTURE:
 import json
 import logging
 import time
-from typing import Dict, Any, Optional, List, Callable
+from typing import Dict, Any, Optional, List, Callable, Tuple
 from dataclasses import dataclass, field
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from uuid import uuid4
@@ -51,6 +51,19 @@ from backend.services.preview_cache import (
     get_redis_client,
     CacheConfig
 )
+
+# 7-Layer Enhancement System Integration
+try:
+    from backend.services.enhanced_preview_orchestrator import (
+        EnhancedPreviewOrchestrator,
+        EnhancedPreviewConfig
+    )
+    from backend.services.composition_engine import GridType
+    ENHANCED_SYSTEM_AVAILABLE = True
+    logger.info("✨ 7-Layer Enhancement System enabled")
+except ImportError as e:
+    ENHANCED_SYSTEM_AVAILABLE = False
+    logger.warning(f"7-Layer Enhancement System not available: {e}")
 
 logger = logging.getLogger(__name__)
 
@@ -992,7 +1005,79 @@ class PreviewEngine:
                     template_type = strategy_template
                     self.logger.info(f"🎯 Using classification-aware template: {template_type}")
             
-            # Generate composited image
+            # ENHANCED: Use 7-layer enhancement system if available
+            if ENHANCED_SYSTEM_AVAILABLE:
+                try:
+                    self.logger.info("✨ Using 7-Layer Enhancement System")
+                    
+                    # Prepare brand colors (convert hex to RGB)
+                    brand_colors_rgb = None
+                    if brand_elements and "colors" in brand_elements:
+                        brand_colors_rgb = self._hex_colors_to_rgb(brand_elements["colors"])
+                    
+                    # Extract Design DNA if available
+                    design_dna = ai_result.get("design_dna")
+                    
+                    # Prepare proof text from credibility items
+                    proof_text = None
+                    credibility_items = ai_result.get("credibility_items", [])
+                    if credibility_items and len(credibility_items) > 0:
+                        proof_text = credibility_items[0].get("value")
+                    
+                    # Configure enhanced system
+                    enhanced_config = EnhancedPreviewConfig(
+                        enable_hierarchy=True,
+                        enable_depth=True,
+                        enable_premium_typography=True,
+                        enable_textures=True,
+                        enable_composition=True,
+                        enable_context=True,
+                        enable_qa=True,
+                        grid_type=GridType.SWISS,
+                        texture_intensity=0.03,
+                        shadow_style="modern",
+                        typography_ratio="golden_ratio",
+                        enable_auto_polish=True
+                    )
+                    
+                    # Initialize orchestrator
+                    orchestrator = EnhancedPreviewOrchestrator(enhanced_config)
+                    
+                    # Generate enhanced preview
+                    enhanced_result = orchestrator.generate_enhanced_preview(
+                        screenshot_bytes=screenshot_bytes,
+                        url=url,
+                        title=ai_result["title"],
+                        subtitle=ai_result.get("subtitle"),
+                        description=ai_result["description"],
+                        proof_text=proof_text,
+                        tags=ai_result.get("tags", []),
+                        logo_base64=primary_image,
+                        design_dna=design_dna,
+                        brand_colors=brand_colors_rgb
+                    )
+                    
+                    # Upload enhanced image
+                    from io import BytesIO
+                    filename = f"enhanced_preview_{uuid4()}.png"
+                    composited_image_url = upload_file_to_r2(
+                        enhanced_result.image_bytes,
+                        filename,
+                        "image/png"
+                    )
+                    
+                    if composited_image_url:
+                        self.logger.info(
+                            f"✅ Enhanced preview generated: {composited_image_url} "
+                            f"(Grade: {enhanced_result.grade}, Quality: {enhanced_result.quality_score:.2f}, "
+                            f"Layers: {len(enhanced_result.layers_applied)})"
+                        )
+                        return composited_image_url
+                    
+                except Exception as e:
+                    self.logger.warning(f"⚠️  Enhanced system failed, falling back to standard: {e}", exc_info=True)
+            
+            # Fallback to standard generation
             composited_image_url = generate_and_upload_preview_image(
                 screenshot_bytes=screenshot_bytes,
                 url=url,
@@ -1009,7 +1094,7 @@ class PreviewEngine:
             )
             
             if composited_image_url:
-                self.logger.info(f"✅ Preview image generated: {composited_image_url}")
+                self.logger.info(f"✅ Preview image generated (standard): {composited_image_url}")
                 return composited_image_url
             
         except Exception as e:
@@ -1048,6 +1133,26 @@ class PreviewEngine:
             "secondary_color": "#1E40AF",
             "accent_color": "#F59E0B"
         }
+    
+    def _hex_colors_to_rgb(self, color_dict: Dict[str, str]) -> Dict[str, Tuple[int, int, int]]:
+        """Convert hex color dictionary to RGB tuples for enhanced system."""
+        def hex_to_rgb(hex_color: str) -> Tuple[int, int, int]:
+            """Convert hex color to RGB tuple."""
+            hex_color = hex_color.lstrip('#')
+            try:
+                return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+            except:
+                return (59, 130, 246)  # Default blue
+        
+        rgb_dict = {}
+        if "primary_color" in color_dict:
+            rgb_dict["primary"] = hex_to_rgb(color_dict["primary_color"])
+        if "secondary_color" in color_dict:
+            rgb_dict["secondary"] = hex_to_rgb(color_dict["secondary_color"])
+        if "accent_color" in color_dict:
+            rgb_dict["accent"] = hex_to_rgb(color_dict["accent_color"])
+        
+        return rgb_dict if rgb_dict else None
     
     def _determine_primary_image(
         self,
