@@ -788,7 +788,7 @@ export default function BlogPost() {
                 >
                   <LinkIcon className="w-5 h-5" />
                 </button>
-                {navigator.share && (
+                {'share' in navigator && (
                   <button
                     onClick={sharePost}
                     className="p-2.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors"
