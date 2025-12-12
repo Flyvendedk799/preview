@@ -41,7 +41,10 @@ try:
         ColorPsychology,
         SpatialIntelligence,
         HeroElement,
-        BrandPersonality
+        BrandPersonality,
+        UIComponents,
+        VisualEffects,
+        LayoutPatterns
     )
     ADAPTIVE_ENGINE_AVAILABLE = True
 except ImportError:
@@ -1554,6 +1557,9 @@ def generate_dna_aware_preview(
                 design_confidence=0.8,
                 industry_context=""
             ),
+            ui_components=UIComponents(**design_dna.get("ui_components", {})) if design_dna.get("ui_components") else UIComponents(button_style="flat"),
+            visual_effects=VisualEffects(**design_dna.get("visual_effects", {})) if design_dna.get("visual_effects") else VisualEffects(shadows="subtle"),
+            layout_patterns=LayoutPatterns(**design_dna.get("layout_patterns", {})) if design_dna.get("layout_patterns") else LayoutPatterns(content_structure="centered"),
             confidence=0.7
         )
         

@@ -196,6 +196,48 @@ class MultiModalFusionEngine:
         
         return fused
     
+    def _filter_cookie_content(self, text: Optional[str]) -> Optional[str]:
+        """
+        Post-processing filter to remove cookie/navigation content that slipped through.
+        
+        Args:
+            text: Text to filter
+            
+        Returns:
+            Filtered text or None if text is entirely cookie-related
+        """
+        if not text:
+            return text
+        
+        text_lower = text.lower().strip()
+        
+        # Check if entire text is cookie-related
+        for pattern in COOKIE_PATTERNS:
+            if pattern in text_lower and len(text_lower) < 100:  # Short text likely cookie banner
+                # Check if it's mostly cookie-related
+                cookie_words = sum(1 for p in COOKIE_PATTERNS if p in text_lower)
+                if cookie_words >= 2:  # Multiple cookie keywords = likely cookie banner
+                    logger.debug(f"Filtered out cookie content: {text[:50]}...")
+                    return None
+        
+        # Remove cookie-related phrases from longer text
+        filtered_text = text
+        for pattern in COOKIE_PATTERNS:
+            # Remove phrases containing cookie keywords (case-insensitive)
+            import re
+            # Pattern to match whole words/phrases containing cookie keywords
+            regex_pattern = rf'\b[^.!?]*{re.escape(pattern)}[^.!?]*[.!?]?\s*'
+            filtered_text = re.sub(regex_pattern, '', filtered_text, flags=re.IGNORECASE)
+        
+        # Clean up extra spaces
+        filtered_text = ' '.join(filtered_text.split())
+        
+        # Return None if filtered text is too short or empty
+        if len(filtered_text.strip()) < 5:
+            return None
+        
+        return filtered_text.strip() if filtered_text != text else text
+    
     def _extract_from_html(self, html_content: str) -> Dict[str, Any]:
         """Extract from HTML metadata."""
         try:
