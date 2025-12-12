@@ -153,8 +153,8 @@ class PreviewEngine:
         self.fusion_engine = MultiModalFusionEngine()
         # Initialize quality orchestrator
         try:
-                self.quality_orchestrator = QualityOrchestrator(
-                    min_quality_threshold=0.65,  # High standards - fix quality, don't lower bar
+            self.quality_orchestrator = QualityOrchestrator(
+                min_quality_threshold=0.65,
                 min_design_fidelity=0.70,
                 enable_auto_improvement=True
             )
