@@ -51,6 +51,8 @@ from backend.services.preview_cache import (
     get_redis_client,
     CacheConfig
 )
+# Framework-based quality system
+from backend.services.multi_modal_fusion import MultiModalFusionEngine
 
 logger = logging.getLogger(__name__)
 
@@ -146,6 +148,9 @@ class PreviewEngine:
         self.config = config
         self.logger = logging.getLogger(__name__)
         self._last_progress = 0.0  # Track last progress for monotonic updates
+        # Initialize framework-based fusion engine
+        self.fusion_engine = MultiModalFusionEngine()
+        self.logger.info("Framework-based quality system enabled")
     
     def generate(
         self,
@@ -580,30 +585,89 @@ class PreviewEngine:
         html_content: str,
         page_classification
     ) -> Dict[str, Any]:
-        """7X QUALITY: Enhanced AI reasoning with context awareness."""
+        """
+        Framework-based multi-modal fusion with quality gates.
+        
+        Uses quality framework to ensure consistent quality across all sources.
+        """
         if not self.config.enable_ai_reasoning:
             return self._extract_from_html_only(html_content, url)
         
-        self._update_progress(0.60, "Running enhanced AI reasoning...")
+        self._update_progress(0.60, "Running framework-based multi-modal fusion...")
         
         try:
-            self.logger.info(f"🤖 [7X] Running enhanced AI reasoning for: {url}")
-            result = generate_reasoned_preview(screenshot_bytes, url)
+            self.logger.info(f"🔧 [Framework] Running multi-modal fusion for: {url}")
             
-            # 7X QUALITY: Always enhance with HTML data for better results
-            result = self._enhance_ai_result_with_html(result, html_content)
+            # Use framework-based fusion engine
+            fused_result = self.fusion_engine.extract_preview_content(
+                html_content=html_content,
+                screenshot_bytes=screenshot_bytes,
+                url=url
+            )
             
-            self.logger.info(f"✅ [7X] AI reasoning complete (confidence: {result.reasoning_confidence:.2f})")
-            return self._convert_reasoned_preview_to_dict(result)
+            # Log source usage
+            sources = fused_result.get("sources", {})
+            self.logger.info(
+                f"✅ [Framework] Fusion complete - "
+                f"Title: {sources.get('title', 'unknown')}, "
+                f"Description: {sources.get('description', 'unknown')}, "
+                f"Confidence: {fused_result.get('confidence', 0.0):.2f}"
+            )
+            
+            # Convert to expected format
+            design = fused_result.get("design", {})
+            color_palette = design.get("color_palette", {})
+            
+            return {
+                "title": fused_result["title"],
+                "subtitle": None,
+                "description": fused_result["description"],
+                "tags": fused_result.get("tags", []),
+                "context_items": [],
+                "credibility_items": [],
+                "cta_text": None,
+                "primary_image_base64": fused_result.get("image"),
+                "blueprint": {
+                    "template_type": page_classification.preview_strategy.get("template_type", "landing") if page_classification and page_classification.preview_strategy else "landing",
+                    "primary_color": color_palette.get("primary", "#2563EB"),
+                    "secondary_color": color_palette.get("secondary", "#1E40AF"),
+                    "accent_color": color_palette.get("accent", "#F59E0B"),
+                    "coherence_score": fused_result.get("quality_scores", {}).get("overall", 0.7),
+                    "balance_score": fused_result.get("quality_scores", {}).get("overall", 0.7),
+                    "clarity_score": fused_result.get("quality_scores", {}).get("overall", 0.7),
+                    "overall_quality": self._map_quality_level(fused_result.get("quality_scores", {}).get("overall", 0.7)),
+                    "layout_reasoning": f"Framework-based extraction (sources: {sources.get('title')}, {sources.get('description')})",
+                    "composition_notes": f"Design style: {design.get('design_style', 'corporate')}"
+                },
+                "reasoning_confidence": fused_result.get("confidence", 0.7),
+                "design_dna": {
+                    "color_palette": color_palette,
+                    "typography": design.get("typography", {}),
+                    "layout_structure": design.get("layout_structure", {}),
+                    "design_style": design.get("design_style", "corporate")
+                }
+            }
             
         except Exception as e:
             error_msg = str(e)
-            self.logger.error(f"❌ [7X] AI reasoning failed: {error_msg}", exc_info=True)
+            self.logger.error(f"❌ [Framework] Fusion failed: {error_msg}", exc_info=True)
             
             if "429" in error_msg or "rate limit" in error_msg.lower():
                 raise ValueError("OpenAI rate limit reached. Please wait a moment and try again.")
             
+            # Fallback to HTML-only extraction
             return self._extract_from_html_only(html_content, url)
+    
+    def _map_quality_level(self, confidence: float) -> str:
+        """Map confidence score to quality level."""
+        if confidence >= 0.9:
+            return "excellent"
+        elif confidence >= 0.7:
+            return "good"
+        elif confidence >= 0.5:
+            return "fair"
+        else:
+            return "poor"
     
     def _enhance_ai_result_with_html(self, result, html_content: str):
         """7X QUALITY: Smart enhancement with HTML data."""
@@ -1107,8 +1171,19 @@ class PreviewEngine:
         ai_result: Dict[str, Any],
         brand_elements: Dict[str, Any]
     ) -> Dict[str, str]:
-        """Determine colors with priority: brand > AI > fallback."""
-        # Priority 1: Brand colors
+        """Determine colors with priority: design > brand > AI > fallback."""
+        # Priority 1: Design elements from fusion (framework-extracted)
+        design_dna = ai_result.get("design_dna", {})
+        if design_dna:
+            color_palette = design_dna.get("color_palette", {})
+            if color_palette and color_palette.get("primary"):
+                return {
+                    "primary_color": color_palette.get("primary", "#2563EB"),
+                    "secondary_color": color_palette.get("secondary", "#1E40AF"),
+                    "accent_color": color_palette.get("accent", "#F59E0B"),
+                }
+        
+        # Priority 2: Brand colors
         if brand_elements and isinstance(brand_elements, dict):
             brand_colors = brand_elements.get("colors", {})
             if isinstance(brand_colors, dict) and brand_colors.get("primary_color"):
@@ -1118,7 +1193,7 @@ class PreviewEngine:
                     "accent_color": brand_colors.get("accent_color", "#F59E0B"),
                 }
         
-        # Priority 2: AI-extracted colors
+        # Priority 3: AI-extracted colors
         blueprint = ai_result.get("blueprint", {})
         if blueprint.get("primary_color"):
             return {
@@ -1127,7 +1202,7 @@ class PreviewEngine:
                 "accent_color": blueprint.get("accent_color", "#F59E0B"),
             }
         
-        # Priority 3: Fallback
+        # Priority 4: Fallback
         return {
             "primary_color": "#2563EB",
             "secondary_color": "#1E40AF",
@@ -1232,10 +1307,18 @@ class PreviewEngine:
                 "hero_image_base64": brand_elements.get("hero_image_base64")
             }
         
-        # Determine colors for blueprint
+        # Determine colors for blueprint (with design preservation)
         blueprint_colors = self._determine_colors(ai_result, brand_elements)
         blueprint = ai_result.get("blueprint", {}).copy()
         blueprint.update(blueprint_colors)
+        
+        # Preserve design elements in blueprint
+        design_dna = ai_result.get("design_dna", {})
+        if design_dna:
+            # Add design metadata to blueprint
+            blueprint["design_style"] = design_dna.get("design_style", "corporate")
+            blueprint["typography"] = design_dna.get("typography", {})
+            blueprint["layout_structure"] = design_dna.get("layout_structure", {})
         
         # Override template_type with classification strategy if available
         if page_classification and page_classification.preview_strategy:
@@ -1261,7 +1344,7 @@ class PreviewEngine:
             reasoning_confidence=ai_result.get("reasoning_confidence", 0.0),
             processing_time_ms=processing_time_ms,
             is_demo=self.config.is_demo,
-            message="AI-reconstructed preview with enhanced brand extraction.",
+            message="Framework-based preview with quality gates and design preservation.",
             quality_scores={
                 "coherence": blueprint.get("coherence_score", 0.0),
                 "balance": blueprint.get("balance_score", 0.0),
