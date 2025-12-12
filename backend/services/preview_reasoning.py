@@ -61,6 +61,19 @@ except ImportError as e:
     QUALITY_ASSURANCE_AVAILABLE = False
     logger.warning(f"Quality assurance system not available: {e}")
 
+# Product Intelligence Integration (NEW - for e-commerce enhancement)
+try:
+    from backend.services.product_intelligence import (
+        extract_product_intelligence,
+        ProductInformation,
+        ProductCategory
+    )
+    PRODUCT_INTELLIGENCE_AVAILABLE = True
+    logger.info("🛍️ Product intelligence system enabled (pricing, urgency, ratings)")
+except ImportError as e:
+    PRODUCT_INTELLIGENCE_AVAILABLE = False
+    logger.warning(f"Product intelligence system not available: {e}")
+
 
 # =============================================================================
 # REASONING SCHEMA
@@ -436,11 +449,154 @@ THINKING: Product page with price and buy button. Not a profile. Extract product
   "key_benefit": "$189.99 with 20% OFF",
   "is_individual_profile": false,
   "company_indicators": ["has pricing", "has reviews", "add to cart button"],
-  "analysis_confidence": 0.92
+  "analysis_confidence": 0.92,
+  "pricing": {
+    "current_price": "$149.99",
+    "original_price": "$189.99",
+    "discount_percentage": 20,
+    "deal_ends": "Ends in 4 hours"
+  },
+  "availability": {
+    "in_stock": true,
+    "stock_level": "Only 5 left in stock"
+  },
+  "rating": {
+    "value": 4.7,
+    "count": 1892
+  },
+  "badges": ["Best Seller", "Free Shipping"]
 }
 ❌ BAD:
 {
   "social_proof_found": "Great reviews"  // ❌ No numbers
+}
+
+=== 🛍️ PRODUCT PAGE SPECIAL INSTRUCTIONS ===
+
+IF this is an E-COMMERCE or PRODUCT page (has pricing, add-to-cart, reviews), extract COMPREHENSIVE PRODUCT DATA:
+
+**CRITICAL PRICING EXTRACTION:**
+Look for these EXACT patterns and extract ALL:
+1. Current price: $XX.XX, €XX.XX, £XX.XX (exact numbers)
+2. Original/strikethrough price: "was $X", strikethrough text
+3. Discount: "Save XX%", "XX% OFF", "-XX%"
+4. Deal countdown: "Ends in X hours", "Sale ends Dec 25", "Limited time"
+5. Subscription pricing: "Subscribe & Save", "$XX/month"
+
+Examples to extract:
+- "$149.99" (current)
+- "$189.99" (strikethrough) → original_price
+- "Save 20%" → discount_percentage: 20
+- "Deal ends in 2 hours" → deal_ends: "Ends in 2 hours"
+
+**STOCK & AVAILABILITY:**
+Extract urgency signals:
+1. Stock level: "Only X left", "Low stock", "In stock", "Out of stock"
+2. Quantity: Extract the NUMBER (e.g., "Only 5 left" → stock_quantity: 5)
+3. Pre-order: "Available Dec 25", "Ships in 2 weeks"
+4. Backorder: "Backorder available"
+
+**RATINGS & REVIEWS (WITH EXACT NUMBERS):**
+1. Star rating: "4.8★", "4.8 out of 5", "★★★★★" (extract as number: 4.8)
+2. Review count: "2,847 reviews", "2.8K reviews" (extract NUMBER: 2847 or 2800)
+3. Answered questions: "500 answered questions"
+4. Verified purchases: "95% verified purchases"
+
+**PRODUCT BADGES:**
+Look for and extract ALL badges/labels:
+- "Best Seller", "Amazon's Choice", "#1 in Category"
+- "Top Rated", "Editor's Pick"
+- "New Arrival", "Limited Edition"
+- "Free Shipping", "Prime"
+- "SALE", "Clearance"
+- "Trending", "Hot Item"
+
+**PRODUCT DETAILS:**
+1. Brand: Extract brand name (Nike, Apple, etc.)
+2. Model: Model number/name
+3. Category: Electronics, Fashion, Food, Beauty, etc.
+4. ASIN/SKU: Product ID if visible
+
+**KEY FEATURES:**
+Extract 3-5 bullet point features (EXACT text):
+- "Water-resistant to 50 meters"
+- "24-hour battery life"
+- "Made from 100% organic cotton"
+
+**VARIANTS:**
+1. Colors: ["Black", "White", "Red"] (list all available)
+2. Sizes: ["S", "M", "L", "XL"] (list all available)
+3. Other variants: ["16GB", "32GB", "64GB"]
+
+**TRUST SIGNALS:**
+1. Shipping: "Free Shipping", "Prime", "Ships in 2 days"
+2. Returns: "Free Returns", "30-day return policy"
+3. Warranty: "2-year warranty", "Lifetime guarantee"
+4. Seller: Seller name and rating if visible
+
+**POPULARITY SIGNALS:**
+Extract any popularity/urgency indicators:
+- "500+ bought this week"
+- "Trending in Electronics"
+- "Fast selling"
+- "Hot item"
+
+ADD ALL THIS DATA to your JSON output in these fields:
+- "pricing": {current_price, original_price, discount_percentage, deal_ends}
+- "availability": {in_stock, stock_level, stock_quantity}
+- "rating": {value, count}
+- "product_details": {brand, model, category}
+- "features": {key_features: []}
+- "variants": {colors: [], sizes: []}
+- "badges": []
+- "trust_signals": {shipping, returns, warranty}
+
+EXAMPLE COMPLETE PRODUCT EXTRACTION:
+{
+  "page_type": "ecommerce",
+  "the_hook": "Apple AirPods Pro (2nd Gen)",
+  "social_proof_found": "4.8★ (28,474 reviews)",
+  "key_benefit": "Active Noise Cancellation + Spatial Audio",
+  "pricing": {
+    "current_price": "$199.99",
+    "original_price": "$249.99",
+    "discount_percentage": 20,
+    "currency": "USD",
+    "deal_ends": "Ends tonight at midnight"
+  },
+  "availability": {
+    "in_stock": true,
+    "stock_level": "Only 3 left in stock",
+    "stock_quantity": 3
+  },
+  "rating": {
+    "value": 4.8,
+    "count": 28474,
+    "answered_questions": 1247
+  },
+  "product_details": {
+    "brand": "Apple",
+    "model": "AirPods Pro (2nd Generation)",
+    "category": "Electronics",
+    "subcategory": "Headphones"
+  },
+  "features": {
+    "key_features": [
+      "Active Noise Cancellation",
+      "Adaptive Transparency",
+      "Up to 6 hours listening time",
+      "MagSafe charging case"
+    ]
+  },
+  "variants": {
+    "colors": ["White"]
+  },
+  "badges": ["Best Seller", "Amazon's Choice", "Free Shipping"],
+  "trust_signals": {
+    "shipping": "Free Prime Shipping",
+    "returns": "Free 30-day returns",
+    "warranty": "1-year AppleCare"
+  }
 }
 
 === OUTPUT JSON ===
@@ -458,10 +614,49 @@ THINKING: Product page with price and buy button. Not a profile. Extract product
     "detected_person_name": "<person's full name if profile page, null otherwise. MUST be 2-4 words, capitalized, NO job titles>",
     "is_individual_profile": <true only if this is ONE person's profile page, false for teams/companies>,
     "company_indicators": ["<list", "of", "signals", "that", "indicate", "company/team page>"],
+    
+    // 🛍️ PRODUCT-SPECIFIC FIELDS (include if page_type is "ecommerce" or "product"):
+    "pricing": {{
+        "current_price": "<$XX.XX - exact current price>",
+        "original_price": "<$XX.XX - before discount, or null>",
+        "discount_percentage": <XX - integer percentage, or null>,
+        "currency": "<USD|EUR|GBP|etc>",
+        "deal_ends": "<'Ends in X hours' or 'Sale ends Dec 25', or null>"
+    }},
+    "availability": {{
+        "in_stock": <true|false>,
+        "stock_level": "<'Only X left', 'Low stock', or null>",
+        "stock_quantity": <X - exact number if extractable, or null>
+    }},
+    "rating": {{
+        "value": <4.8 - numeric rating>,
+        "count": <2847 - total review count as integer>
+    }},
+    "product_details": {{
+        "brand": "<brand name>",
+        "model": "<model name/number>",
+        "category": "<Electronics|Fashion|Food|Beauty|Home|etc>",
+        "subcategory": "<Laptops|Sneakers|etc>"
+    }},
+    "features": {{
+        "key_features": ["<feature 1>", "<feature 2>", "<feature 3>"]
+    }},
+    "variants": {{
+        "colors": ["<color1>", "<color2>", ...],
+        "sizes": ["<S>", "<M>", "<L>", ...]
+    }},
+    "badges": ["<Best Seller>", "<Amazon's Choice>", ...],
+    "trust_signals": {{
+        "shipping": "<Free Shipping, Prime, etc>",
+        "returns": "<Free Returns, 30-day, etc>",
+        "warranty": "<2-year warranty, etc>"
+    }},
+    // END PRODUCT-SPECIFIC FIELDS
+    
     "regions": [
         {{
             "id": "<unique_id>",
-            "content_type": "<headline|subheadline|hero_image|logo|rating|user_count|testimonial|benefit|cta|statistic|badge|other>",
+            "content_type": "<headline|subheadline|hero_image|logo|rating|user_count|testimonial|benefit|cta|statistic|badge|price|other>",
             "raw_content": "<EXACT text - preserve original wording>",
             "bbox": {{"x": <0-1>, "y": <0-1>, "width": <0-1>, "height": <0-1>}},
             "purpose": "<hook|proof|benefit|identity|action|filler>",
@@ -989,6 +1184,59 @@ def run_stages_1_2_3(screenshot_bytes: bytes) -> Tuple[List[Dict], Dict[str, str
             
         except Exception as e:
             logger.warning(f"⚠️  Quality assessment failed: {e}")
+    
+    # ENHANCED: Extract Product Intelligence (for e-commerce pages)
+    page_type = data.get("page_type", "").lower()
+    if PRODUCT_INTELLIGENCE_AVAILABLE and page_type in ["ecommerce", "product", "marketplace"]:
+        try:
+            product_info = extract_product_intelligence(data)
+            
+            # Add product intelligence to data for downstream use
+            data["_product_intelligence"] = {
+                "pricing": {
+                    "current_price": product_info.pricing.current_price,
+                    "original_price": product_info.pricing.original_price,
+                    "discount_percentage": product_info.pricing.discount_percentage,
+                    "is_on_sale": product_info.pricing.is_on_sale,
+                    "deal_ends": product_info.pricing.deal_ends
+                },
+                "availability": {
+                    "in_stock": product_info.availability.in_stock,
+                    "limited_quantity": product_info.availability.limited_quantity,
+                    "stock_level": product_info.availability.stock_level
+                },
+                "rating": {
+                    "rating": product_info.rating.rating,
+                    "review_count": product_info.rating.review_count,
+                    "rating_display": product_info.rating.rating_display
+                },
+                "urgency": {
+                    "has_urgency": product_info.urgency_signals.has_urgency,
+                    "deal_countdown": product_info.urgency_signals.deal_countdown,
+                    "stock_message": product_info.urgency_signals.stock_message
+                },
+                "trust_signals": {
+                    "badges": product_info.trust_signals.badges[:5],  # Top 5 badges
+                    "shipping": product_info.trust_signals.shipping_info,
+                    "returns": product_info.trust_signals.return_policy
+                },
+                "category": product_info.details.product_type.value,
+                "brand": product_info.details.brand,
+                "extraction_confidence": product_info.extraction_confidence
+            }
+            
+            logger.info(
+                f"🛍️ Product Intelligence: "
+                f"Price: {product_info.pricing.current_price}"
+                + (f" (was {product_info.pricing.original_price}, -{product_info.pricing.discount_percentage}%)" if product_info.pricing.is_on_sale else "")
+                + f", Rating: {product_info.rating.rating}★"
+                + (f" ({product_info.rating.review_count:,} reviews)" if product_info.rating.review_count else "")
+                + (f", Urgency: {product_info.urgency_signals.deal_countdown or product_info.urgency_signals.stock_message}" if product_info.urgency_signals.has_urgency else "")
+                + f", Badges: {len(product_info.trust_signals.badges)}"
+            )
+            
+        except Exception as e:
+            logger.warning(f"⚠️  Product intelligence extraction failed: {e}")
     
     # Extract logo information if detected
     detected_logo = data.get("detected_logo", {})
