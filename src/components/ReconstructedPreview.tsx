@@ -427,8 +427,13 @@ const ArticleTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
 
   // UNIFIED IMAGE SOURCE: Always use composited_preview_image_url as primary source
   // Priority: Composited Preview Image > AI-extracted image > Screenshot
+  const [imageError, setImageError] = useState(false)
   const articleImageUrl = composited_preview_image_url || 
     (primary_image_base64 ? `data:image/png;base64,${primary_image_base64}` : screenshot_url)
+  
+  const handleImageError = () => {
+    setImageError(true)
+  }
   
   return (
     <div className="relative overflow-hidden rounded-2xl bg-white shadow-xl">
