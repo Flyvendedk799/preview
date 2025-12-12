@@ -10,6 +10,8 @@ from backend.services.metadata_extractor import extract_metadata_from_html
 from backend.services.semantic_extractor import extract_semantic_structure
 from backend.services.quality_framework import QualityFramework, QualityScore
 from backend.services.design_extraction_framework import DesignExtractor, DesignElements
+from backend.services.context_aware_extractor import ContextAwareExtractor, PageContext
+from backend.services.content_quality_validator import ContentQualityValidator, ContentQualityReport
 
 logger = logging.getLogger(__name__)
 
@@ -28,13 +30,16 @@ class MultiModalFusionEngine:
     def __init__(self):
         self.quality_framework = QualityFramework()
         self.design_extractor = DesignExtractor()
-        logger.info("Multi-Modal Fusion Engine initialized")
+        self.context_extractor = ContextAwareExtractor()
+        self.content_validator = ContentQualityValidator()
+        logger.info("Multi-Modal Fusion Engine initialized with context-aware extraction and content validation")
     
     def extract_preview_content(
         self,
         html_content: str,
         screenshot_bytes: bytes,
-        url: str
+        url: str,
+        page_classification: Optional[Any] = None
     ) -> Dict[str, Any]:
         """
         Extract preview content using framework-based multi-modal fusion.
@@ -54,9 +59,22 @@ class MultiModalFusionEngine:
         """
         logger.info(f"Starting multi-modal fusion for: {url[:50]}...")
         
-        # Step 1: Extract from all sources
+        # Step 0: Analyze context for context-aware extraction
+        page_context = self.context_extractor.analyze_context(
+            url=url,
+            html_content=html_content,
+            page_classification=page_classification
+        )
+        
+        # Step 1: Extract from all sources with context awareness
         html_data = self._extract_from_html(html_content)
         semantic_data = self._extract_from_semantic(html_content)
+        
+        # Apply context-aware prioritization
+        context_priorities = self.context_extractor.extract_with_context(
+            html_content=html_content,
+            context=page_context
+        )
         
         # Step 2: Validate quality for HTML and semantic sources
         html_scores = self.quality_framework.validate_content(
@@ -137,11 +155,37 @@ class MultiModalFusionEngine:
             url
         )
         
+        # Step 6: Validate content quality
+        quality_report = self.content_validator.validate_content(
+            title=fused.get("title"),
+            description=fused.get("description"),
+            tags=fused.get("tags", [])
+        )
+        
+        # Add quality validation results to fused output
+        fused["quality_validation"] = {
+            "overall_score": quality_report.overall_score,
+            "passed": quality_report.passed,
+            "title_score": quality_report.title_score.score,
+            "description_score": quality_report.description_score.score,
+            "issues": quality_report.issues,
+            "suggestions": quality_report.suggestions
+        }
+        
+        # If quality validation failed, log warnings
+        if not quality_report.passed:
+            logger.warning(
+                f"Content quality validation failed: "
+                f"overall={quality_report.overall_score:.2f}, "
+                f"issues={len(quality_report.issues)}"
+            )
+        
         logger.info(
             f"Fusion complete: "
             f"title_source={fused['sources'].get('title')}, "
             f"desc_source={fused['sources'].get('description')}, "
-            f"confidence={fused['confidence']:.2f}"
+            f"confidence={fused['confidence']:.2f}, "
+            f"quality_score={quality_report.overall_score:.2f}"
         )
         
         return fused

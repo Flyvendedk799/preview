@@ -673,11 +673,12 @@ class PreviewEngine:
         try:
             self.logger.info(f"🔧 [Framework] Running multi-modal fusion for: {url}")
             
-            # Use framework-based fusion engine
+            # Use framework-based fusion engine with context awareness
             fused_result = self.fusion_engine.extract_preview_content(
                 html_content=html_content,
                 screenshot_bytes=screenshot_bytes,
-                url=url
+                url=url,
+                page_classification=page_classification
             )
             
             # Log source usage
