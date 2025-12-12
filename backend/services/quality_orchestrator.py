@@ -67,6 +67,20 @@ class QualityLevel(str, Enum):
     POOR = "poor"  # < 0.60
 
 
+class QualityTier(str, Enum):
+    """
+    PHASE 5: Graduated quality tier system.
+    
+    Instead of binary pass/fail, this system uses tiers to make
+    more nuanced decisions about preview quality and actions.
+    """
+    PREMIUM = "premium"       # >= 0.85 - Use as-is, no improvements needed
+    STANDARD = "standard"     # >= 0.70 - Use with minor enhancements
+    ACCEPTABLE = "acceptable" # >= 0.55 - Use with warnings, suggest improvements
+    RETRY = "retry"           # >= 0.40 - Retry with different extraction
+    FALLBACK = "fallback"     # < 0.40 - Use smart fallback instead
+
+
 @dataclass
 class UnifiedQualityMetrics:
     """Unified quality metrics from all systems."""
@@ -79,8 +93,11 @@ class UnifiedQualityMetrics:
     # Quality level
     quality_level: QualityLevel
     
+    # PHASE 5: Quality tier for graduated decisions
+    quality_tier: QualityTier = QualityTier.STANDARD
+    
     # Gate status
-    gate_status: GateStatus
+    gate_status: GateStatus = GateStatus.PASS
     
     # Detailed scores
     quality_assurance_score: Optional[QualityScore] = None
@@ -95,6 +112,10 @@ class UnifiedQualityMetrics:
     should_retry: bool = False
     should_improve: bool = False
     
+    # PHASE 5: Enhanced recommendations
+    recommended_action: str = "use"  # use, enhance, retry, fallback
+    enhancement_priority: List[str] = field(default_factory=list)
+    
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for logging/API."""
         result = {
@@ -103,10 +124,13 @@ class UnifiedQualityMetrics:
             "extraction_quality_score": self.extraction_quality_score,
             "visual_quality_score": self.visual_quality_score,
             "quality_level": self.quality_level.value,
+            "quality_tier": self.quality_tier.value,
             "gate_status": self.gate_status.value,
             "should_use": self.should_use,
             "should_retry": self.should_retry,
             "should_improve": self.should_improve,
+            "recommended_action": self.recommended_action,
+            "enhancement_priority": self.enhancement_priority,
             "issues": self.issues,
             "suggestions": self.suggestions
         }
@@ -126,6 +150,17 @@ class UnifiedQualityMetrics:
             result["design_fidelity"] = self.design_fidelity_result.to_dict()
         
         return result
+    
+    def get_tier_action(self) -> str:
+        """Get recommended action based on quality tier."""
+        tier_actions = {
+            QualityTier.PREMIUM: "use",
+            QualityTier.STANDARD: "use",
+            QualityTier.ACCEPTABLE: "use_with_warning",
+            QualityTier.RETRY: "retry",
+            QualityTier.FALLBACK: "fallback"
+        }
+        return tier_actions.get(self.quality_tier, "use")
 
 
 class QualityOrchestrator:
@@ -311,17 +346,43 @@ class QualityOrchestrator:
         else:
             quality_level = QualityLevel.POOR
         
-        # Determine recommendations
-        should_use = overall_quality_score >= self.min_quality_threshold
-        should_retry = (
-            not should_use and
-            overall_quality_score >= 0.50 and
-            gate_status != GateStatus.REJECT
-        )
-        should_improve = (
-            overall_quality_score < 0.90 or
-            design_fidelity_score < self.min_design_fidelity
-        )
+        # PHASE 5: Determine quality tier (graduated system)
+        if overall_quality_score >= 0.85:
+            quality_tier = QualityTier.PREMIUM
+        elif overall_quality_score >= 0.70:
+            quality_tier = QualityTier.STANDARD
+        elif overall_quality_score >= 0.55:
+            quality_tier = QualityTier.ACCEPTABLE
+        elif overall_quality_score >= 0.40:
+            quality_tier = QualityTier.RETRY
+        else:
+            quality_tier = QualityTier.FALLBACK
+        
+        # PHASE 5: Determine recommended action based on tier
+        tier_to_action = {
+            QualityTier.PREMIUM: "use",
+            QualityTier.STANDARD: "use",
+            QualityTier.ACCEPTABLE: "enhance",
+            QualityTier.RETRY: "retry",
+            QualityTier.FALLBACK: "fallback"
+        }
+        recommended_action = tier_to_action.get(quality_tier, "use")
+        
+        # Determine recommendations (enhanced logic)
+        should_use = quality_tier in [QualityTier.PREMIUM, QualityTier.STANDARD, QualityTier.ACCEPTABLE]
+        should_retry = quality_tier == QualityTier.RETRY
+        should_improve = quality_tier in [QualityTier.ACCEPTABLE, QualityTier.RETRY]
+        
+        # Build enhancement priority
+        enhancement_priority = []
+        if design_fidelity_score < 0.70:
+            enhancement_priority.append("design_fidelity")
+        if extraction_quality_score < 0.70:
+            enhancement_priority.append("content_extraction")
+        if visual_quality_score < 0.70:
+            enhancement_priority.append("visual_quality")
+        if not preview_result.get("primary_image_base64"):
+            enhancement_priority.append("logo_extraction")
         
         metrics = UnifiedQualityMetrics(
             overall_quality_score=overall_quality_score,
@@ -329,6 +390,7 @@ class QualityOrchestrator:
             extraction_quality_score=extraction_quality_score,
             visual_quality_score=visual_quality_score,
             quality_level=quality_level,
+            quality_tier=quality_tier,
             gate_status=gate_status,
             quality_assurance_score=quality_assurance_score,
             design_fidelity_result=design_fidelity_result,
@@ -336,15 +398,17 @@ class QualityOrchestrator:
             suggestions=suggestions,
             should_use=should_use,
             should_retry=should_retry,
-            should_improve=should_improve
+            should_improve=should_improve,
+            recommended_action=recommended_action,
+            enhancement_priority=enhancement_priority
         )
         
         logger.info(
             f"✅ Quality assessment complete: "
             f"Overall={overall_quality_score:.2f} ({quality_level.value}), "
-            f"Gate={gate_status.value}, "
-            f"Use={should_use}, "
-            f"Retry={should_retry}"
+            f"Tier={quality_tier.value}, "
+            f"Action={recommended_action}, "
+            f"Gate={gate_status.value}"
         )
         
         return metrics
@@ -354,37 +418,149 @@ class QualityOrchestrator:
         metrics: UnifiedQualityMetrics
     ) -> bool:
         """
-        Enforce quality gates - determine if preview should be returned.
+        PHASE 5: Enforce quality gates with graduated tier system.
+        
+        Instead of strict pass/fail, uses tiers to allow "good enough" previews
+        to pass with warnings while still blocking truly poor quality.
         
         Args:
             metrics: Quality metrics from assess_quality
             
         Returns:
-            True if preview passes gates, False otherwise
+            True if preview passes gates (PREMIUM, STANDARD, or ACCEPTABLE tier)
         """
-        # Check minimum quality threshold
-        if metrics.overall_quality_score < self.min_quality_threshold:
+        # PHASE 5: Use tier system for more nuanced decisions
+        
+        # PREMIUM and STANDARD always pass
+        if metrics.quality_tier in [QualityTier.PREMIUM, QualityTier.STANDARD]:
+            logger.info(f"✅ Quality gates passed: {metrics.quality_tier.value}")
+            return True
+        
+        # ACCEPTABLE passes with warnings
+        if metrics.quality_tier == QualityTier.ACCEPTABLE:
             logger.warning(
-                f"❌ Quality gate failed: "
-                f"score={metrics.overall_quality_score:.2f} < threshold={self.min_quality_threshold}"
+                f"⚠️ Quality gates passed with warnings: "
+                f"score={metrics.overall_quality_score:.2f}, "
+                f"tier={metrics.quality_tier.value}"
+            )
+            return True
+        
+        # RETRY tier - check if we should allow with severe warnings
+        if metrics.quality_tier == QualityTier.RETRY:
+            # If design fidelity is good but extraction is weak, allow with warning
+            if metrics.design_fidelity_score >= 0.60:
+                logger.warning(
+                    f"⚠️ Quality gates passed (design OK): "
+                    f"score={metrics.overall_quality_score:.2f}, "
+                    f"fidelity={metrics.design_fidelity_score:.2f}"
+                )
+                return True
+            
+            logger.warning(
+                f"❌ Quality gate failed - retry recommended: "
+                f"score={metrics.overall_quality_score:.2f}"
             )
             return False
         
-        # Check design fidelity threshold
-        if metrics.design_fidelity_score < self.min_design_fidelity:
+        # FALLBACK tier - never passes, use smart fallback
+        if metrics.quality_tier == QualityTier.FALLBACK:
             logger.warning(
-                f"❌ Design fidelity gate failed: "
-                f"score={metrics.design_fidelity_score:.2f} < threshold={self.min_design_fidelity}"
+                f"❌ Quality gate failed - fallback required: "
+                f"score={metrics.overall_quality_score:.2f}"
             )
             return False
         
-        # Check gate status
+        # Legacy threshold checks for backward compatibility
         if metrics.gate_status == GateStatus.REJECT:
-            logger.warning("❌ Quality gate rejected")
+            logger.warning("❌ Quality gate rejected by gate evaluator")
             return False
         
         logger.info("✅ Quality gates passed")
         return True
+    
+    def get_smart_fallback_colors(
+        self,
+        brand_colors: Optional[Dict[str, str]] = None
+    ) -> Dict[str, str]:
+        """
+        PHASE 5: Get smart fallback colors that use brand colors instead of generic.
+        
+        When quality gates fail, we still want the fallback to look branded.
+        
+        Args:
+            brand_colors: Extracted brand colors
+            
+        Returns:
+            Color palette for fallback preview
+        """
+        # Default branded fallback (MetaView orange theme)
+        fallback_colors = {
+            "primary_color": "#F97316",  # MetaView orange
+            "secondary_color": "#1E293B",  # Dark gray
+            "accent_color": "#FBBF24",  # Amber
+            "background_color": "#0F172A",  # Dark blue-gray
+            "text_color": "#FFFFFF"
+        }
+        
+        # If brand colors are available, use them
+        if brand_colors:
+            if brand_colors.get("primary_color"):
+                fallback_colors["primary_color"] = brand_colors["primary_color"]
+            if brand_colors.get("secondary_color"):
+                fallback_colors["secondary_color"] = brand_colors["secondary_color"]
+            if brand_colors.get("accent_color"):
+                fallback_colors["accent_color"] = brand_colors["accent_color"]
+        
+        return fallback_colors
+    
+    def get_tier_specific_enhancements(
+        self,
+        metrics: UnifiedQualityMetrics
+    ) -> List[str]:
+        """
+        PHASE 5: Get tier-specific enhancement actions.
+        
+        Returns specific actions to take based on quality tier.
+        
+        Args:
+            metrics: Quality metrics
+            
+        Returns:
+            List of enhancement actions
+        """
+        enhancements = []
+        
+        if metrics.quality_tier == QualityTier.PREMIUM:
+            # Already premium - no enhancements needed
+            return []
+        
+        if metrics.quality_tier == QualityTier.STANDARD:
+            # Minor enhancements
+            if metrics.design_fidelity_score < 0.80:
+                enhancements.append("apply_stronger_brand_colors")
+            if not metrics.enhancement_priority or "logo_extraction" in metrics.enhancement_priority:
+                enhancements.append("verify_logo_present")
+        
+        if metrics.quality_tier == QualityTier.ACCEPTABLE:
+            # Moderate enhancements
+            enhancements.append("enhance_content_extraction")
+            if metrics.design_fidelity_score < 0.60:
+                enhancements.append("reapply_design_dna")
+            if metrics.visual_quality_score < 0.60:
+                enhancements.append("improve_layout_balance")
+        
+        if metrics.quality_tier == QualityTier.RETRY:
+            # Major enhancements via retry
+            enhancements.append("retry_with_enhanced_extraction")
+            enhancements.append("use_ai_logo_detection")
+            enhancements.append("apply_full_design_dna")
+        
+        if metrics.quality_tier == QualityTier.FALLBACK:
+            # Fallback actions
+            enhancements.append("use_smart_fallback")
+            enhancements.append("use_brand_colors_only")
+        
+        return enhancements
     
     def get_improvement_suggestions(
         self,

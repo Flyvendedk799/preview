@@ -2,12 +2,18 @@
 Brand extraction service for preview generation.
 
 Extracts brand elements from websites:
-- Logo (favicon or header logo)
+- Logo (favicon or header logo) with AI-powered detection
 - Primary brand colors
 - Hero/featured images
 - Brand name and tagline
+
+ENHANCED with AI Logo Detection:
+- Uses GPT-4o vision to locate logos in screenshots
+- Falls back to HTML-based extraction
+- Validates logo quality and prominence
 """
 import base64
+import json
 import logging
 import re
 from collections import Counter
@@ -20,21 +26,277 @@ from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
+# AI Logo Detection Integration
+try:
+    from openai import OpenAI
+    from backend.core.config import settings
+    AI_LOGO_DETECTION_AVAILABLE = True
+except ImportError:
+    AI_LOGO_DETECTION_AVAILABLE = False
+    logger.warning("OpenAI not available for AI logo detection")
+
+
+# =============================================================================
+# AI-POWERED LOGO DETECTION
+# =============================================================================
+
+LOGO_DETECTION_PROMPT = """Analyze this webpage screenshot and locate the brand/company logo.
+
+MISSION: Find the PRIMARY brand logo that identifies the company/website.
+
+LOOK FOR LOGOS IN THESE LOCATIONS (priority order):
+1. Header/Navigation bar (top-left or top-center is most common)
+2. Hero section (large logo in the main content area)
+3. Footer (bottom of page, usually smaller)
+4. Sidebar or floating elements
+
+LOGO CHARACTERISTICS TO IDENTIFY:
+- Company name in stylized text
+- Icon/symbol representing the brand
+- Combination of icon + text (logomark + logotype)
+- Usually appears in prominent position with good contrast
+- Often has consistent styling (not mixed with other content)
+
+DO NOT IDENTIFY AS LOGOS:
+- Navigation menu items
+- Social media icons (Facebook, Twitter, etc.)
+- Generic icons (hamburger menu, search, user)
+- Partner/client logos in "trusted by" sections
+- Product images or screenshots
+
+OUTPUT JSON:
+{
+    "logos_found": [
+        {
+            "bbox": {
+                "x": <0.0-1.0 normalized left position>,
+                "y": <0.0-1.0 normalized top position>,
+                "width": <0.0-1.0 normalized width>,
+                "height": <0.0-1.0 normalized height>
+            },
+            "confidence": <0.0-1.0>,
+            "location": "header|hero|footer|sidebar",
+            "type": "text|icon|combined",
+            "description": "<brief description of what the logo looks like>"
+        }
+    ],
+    "best_logo_index": <index of the best logo to use, or -1 if no good logo found>,
+    "extraction_notes": "<any notes about the extraction>"
+}
+
+CRITICAL RULES:
+1. Bounding box must TIGHTLY wrap the logo (no extra padding)
+2. Only include logos with confidence >= 0.6
+3. If multiple logos found, best_logo_index should point to the primary brand logo
+4. If no suitable logo found, set best_logo_index to -1
+5. Coordinates are normalized (0.0-1.0) relative to image dimensions"""
+
+
+def extract_logo_with_ai(screenshot_bytes: bytes, url: str = "") -> Optional[Dict[str, Any]]:
+    """
+    Use GPT-4o vision to detect and locate logos in a screenshot.
+    
+    This is the primary logo detection method, providing accurate bounding boxes
+    for logo extraction from screenshots.
+    
+    Args:
+        screenshot_bytes: Screenshot bytes
+        url: URL for context
+        
+    Returns:
+        Dict with logo info including bbox, or None if detection fails
+    """
+    if not AI_LOGO_DETECTION_AVAILABLE:
+        logger.debug("AI logo detection not available")
+        return None
+    
+    logger.info(f"🤖 Running AI logo detection for: {url[:50] if url else 'unknown'}...")
+    
+    try:
+        # Prepare image for API
+        image = Image.open(BytesIO(screenshot_bytes))
+        original_width, original_height = image.size
+        
+        # Resize if too large (max 2048px)
+        max_dim = 2048
+        if image.width > max_dim or image.height > max_dim:
+            ratio = min(max_dim / image.width, max_dim / image.height)
+            new_size = (int(image.width * ratio), int(image.height * ratio))
+            image = image.resize(new_size, Image.Resampling.LANCZOS)
+        
+        # Convert to RGB if needed
+        if image.mode in ('RGBA', 'P', 'LA'):
+            background = Image.new('RGB', image.size, (255, 255, 255))
+            if image.mode == 'P':
+                image = image.convert('RGBA')
+            if image.mode in ('RGBA', 'LA'):
+                background.paste(image, mask=image.split()[-1])
+            image = background
+        
+        # Encode to base64
+        buffer = BytesIO()
+        image.save(buffer, format='JPEG', quality=90)
+        image_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+        
+        # Call GPT-4o vision
+        client = OpenAI(api_key=settings.OPENAI_API_KEY, timeout=30)
+        
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an expert at detecting brand logos in webpage screenshots. Output valid JSON only."
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": LOGO_DETECTION_PROMPT},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{image_base64}",
+                                "detail": "high"
+                            }
+                        }
+                    ]
+                }
+            ],
+            max_tokens=1000,
+            temperature=0.1  # Low temperature for consistent detection
+        )
+        
+        content = response.choices[0].message.content.strip()
+        
+        # Parse JSON response
+        if "```json" in content:
+            content = content.split("```json")[1].split("```")[0].strip()
+        elif "```" in content:
+            content = content.split("```")[1].split("```")[0].strip()
+        
+        result = json.loads(content)
+        
+        # Validate result
+        logos_found = result.get("logos_found", [])
+        best_index = result.get("best_logo_index", -1)
+        
+        if not logos_found or best_index < 0 or best_index >= len(logos_found):
+            logger.info("🤖 AI logo detection: No suitable logo found")
+            return None
+        
+        best_logo = logos_found[best_index]
+        
+        # Validate confidence
+        if best_logo.get("confidence", 0) < 0.6:
+            logger.info(f"🤖 AI logo detection: Logo confidence too low ({best_logo.get('confidence', 0):.2f})")
+            return None
+        
+        logger.info(
+            f"✅ AI logo detected: {best_logo.get('location', 'unknown')} "
+            f"({best_logo.get('type', 'unknown')}) "
+            f"confidence={best_logo.get('confidence', 0):.2f}"
+        )
+        
+        return {
+            "bbox": best_logo.get("bbox"),
+            "confidence": best_logo.get("confidence"),
+            "location": best_logo.get("location"),
+            "type": best_logo.get("type"),
+            "description": best_logo.get("description"),
+            "original_width": original_width,
+            "original_height": original_height
+        }
+        
+    except json.JSONDecodeError as e:
+        logger.warning(f"🤖 AI logo detection: JSON parse error: {e}")
+        return None
+    except Exception as e:
+        logger.warning(f"🤖 AI logo detection failed: {e}")
+        return None
+
+
+def crop_logo_from_screenshot(screenshot_bytes: bytes, logo_info: Dict[str, Any]) -> Optional[str]:
+    """
+    Crop the logo from screenshot using AI-detected bounding box.
+    
+    Args:
+        screenshot_bytes: Screenshot bytes
+        logo_info: Logo info dict with bbox from AI detection
+        
+    Returns:
+        Base64-encoded logo image or None
+    """
+    try:
+        bbox = logo_info.get("bbox")
+        if not bbox:
+            return None
+        
+        image = Image.open(BytesIO(screenshot_bytes))
+        width, height = image.size
+        
+        # Convert normalized coordinates to pixels
+        x = int(bbox.get("x", 0) * width)
+        y = int(bbox.get("y", 0) * height)
+        w = int(bbox.get("width", 0.1) * width)
+        h = int(bbox.get("height", 0.1) * height)
+        
+        # Add small padding (5% of dimensions)
+        padding_x = int(w * 0.05)
+        padding_y = int(h * 0.05)
+        
+        # Calculate crop box with padding
+        left = max(0, x - padding_x)
+        top = max(0, y - padding_y)
+        right = min(width, x + w + padding_x)
+        bottom = min(height, y + h + padding_y)
+        
+        # Validate crop dimensions
+        if right <= left or bottom <= top:
+            logger.warning("Invalid crop dimensions for logo")
+            return None
+        
+        crop_width = right - left
+        crop_height = bottom - top
+        
+        # Minimum size validation
+        if crop_width < 30 or crop_height < 30:
+            logger.warning(f"Logo crop too small: {crop_width}x{crop_height}")
+            return None
+        
+        # Crop the logo
+        logo_image = image.crop((left, top, right, bottom))
+        
+        # Convert to RGBA to handle transparency
+        if logo_image.mode != 'RGBA':
+            logo_image = logo_image.convert('RGBA')
+        
+        # Save as PNG to preserve quality
+        buffer = BytesIO()
+        logo_image.save(buffer, format='PNG', optimize=True)
+        logo_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+        
+        logger.info(f"✅ Logo cropped successfully: {crop_width}x{crop_height}px")
+        return logo_base64
+        
+    except Exception as e:
+        logger.warning(f"Failed to crop logo from screenshot: {e}")
+        return None
+
 
 def extract_brand_logo(html_content: str, url: str, screenshot_bytes: bytes) -> Optional[str]:
     """
-    Extract brand logo from website.
+    Extract brand logo from website with AI-powered detection.
 
     Priority order:
-    1. High-res logo from header/nav
-    2. Favicon (if high quality)
-    3. First image in header/nav area
-    4. Fallback: Extract from screenshot (top-left region analysis)
+    1. 🤖 AI-powered logo detection from screenshot (most accurate)
+    2. High-res logo from header/nav HTML elements
+    3. Favicon (if high quality)
+    4. Fallback: Simple screenshot crop (top-left region)
 
     Args:
         html_content: HTML content of the page
         url: URL of the website
-        screenshot_bytes: Screenshot for fallback logo extraction
+        screenshot_bytes: Screenshot for AI logo detection
 
     Returns:
         Base64-encoded logo image or None
@@ -42,6 +304,26 @@ def extract_brand_logo(html_content: str, url: str, screenshot_bytes: bytes) -> 
     logger.info(f"🔍 Starting logo extraction for: {url}")
     
     try:
+        # =================================================================
+        # PRIORITY 1: AI-Powered Logo Detection (most accurate)
+        # =================================================================
+        if screenshot_bytes and AI_LOGO_DETECTION_AVAILABLE:
+            logo_info = extract_logo_with_ai(screenshot_bytes, url)
+            if logo_info:
+                logo_base64 = crop_logo_from_screenshot(screenshot_bytes, logo_info)
+                if logo_base64:
+                    logger.info(
+                        f"✅ Logo extracted via AI detection: "
+                        f"{logo_info.get('location', 'unknown')} "
+                        f"({logo_info.get('description', 'no description')[:50]})"
+                    )
+                    return logo_base64
+        
+        # =================================================================
+        # PRIORITY 2: HTML-based logo extraction
+        # =================================================================
+        logger.debug("  AI detection not available or failed, trying HTML-based extraction...")
+        
         soup = BeautifulSoup(html_content, 'html.parser')
         base_url = f"{urlparse(url).scheme}://{urlparse(url).netloc}"
 
@@ -55,6 +337,11 @@ def extract_brand_logo(html_content: str, url: str, screenshot_bytes: bytes) -> 
             'nav img',
             '.navbar img',
             '.header img',
+            # Additional selectors for better coverage
+            '[class*="brand"] img',
+            'a[href="/"] img',
+            '.site-logo img',
+            '#logo img',
         ]
 
         for selector in logo_selectors:
@@ -74,7 +361,7 @@ def extract_brand_logo(html_content: str, url: str, screenshot_bytes: bytes) -> 
                             buffered = BytesIO()
                             img.save(buffered, format="PNG")
                             logo_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
-                            logger.info(f"✅ Logo extracted successfully from HTML: {selector} ({img.width}x{img.height})")
+                            logger.info(f"✅ Logo extracted from HTML: {selector} ({img.width}x{img.height})")
                             return logo_base64
                         else:
                             logger.debug(f"  Logo too small: {img.width}x{img.height}, skipping")
@@ -82,12 +369,15 @@ def extract_brand_logo(html_content: str, url: str, screenshot_bytes: bytes) -> 
                     logger.debug(f"  Failed to download logo from {logo_url}: {e}")
                     continue
 
-        # Fallback: Try favicon
+        # =================================================================
+        # PRIORITY 3: Favicon fallback
+        # =================================================================
         logger.debug("  HTML logo extraction failed, trying favicon...")
         favicon_selectors = [
+            'link[rel="apple-touch-icon"]',  # Usually highest quality
+            'link[rel="icon"][sizes]',  # Sized icons
             'link[rel="icon"]',
             'link[rel="shortcut icon"]',
-            'link[rel="apple-touch-icon"]',
         ]
 
         for selector in favicon_selectors:
@@ -109,11 +399,13 @@ def extract_brand_logo(html_content: str, url: str, screenshot_bytes: bytes) -> 
                     logger.debug(f"  Failed to download favicon from {favicon_url}: {e}")
                     continue
 
-        # Fallback: Try screenshot-based logo extraction
+        # =================================================================
+        # PRIORITY 4: Simple screenshot crop fallback
+        # =================================================================
         logger.debug("  HTML/favicon extraction failed, trying screenshot-based extraction...")
         logo_base64 = _extract_logo_from_screenshot(screenshot_bytes)
         if logo_base64:
-            logger.info("✅ Logo extracted from screenshot (fallback method)")
+            logger.info("✅ Logo extracted from screenshot (fallback crop method)")
             return logo_base64
 
         logger.warning(f"❌ No suitable logo found for: {url}")

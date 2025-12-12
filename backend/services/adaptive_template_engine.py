@@ -41,6 +41,32 @@ from backend.services.color_psychology import (
     get_contrast_ratio
 )
 
+# PHASE 7: Font Manager integration
+try:
+    from backend.services.font_manager import (
+        get_font_manager,
+        get_fonts_for_personality,
+        get_headline_font_path,
+        get_letter_spacing_for_personality,
+        get_font_weight_for_personality
+    )
+    FONT_MANAGER_AVAILABLE = True
+except ImportError:
+    FONT_MANAGER_AVAILABLE = False
+    logger.warning("FontManager not available - using fallback fonts")
+
+# PHASE 6: Composition Intelligence integration
+try:
+    from backend.services.composition_intelligence import (
+        CompositionIntelligence,
+        select_optimal_composition,
+        CompositionType
+    )
+    COMPOSITION_INTELLIGENCE_AVAILABLE = True
+except ImportError:
+    COMPOSITION_INTELLIGENCE_AVAILABLE = False
+    logger.warning("CompositionIntelligence not available")
+
 logger = logging.getLogger(__name__)
 
 
@@ -50,6 +76,220 @@ logger = logging.getLogger(__name__)
 
 OG_IMAGE_WIDTH = 1200
 OG_IMAGE_HEIGHT = 630
+
+
+# =============================================================================
+# TYPOGRAPHY PERSONALITY MAPPING (Phase 2)
+# =============================================================================
+
+TYPOGRAPHY_PERSONALITY_MAP = {
+    "authoritative": {
+        "weight": "bold",
+        "tracking": "tight",
+        "case": "uppercase",
+        "font_style": ["Impact", "Oswald", "Bebas Neue"],
+        "letter_spacing_mult": -0.02
+    },
+    "friendly": {
+        "weight": "medium",
+        "tracking": "normal",
+        "case": "sentence",
+        "font_style": ["Nunito", "Poppins", "Quicksand"],
+        "letter_spacing_mult": 0
+    },
+    "elegant": {
+        "weight": "light",
+        "tracking": "wide",
+        "case": "mixed",
+        "font_style": ["Playfair Display", "Cormorant", "Libre Baskerville"],
+        "letter_spacing_mult": 0.05
+    },
+    "technical": {
+        "weight": "medium",
+        "tracking": "normal",
+        "case": "mixed",
+        "font_style": ["JetBrains Mono", "Fira Code", "Source Code Pro"],
+        "letter_spacing_mult": 0
+    },
+    "bold": {
+        "weight": "black",
+        "tracking": "tight",
+        "case": "uppercase",
+        "font_style": ["Impact", "Oswald", "Anton"],
+        "letter_spacing_mult": -0.03
+    },
+    "expressive": {
+        "weight": "bold",
+        "tracking": "wide",
+        "case": "mixed",
+        "font_style": ["Abril Fatface", "Lobster", "Pacifico"],
+        "letter_spacing_mult": 0.03
+    },
+    "subtle": {
+        "weight": "regular",
+        "tracking": "normal",
+        "case": "sentence",
+        "font_style": ["Lato", "Open Sans", "Roboto"],
+        "letter_spacing_mult": 0
+    },
+    "refined": {
+        "weight": "light",
+        "tracking": "wide",
+        "case": "mixed",
+        "font_style": ["Crimson Text", "Merriweather", "Georgia"],
+        "letter_spacing_mult": 0.04
+    }
+}
+
+
+# =============================================================================
+# VISUAL EFFECTS APPLICATION (Phase 2)
+# =============================================================================
+
+def apply_dna_visual_effects(image: Image.Image, visual_effects, colors) -> Image.Image:
+    """
+    Apply comprehensive visual effects based on Design DNA visual_effects field.
+    
+    This function applies all visual effects specified in the DNA including:
+    - Shadow effects (none, subtle, medium, dramatic)
+    - Gradient overlays
+    - Glassmorphism effects
+    - Border treatments
+    - Texture overlays
+    
+    Args:
+        image: Base image to apply effects to
+        visual_effects: VisualEffects object from Design DNA
+        colors: ColorConfig with color palette
+        
+    Returns:
+        Image with all visual effects applied
+    """
+    if not visual_effects:
+        return image
+    
+    # Apply shadows (vignette-style for overall image)
+    shadows = getattr(visual_effects, 'shadows', 'subtle')
+    if shadows == "dramatic":
+        image = apply_vignette(image, intensity=0.35)
+    elif shadows == "medium":
+        image = apply_vignette(image, intensity=0.2)
+    elif shadows == "subtle":
+        image = apply_vignette(image, intensity=0.1)
+    
+    # Apply gradient overlay if specified
+    gradients = getattr(visual_effects, 'gradients', 'none')
+    if gradients != "none":
+        gradient_direction = getattr(visual_effects, 'gradient_direction', 'diagonal')
+        gradient_intensity = {
+            "subtle": 0.15,
+            "moderate": 0.25,
+            "vibrant": 0.4
+        }.get(gradients, 0.15)
+        
+        # Create gradient overlay
+        overlay = Image.new('RGBA', image.size, (0, 0, 0, 0))
+        gradient_colors = getattr(colors, 'gradient_colors', [(colors.primary[0], colors.primary[1], colors.primary[2])])
+        
+        # Apply gradient based on direction
+        angle_map = {
+            "horizontal": 0,
+            "vertical": 90,
+            "diagonal": 135,
+            "radial": 0
+        }
+        angle = angle_map.get(gradient_direction, 135)
+        
+        # Blend gradient with image
+        image = apply_gradient_background(image, gradient_colors, angle, style="linear" if gradient_direction != "radial" else "radial")
+    
+    # Apply glassmorphism if specified
+    effects_list = getattr(visual_effects, 'effects', [])
+    if 'glassmorphism' in effects_list:
+        # Apply subtle glassmorphism effect
+        image = add_glassmorphism_card(
+            image,
+            (int(image.width * 0.05), int(image.height * 0.1), 
+             int(image.width * 0.9), int(image.height * 0.8)),
+            blur_radius=8,
+            opacity=0.6
+        )
+    
+    if 'neumorphism' in effects_list:
+        # Apply neumorphism-style soft shadows
+        # Create highlight and shadow layers
+        enhancer = ImageEnhance.Contrast(image)
+        image = enhancer.enhance(1.1)
+    
+    if 'backdrop-blur' in effects_list:
+        # Apply subtle blur effect
+        image = image.filter(ImageFilter.GaussianBlur(radius=1))
+    
+    # Apply textures
+    visual_textures = getattr(visual_effects, 'visual_textures', [])
+    for texture in visual_textures:
+        if texture == 'grainy':
+            image = apply_noise_texture(image, intensity=0.04)
+        elif texture == 'noise':
+            image = apply_noise_texture(image, intensity=0.03)
+        elif texture == 'paper':
+            image = apply_noise_texture(image, intensity=0.02)
+        elif texture == 'fabric':
+            image = apply_noise_texture(image, intensity=0.015)
+    
+    # Apply overlay patterns
+    overlay_patterns = getattr(visual_effects, 'overlay_patterns', 'none')
+    if overlay_patterns != 'none':
+        image = _apply_overlay_pattern(image, overlay_patterns)
+    
+    return image
+
+
+def _apply_overlay_pattern(image: Image.Image, pattern_type: str) -> Image.Image:
+    """Apply overlay pattern to image."""
+    width, height = image.size
+    overlay = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+    overlay_draw = ImageDraw.Draw(overlay)
+    
+    pattern_color = (0, 0, 0, 15)  # Very subtle overlay
+    
+    if pattern_type == 'dots':
+        dot_spacing = 20
+        dot_size = 2
+        for y in range(0, height, dot_spacing):
+            for x in range(0, width, dot_spacing):
+                overlay_draw.ellipse([(x - dot_size, y - dot_size), (x + dot_size, y + dot_size)], fill=pattern_color)
+    elif pattern_type == 'grid':
+        grid_spacing = 40
+        for x in range(0, width, grid_spacing):
+            overlay_draw.line([(x, 0), (x, height)], fill=pattern_color, width=1)
+        for y in range(0, height, grid_spacing):
+            overlay_draw.line([(0, y), (width, y)], fill=pattern_color, width=1)
+    elif pattern_type == 'lines':
+        line_spacing = 30
+        for y in range(0, height, line_spacing):
+            overlay_draw.line([(0, y), (width, y)], fill=pattern_color, width=1)
+    elif pattern_type == 'geometric':
+        line_spacing = 50
+        for i in range(0, width + height, line_spacing):
+            overlay_draw.line([(i, 0), (0, i)], fill=pattern_color, width=1)
+    
+    image = Image.alpha_composite(image.convert('RGBA'), overlay).convert('RGB')
+    return image
+
+
+def get_typography_for_personality(personality: str) -> Dict[str, Any]:
+    """
+    Get typography settings based on headline personality.
+    
+    Args:
+        personality: Typography personality (authoritative, friendly, etc.)
+        
+    Returns:
+        Dict with typography settings
+    """
+    personality_lower = personality.lower()
+    return TYPOGRAPHY_PERSONALITY_MAP.get(personality_lower, TYPOGRAPHY_PERSONALITY_MAP["friendly"])
 
 
 # =============================================================================
@@ -359,10 +599,33 @@ def draw_text_with_effects(
         return font.size if hasattr(font, 'size') else 40
 
 
-def load_pillow_font(font_list: List[str], size: int, bold: bool = True):
-    """Load a Pillow font with fallbacks."""
+def load_pillow_font(font_list: List[str], size: int, bold: bool = True, personality: str = None):
+    """
+    Load a Pillow font with fallbacks.
+    
+    PHASE 7 ENHANCEMENT: Uses FontManager when available for better font selection.
+    
+    Args:
+        font_list: List of font filenames to try
+        size: Font size in pixels
+        bold: Prefer bold weight
+        personality: Typography personality for FontManager selection
+        
+    Returns:
+        PIL ImageFont object
+    """
     from PIL import ImageFont
     
+    # PHASE 7: Try FontManager first if personality is provided
+    if FONT_MANAGER_AVAILABLE and personality:
+        try:
+            font_path = get_headline_font_path(personality)
+            if font_path:
+                return ImageFont.truetype(font_path, size)
+        except Exception as e:
+            logger.debug(f"FontManager font loading failed: {e}")
+    
+    # Original path using typography_intelligence
     font_path = get_pillow_font_path(font_list, prefer_bold=bold)
     
     if font_path:
@@ -416,6 +679,11 @@ class AdaptiveTemplateEngine:
     Main engine for generating design-intelligent preview images.
     
     Adapts composition, typography, colors, and effects based on Design DNA.
+    Now with FULL DNA application including:
+    - Typography personality mapping
+    - Complete visual effects
+    - UI component styling
+    - Layout pattern adjustments
     """
     
     def __init__(self, design_dna: DesignDNA):
@@ -423,9 +691,13 @@ class AdaptiveTemplateEngine:
         self.width = OG_IMAGE_WIDTH
         self.height = OG_IMAGE_HEIGHT
         
-        # Initialize configurations
+        # Get typography personality settings
+        headline_personality = design_dna.typography.headline_personality
+        self.typography_personality = get_typography_for_personality(headline_personality)
+        
+        # Initialize configurations with full DNA
         self.typography = get_typography_config(
-            headline_personality=design_dna.typography.headline_personality,
+            headline_personality=headline_personality,
             weight_contrast=design_dna.typography.weight_contrast,
             spacing_character=design_dna.typography.spacing_character,
             density=design_dna.spatial.density,
@@ -445,16 +717,128 @@ class AdaptiveTemplateEngine:
             light_dark_balance=design_dna.color_psychology.light_dark_balance
         )
         
-        # Select composition
+        # Select composition based on design philosophy
         template_style = design_dna.get_template_recommendation()
         self.composition_class = COMPOSITION_MAP.get(template_style, ProfessionalCleanComposition)
         base_zones = self.composition_class.get_layout_zones(self.width, self.height)
         
-        # Apply layout patterns from Design DNA
+        # Apply layout patterns from Design DNA (content_structure, content_width, section_spacing)
         self.zones = self._adjust_zones_for_layout(base_zones)
         
-        # Visual effects
+        # Apply spatial intelligence adjustments
+        self.zones = self._apply_spatial_intelligence(self.zones)
+        
+        # Visual effects - store for later application
         self.effects = design_dna.get_visual_effects()
+        
+        # UI component settings for rendering
+        ui_components = getattr(design_dna, 'ui_components', None)
+        self.ui_settings = {
+            "button_style": getattr(ui_components, 'button_style', 'flat') if ui_components else 'flat',
+            "button_shape": getattr(ui_components, 'button_shape', 'rounded') if ui_components else 'rounded',
+            "button_border_radius": getattr(ui_components, 'button_border_radius', 'medium') if ui_components else 'medium',
+            "card_style": getattr(ui_components, 'card_style', 'flat') if ui_components else 'flat',
+            "card_shadow": getattr(ui_components, 'card_shadow', 'subtle') if ui_components else 'subtle'
+        }
+        
+        # Brand personality for voice/tone
+        brand = getattr(design_dna, 'brand_personality', None)
+        self.brand_voice = {
+            "voice_tone": getattr(brand, 'voice_tone', 'professional') if brand else 'professional',
+            "adjectives": getattr(brand, 'adjectives', []) if brand else [],
+            "unique_signature": getattr(brand, 'unique_visual_signature', '') if brand else ''
+        }
+        
+        logger.info(
+            f"🎨 AdaptiveTemplateEngine initialized: "
+            f"style={design_dna.philosophy.primary_style}, "
+            f"typography={headline_personality}, "
+            f"composition={template_style}"
+        )
+    
+    def _apply_spatial_intelligence(self, zones: Dict[str, Tuple[int, int, int, int]]) -> Dict[str, Tuple[int, int, int, int]]:
+        """
+        Apply spatial intelligence from Design DNA to refine zone positions.
+        
+        Uses:
+        - density (compact, balanced, spacious, ultra-minimal)
+        - rhythm (even, dynamic, progressive, asymmetric)
+        - padding_scale (compact, medium, generous, luxurious)
+        - alignment_philosophy (strict-grid, organic, mixed)
+        """
+        spatial = getattr(self.dna, 'spatial', None)
+        if not spatial:
+            return zones
+        
+        adjusted = zones.copy()
+        
+        # Apply density adjustments
+        density = getattr(spatial, 'density', 'balanced')
+        density_padding_mult = {
+            'compact': 0.7,
+            'balanced': 1.0,
+            'spacious': 1.3,
+            'ultra-minimal': 1.6
+        }
+        mult = density_padding_mult.get(density, 1.0)
+        
+        # Apply padding scale
+        padding_scale = getattr(spatial, 'padding_scale', 'medium')
+        padding_mult = {
+            'compact': 0.6,
+            'medium': 1.0,
+            'generous': 1.4,
+            'luxurious': 1.8
+        }
+        padding_m = padding_mult.get(padding_scale, 1.0)
+        
+        # Combined multiplier
+        combined_mult = (mult + padding_m) / 2
+        
+        # Adjust zone sizes based on combined multiplier
+        base_padding = int(self.width * 0.07)  # 7% base padding
+        new_padding = int(base_padding * combined_mult)
+        
+        for zone_name in ['headline', 'subtitle', 'description', 'proof']:
+            if zone_name in adjusted:
+                x, y, w, h = adjusted[zone_name]
+                # Adjust width to account for padding
+                new_w = max(300, self.width - (new_padding * 2))
+                adjusted[zone_name] = (new_padding, y, new_w, h)
+        
+        # Apply rhythm adjustments for dynamic layouts
+        rhythm = getattr(spatial, 'rhythm', 'even')
+        if rhythm == 'dynamic':
+            # Increase spacing variation between elements
+            zone_order = ['headline', 'subtitle', 'description', 'proof']
+            prev_y_end = None
+            spacing_multipliers = [1.0, 1.3, 0.8, 1.5]  # Dynamic variation
+            
+            for i, zone_name in enumerate(zone_order):
+                if zone_name in adjusted:
+                    x, y, w, h = adjusted[zone_name]
+                    if prev_y_end is not None:
+                        current_spacing = y - prev_y_end
+                        new_y = prev_y_end + int(current_spacing * spacing_multipliers[i % len(spacing_multipliers)])
+                        adjusted[zone_name] = (x, new_y, w, h)
+                    prev_y_end = y + h
+        elif rhythm == 'progressive':
+            # Increase spacing progressively
+            zone_order = ['headline', 'subtitle', 'description', 'proof']
+            prev_y_end = None
+            spacing_mult = 1.0
+            
+            for zone_name in zone_order:
+                if zone_name in adjusted:
+                    x, y, w, h = adjusted[zone_name]
+                    if prev_y_end is not None:
+                        current_spacing = y - prev_y_end
+                        new_y = prev_y_end + int(current_spacing * spacing_mult)
+                        adjusted[zone_name] = (x, new_y, w, h)
+                        spacing_mult += 0.2  # Increase spacing progressively
+                    prev_y_end = y + h
+        
+        return adjusted
     
     def _adjust_zones_for_layout(self, base_zones: Dict[str, Tuple[int, int, int, int]]) -> Dict[str, Tuple[int, int, int, int]]:
         """
@@ -544,7 +928,15 @@ class AdaptiveTemplateEngine:
         screenshot_bytes: Optional[bytes] = None
     ) -> bytes:
         """
-        Generate the preview image.
+        Generate the preview image with FULL Design DNA application.
+        
+        Applies:
+        1. Background with gradients from color_psychology and visual_effects
+        2. Card styling from ui_components
+        3. Content rendering with typography DNA
+        4. Logo with proper prominence
+        5. Visual effects (shadows, textures, overlays)
+        6. Post-processing based on design style
         
         Args:
             content: Content to render
@@ -553,36 +945,51 @@ class AdaptiveTemplateEngine:
         Returns:
             PNG image bytes
         """
+        logger.debug(f"🎨 Generating preview with DNA: style={self.dna.philosophy.primary_style}")
+        
         # Create base image
         image = Image.new('RGB', (self.width, self.height), self.colors.background)
         
-        # Apply background
+        # Apply background (with gradients from visual_effects)
         image = self._apply_background(image, screenshot_bytes)
         
-        # STEP 1: Apply card styling (if card style is specified)
+        # Apply card styling based on ui_components
         image = self._apply_card_styling(image)
         
         draw = ImageDraw.Draw(image)
         
-        # Render content in zones
-        # CRITICAL: Always render logo if available (brand identity)
+        # Render content in zones - order matters for layering
+        # 1. Accent bar (visual anchor)
         self._render_accent_bar(draw)
+        
+        # 2. Logo (brand identity - CRITICAL for brand fidelity)
         if content.logo_base64:
             self._render_logo(image, content.logo_base64)
+            logger.debug("✅ Logo rendered in preview")
         else:
-            logger.warning("No logo provided to adaptive template engine - brand identity may be missing")
+            logger.warning("⚠️ No logo provided - brand identity may be weakened")
         
+        # 3. Text content with full typography DNA
         self._render_headline(draw, content.title)
         self._render_subtitle(draw, content.subtitle)
         self._render_description(draw, content.description)
+        
+        # 4. Social proof (builds credibility)
         self._render_proof(draw, content.proof_text)
         
-        # Apply post-effects (including UI component styling)
+        # 5. Apply comprehensive visual effects from Design DNA
+        visual_effects = getattr(self.dna, 'visual_effects', None)
+        if visual_effects:
+            image = apply_dna_visual_effects(image, visual_effects, self.colors)
+        
+        # 6. Apply post-effects (style-specific enhancements)
         image = self._apply_post_effects(image)
         
         # Output
         buffer = BytesIO()
         image.save(buffer, format='PNG', optimize=True)
+        
+        logger.debug(f"✅ Preview generated: {len(buffer.getvalue())} bytes")
         return buffer.getvalue()
     
     def _apply_background(
@@ -952,7 +1359,17 @@ class AdaptiveTemplateEngine:
             logger.warning(f"Failed to render logo: {e}")
     
     def _render_headline(self, draw: ImageDraw.Draw, title: str):
-        """Render main headline with full typography DNA application."""
+        """
+        Render main headline with FULL typography DNA application.
+        
+        Uses:
+        - Typography personality mapping (authoritative, friendly, elegant, etc.)
+        - Letter spacing from DNA
+        - Line height from DNA
+        - Case strategy from DNA
+        - Font size hierarchy from DNA
+        - Weight contrast from DNA
+        """
         if "headline" not in self.zones or not title:
             return
         
@@ -963,45 +1380,74 @@ class AdaptiveTemplateEngine:
         line_height_dna = getattr(self.dna.typography, 'line_height', 'normal')
         case_strategy = getattr(self.dna.typography, 'case_strategy', 'mixed')
         font_size_hierarchy = getattr(self.dna.typography, 'font_size_hierarchy', '')
+        weight_contrast = getattr(self.dna.typography, 'weight_contrast', 'medium')
+        
+        # Apply typography personality from mapping
+        personality_settings = self.typography_personality
+        personality_case = personality_settings.get("case", "mixed")
+        personality_tracking = personality_settings.get("tracking", "normal")
+        personality_letter_spacing_mult = personality_settings.get("letter_spacing_mult", 0)
         
         # Calculate font size (considering hierarchy if specified)
         base_size = self.typography.headline_size
+        
+        # Adjust base size based on weight contrast
+        weight_size_adjust = {
+            'high': 1.15,  # Larger headlines for high contrast
+            'medium': 1.0,
+            'subtle': 0.9  # Smaller for subtle contrast
+        }
+        base_size = int(base_size * weight_size_adjust.get(weight_contrast, 1.0))
+        
         font_size = calculate_adaptive_font_size(title, base_size, w, min_size=48, max_size=160)
         
         # Adjust font size based on hierarchy description if available
         if font_size_hierarchy and "headline" in font_size_hierarchy.lower():
-            # Try to extract ratio from hierarchy description
             import re
             ratio_match = re.search(r'(\d+\.?\d*)x', font_size_hierarchy.lower())
             if ratio_match:
                 ratio = float(ratio_match.group(1))
-                # Adjust relative to body size (assuming body is ~24px)
                 body_size = 24
                 font_size = max(48, min(160, int(body_size * ratio)))
         
-        # Load font
-        font = load_pillow_font(self.typography.pillow_fonts, font_size, bold=True)
+        # Determine font weight based on personality
+        use_bold = personality_settings.get("weight", "bold") in ["bold", "black", "heavy"]
+        # PHASE 7: Pass personality for better font selection
+        headline_personality = self.dna.typography.headline_personality if hasattr(self.dna, 'typography') else None
+        font = load_pillow_font(self.typography.pillow_fonts, font_size, bold=use_bold, personality=headline_personality)
         
-        # Apply case strategy
-        if case_strategy == "uppercase-accent":
-            # Uppercase for emphasis
+        # Apply case strategy - prioritize DNA case_strategy, then personality
+        if case_strategy == "uppercase-accent" or personality_case == "uppercase":
             title = title.upper()
-        elif case_strategy == "lowercase-casual":
-            # Lowercase for casual feel
+        elif case_strategy == "lowercase-casual" or personality_case == "lowercase":
             title = title.lower()
+        elif personality_case == "sentence":
+            title = title.capitalize()
         # "mixed" keeps original case
         
-        # Determine text color
+        # Determine text color based on background luminance
         bg_luminance = self.dna.color_psychology.light_dark_balance
         if bg_luminance < 0.5:
             text_color = (255, 255, 255)
         else:
             text_color = self.colors.text
         
-        # Get shadow params
+        # Get shadow params based on design style and visual effects
+        visual_effects = getattr(self.dna, 'visual_effects', None)
+        shadow_intensity = self.typography.shadow_intensity
+        if visual_effects:
+            dna_shadows = getattr(visual_effects, 'shadows', 'subtle')
+            shadow_intensity_map = {
+                'none': 0,
+                'subtle': 0.3,
+                'medium': 0.5,
+                'dramatic': 0.8
+            }
+            shadow_intensity = shadow_intensity_map.get(dna_shadows, 0.3)
+        
         shadow_params = get_text_shadow_params(
             text_color,
-            self.typography.shadow_intensity,
+            shadow_intensity,
             self.dna.philosophy.primary_style
         )
         
@@ -1018,19 +1464,31 @@ class AdaptiveTemplateEngine:
         line_height_mult = line_height_multipliers.get(line_height_dna, 1.2)
         line_height = int(font_size * line_height_mult)
         
+        # Calculate letter spacing - combine DNA setting and personality mapping
+        base_letter_spacing_px = self._get_letter_spacing_px(letter_spacing, font_size)
+        personality_spacing_px = font_size * personality_letter_spacing_mult
+        
+        # Also consider tracking from personality
+        tracking_adjustments = {
+            'tight': -font_size * 0.02,
+            'normal': 0,
+            'wide': font_size * 0.04
+        }
+        tracking_px = tracking_adjustments.get(personality_tracking, 0)
+        
+        # Combined letter spacing
+        total_letter_spacing = base_letter_spacing_px + personality_spacing_px + tracking_px
+        
         current_y = y
         for line in lines:
-            # Calculate letter spacing
-            letter_spacing_px = self._get_letter_spacing_px(letter_spacing, font_size)
-            
-            # Render with letter spacing
+            # Render with full typography settings
             self._draw_text_with_letter_spacing(
                 draw,
                 (x, current_y),
                 line,
                 font,
                 text_color,
-                letter_spacing_px,
+                total_letter_spacing,
                 shadow_params=shadow_params
             )
             current_y += line_height

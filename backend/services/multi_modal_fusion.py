@@ -3,6 +3,11 @@ Multi-Modal Fusion Engine with Quality Framework.
 
 Intelligently fuses HTML metadata, semantic analysis, and AI vision
 with quality gates ensuring consistent quality across all sources.
+
+PHASE 3 ENHANCEMENT: Pre-extraction HTML sanitization
+- Removes cookie banners, navigation, footers BEFORE analysis
+- Post-extraction validation layer
+- Significantly reduces cookie content leakage
 """
 from typing import Dict, Any, Optional, Tuple
 import logging
@@ -13,9 +18,18 @@ from backend.services.design_extraction_framework import DesignExtractor, Design
 from backend.services.context_aware_extractor import ContextAwareExtractor, PageContext
 from backend.services.content_quality_validator import ContentQualityValidator, ContentQualityReport
 
+# Import content sanitizer for pre-extraction cleaning
+from backend.services.content_sanitizer import (
+    sanitize_html_for_extraction,
+    sanitize_extracted_content,
+    is_likely_cookie_content,
+    is_likely_navigation_content,
+    filter_cookie_content_from_text
+)
+
 logger = logging.getLogger(__name__)
 
-# Cookie/navigation content patterns to filter out
+# Cookie/navigation content patterns to filter out (legacy, kept for backward compatibility)
 COOKIE_PATTERNS = [
     "cookie", "cookies", "gdpr", "ccpa", "privacy policy", "terms of service",
     "accept cookies", "accept all", "reject all", "cookie settings",
@@ -55,9 +69,11 @@ class MultiModalFusionEngine:
         Extract preview content using framework-based multi-modal fusion.
         
         Framework ensures:
-        1. Quality gates for all sources
-        2. Design preservation
-        3. Consistent quality regardless of source
+        1. PRE-EXTRACTION SANITIZATION (Phase 3)
+        2. Quality gates for all sources
+        3. Design preservation
+        4. Consistent quality regardless of source
+        5. POST-EXTRACTION VALIDATION
         
         Args:
             html_content: HTML content
@@ -69,16 +85,21 @@ class MultiModalFusionEngine:
         """
         logger.info(f"Starting multi-modal fusion for: {url[:50]}...")
         
-        # Step 0: Analyze context for context-aware extraction
+        # PHASE 3: PRE-EXTRACTION SANITIZATION
+        # Remove cookie banners, navigation, footers BEFORE analysis
+        sanitized_html = sanitize_html_for_extraction(html_content, aggressive=False)
+        logger.debug("🧹 HTML sanitized for extraction")
+        
+        # Step 0: Analyze context for context-aware extraction (use original HTML for context)
         page_context = self.context_extractor.analyze_context(
             url=url,
-            html_content=html_content,
+            html_content=html_content,  # Use original for context analysis
             page_classification=page_classification
         )
         
-        # Step 1: Extract from all sources with context awareness
-        html_data = self._extract_from_html(html_content)
-        semantic_data = self._extract_from_semantic(html_content)
+        # Step 1: Extract from all sources with context awareness (use SANITIZED HTML)
+        html_data = self._extract_from_html(sanitized_html)
+        semantic_data = self._extract_from_semantic(sanitized_html)
         
         # Apply context-aware prioritization
         context_priorities = self.context_extractor.extract_with_context(
@@ -638,10 +659,29 @@ MISSION: Extract what users actually SEE on the page, focusing on visual hierarc
         # Design quality
         design_passed = design_score.passed_gates
         
+        # PHASE 3: POST-EXTRACTION SANITIZATION
+        # Final cleanup to remove any cookie/navigation content that slipped through
+        sanitized_title, sanitized_description, sanitized_tags = sanitize_extracted_content(
+            title=title,
+            description=description,
+            tags=semantic_data.get("tags", [])
+        )
+        
+        # Use sanitized values, falling back to original if sanitization removed everything
+        final_title = sanitized_title or title
+        final_description = sanitized_description or description
+        final_tags = sanitized_tags if sanitized_tags else semantic_data.get("tags", [])
+        
+        # Log if sanitization changed anything
+        if final_title != title:
+            logger.info(f"🧹 Title sanitized: '{title[:30]}' -> '{final_title[:30]}'")
+        if final_description != description:
+            logger.info(f"🧹 Description sanitized: '{description[:30]}' -> '{final_description[:30]}'")
+        
         return {
-            "title": title,
-            "description": description[:300],  # Limit length
-            "tags": semantic_data.get("tags", []),
+            "title": final_title,
+            "description": final_description[:300],  # Limit length
+            "tags": final_tags,
             "image": image,
             "confidence": overall_confidence,
             "sources": sources_used,

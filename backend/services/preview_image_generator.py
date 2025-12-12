@@ -168,15 +168,99 @@ def _load_font(size: int, bold: bool = True) -> ImageFont.FreeTypeFont:
     return default_font
 
 
-def _wrap_text(text: str, font: ImageFont.FreeTypeFont, max_width: int, draw: ImageDraw.Draw) -> List[str]:
+def smart_truncate(text: str, max_chars: int) -> str:
     """
-    Wrap text to fit within max_width with smart line breaking.
-    DESIGN FIX 4: Better text wrapping and truncation.
+    PHASE 4: Truncate at sentence or word boundary, never mid-word.
+    
+    Priority order:
+    1. Try to end at a sentence boundary (. ! ?)
+    2. Fall back to word boundary
+    3. Never cut in the middle of a word
+    
+    Args:
+        text: Text to truncate
+        max_chars: Maximum character length
+        
+    Returns:
+        Truncated text with proper ending
+    """
+    if not text or len(text) <= max_chars:
+        return text
+    
+    # Get substring up to max_chars
+    truncated = text[:max_chars]
+    
+    # PRIORITY 1: Try to find sentence boundary
+    # Look for sentence-ending punctuation followed by space or end
+    sentence_ends = ['. ', '! ', '? ', '."', '!"', '?"', ".)", "!)"]
+    best_sentence_end = -1
+    
+    for end_marker in sentence_ends:
+        pos = truncated.rfind(end_marker)
+        if pos > max_chars * 0.5:  # At least 50% of content preserved
+            if pos > best_sentence_end:
+                best_sentence_end = pos + len(end_marker) - 1
+    
+    # Also check for sentence ending at the very end
+    if truncated.rstrip()[-1] in '.!?' and len(truncated) > max_chars * 0.5:
+        return truncated.rstrip()
+    
+    if best_sentence_end > 0:
+        return truncated[:best_sentence_end + 1].rstrip()
+    
+    # PRIORITY 2: Try to find a good word boundary
+    # Look for last space
+    last_space = truncated.rfind(' ')
+    
+    if last_space > max_chars * 0.6:  # At least 60% of content preserved
+        truncated_at_word = truncated[:last_space].rstrip()
+        
+        # Don't end on short connecting words if possible
+        last_word = truncated_at_word.split()[-1].lower() if truncated_at_word.split() else ""
+        short_words = {'a', 'an', 'the', 'and', 'or', 'but', 'of', 'in', 'on', 'at', 'to', 'for', 'by', 'is', 'are', 'was'}
+        
+        if last_word in short_words and len(truncated_at_word.split()) > 2:
+            # Try to go back one more word
+            earlier_space = truncated_at_word.rfind(' ')
+            if earlier_space > max_chars * 0.5:
+                truncated_at_word = truncated_at_word[:earlier_space].rstrip()
+        
+        return truncated_at_word + "..."
+    
+    # PRIORITY 3: Just truncate at max_chars but add ellipsis
+    # Never cut in the middle of a word - back up to last space
+    last_space = truncated.rfind(' ')
+    if last_space > 0:
+        return truncated[:last_space] + "..."
+    
+    # Very rare: no spaces at all (single long word) - hard truncate
+    return truncated[:max_chars - 3] + "..."
+
+
+def _wrap_text(text: str, font: ImageFont.FreeTypeFont, max_width: int, draw: ImageDraw.Draw, max_lines: int = 3) -> List[str]:
+    """
+    PHASE 4: Wrap text with smart line breaking and sentence-aware truncation.
+    
+    Features:
+    - Never cut sentences mid-word
+    - Preserve natural reading flow
+    - Smart handling of long words (URLs, etc.)
+    - Sentence boundary awareness for cleaner endings
+    
+    Args:
+        text: Text to wrap
+        font: Font to use for measurement
+        max_width: Maximum pixel width
+        draw: ImageDraw object for text measurement
+        max_lines: Maximum number of lines (default 3)
+        
+    Returns:
+        List of lines that fit within constraints
     """
     if not text or not text.strip():
         return []
     
-    # Clean text first
+    # Clean text first - normalize whitespace
     text = " ".join(text.split())
     
     words = text.split()
@@ -198,35 +282,46 @@ def _wrap_text(text: str, font: ImageFont.FreeTypeFont, max_width: int, draw: Im
         else:
             if current_line:
                 lines.append(' '.join(current_line))
-            # If single word is too long, truncate it gracefully
-            # But try to preserve as much as possible
-            if len(word) > 50:
-                # For very long words (URLs, etc.), truncate but preserve start
-                word = word[:47] + "..."
-            current_line = [word]
+            
+            # Handle very long words (URLs, technical terms, etc.)
+            if len(word) > 40:
+                # For very long words, use smart_truncate
+                truncated_word = smart_truncate(word, 37)
+                current_line = [truncated_word]
+            else:
+                current_line = [word]
     
     if current_line:
         lines.append(' '.join(current_line))
     
-    # ENHANCED: Smart truncation - break at word boundaries gracefully
-    max_lines = 3
+    # PHASE 4: Smart truncation with sentence awareness
     if len(lines) > max_lines:
         # Keep first max_lines-1 complete lines
-        result = lines[:max_lines-1]
-        last_line = lines[max_lines-1]
+        result = lines[:max_lines - 1]
         
-        # Smart truncation: break at word boundary, not mid-word
-        if len(last_line) > 60:
-            # Find the last space before the 57-character limit
-            truncate_at = 57
-            last_space = last_line.rfind(' ', 0, truncate_at)
+        # Get remaining text for smart truncation
+        remaining_text = ' '.join(lines[max_lines - 1:])
+        
+        # Calculate how many chars fit in the last line
+        # Approximate based on first line length
+        first_line_chars = len(lines[0]) if lines else 60
+        last_line_max = max(40, first_line_chars)
+        
+        # Use smart_truncate for the last line
+        last_line = smart_truncate(remaining_text, last_line_max)
+        
+        # Double check it fits
+        try:
+            bbox = draw.textbbox((0, 0), last_line, font=font)
+            last_line_width = bbox[2] - bbox[0]
             
-            if last_space > 0:
-                # Break at word boundary
-                last_line = last_line[:last_space] + "..."
-            else:
-                # No space found, truncate at character but add ellipsis
-                last_line = last_line[:57] + "..."
+            # If still too wide, truncate further
+            while last_line_width > max_width and len(last_line) > 20:
+                last_line = smart_truncate(last_line[:-4], len(last_line) - 10)
+                bbox = draw.textbbox((0, 0), last_line, font=font)
+                last_line_width = bbox[2] - bbox[0]
+        except:
+            pass  # Keep the truncated line as-is
         
         result.append(last_line)
         return result

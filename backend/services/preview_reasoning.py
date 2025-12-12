@@ -277,6 +277,18 @@ COMPANY/TEAM PAGE indicators:
 If 2+ COMPANY indicators → NOT a profile, classify as company/landing
 If unclear → NOT a profile
 
+=== ABSOLUTE EXCLUSIONS ===
+NEVER extract any of the following - treat as INVISIBLE:
+- Cookie consent dialogs/banners/notices (anything about "cookies", "consent", "GDPR", "CCPA")
+- Privacy notices or "Accept cookies", "Manage preferences", "Cookie settings" text
+- Navigation menus (Home, About, Contact, Services, Products, etc.)
+- Footer content (legal links, terms, privacy links, copyright notices)
+- Generic CTAs without context ("Submit", "Click here", "Learn more")
+- Popup/modal content (newsletter signups, discount offers, exit intent)
+- Breadcrumb navigation
+- "Skip to content" or accessibility links
+- Social media share buttons or follow links
+
 === QUALITY STANDARDS ===
 - Extract EXACT text (no paraphrasing, no "improvements")
 - Prioritize SPECIFIC numbers over vague claims
@@ -284,6 +296,7 @@ If unclear → NOT a profile
 - Look for SOCIAL PROOF with concrete evidence
 - Ignore generic marketing speak and filler content
 - VERIFY names are person names, not job titles or company names
+- IGNORE any text that contains cookie/consent/GDPR keywords
 
 === WHAT TO FIND ===
 
@@ -1550,10 +1563,75 @@ def run_stage_6(layout: Dict[str, Any], included_regions: List[Dict], design_dna
 # CONTENT REFINEMENT
 # =============================================================================
 
+def smart_truncate_text(text: str, max_chars: int) -> str:
+    """
+    PHASE 4: Smart truncation at sentence or word boundary.
+    
+    Priority order:
+    1. End at sentence boundary (. ! ?) if it preserves >50% of content
+    2. Fall back to word boundary
+    3. Never cut mid-word
+    
+    Args:
+        text: Text to truncate
+        max_chars: Maximum characters
+        
+    Returns:
+        Truncated text with natural ending
+    """
+    if not text or len(text) <= max_chars:
+        return text
+    
+    truncated = text[:max_chars]
+    
+    # Priority 1: Sentence boundary
+    sentence_ends = ['. ', '! ', '? ', '." ', '!" ', '?" ']
+    best_end = -1
+    
+    for marker in sentence_ends:
+        pos = truncated.rfind(marker)
+        if pos > max_chars * 0.5 and pos > best_end:
+            best_end = pos + len(marker) - 1
+    
+    # Check for sentence ending at very end
+    if truncated.rstrip() and truncated.rstrip()[-1] in '.!?':
+        return truncated.rstrip()
+    
+    if best_end > 0:
+        return truncated[:best_end + 1].rstrip()
+    
+    # Priority 2: Word boundary
+    last_space = truncated.rfind(' ')
+    if last_space > max_chars * 0.6:
+        result = truncated[:last_space].rstrip()
+        
+        # Avoid ending on short connecting words
+        last_word = result.split()[-1].lower() if result.split() else ""
+        stop_words = {'a', 'an', 'the', 'and', 'or', 'but', 'of', 'in', 'on', 'at', 'to', 'for', 'by', 'is'}
+        
+        if last_word in stop_words and len(result.split()) > 2:
+            earlier_space = result.rfind(' ')
+            if earlier_space > max_chars * 0.5:
+                result = result[:earlier_space].rstrip()
+        
+        return result + "..."
+    
+    # Priority 3: Hard truncate at word boundary
+    if last_space > 0:
+        return truncated[:last_space] + "..."
+    
+    return truncated[:max_chars - 3] + "..."
+
+
 def clean_display_text(raw_text: str, purpose: str) -> str:
     """
-    Clean and validate display text.
-    FIX 2: Content validation and sanitization.
+    PHASE 4: Clean and validate display text with smart truncation.
+    
+    Features:
+    - Sentence-aware truncation
+    - Word boundary awareness
+    - Purpose-specific length limits
+    - Prefix cleaning for identity slots
     """
     if not raw_text or not isinstance(raw_text, str):
         return ""
@@ -1565,7 +1643,16 @@ def clean_display_text(raw_text: str, purpose: str) -> str:
     import re
     cleaned = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', cleaned)
     
-    # Limit length based on purpose
+    # For identity slots, remove common prefixes
+    if purpose == "identity":
+        prefixes_to_remove = ["om ", "about ", "meet ", "introducing "]
+        text_lower = cleaned.lower()
+        for prefix in prefixes_to_remove:
+            if text_lower.startswith(prefix):
+                cleaned = cleaned[len(prefix):].strip()
+                break
+    
+    # Limit length based on purpose with smart truncation
     max_lengths = {
         "hook": 100,
         "identity": 80,
@@ -1576,34 +1663,15 @@ def clean_display_text(raw_text: str, purpose: str) -> str:
     }
     max_len = max_lengths.get(purpose, 200)
     
+    # Use smart truncation instead of simple character cut
     if len(cleaned) > max_len:
-        cleaned = cleaned[:max_len].rsplit(' ', 1)[0] + "..."
+        cleaned = smart_truncate_text(cleaned, max_len)
     
     # Validate minimum length
     if len(cleaned.strip()) < 3:
         return ""
     
     return cleaned.strip()
-    """
-    Clean and refine text for display.
-    
-    Removes prefixes like "Om", "About" when not appropriate.
-    """
-    if not raw_text:
-        return ""
-    
-    text = raw_text.strip()
-    
-    # For identity slots, remove "Om" or "About" prefixes
-    if purpose == "identity":
-        prefixes_to_remove = ["om ", "about ", "meet "]
-        text_lower = text.lower()
-        for prefix in prefixes_to_remove:
-            if text_lower.startswith(prefix):
-                text = text[len(prefix):].strip()
-                break
-    
-    return text
 
 
 def extract_final_content(
