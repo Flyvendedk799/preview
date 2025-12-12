@@ -47,6 +47,13 @@ try:
 except ImportError:
     ADAPTIVE_ENGINE_AVAILABLE = False
 
+# Enhanced Product Template Renderer
+try:
+    from backend.services.product_template_renderer import render_enhanced_product_preview
+    ENHANCED_PRODUCT_RENDERER_AVAILABLE = True
+except ImportError:
+    ENHANCED_PRODUCT_RENDERER_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 # Standard OG image dimensions (1.91:1 ratio)
@@ -312,7 +319,8 @@ def generate_designed_preview(
     tags: List[str] = None,
     context_items: List[Dict[str, str]] = None,
     credibility_items: List[Dict[str, str]] = None,
-    primary_image_base64: Optional[str] = None
+    primary_image_base64: Optional[str] = None,
+    product_intelligence: Optional[Dict[str, Any]] = None
 ) -> bytes:
     """
     Generate a PREMIUM og:image that stops the scroll.
@@ -361,14 +369,23 @@ def generate_designed_preview(
                 credibility_items, tags, primary_image_base64
             )
         
-        # Product, E-commerce → Product (split layout)
+        # Product, E-commerce → Enhanced Product Template (category-aware)
         elif template_lower in ["product", "ecommerce", "marketplace"]:
-            logger.info("Using PRODUCT template (split layout, features)")
-            return _generate_product_template(
-                screenshot_bytes, title, subtitle, description,
-                primary_color, secondary_color, accent_color,
-                credibility_items, tags, primary_image_base64
-            )
+            if ENHANCED_PRODUCT_RENDERER_AVAILABLE and product_intelligence:
+                logger.info("Using ENHANCED PRODUCT template (category-aware, conversion-optimized)")
+                return render_enhanced_product_preview(
+                    screenshot_bytes, title, subtitle, description,
+                    primary_color, secondary_color, accent_color,
+                    credibility_items, tags, primary_image_base64,
+                    product_intelligence
+                )
+            else:
+                logger.info("Using PRODUCT template (split layout, features)")
+                return _generate_product_template(
+                    screenshot_bytes, title, subtitle, description,
+                    primary_color, secondary_color, accent_color,
+                    credibility_items, tags, primary_image_base64
+                )
         
         # Profile, Personal → Profile Template (gradient header, circular avatar)
         elif template_lower in ["profile", "personal"]:
@@ -1552,7 +1569,8 @@ def generate_and_upload_preview_image(
     context_items: List[Dict[str, str]] = None,
     credibility_items: List[Dict[str, str]] = None,
     primary_image_base64: Optional[str] = None,
-    design_dna: Dict[str, Any] = None
+    design_dna: Dict[str, Any] = None,
+    product_intelligence: Optional[Dict[str, Any]] = None
 ) -> Optional[str]:
     """
     Generate designed og:image matching React component and upload to R2.
@@ -1650,7 +1668,8 @@ def generate_and_upload_preview_image(
                 tags=tags,
                 context_items=context_items,
                 credibility_items=credibility_items,
-                primary_image_base64=primary_image_base64
+                primary_image_base64=primary_image_base64,
+                product_intelligence=product_intelligence
             )
         
         # Upload to R2
