@@ -1039,6 +1039,8 @@ export interface DemoPreviewResponse {
   reasoning_confidence: number  // 0-1
   design_fidelity_score?: number  // 0-1, how well preview honors original design
   processing_time_ms: number
+  quality_scores?: Record<string, any> | null  // Quality scores from backend
+  is_fallback?: boolean  // True if this is a fallback preview
   
   // ===== DEMO METADATA =====
   is_demo: boolean

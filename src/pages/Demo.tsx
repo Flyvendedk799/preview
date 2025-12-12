@@ -1621,13 +1621,13 @@ export default function Demo() {
                         onClick={() => {
                           // Find and scroll to the AI Reasoning Chain accordion
                           // The text "AI Reasoning Chain" is inside the summary element
-                          const detailsElements = document.querySelectorAll('details')
+                          const detailsElements = document.querySelectorAll<HTMLDetailsElement>('details')
                           let reasoningElement: HTMLDetailsElement | null = null
                           
                           detailsElements.forEach((details) => {
                             const summary = details.querySelector('summary')
                             if (summary && summary.textContent?.includes('AI Reasoning Chain')) {
-                              reasoningElement = details
+                              reasoningElement = details as HTMLDetailsElement
                             }
                           })
                           
@@ -1635,7 +1635,9 @@ export default function Demo() {
                             reasoningElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
                             // Open the accordion after a brief delay for smooth transition
                             setTimeout(() => {
-                              reasoningElement!.open = true
+                              if (reasoningElement) {
+                                reasoningElement.open = true
+                              }
                             }, 300)
                           }
                         }}
