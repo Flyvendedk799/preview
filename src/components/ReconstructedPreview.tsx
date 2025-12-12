@@ -9,7 +9,7 @@
  * dynamically style the preview based on the original design's philosophy.
  */
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { DemoPreviewResponse } from '../api/client'
 import AdaptivePreview from './AdaptivePreview'
 
