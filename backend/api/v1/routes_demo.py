@@ -102,6 +102,8 @@ class DemoPreviewResponse(BaseModel):
     # ===== QUALITY METRICS =====
     reasoning_confidence: float
     processing_time_ms: int
+    quality_scores: Optional[Dict[str, Any]] = None
+    is_fallback: bool = False
     
     # ===== DEMO METADATA =====
     is_demo: bool = True
