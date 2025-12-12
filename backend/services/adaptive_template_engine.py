@@ -1228,7 +1228,8 @@ class AdaptiveTemplateEngine:
                     bbox = draw.textbbox((0, 0), char, font=font)
                     char_width = bbox[2] - bbox[0]
                 except:
-                    char_width = font_size if hasattr(font, 'size') else 20
+                    # Fallback: estimate width based on font size
+                    char_width = font.size if hasattr(font, 'size') else 20
                 
                 current_x += char_width + letter_spacing_px
         
@@ -1242,7 +1243,8 @@ class AdaptiveTemplateEngine:
                 bbox = draw.textbbox((0, 0), char, font=font)
                 char_width = bbox[2] - bbox[0]
             except:
-                char_width = font_size if hasattr(font, 'size') else 20
+                # Fallback: estimate width based on font size
+                char_width = font.size if hasattr(font, 'size') else 20
             
             current_x += char_width + letter_spacing_px
     
