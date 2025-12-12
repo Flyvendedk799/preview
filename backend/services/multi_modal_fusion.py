@@ -15,6 +15,16 @@ from backend.services.content_quality_validator import ContentQualityValidator, 
 
 logger = logging.getLogger(__name__)
 
+# Cookie/navigation content patterns to filter out
+COOKIE_PATTERNS = [
+    "cookie", "cookies", "gdpr", "ccpa", "privacy policy", "terms of service",
+    "accept cookies", "accept all", "reject all", "cookie settings",
+    "manage preferences", "cookie consent", "cookie banner", "cookie notice",
+    "privacy policy", "terms of service", "legal notice", "compliance",
+    "skip to content", "skip navigation", "menu", "navigation", "home",
+    "contact", "about", "footer", "header"
+]
+
 
 class MultiModalFusionEngine:
     """

@@ -85,7 +85,5 @@ User-agent: DotBot
 Disallow: /
 
 # Sitemap location
-# IMPORTANT: Uncomment and update with your actual domain when you create a sitemap
-# Example: Sitemap: https://mymetaview.com/sitemap.xml
-# Sitemap: https://yourdomain.com/sitemap.xml
-
+# The sitemap is dynamically generated and includes all published blog posts
+Sitemap: https://mymetaview.com/sitemap.xml

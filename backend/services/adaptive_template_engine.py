@@ -1102,12 +1102,8 @@ class AdaptiveTemplateEngine:
         elif case_strategy == "lowercase-casual":
             description = description.lower()
         
-        # Muted color
-        bg_luminance = self.dna.color_psychology.light_dark_balance
-        if bg_luminance < 0.5:
-            text_color = (180, 180, 190)
-        else:
-            text_color = self.colors.text_muted
+        # Apply color usage pattern for description
+        text_color = self._get_color_for_element("description")
         
         lines = get_optimal_line_breaks(description, font_size, w, max_lines=2)
         
@@ -1184,6 +1180,143 @@ class AdaptiveTemplateEngine:
             image = image.filter(ImageFilter.SHARPEN)
         
         return image
+    
+    def _get_letter_spacing_px(self, letter_spacing: str, font_size: int) -> float:
+        """Convert letter spacing string to pixels."""
+        spacing_map = {
+            'tight': -font_size * 0.02,  # -2% of font size
+            'normal': 0,
+            'wide': font_size * 0.05,  # +5% of font size
+            'very-wide': font_size * 0.10  # +10% of font size
+        }
+        return spacing_map.get(letter_spacing, 0)
+    
+    def _draw_text_with_letter_spacing(
+        self,
+        draw: ImageDraw.Draw,
+        position: Tuple[int, int],
+        text: str,
+        font,
+        color: Tuple[int, int, int],
+        letter_spacing_px: float,
+        shadow_params: Dict[str, Any] = None
+    ) -> None:
+        """
+        Draw text with custom letter spacing.
+        
+        PIL doesn't support letter spacing directly, so we draw each character separately.
+        """
+        x, y = position
+        
+        # Draw shadow if enabled
+        if shadow_params and shadow_params.get("enabled"):
+            shadow_color = shadow_params["color"]
+            shadow_alpha = shadow_params["alpha"]
+            offset = shadow_params["offset"]
+            
+            current_x = x
+            for char in text:
+                # Draw shadow
+                for i in range(3):
+                    layer_offset = (offset[0] + i, offset[1] + i)
+                    layer_alpha = max(0, shadow_alpha - i * 20)
+                    shadow_rgb = tuple(int(c * layer_alpha / 255) for c in shadow_color)
+                    draw.text((current_x + layer_offset[0], y + layer_offset[1]), char, font=font, fill=shadow_rgb)
+                
+                # Get character width
+                try:
+                    bbox = draw.textbbox((0, 0), char, font=font)
+                    char_width = bbox[2] - bbox[0]
+                except:
+                    char_width = font_size if hasattr(font, 'size') else 20
+                
+                current_x += char_width + letter_spacing_px
+        
+        # Draw main text
+        current_x = x
+        for char in text:
+            draw.text((current_x, y), char, font=font, fill=color)
+            
+            # Get character width
+            try:
+                bbox = draw.textbbox((0, 0), char, font=font)
+                char_width = bbox[2] - bbox[0]
+            except:
+                char_width = font_size if hasattr(font, 'size') else 20
+            
+            current_x += char_width + letter_spacing_px
+    
+    def _get_color_for_element(self, element_type: str) -> Tuple[int, int, int]:
+        """
+        Get color for element based on color_usage_pattern and accent_usage from Design DNA.
+        
+        Args:
+            element_type: Type of element (headline, subtitle, description, accent_bar, etc.)
+            
+        Returns:
+            RGB color tuple
+        """
+        color_usage_pattern = getattr(self.dna.color_psychology, 'color_usage_pattern', '')
+        accent_usage = getattr(self.dna.color_psychology, 'accent_usage', '')
+        saturation_character = getattr(self.dna.color_psychology, 'saturation_character', 'balanced')
+        
+        # Parse color usage pattern to determine color for element
+        pattern_lower = color_usage_pattern.lower()
+        accent_lower = accent_usage.lower()
+        
+        # Determine base color based on usage pattern
+        if element_type == "headline":
+            if "primary" in pattern_lower and "headline" in pattern_lower:
+                base_color = self.colors.primary
+            elif "accent" in pattern_lower and "headline" in pattern_lower:
+                base_color = self.colors.accent
+            else:
+                # Default: use text color
+                bg_luminance = self.dna.color_psychology.light_dark_balance
+                base_color = (255, 255, 255) if bg_luminance < 0.5 else self.colors.text
+        elif element_type == "subtitle":
+            if "secondary" in pattern_lower and "subtitle" in pattern_lower:
+                base_color = self.colors.secondary
+            else:
+                # Default: muted text color
+                bg_luminance = self.dna.color_psychology.light_dark_balance
+                base_color = (230, 230, 235) if bg_luminance < 0.5 else self.colors.text_muted
+        elif element_type == "description":
+            # Description typically uses muted colors
+            bg_luminance = self.dna.color_psychology.light_dark_balance
+            base_color = (180, 180, 190) if bg_luminance < 0.5 else self.colors.text_muted
+        elif element_type == "accent_bar":
+            # Accent bar uses accent color
+            if "accent" in accent_lower or "cta" in accent_lower or "button" in accent_lower:
+                base_color = self.colors.accent
+            else:
+                base_color = self.colors.accent  # Default to accent
+        elif element_type == "proof":
+            # Proof text uses accent color for attention
+            style = self.dna.philosophy.primary_style.lower()
+            if style in ["bold", "playful", "maximalist"]:
+                base_color = self.colors.accent
+            else:
+                bg_luminance = self.dna.color_psychology.light_dark_balance
+                base_color = (255, 255, 255) if bg_luminance < 0.5 else self.colors.text
+        else:
+            # Default: use text color
+            bg_luminance = self.dna.color_psychology.light_dark_balance
+            base_color = (255, 255, 255) if bg_luminance < 0.5 else self.colors.text
+        
+        # Apply saturation adjustment
+        if saturation_character == "vivid":
+            # Increase saturation (make colors more vibrant)
+            base_color = tuple(min(255, int(c * 1.1)) for c in base_color)
+        elif saturation_character == "muted":
+            # Decrease saturation (make colors more muted)
+            base_color = tuple(int(c * 0.85) for c in base_color)
+        elif saturation_character == "desaturated":
+            # Strongly desaturate (towards grayscale)
+            gray = int(sum(base_color) / 3)
+            base_color = tuple(int(c * 0.5 + gray * 0.5) for c in base_color)
+        
+        return base_color
     
     def _apply_overlay_patterns(self, image: Image.Image, pattern_type: str) -> Image.Image:
         """Apply overlay patterns (dots, grid, lines, geometric) to image."""
