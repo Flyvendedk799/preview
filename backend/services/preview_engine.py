@@ -52,6 +52,8 @@ from backend.services.preview_cache import (
     CacheConfig
 )
 
+logger = logging.getLogger(__name__)
+
 # 7-Layer Enhancement System Integration
 try:
     from backend.services.enhanced_preview_orchestrator import (
@@ -64,8 +66,6 @@ try:
 except ImportError as e:
     ENHANCED_SYSTEM_AVAILABLE = False
     logger.warning(f"7-Layer Enhancement System not available: {e}")
-
-logger = logging.getLogger(__name__)
 
 
 @dataclass

@@ -37,8 +37,7 @@ from backend.services.visual_hierarchy_engine import (
 )
 from backend.services.depth_engine import (
     DepthEngine,
-    ElevationLevel,
-    create_glassmorphism
+    ElevationLevel
 )
 from backend.services.premium_typography_engine import (
     PremiumTypographyEngine,
