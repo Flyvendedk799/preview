@@ -75,6 +75,69 @@ try:
 except ImportError:
     COMPOSITION_INTELLIGENCE_AVAILABLE = False
 
+# ============================================================================
+# PHASE 3 ENHANCEMENTS: Quality Enhancement Systems
+# ============================================================================
+
+# Readability Auto-Fixer
+try:
+    from backend.services.readability_auto_fixer import (
+        auto_fix_readability_bytes,
+        ReadabilityFixReport,
+        get_readability_auto_fixer
+    )
+    READABILITY_AUTOFIXER_AVAILABLE = True
+except ImportError:
+    READABILITY_AUTOFIXER_AVAILABLE = False
+
+# Value Proposition Extractor
+try:
+    from backend.services.value_prop_extractor import (
+        extract_value_proposition,
+        ValueProposition,
+        get_value_prop_extractor
+    )
+    VALUE_PROP_EXTRACTOR_AVAILABLE = True
+except ImportError:
+    VALUE_PROP_EXTRACTOR_AVAILABLE = False
+
+# Smart Image Processor
+try:
+    from backend.services.smart_image_processor import (
+        score_image_quality,
+        process_image_for_preview,
+        get_smart_image_processor,
+        ImageQualityScore
+    )
+    SMART_IMAGE_PROCESSOR_AVAILABLE = True
+except ImportError:
+    SMART_IMAGE_PROCESSOR_AVAILABLE = False
+
+# Platform Optimizer
+try:
+    from backend.services.platform_optimizer import (
+        optimize_for_platform,
+        optimize_for_platforms,
+        get_platform_optimizer,
+        Platform,
+        PlatformVariant
+    )
+    PLATFORM_OPTIMIZER_AVAILABLE = True
+except ImportError:
+    PLATFORM_OPTIMIZER_AVAILABLE = False
+
+# Variant Generator
+try:
+    from backend.services.variant_generator import (
+        generate_variants,
+        generate_quick_variants,
+        get_variant_generator,
+        VariantGenerationResult
+    )
+    VARIANT_GENERATOR_AVAILABLE = True
+except ImportError:
+    VARIANT_GENERATOR_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 # 7-Layer Enhancement System Integration
@@ -2040,4 +2103,331 @@ class PreviewEngine:
                     )
             except Exception as e:
                 self.logger.warning(f"Progress callback failed: {e}")
+    
+    # =========================================================================
+    # PHASE 3 ENHANCEMENTS: Advanced Quality Systems
+    # =========================================================================
+    
+    def enhance_content_with_value_prop(
+        self,
+        title: str,
+        description: Optional[str],
+        features: Optional[List[str]] = None,
+        page_type: str = "default"
+    ) -> Dict[str, Any]:
+        """
+        Enhance content with value proposition intelligence.
+        
+        Transforms raw titles and descriptions into compelling hooks
+        that drive engagement.
+        
+        Args:
+            title: Original title
+            description: Original description
+            features: List of features (will be converted to benefits)
+            page_type: Type of page
+            
+        Returns:
+            Dict with enhanced content
+        """
+        if not VALUE_PROP_EXTRACTOR_AVAILABLE:
+            return {
+                "hook": title,
+                "benefit": description or "",
+                "cta": "Learn More",
+                "enhanced": False
+            }
+        
+        try:
+            value_prop = extract_value_proposition(
+                title=title,
+                description=description,
+                features=features,
+                page_type=page_type
+            )
+            
+            self.logger.info(
+                f"🎯 Value prop enhanced: hook='{value_prop.hook[:40]}...' "
+                f"trigger={value_prop.emotional_trigger.value if value_prop.emotional_trigger else 'none'}"
+            )
+            
+            return {
+                "hook": value_prop.hook,
+                "benefit": value_prop.primary_benefit,
+                "secondary_benefits": value_prop.secondary_benefits,
+                "cta": value_prop.cta,
+                "emotional_trigger": value_prop.emotional_trigger.value if value_prop.emotional_trigger else None,
+                "social_proof": value_prop.social_proof,
+                "confidence": value_prop.confidence,
+                "enhanced": True
+            }
+        except Exception as e:
+            self.logger.warning(f"Value prop enhancement failed: {e}")
+            return {
+                "hook": title,
+                "benefit": description or "",
+                "cta": "Learn More",
+                "enhanced": False
+            }
+    
+    def auto_fix_preview_readability(
+        self,
+        image_bytes: bytes,
+        text_color: Optional[Tuple[int, int, int]] = None,
+        background_color: Optional[Tuple[int, int, int]] = None
+    ) -> Tuple[bytes, Dict[str, Any]]:
+        """
+        Automatically fix readability issues in a preview image.
+        
+        Args:
+            image_bytes: Preview image bytes
+            text_color: Known text color (optional)
+            background_color: Known background color (optional)
+            
+        Returns:
+            Tuple of (fixed_image_bytes, fix_report)
+        """
+        if not READABILITY_AUTOFIXER_AVAILABLE:
+            return image_bytes, {"fixed": False, "reason": "AutoFixer not available"}
+        
+        try:
+            fixed_bytes, report = auto_fix_readability_bytes(
+                image_bytes=image_bytes,
+                quality_score=None
+            )
+            
+            self.logger.info(
+                f"🔧 Readability auto-fix: {len(report.fixes_applied)} fixes, "
+                f"contrast {report.final_contrast_ratio:.2f}, "
+                f"WCAG AA={report.meets_wcag_aa}"
+            )
+            
+            return fixed_bytes, {
+                "fixed": len(report.fixes_applied) > 0,
+                "fixes": [f.fix_type for f in report.fixes_applied],
+                "improvement": report.overall_improvement,
+                "final_contrast": report.final_contrast_ratio,
+                "meets_wcag_aa": report.meets_wcag_aa,
+                "meets_wcag_aaa": report.meets_wcag_aaa
+            }
+        except Exception as e:
+            self.logger.warning(f"Readability auto-fix failed: {e}")
+            return image_bytes, {"fixed": False, "error": str(e)}
+    
+    def generate_platform_variants(
+        self,
+        image_bytes: bytes,
+        platforms: List[str],
+        content: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, bytes]:
+        """
+        Generate optimized variants for multiple platforms.
+        
+        Args:
+            image_bytes: Base preview image bytes
+            platforms: List of platform names (linkedin, twitter, facebook, etc.)
+            content: Optional content dict with title, description
+            
+        Returns:
+            Dict mapping platform name to optimized image bytes
+        """
+        if not PLATFORM_OPTIMIZER_AVAILABLE:
+            return {"default": image_bytes}
+        
+        try:
+            from PIL import Image
+            from io import BytesIO
+            
+            base_image = Image.open(BytesIO(image_bytes))
+            result = optimize_for_platforms(base_image, platforms, content)
+            
+            variants = {}
+            for platform, variant in result.variants.items():
+                buffer = BytesIO()
+                variant.image.save(buffer, format='PNG')
+                variants[platform.value] = buffer.getvalue()
+            
+            self.logger.info(
+                f"📱 Generated {len(variants)} platform variants: "
+                f"{', '.join(variants.keys())}"
+            )
+            
+            return variants
+        except Exception as e:
+            self.logger.warning(f"Platform variant generation failed: {e}")
+            return {"default": image_bytes}
+    
+    def generate_style_variants(
+        self,
+        image_bytes: bytes,
+        count: int = 4,
+        styles: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        """
+        Generate multiple style variants for user selection.
+        
+        Args:
+            image_bytes: Base preview image bytes
+            count: Number of variants to generate
+            styles: Specific styles to use (optional)
+            
+        Returns:
+            Dict with variants info and image bytes
+        """
+        if not VARIANT_GENERATOR_AVAILABLE:
+            return {
+                "variants": [],
+                "default_id": "original",
+                "available": False
+            }
+        
+        try:
+            from PIL import Image
+            from io import BytesIO
+            
+            base_image = Image.open(BytesIO(image_bytes))
+            result = generate_variants(base_image, count=count, styles=styles)
+            
+            variants_data = []
+            for variant in result.variants:
+                buffer = BytesIO()
+                variant.image.save(buffer, format='PNG')
+                
+                variants_data.append({
+                    "id": variant.id,
+                    "name": variant.name,
+                    "description": variant.description,
+                    "image_bytes": buffer.getvalue(),
+                    "readability_score": variant.readability_score,
+                    "visual_appeal_score": variant.visual_appeal_score,
+                    "is_default": variant.is_default,
+                    "tags": variant.tags
+                })
+            
+            self.logger.info(
+                f"🎨 Generated {len(variants_data)} style variants, "
+                f"default='{result.default_variant.name}'"
+            )
+            
+            return {
+                "variants": variants_data,
+                "default_id": result.default_variant.id,
+                "generation_time_ms": result.generation_time_ms,
+                "available": True
+            }
+        except Exception as e:
+            self.logger.warning(f"Style variant generation failed: {e}")
+            return {
+                "variants": [],
+                "default_id": "original",
+                "available": False,
+                "error": str(e)
+            }
+    
+    def score_hero_image(
+        self,
+        image_bytes: bytes,
+        expected_type: str = "generic"
+    ) -> Dict[str, Any]:
+        """
+        Score hero image quality and get enhancement recommendations.
+        
+        Args:
+            image_bytes: Image bytes to score
+            expected_type: Expected content type (face, product, logo, generic)
+            
+        Returns:
+            Dict with quality scores and recommendations
+        """
+        if not SMART_IMAGE_PROCESSOR_AVAILABLE:
+            return {"available": False}
+        
+        try:
+            from PIL import Image
+            from io import BytesIO
+            
+            image = Image.open(BytesIO(image_bytes))
+            score = score_image_quality(image, expected_type)
+            
+            self.logger.info(
+                f"📊 Image quality score: {score.overall_score:.2f}, "
+                f"usable={score.is_usable}, stock={score.is_stock_photo}"
+            )
+            
+            return {
+                "overall_score": score.overall_score,
+                "resolution_score": score.resolution_score,
+                "sharpness_score": score.sharpness_score,
+                "composition_score": score.composition_score,
+                "color_quality_score": score.color_quality_score,
+                "is_usable": score.is_usable,
+                "is_stock_photo": score.is_stock_photo,
+                "recommendations": score.recommendations,
+                "available": True
+            }
+        except Exception as e:
+            self.logger.warning(f"Image quality scoring failed: {e}")
+            return {"available": False, "error": str(e)}
+    
+    def enhance_hero_image(
+        self,
+        image_bytes: bytes,
+        target_size: Tuple[int, int] = (1200, 630)
+    ) -> Tuple[bytes, Dict[str, Any]]:
+        """
+        Enhance hero image with smart cropping and quality improvements.
+        
+        Args:
+            image_bytes: Original image bytes
+            target_size: Target dimensions
+            
+        Returns:
+            Tuple of (enhanced_image_bytes, enhancement_report)
+        """
+        if not SMART_IMAGE_PROCESSOR_AVAILABLE:
+            return image_bytes, {"enhanced": False}
+        
+        try:
+            from PIL import Image
+            from io import BytesIO
+            
+            image = Image.open(BytesIO(image_bytes))
+            processed, score = process_image_for_preview(image, target_size)
+            
+            buffer = BytesIO()
+            processed.save(buffer, format='PNG')
+            enhanced_bytes = buffer.getvalue()
+            
+            self.logger.info(
+                f"🖼️ Hero image enhanced: {image.size} → {processed.size}, "
+                f"score={score.overall_score:.2f}"
+            )
+            
+            return enhanced_bytes, {
+                "enhanced": True,
+                "original_size": image.size,
+                "new_size": processed.size,
+                "quality_score": score.overall_score,
+                "is_usable": score.is_usable
+            }
+        except Exception as e:
+            self.logger.warning(f"Hero image enhancement failed: {e}")
+            return image_bytes, {"enhanced": False, "error": str(e)}
+
+
+# =============================================================================
+# CONVENIENCE FUNCTIONS FOR NEW SYSTEMS
+# =============================================================================
+
+def get_available_enhancements() -> Dict[str, bool]:
+    """Get which enhancement systems are available."""
+    return {
+        "readability_auto_fixer": READABILITY_AUTOFIXER_AVAILABLE,
+        "value_prop_extractor": VALUE_PROP_EXTRACTOR_AVAILABLE,
+        "smart_image_processor": SMART_IMAGE_PROCESSOR_AVAILABLE,
+        "platform_optimizer": PLATFORM_OPTIMIZER_AVAILABLE,
+        "variant_generator": VARIANT_GENERATOR_AVAILABLE,
+        "visual_quality_validator": VISUAL_QUALITY_VALIDATOR_AVAILABLE,
+        "composition_intelligence": COMPOSITION_INTELLIGENCE_AVAILABLE
+    }
 
