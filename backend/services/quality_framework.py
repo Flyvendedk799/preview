@@ -126,6 +126,16 @@ class ContentQualityGate(QualityGate):
             issues.append("No alphabetic characters")
             score -= 0.3
         
+        # CRITICAL: Check if description repeats title (for description field)
+        if context.get("field") == "description" and context.get("title"):
+            title_lower = context["title"].lower().strip()
+            if description_lower == title_lower:
+                issues.append("Description repeats title exactly")
+                score -= 0.5  # Major issue
+            elif description_lower.startswith(title_lower) and len(description_lower) < len(title_lower) + 20:
+                issues.append("Description too similar to title")
+                score -= 0.3
+        
         # Calculate confidence
         confidence = max(0.0, min(1.0, score))
         
@@ -269,9 +279,10 @@ class QualityFramework:
                 logger.debug(f"Title quality issues ({source}): {scores['title'].issues}")
         
         if description:
+            # Pass title to description validation to check for repetition
             scores["description"] = self.content_gate.validate(
                 description,
-                {"source": source, "field": "description"}
+                {"source": source, "field": "description", "title": title}
             )
             if scores["description"].issues:
                 logger.debug(f"Description quality issues ({source}): {scores['description'].issues}")

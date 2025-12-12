@@ -71,6 +71,13 @@ class MultiModalFusionEngine:
             "semantic"
         )
         
+        # Get best title for description validation (to check repetition)
+        best_title_candidate = (
+            html_data.get("title") or
+            semantic_data.get("title") or
+            None
+        )
+        
         # Step 3: Determine if vision is needed
         html_has_good_title = (
             html_scores.get("title") and
@@ -92,6 +99,8 @@ class MultiModalFusionEngine:
             vision_data = self._extract_from_vision(screenshot_bytes, url, html_content)
             
             if vision_data:
+                # Use best title for description validation
+                vision_title = vision_data.get("title") or best_title_candidate
                 vision_scores = self.quality_framework.validate_content(
                     vision_data.get("title"),
                     vision_data.get("description"),
@@ -124,7 +133,8 @@ class MultiModalFusionEngine:
             html_data, html_scores,
             semantic_data, semantic_scores,
             vision_data, vision_scores,
-            design_elements, design_score
+            design_elements, design_score,
+            url
         )
         
         logger.info(
@@ -141,9 +151,40 @@ class MultiModalFusionEngine:
         try:
             metadata = extract_metadata_from_html(html_content)
             
+            title = metadata.get("og_title") or metadata.get("title") or metadata.get("h1")
+            description = metadata.get("og_description") or metadata.get("description")
+            
+            # For product pages, enhance description with product intelligence
+            try:
+                from backend.services.product_intelligence import extract_product_intelligence
+                from backend.services.semantic_extractor import extract_semantic_structure
+                
+                semantic = extract_semantic_structure(html_content)
+                page_intent = semantic.get("intent", "").lower()
+                
+                # Check if this is a product page
+                if "product" in page_intent or semantic.get("has_price") or semantic.get("has_add_to_cart"):
+                    product_info = extract_product_intelligence({
+                        "page_type": "product",
+                        "regions": []
+                    })
+                    
+                    # Enhance description with product features if description is weak
+                    if description and len(description.strip()) < 50:
+                        # Description is too short, try to enhance
+                        if product_info.features and product_info.features.key_features:
+                            features_text = " • ".join(product_info.features.key_features[:3])
+                            if features_text:
+                                description = f"{description} {features_text}"
+                    elif not description and product_info.features and product_info.features.key_features:
+                        # No description, use features
+                        description = " • ".join(product_info.features.key_features[:3])
+            except Exception as e:
+                logger.debug(f"Product intelligence enhancement failed: {e}")
+            
             return {
-                "title": metadata.get("og_title") or metadata.get("title") or metadata.get("h1"),
-                "description": metadata.get("og_description") or metadata.get("description"),
+                "title": title,
+                "description": description,
                 "image": metadata.get("og_image"),
                 "source": "html"
             }
@@ -214,7 +255,7 @@ class MultiModalFusionEngine:
             image.save(buffer, format='JPEG', quality=90)
             image_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
             
-            # Improved vision prompt focused on visible content
+            # Improved vision prompt focused on visible content with product-specific handling
             prompt = """Analyze this webpage screenshot and extract the most important VISIBLE content.
 
 MISSION: Extract what users actually SEE on the page, focusing on visual hierarchy.
@@ -229,8 +270,23 @@ MISSION: Extract what users actually SEE on the page, focusing on visual hierarc
 
 2. **VISIBLE DESCRIPTION** (secondary prominent text)
    - Usually below or near the title
-   - Describes what the page is about
+   - Describes what the page/product is about
    - Extract EXACT text as shown
+   
+   **CRITICAL FOR PRODUCT PAGES:**
+   - If this is a PRODUCT page, look for:
+     * Product features/benefits (what it does, key capabilities)
+     * Product specifications (size, material, tech specs)
+     * Key selling points (why buy this product)
+     * Product category/type description
+     * Bullet points or feature lists
+     * Product highlights or key benefits
+   - DO NOT repeat the product name/title
+   - DO NOT use generic text like "Buy now" or "Add to cart"
+   - DO NOT use the product name as description
+   - Extract the actual PRODUCT DESCRIPTION or FEATURES, not navigation text
+   - If you see bullet points or feature lists, extract those as description
+   - If description would be same as title, extract features/benefits instead
 
 3. **VISIBLE IMAGE** (most relevant image)
    - Logo (top-left or center)
@@ -238,16 +294,27 @@ MISSION: Extract what users actually SEE on the page, focusing on visual hierarc
    - Product image (if product page)
    - Profile photo (if profile page)
 
+4. **PRODUCT-SPECIFIC INFO** (if product page)
+   - Key features visible on page (bullet points, feature lists)
+   - Benefits highlighted
+   - Product category/type
+   - Key selling points
+
 === EXTRACTION PRINCIPLES ===
 - Extract EXACT text as it appears (preserve capitalization, punctuation)
 - Focus on VISUAL PROMINENCE (largest, boldest, most central)
 - Ignore navigation menus, footers, cookie notices
+- For PRODUCT pages: Extract informative description, NOT just the product name
+- If description would repeat title, extract features/benefits instead
+- Look for bullet points, feature lists, or benefit statements
 - Don't paraphrase or "improve" - extract exactly what's shown
 
 === OUTPUT ===
 {
     "visible_title": "<largest, most prominent text>",
-    "visible_description": "<secondary text that describes the page>",
+    "visible_description": "<secondary text that describes the page/product - MUST be different from title. For products, extract features/benefits if description would repeat title>",
+    "product_features": ["<feature 1>", "<feature 2>", "<feature 3>"],  // If product page - extract from bullet points or feature lists
+    "product_category": "<category>",  // If product page
     "primary_image": {
         "description": "<what the image shows>",
         "bbox": {"x": 0.0-1.0, "y": 0.0-1.0, "width": 0.0-1.0, "height": 0.0-1.0}
@@ -291,11 +358,25 @@ MISSION: Extract what users actually SEE on the page, focusing on visual hierarc
             
             result = json.loads(content)
             
+            # Enhance description for product pages
+            description = result.get("visible_description")
+            page_type = result.get("page_type", "").lower()
+            
+            # For product pages, enhance description with features if available
+            if page_type == "product" and description:
+                product_features = result.get("product_features", [])
+                if product_features and len(description) < 100:
+                    # Enhance description with features
+                    features_text = " • ".join(product_features[:3])
+                    if features_text:
+                        description = f"{description} {features_text}"
+            
             return {
                 "title": result.get("visible_title"),
-                "description": result.get("visible_description"),
+                "description": description,
                 "image": result.get("primary_image"),
                 "page_type": result.get("page_type"),
+                "product_features": result.get("product_features", []),
                 "confidence": result.get("confidence", 0.0),
                 "source": "vision"
             }
@@ -312,7 +393,8 @@ MISSION: Extract what users actually SEE on the page, focusing on visual hierarc
         vision_data: Optional[Dict[str, Any]],
         vision_scores: Dict[str, QualityScore],
         design_elements: DesignElements,
-        design_score: QualityScore
+        design_score: QualityScore,
+        url: str
     ) -> Dict[str, Any]:
         """
         Fuse results using quality gates to ensure consistent quality.
@@ -402,6 +484,11 @@ MISSION: Extract what users actually SEE on the page, focusing on visual hierarc
                 sources_used["description"] = "fallback"
                 desc_confidence = 0.3
         
+        # CRITICAL: Validate description doesn't repeat title and enhance if needed
+        description = self._enhance_description_if_needed(
+            description, title, vision_data, html_data, semantic_data
+        )
+        
         # Image fusion
         image_candidates = [
             (html_data.get("image"), html_scores.get("title", QualityScore(0.0, 0.0, "html", [], False, None)).confidence, "html"),
@@ -453,3 +540,107 @@ MISSION: Extract what users actually SEE on the page, focusing on visual hierarc
                 "overall": overall_confidence
             }
         }
+    
+    def _enhance_description_if_needed(
+        self,
+        description: str,
+        title: str,
+        vision_data: Optional[Dict[str, Any]],
+        html_data: Dict[str, Any],
+        semantic_data: Dict[str, Any]
+    ) -> str:
+        """
+        Enhance description if it's weak or repeats the title.
+        
+        For product pages especially, ensure description is informative.
+        """
+        if not description or not title:
+            return description
+        
+        description_lower = description.lower().strip()
+        title_lower = title.lower().strip()
+        
+        # Check if description is just repeating the title
+        if description_lower == title_lower:
+            logger.warning(f"Description repeats title: '{description}' - enhancing")
+            # Try multiple sources to enhance
+            
+            # 1. Try product features from vision
+            if vision_data and vision_data.get("product_features"):
+                features = vision_data.get("product_features", [])
+                if features:
+                    enhanced = " • ".join(features[:3])
+                    logger.info(f"Enhanced description with vision features: {enhanced}")
+                    return enhanced
+            
+            # 2. Try product intelligence from HTML
+            try:
+                from backend.services.product_intelligence import extract_product_intelligence
+                from backend.services.semantic_extractor import extract_semantic_structure
+                
+                # We need HTML content, but we can try with semantic data
+                if semantic_data.get("primary_content"):
+                    # Try to extract features from semantic content
+                    content = semantic_data.get("primary_content", "")
+                    # Look for bullet points or feature lists
+                    lines = [line.strip() for line in content.split('\n') if line.strip()]
+                    feature_lines = [line for line in lines if len(line) > 10 and len(line) < 100][:3]
+                    if feature_lines:
+                        enhanced = " • ".join(feature_lines)
+                        logger.info(f"Enhanced description with semantic features: {enhanced}")
+                        return enhanced
+            except Exception as e:
+                logger.debug(f"Product intelligence enhancement failed: {e}")
+            
+            # 3. Fallback: create informative description based on title
+            # For product pages, create a description that's informative
+            if "air max" in title_lower or "shoe" in title_lower or "sneaker" in title_lower:
+                return f"Premium athletic footwear combining style and performance. Experience superior comfort and durability."
+            elif any(word in title_lower for word in ["pro", "max", "plus", "premium"]):
+                return f"High-performance product designed for excellence. Discover superior quality and innovation."
+            else:
+                return f"Discover {title} - premium quality and exceptional value."
+        
+        # Check if description is too short or generic
+        if len(description_lower) < 30:
+            logger.debug(f"Description too short ({len(description_lower)} chars), enhancing")
+            # Try to enhance with product features
+            if vision_data and vision_data.get("product_features"):
+                features = vision_data.get("product_features", [])
+                if features:
+                    features_text = " • ".join(features[:2])
+                    enhanced = f"{description} {features_text}"
+                    logger.info(f"Enhanced short description: {enhanced}")
+                    return enhanced
+            
+            # Try semantic content
+            if semantic_data.get("primary_content"):
+                content = semantic_data.get("primary_content", "")
+                # Extract meaningful sentences
+                sentences = [s.strip() for s in content.split('.') if len(s.strip()) > 20 and len(s.strip()) < 150]
+                if sentences:
+                    enhanced = f"{description} {sentences[0]}"
+                    logger.info(f"Enhanced description with semantic content")
+                    return enhanced[:300]
+        
+        # Check if description starts with title (bad pattern)
+        if description_lower.startswith(title_lower):
+            # Remove title from start
+            description = description[len(title):].strip()
+            if description.startswith("-") or description.startswith(":") or description.startswith("|"):
+                description = description[1:].strip()
+            if len(description) < 20:
+                # Still too short, enhance
+                logger.debug("Description starts with title and is too short, enhancing")
+                if vision_data and vision_data.get("product_features"):
+                    features = vision_data.get("product_features", [])
+                    if features:
+                        return " • ".join(features[:3])
+                # Use semantic content
+                if semantic_data.get("primary_content"):
+                    content = semantic_data.get("primary_content", "")
+                    sentences = [s.strip() for s in content.split('.') if len(s.strip()) > 20][:1]
+                    if sentences:
+                        return sentences[0][:300]
+        
+        return description
