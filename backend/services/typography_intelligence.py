@@ -408,12 +408,22 @@ def get_optimal_line_breaks(
     if current_line and len(lines) < max_lines:
         lines.append(" ".join(current_line))
     
-    # Truncate last line if needed
+    # Smart truncation: break at word boundaries, not mid-word
     if len(lines) == max_lines and len(words) > sum(len(l.split()) for l in lines):
         last_line = lines[-1]
         if len(last_line) > chars_per_line - 3:
-            last_line = last_line[:chars_per_line - 3]
-        lines[-1] = last_line.rstrip() + "..."
+            # Find the last space before the truncation point
+            truncate_at = chars_per_line - 3
+            last_space = last_line.rfind(' ', 0, truncate_at)
+            
+            if last_space > 0:
+                # Break at word boundary gracefully
+                last_line = last_line[:last_space].rstrip() + "..."
+            else:
+                # No space found (single very long word), truncate but preserve start
+                last_line = last_line[:truncate_at].rstrip() + "..."
+        
+        lines[-1] = last_line
     
     return lines
 

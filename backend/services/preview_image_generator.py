@@ -195,23 +195,36 @@ def _wrap_text(text: str, font: ImageFont.FreeTypeFont, max_width: int, draw: Im
         else:
             if current_line:
                 lines.append(' '.join(current_line))
-            # If single word is too long, truncate it
+            # If single word is too long, truncate it gracefully
+            # But try to preserve as much as possible
             if len(word) > 50:
+                # For very long words (URLs, etc.), truncate but preserve start
                 word = word[:47] + "..."
             current_line = [word]
     
     if current_line:
         lines.append(' '.join(current_line))
     
-    # DESIGN FIX 4: Smart truncation - prefer complete words
+    # ENHANCED: Smart truncation - break at word boundaries gracefully
     max_lines = 3
     if len(lines) > max_lines:
-        # Try to keep first max_lines-1 complete lines, truncate last
+        # Keep first max_lines-1 complete lines
         result = lines[:max_lines-1]
         last_line = lines[max_lines-1]
-        # Truncate last line if needed
+        
+        # Smart truncation: break at word boundary, not mid-word
         if len(last_line) > 60:
-            last_line = last_line[:57] + "..."
+            # Find the last space before the 57-character limit
+            truncate_at = 57
+            last_space = last_line.rfind(' ', 0, truncate_at)
+            
+            if last_space > 0:
+                # Break at word boundary
+                last_line = last_line[:last_space] + "..."
+            else:
+                # No space found, truncate at character but add ellipsis
+                last_line = last_line[:57] + "..."
+        
         result.append(last_line)
         return result
     

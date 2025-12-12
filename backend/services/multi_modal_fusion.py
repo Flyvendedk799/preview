@@ -347,11 +347,18 @@ MISSION: Extract what users actually SEE on the page, focusing on visual hierarc
 === EXTRACTION PRINCIPLES ===
 - Extract EXACT text as it appears (preserve capitalization, punctuation)
 - Focus on VISUAL PROMINENCE (largest, boldest, most central)
-- Ignore navigation menus, footers, cookie notices
+- CRITICAL: Completely IGNORE and EXCLUDE:
+  * Cookie notices, cookie banners, cookie consent dialogs
+  * GDPR notices, privacy policy links, terms of service links
+  * "Accept cookies", "Cookie settings", "Manage preferences"
+  * Any text containing "cookie", "gdpr", "privacy", "consent", "accept all"
+  * Navigation menus, footers, header navigation
+  * "Skip to content", "Menu", "Home", "Contact" links
 - For PRODUCT pages: Extract informative description, NOT just the product name
 - If description would repeat title, extract features/benefits instead
 - Look for bullet points, feature lists, or benefit statements
 - Don't paraphrase or "improve" - extract exactly what's shown
+- NEVER extract cookie-related content - it's not part of the page content
 
 === OUTPUT ===
 {

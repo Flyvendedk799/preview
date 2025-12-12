@@ -477,14 +477,19 @@ class AdaptiveTemplateEngine:
         draw = ImageDraw.Draw(image)
         
         # Render content in zones
+        # CRITICAL: Always render logo if available (brand identity)
         self._render_accent_bar(draw)
-        self._render_logo(image, content.logo_base64)
+        if content.logo_base64:
+            self._render_logo(image, content.logo_base64)
+        else:
+            logger.warning("No logo provided to adaptive template engine - brand identity may be missing")
+        
         self._render_headline(draw, content.title)
         self._render_subtitle(draw, content.subtitle)
         self._render_description(draw, content.description)
         self._render_proof(draw, content.proof_text)
         
-        # Apply post-effects
+        # Apply post-effects (including UI component styling)
         image = self._apply_post_effects(image)
         
         # Output
@@ -532,12 +537,49 @@ class AdaptiveTemplateEngine:
         return image
     
     def _render_accent_bar(self, draw: ImageDraw.Draw):
-        """Render accent color bar."""
+        """Render accent color bar with UI component styling from Design DNA."""
         if "accent_bar" not in self.zones:
             return
         
         x, y, w, h = self.zones["accent_bar"]
-        draw.rectangle([(x, y), (x + w, y + h)], fill=self.colors.accent)
+        
+        # Apply UI component styling from Design DNA
+        ui_components = getattr(self.dna, 'ui_components', None)
+        visual_effects = getattr(self.dna, 'visual_effects', None)
+        
+        # Use button style to determine bar style
+        button_style = "flat"
+        if ui_components:
+            button_style = getattr(ui_components, 'button_style', 'flat')
+            button_shape = getattr(ui_components, 'button_border_radius', 'medium')
+        
+        # Apply visual effects
+        shadow_intensity = "subtle"
+        if visual_effects:
+            shadow_intensity = getattr(visual_effects, 'shadows', 'subtle')
+        
+        # Render based on button style
+        if button_style == "gradient" and visual_effects and getattr(visual_effects, 'gradients', 'none') != 'none':
+            # Gradient bar
+            from backend.services.color_psychology import generate_gradient_colors
+            gradient_colors = generate_gradient_colors(
+                self.colors.accent,
+                self.colors.secondary,
+                steps=10
+            )
+            # Simple gradient implementation
+            for i, color in enumerate(gradient_colors[:w]):
+                draw.rectangle([(x + i, y), (x + i + 1, y + h)], fill=color)
+        else:
+            # Solid bar (default)
+            draw.rectangle([(x, y), (x + w, y + h)], fill=self.colors.accent)
+        
+        # Add shadow if specified
+        if shadow_intensity in ["medium", "dramatic"]:
+            # Add subtle shadow effect
+            shadow_color = tuple(max(0, c - 30) for c in self.colors.accent)
+            draw.rectangle([(x + 2, y + 2), (x + w + 2, y + h + 2)], fill=shadow_color)
+            draw.rectangle([(x, y), (x + w, y + h)], fill=self.colors.accent)
     
     def _render_logo(self, image: Image.Image, logo_base64: Optional[str]):
         """Render logo if available."""
