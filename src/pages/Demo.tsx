@@ -1025,7 +1025,7 @@ export default function Demo() {
                     </div>
                   )}
 
-                  <form onSubmit={handleUrlSubmit} className="space-y-6">
+                  <form onSubmit={handleUrlSubmit} className="space-y-6" noValidate>
                     {/* URL Input - Primary */}
                     <div>
                       <label htmlFor="url" className="block text-sm font-bold text-gray-900 mb-2">
@@ -1071,7 +1071,6 @@ export default function Demo() {
                           aria-required="true"
                           autoComplete="url"
                           spellCheck="false"
-                          noValidate
                         />
                         {url && !urlError && !previewError && (
                           <div className="absolute right-4 top-1/2 transform -translate-y-1/2" aria-hidden="true">
