@@ -73,8 +73,6 @@ export default function Landing() {
   const [scrollY, setScrollY] = useState(0)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [activeNavItem, setActiveNavItem] = useState('')
-  const [currentVariant, setCurrentVariant] = useState('A')
-  const [previewCardVisible, setPreviewCardVisible] = useState(false)
   const heroRef = useRef<HTMLDivElement>(null)
   const sectionRefs = useRef<(HTMLDivElement | null)[]>([])
   
@@ -83,22 +81,6 @@ export default function Landing() {
   const stat2 = useCountUp(40, 1500)
   const stat3 = useCountUp(10, 1800)
   const stat4 = useCountUp(99, 2200)
-  
-  // Hero mockup animations
-  useEffect(() => {
-    // Animate preview card appearance
-    const timer1 = setTimeout(() => setPreviewCardVisible(true), 800)
-    
-    // Cycle through variants
-    const variantInterval = setInterval(() => {
-      setCurrentVariant(prev => prev === 'A' ? 'B' : prev === 'B' ? 'C' : 'A')
-    }, 4000)
-    
-    return () => {
-      clearTimeout(timer1)
-      clearInterval(variantInterval)
-    }
-  }, [])
 
   useEffect(() => {
     setIsVisible(true)
@@ -477,61 +459,25 @@ export default function Landing() {
                         backgroundSize: '32px 32px'
                       }} />
                       
-                      {/* Animated sparkles */}
-                      {[1, 2, 3, 4].map((i) => (
-                        <div
-                          key={i}
-                          className="absolute w-1 h-1 bg-orange-400 rounded-full animate-sparkle"
-                          style={{
-                            left: `${20 + i * 20}%`,
-                            top: `${15 + i * 10}%`,
-                            animationDelay: `${i * 0.5}s`,
-                            animationDuration: '3s'
-                          }}
-                        />
-                      ))}
-                      
-                      {/* Preview card mockup - animated */}
-                      <div 
-                        className={`relative w-full max-w-sm bg-white rounded-xl shadow-xl shadow-gray-900/10 border border-gray-100 overflow-hidden transform transition-all duration-700 ${
-                          previewCardVisible 
-                            ? 'opacity-100 translate-y-0 scale-100' 
-                            : 'opacity-0 translate-y-8 scale-95'
-                        } hover:scale-[1.02]`}
-                      >
-                        {/* Image preview with variant-based colors */}
-                        <div className={`h-32 relative overflow-hidden transition-all duration-500 ${
-                          currentVariant === 'A' ? 'bg-gradient-to-br from-orange-100 via-amber-50 to-yellow-100' :
-                          currentVariant === 'B' ? 'bg-gradient-to-br from-blue-100 via-indigo-50 to-purple-100' :
-                          'bg-gradient-to-br from-emerald-100 via-teal-50 to-cyan-100'
-                        }`}>
+                      {/* Preview card mockup - more realistic */}
+                      <div className="relative w-full max-w-sm bg-white rounded-xl shadow-xl shadow-gray-900/10 border border-gray-100 overflow-hidden transform hover:scale-[1.02] transition-transform duration-500">
+                        {/* Image preview */}
+                        <div className="h-32 bg-gradient-to-br from-orange-100 via-amber-50 to-yellow-100 relative overflow-hidden">
                           <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="w-12 h-12 rounded-xl bg-white/80 backdrop-blur-sm shadow-lg flex items-center justify-center animate-bounce-subtle">
-                              <PhotoIcon className={`w-6 h-6 transition-colors duration-500 ${
-                                currentVariant === 'A' ? 'text-orange-400' :
-                                currentVariant === 'B' ? 'text-blue-400' :
-                                'text-emerald-400'
-                              }`} />
+                            <div className="w-12 h-12 rounded-xl bg-white/80 backdrop-blur-sm shadow-lg flex items-center justify-center">
+                              <PhotoIcon className="w-6 h-6 text-orange-400" />
                             </div>
                           </div>
                         </div>
                         {/* Content */}
                         <div className="p-5 space-y-3">
-                          <div className={`h-5 rounded w-4/5 transition-all duration-500 ${
-                            currentVariant === 'A' ? 'bg-gradient-to-r from-gray-900 via-gray-800 to-gray-700' :
-                            currentVariant === 'B' ? 'bg-gradient-to-r from-blue-900 via-indigo-800 to-purple-700' :
-                            'bg-gradient-to-r from-emerald-900 via-teal-800 to-cyan-700'
-                          }`} />
+                          <div className="h-5 bg-gradient-to-r from-gray-900 via-gray-800 to-gray-700 rounded w-4/5" />
                           <div className="space-y-2">
                             <div className="h-2.5 bg-gray-200 rounded-full w-full" />
                             <div className="h-2.5 bg-gray-200 rounded-full w-3/4" />
                           </div>
                           <div className="flex items-center pt-2">
-                            <div className={`w-4 h-4 rounded mr-2 transition-colors duration-500 ${
-                              currentVariant === 'A' ? 'bg-orange-100' :
-                              currentVariant === 'B' ? 'bg-blue-100' :
-                              'bg-emerald-100'
-                            }`} />
+                            <div className="w-4 h-4 rounded bg-orange-100 mr-2" />
                             <div className="h-2 bg-gray-300 rounded-full w-20" />
                           </div>
                         </div>
@@ -542,27 +488,18 @@ export default function Landing() {
                     <div className="px-6 py-4 bg-gradient-to-r from-gray-50 to-white border-t border-gray-100 flex items-center justify-between">
                       <div className="flex items-center space-x-6">
                         <div className="flex items-center space-x-2">
-                          <div className="relative">
-                            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                            <div className="absolute inset-0 w-2 h-2 rounded-full bg-emerald-500 animate-ping opacity-75" />
-                          </div>
+                          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                           <span className="text-xs font-semibold text-gray-600">Live Preview</span>
                         </div>
                         <div className="text-xs text-gray-400">|</div>
                         <div className="flex items-center space-x-1">
-                          <ChartBarIcon className="w-3.5 h-3.5 text-orange-500 animate-pulse-subtle" />
-                          <span className="text-xs font-bold text-gray-700">{stat2.count}% CTR</span>
+                          <ChartBarIcon className="w-3.5 h-3.5 text-orange-500" />
+                          <span className="text-xs font-bold text-gray-700">+42% CTR</span>
                         </div>
                       </div>
                       <div className="flex items-center space-x-1">
                         <span className="text-xs text-gray-500">Variant</span>
-                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full transition-all duration-500 ${
-                          currentVariant === 'A' ? 'text-orange-600 bg-orange-50' :
-                          currentVariant === 'B' ? 'text-blue-600 bg-blue-50' :
-                          'text-emerald-600 bg-emerald-50'
-                        }`}>
-                          {currentVariant}
-                        </span>
+                        <span className="text-xs font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full">A</span>
                       </div>
                     </div>
                   </div>
@@ -782,202 +719,34 @@ export default function Landing() {
               <div 
                 key={index}
                 data-animate
-                className="group relative bg-white rounded-xl p-6 border border-gray-100 hover:border-gray-200 transition-all duration-300 hover:shadow-xl hover:-translate-y-1 opacity-0 cursor-pointer"
+                className="group relative bg-white rounded-xl p-6 border border-gray-100 hover:border-gray-200 transition-all duration-300 hover:shadow-xl hover:-translate-y-1 opacity-0"
                 style={{ animationDelay: `${index * 100}ms` }}
               >
                 {/* Badge */}
                 {feature.badge && (
-                  <div className={`absolute -top-2 right-4 text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm transition-all duration-300 group-hover:scale-110 ${
-                    feature.badge === 'AI-Powered' ? 'bg-orange-100 text-orange-700 group-hover:bg-orange-200' :
-                    feature.badge === 'Popular' ? 'bg-amber-100 text-amber-700 group-hover:bg-amber-200' :
-                    'bg-blue-100 text-blue-700 group-hover:bg-blue-200'
+                  <div className={`absolute -top-2 right-4 text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm ${
+                    feature.badge === 'AI-Powered' ? 'bg-orange-100 text-orange-700' :
+                    feature.badge === 'Popular' ? 'bg-amber-100 text-amber-700' :
+                    'bg-blue-100 text-blue-700'
                   }`}>
                     {feature.badge}
                   </div>
                 )}
                 
-                {/* Progress indicator */}
-                <div className="absolute top-0 left-0 right-0 h-1 bg-gray-100 rounded-t-xl overflow-hidden">
-                  <div 
-                    className={`h-full transition-all duration-1000 group-hover:w-full ${
-                      feature.accent === 'orange' ? 'bg-gradient-to-r from-orange-500 to-amber-500' :
-                      feature.accent === 'purple' ? 'bg-gradient-to-r from-purple-500 to-violet-500' :
-                      feature.accent === 'amber' ? 'bg-gradient-to-r from-amber-500 to-yellow-500' :
-                      feature.accent === 'emerald' ? 'bg-gradient-to-r from-emerald-500 to-teal-500' :
-                      feature.accent === 'pink' ? 'bg-gradient-to-r from-pink-500 to-rose-500' :
-                      'bg-gradient-to-r from-blue-500 to-indigo-500'
-                    }`}
-                    style={{ 
-                      width: `${60 + index * 5}%`
-                    }}
-                  />
-                </div>
-                
-                {/* Animated icon container */}
-                <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-4 transition-all duration-500 group-hover:scale-125 group-hover:rotate-6 group-hover:shadow-lg ${
-                  feature.accent === 'orange' ? 'bg-orange-100 text-orange-600 group-hover:bg-orange-200' :
-                  feature.accent === 'purple' ? 'bg-purple-100 text-purple-600 group-hover:bg-purple-200' :
-                  feature.accent === 'amber' ? 'bg-amber-100 text-amber-600 group-hover:bg-amber-200' :
-                  feature.accent === 'emerald' ? 'bg-emerald-100 text-emerald-600 group-hover:bg-emerald-200' :
-                  feature.accent === 'pink' ? 'bg-pink-100 text-pink-600 group-hover:bg-pink-200' :
-                  'bg-blue-100 text-blue-600 group-hover:bg-blue-200'
+                <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-4 transition-all duration-300 group-hover:scale-110 group-hover:rotate-3 ${
+                  feature.accent === 'orange' ? 'bg-orange-100 text-orange-600' :
+                  feature.accent === 'purple' ? 'bg-purple-100 text-purple-600' :
+                  feature.accent === 'amber' ? 'bg-amber-100 text-amber-600' :
+                  feature.accent === 'emerald' ? 'bg-emerald-100 text-emerald-600' :
+                  feature.accent === 'pink' ? 'bg-pink-100 text-pink-600' :
+                  'bg-blue-100 text-blue-600'
                 }`}>
-                  <feature.icon className="w-5 h-5 transition-all duration-500 group-hover:scale-110" />
+                  <feature.icon className="w-5 h-5" />
                 </div>
-                
-                <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-2 group-hover:text-gray-800 transition-colors group-hover:scale-105 transform transition-transform duration-300">
-                  {feature.title}
-                </h3>
-                
-                <p className="text-gray-500 text-sm leading-relaxed group-hover:text-gray-600 transition-colors duration-300">
-                  {feature.description}
-                </p>
-                
-                {/* Expanded content indicator */}
-                <div className={`mt-4 flex items-center text-xs font-semibold transition-all duration-300 opacity-0 group-hover:opacity-100 -translate-y-2 group-hover:translate-y-0 ${
-                  feature.accent === 'orange' ? 'text-orange-600' :
-                  feature.accent === 'purple' ? 'text-purple-600' :
-                  feature.accent === 'amber' ? 'text-amber-600' :
-                  feature.accent === 'emerald' ? 'text-emerald-600' :
-                  feature.accent === 'pink' ? 'text-pink-600' :
-                  'text-blue-600'
-                }`}>
-                  <span>Learn more</span>
-                  <ArrowRightIcon className="w-3 h-3 ml-1 transform group-hover:translate-x-1 transition-transform" />
-                </div>
+                <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-2 group-hover:text-gray-800 transition-colors">{feature.title}</h3>
+                <p className="text-gray-500 text-sm leading-relaxed">{feature.description}</p>
               </div>
             ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Before/After Comparison Section */}
-      <section 
-        className="py-14 sm:py-20 px-4 sm:px-6 lg:px-12 bg-gradient-to-b from-white via-gray-50/50 to-white"
-        ref={el => sectionRefs.current[2] = el as HTMLDivElement | null}
-      >
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-10 sm:mb-14 space-y-3">
-            <div className="inline-flex items-center space-x-2 px-4 py-1.5 bg-gradient-to-r from-emerald-100 to-teal-100 rounded-full border-2 border-emerald-200 mb-4 shadow-sm">
-              <span className="text-xs font-black text-emerald-700 tracking-wide">SEE THE DIFFERENCE</span>
-            </div>
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-gray-900 tracking-[-0.02em] drop-shadow-sm">
-              Transform your link previews
-            </h2>
-            <p className="text-base sm:text-lg text-gray-500 max-w-xl mx-auto px-4">
-              See the dramatic difference MetaView makes to your shared links.
-            </p>
-          </div>
-
-          {/* Before/After Comparison */}
-          <div className="relative max-w-5xl mx-auto">
-            {/* Comparison Container */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-              {/* Before - Generic Preview */}
-              <div 
-                data-animate
-                className="group relative bg-white rounded-2xl p-6 border-2 border-gray-200 shadow-lg hover:shadow-xl transition-all duration-500 opacity-0"
-              >
-                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-gray-600 text-white px-4 py-1 rounded-full text-xs font-bold shadow-md">
-                  Without MetaView
-                </div>
-                
-                {/* Generic preview card */}
-                <div className="mt-6 bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
-                  {/* No image - just gray box */}
-                  <div className="h-32 bg-gray-200 flex items-center justify-center">
-                    <div className="text-gray-400 text-xs">No Preview Image</div>
-                  </div>
-                  
-                  {/* Plain text content */}
-                  <div className="p-4 space-y-2">
-                    <div className="h-4 bg-gray-300 rounded w-3/4" />
-                    <div className="h-3 bg-gray-200 rounded w-full" />
-                    <div className="h-3 bg-gray-200 rounded w-5/6" />
-                    <div className="pt-2 flex items-center">
-                      <div className="w-3 h-3 rounded bg-gray-300 mr-2" />
-                      <div className="h-2 bg-gray-200 rounded w-16" />
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Stats - low */}
-                <div className="mt-4 flex items-center justify-center space-x-4 text-xs text-gray-500">
-                  <div className="flex items-center space-x-1">
-                    <ChartBarIcon className="w-4 h-4" />
-                    <span>2.1% CTR</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* After - MetaView Preview */}
-              <div 
-                data-animate
-                className="group relative bg-gradient-to-br from-orange-50 to-amber-50 rounded-2xl p-6 border-2 border-orange-300 shadow-xl hover:shadow-2xl transition-all duration-500 opacity-0"
-                style={{ animationDelay: '200ms' }}
-              >
-                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-orange-500 to-amber-500 text-white px-4 py-1 rounded-full text-xs font-bold shadow-lg animate-pulse-subtle">
-                  With MetaView
-                </div>
-                
-                {/* Beautiful preview card */}
-                <div className="mt-6 bg-white rounded-xl shadow-lg border border-orange-100 overflow-hidden transform group-hover:scale-[1.02] transition-transform duration-300">
-                  {/* Beautiful gradient image */}
-                  <div className="h-32 bg-gradient-to-br from-orange-400 via-amber-400 to-yellow-400 relative overflow-hidden">
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="w-16 h-16 rounded-xl bg-white/90 backdrop-blur-sm shadow-xl flex items-center justify-center">
-                        <PhotoIcon className="w-8 h-8 text-orange-600" />
-                      </div>
-                    </div>
-                    {/* Decorative elements */}
-                    <div className="absolute top-2 right-2 w-2 h-2 bg-white/50 rounded-full animate-pulse" />
-                    <div className="absolute bottom-2 left-2 w-1.5 h-1.5 bg-white/50 rounded-full animate-pulse" style={{ animationDelay: '0.5s' }} />
-                  </div>
-                  
-                  {/* Rich content */}
-                  <div className="p-5 space-y-3 bg-white">
-                    <div className="h-5 bg-gradient-to-r from-gray-900 via-gray-800 to-gray-700 rounded w-4/5" />
-                    <div className="space-y-2">
-                      <div className="h-3 bg-gradient-to-r from-gray-700 to-gray-500 rounded-full w-full" />
-                      <div className="h-3 bg-gradient-to-r from-gray-600 to-gray-400 rounded-full w-5/6" />
-                    </div>
-                    <div className="flex items-center pt-2">
-                      <div className="w-5 h-5 rounded-full bg-gradient-to-br from-orange-400 to-amber-500 mr-2 shadow-sm" />
-                      <div className="h-2.5 bg-gradient-to-r from-gray-600 to-gray-400 rounded-full w-24" />
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Stats - high */}
-                <div className="mt-4 flex items-center justify-center space-x-4">
-                  <div className="flex items-center space-x-1 text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full">
-                    <ChartBarIcon className="w-4 h-4" />
-                    <span>+{stat2.count}% CTR</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Animated divider */}
-            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 hidden md:block">
-              <div className="relative">
-                <div className="w-12 h-12 bg-white rounded-full border-4 border-orange-500 shadow-xl flex items-center justify-center z-10 animate-bounce-subtle">
-                  <ArrowRightIcon className="w-6 h-6 text-orange-600" />
-                </div>
-                <div className="absolute inset-0 bg-orange-500 rounded-full animate-ping opacity-20" />
-              </div>
-            </div>
-          </div>
-
-          {/* CTA below comparison */}
-          <div className="text-center mt-10">
-            <Link 
-              to="/app" 
-              className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500 text-white rounded-xl font-bold text-sm transition-all duration-300 hover:scale-105 hover:shadow-xl hover:shadow-orange-500/30"
-            >
-              Start Creating Beautiful Previews
-              <ArrowRightIcon className="w-4 h-4 ml-2" />
-            </Link>
           </div>
         </div>
       </section>
@@ -985,7 +754,7 @@ export default function Landing() {
       {/* Social Proof + Features Visual Section */}
       <section 
         className="py-14 sm:py-20 px-4 sm:px-6 lg:px-12 bg-white"
-        ref={el => sectionRefs.current[3] = el as HTMLDivElement | null}
+        ref={el => sectionRefs.current[2] = el as HTMLDivElement | null}
       >
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 sm:gap-14 items-center">
@@ -1104,7 +873,7 @@ export default function Landing() {
       <section 
         id="pricing" 
         className="py-14 sm:py-20 px-4 sm:px-6 lg:px-12 bg-gradient-to-b from-white via-orange-50/30 to-white"
-        ref={el => sectionRefs.current[4] = el as HTMLDivElement | null}
+        ref={el => sectionRefs.current[3] = el as HTMLDivElement | null}
       >
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-10 sm:mb-14 space-y-3">
@@ -1236,7 +1005,7 @@ export default function Landing() {
       {/* Premium CTA Section - High Urgency */}
       <section 
         className="py-14 sm:py-20 px-4 sm:px-6 lg:px-12 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white relative overflow-hidden"
-        ref={el => sectionRefs.current[5] = el as HTMLDivElement | null}
+        ref={el => sectionRefs.current[4] = el as HTMLDivElement | null}
       >
         {/* Animated background with orange accent */}
         <div className="absolute inset-0">
@@ -1295,7 +1064,7 @@ export default function Landing() {
       <section 
         id="docs" 
         className="py-14 sm:py-20 px-4 sm:px-6 lg:px-12 bg-gradient-to-b from-white via-gray-50/30 to-white"
-        ref={el => sectionRefs.current[6] = el as HTMLDivElement | null}
+        ref={el => sectionRefs.current[5] = el as HTMLDivElement | null}
       >
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-10 sm:mb-12 space-y-3">
@@ -1657,50 +1426,6 @@ export default function Landing() {
         *:focus-visible {
           outline: 2px solid rgba(249, 115, 22, 0.5);
           outline-offset: 2px;
-        }
-
-        /* Sparkle animation for hero */
-        @keyframes sparkle {
-          0%, 100% {
-            opacity: 0;
-            transform: scale(0);
-          }
-          50% {
-            opacity: 1;
-            transform: scale(1);
-          }
-        }
-
-        .animate-sparkle {
-          animation: sparkle 3s ease-in-out infinite;
-        }
-
-        /* Subtle bounce animation */
-        @keyframes bounceSubtle {
-          0%, 100% {
-            transform: translateY(0);
-          }
-          50% {
-            transform: translateY(-5px);
-          }
-        }
-
-        .animate-bounce-subtle {
-          animation: bounceSubtle 3s ease-in-out infinite;
-        }
-
-        /* Subtle pulse animation */
-        @keyframes pulseSubtle {
-          0%, 100% {
-            opacity: 1;
-          }
-          50% {
-            opacity: 0.7;
-          }
-        }
-
-        .animate-pulse-subtle {
-          animation: pulseSubtle 2s ease-in-out infinite;
         }
       `}</style>
     </div>
