@@ -46,6 +46,18 @@ try:
 except ImportError:
     DESIGN_DNA_AVAILABLE = False
 
+# ENHANCED: Quality Assurance Integrations
+try:
+    from backend.services.ai_output_validator import AIOutputValidator, validate_extraction_result
+    from backend.services.extraction_quality_scorer import ExtractionQualityScorer, score_extraction_quality
+    from backend.services.quality_gates import QualityGateEvaluator, QualityGateConfig, evaluate_quality_gates
+    from backend.services.extraction_fallback_system import ExtractionFallbackSystem
+    QUALITY_ASSURANCE_AVAILABLE = True
+    logger.info("✨ Quality assurance system enabled (validation, scoring, gates, fallbacks)")
+except ImportError as e:
+    QUALITY_ASSURANCE_AVAILABLE = False
+    logger.warning(f"Quality assurance system not available: {e}")
+
 logger = logging.getLogger(__name__)
 
 
@@ -231,12 +243,33 @@ MISSION: Extract content that makes this preview IRRESISTIBLE. Someone scrolling
 Find THE SINGLE MOST COMPELLING THING about this page. Not everything - THE ONE THING.
 Then find 2-3 supporting elements. That's it.
 
+=== CRITICAL: COMPANY vs INDIVIDUAL DETECTION ===
+BEFORE extracting, determine: Is this about ONE PERSON or a COMPANY/TEAM?
+
+INDIVIDUAL PROFILE indicators:
+✅ Single person's name visible (2-4 words: "Sarah Chen", "John Smith")
+✅ One profile photo/avatar (circular, headshot)
+✅ Bio written in first person ("I am..." or "My work...")
+✅ URL has user slug (/profile/username, /@username)
+
+COMPANY/TEAM PAGE indicators:
+❌ Team page (/team, /our-team, /about-us without individual slug)
+❌ Multiple people shown
+❌ Company name instead of person name
+❌ "We" language ("We help...", "Our team...")
+❌ Pricing tables, product features
+❌ "About Us", "Meet Our Team" headings
+
+If 2+ COMPANY indicators → NOT a profile, classify as company/landing
+If unclear → NOT a profile
+
 === QUALITY STANDARDS ===
 - Extract EXACT text (no paraphrasing, no "improvements")
 - Prioritize SPECIFIC numbers over vague claims
 - Focus on OUTCOMES and BENEFITS, not features
 - Look for SOCIAL PROOF with concrete evidence
 - Ignore generic marketing speak and filler content
+- VERIFY names are person names, not job titles or company names
 
 === WHAT TO FIND ===
 
@@ -289,12 +322,141 @@ Then find 2-3 supporting elements. That's it.
 - Legal text
 - "Sign up" without context
 
+=== CHAIN-OF-THOUGHT: Think Step-by-Step ===
+Before extracting, answer these questions in your mind (don't output these, but use them to guide your extraction):
+
+STEP 1: What type of page is this?
+- Am I looking at ONE person or MULTIPLE people/a company?
+- Is this selling something (product/service) or providing information (profile/article)?
+- Does the URL have a user slug (/profile/username) or is it generic (/team, /about)?
+
+STEP 2: Verify individual vs company:
+- Can I see ONE person's name (2-4 words, capitalized)?
+- Are there company indicators (pricing, "we" language, multiple team members)?
+- Is this a team page masquerading as an individual profile?
+
+STEP 3: Find the ONE most compelling thing:
+- What's the SINGLE most important statement on this page?
+- For profiles: Is it the person's NAME (not their bio)?
+- For products/services: Is it a specific value proposition (not "welcome")?
+
+STEP 4: Validate my extraction:
+- Is my hook actual content or navigation text?
+- Does my social proof have NUMBERS?
+- Does my classification match the signals (profile → name, company → product)?
+
+=== FEW-SHOT EXAMPLES (Learn from these) ===
+
+EXAMPLE 1: SaaS Landing Page (Stripe)
+THINKING: This is a company homepage (not individual). URL is domain root. Has product features and "we" language.
+✅ GOOD:
+{
+  "reasoning_chain": {
+    "page_type_decision": "This is a SaaS company homepage selling payment infrastructure",
+    "individual_vs_company": "company - has product features, pricing, 'we' language",
+    "hook_selection": "Main headline is value prop, not navigation",
+    "validation": "All signals point to company/landing page"
+  },
+  "page_type": "saas",
+  "the_hook": "Financial infrastructure for the internet",
+  "social_proof_found": "Millions of companies of all sizes",
+  "key_benefit": "Accept payments and manage revenue",
+  "is_individual_profile": false,
+  "company_indicators": ["company homepage", "product features", "we language"],
+  "analysis_confidence": 0.95
+}
+❌ BAD:
+{
+  "the_hook": "Welcome to Stripe",  // ❌ Generic navigation text
+  "social_proof_found": "Great reviews"  // ❌ No numbers
+}
+
+EXAMPLE 2: Profile Page (Designer)
+THINKING: This is ONE person's page. URL has /profile/sarah-chen. I see a single name, single photo, "I" language.
+✅ GOOD:
+{
+  "reasoning_chain": {
+    "page_type_decision": "Individual profile - URL has user slug, one person shown",
+    "individual_vs_company": "individual - single name, single photo, first-person bio",
+    "hook_selection": "Person's name 'Sarah Chen' is the hook, not her job title or bio",
+    "validation": "Name is 2 words, capitalized, no job title keywords"
+  },
+  "page_type": "profile",
+  "the_hook": "Sarah Chen",  // ✅ Just the name (2 words)
+  "social_proof_found": "10+ years • Ex-Google, Stripe",
+  "key_benefit": "Product design for B2B SaaS",
+  "detected_person_name": "Sarah Chen",
+  "is_individual_profile": true,
+  "company_indicators": [],
+  "analysis_confidence": 0.9
+}
+❌ BAD:
+{
+  "the_hook": "Senior Product Designer with 10 years of experience...",  // ❌ Bio, not name
+  "detected_person_name": "Senior Product Designer"  // ❌ Job title, not name
+}
+
+EXAMPLE 3: Company Team Page (NOT a profile!)
+THINKING: URL is /team (no user slug). Multiple people shown. Heading says "Our Team". This is COMPANY, not individual.
+✅ GOOD:
+{
+  "reasoning_chain": {
+    "page_type_decision": "Company team page - URL is /team without individual slug",
+    "individual_vs_company": "company - multiple people, 'our team' heading, no individual profile",
+    "hook_selection": "Team page heading, not any individual's name",
+    "validation": "Multiple company indicators, zero individual indicators"
+  },
+  "page_type": "company",
+  "the_hook": "Meet Our Team",
+  "social_proof_found": "50+ experts across 6 countries",
+  "is_individual_profile": false,  // ✅ Correctly identified as company
+  "company_indicators": ["team page", "multiple people", "we language", "no user slug"],
+  "analysis_confidence": 0.95
+}
+❌ BAD:
+{
+  "page_type": "profile",  // ❌ WRONG! This is a team page, not individual profile
+  "the_hook": "John Doe"  // ❌ Extracted one team member's name incorrectly
+}
+
+EXAMPLE 4: E-commerce Product
+THINKING: Product page with price and buy button. Not a profile. Extract product name and ratings.
+✅ GOOD:
+{
+  "reasoning_chain": {
+    "page_type_decision": "E-commerce product page - has price, reviews, add-to-cart",
+    "individual_vs_company": "company/product - selling a product, not about a person",
+    "hook_selection": "Product name is the hook",
+    "validation": "Has pricing indicators, NOT a profile"
+  },
+  "page_type": "ecommerce",
+  "the_hook": "Nike Air Max 2024",
+  "social_proof_found": "4.7★ (1,892 reviews)",  // ✅ Has numbers
+  "key_benefit": "$189.99 with 20% OFF",
+  "is_individual_profile": false,
+  "company_indicators": ["has pricing", "has reviews", "add to cart button"],
+  "analysis_confidence": 0.92
+}
+❌ BAD:
+{
+  "social_proof_found": "Great reviews"  // ❌ No numbers
+}
+
 === OUTPUT JSON ===
 {{
+    "reasoning_chain": {{
+        "page_type_decision": "<1-2 sentences explaining what type of page this is and why>",
+        "individual_vs_company": "<individual|company|unclear - explain reasoning>",
+        "hook_selection": "<1 sentence explaining why this hook was chosen>",
+        "validation": "<1 sentence confirming extraction makes sense>"
+    }},
     "page_type": "<saas|ecommerce|agency|portfolio|blog|startup|enterprise|marketplace|tool|landing|profile|unknown>",
     "the_hook": "<THE single most compelling statement on this page - exact text. FOR PROFILE PAGES: This should be the PERSON'S NAME (2-4 words), NOT their bio description>",
     "social_proof_found": "<best social proof with numbers, or null if none>",
     "key_benefit": "<most specific benefit found, or null>",
+    "detected_person_name": "<person's full name if profile page, null otherwise. MUST be 2-4 words, capitalized, NO job titles>",
+    "is_individual_profile": <true only if this is ONE person's profile page, false for teams/companies>,
+    "company_indicators": ["<list", "of", "signals", "that", "indicate", "company/team page>"],
     "regions": [
         {{
             "id": "<unique_id>",
@@ -339,7 +501,9 @@ Then find 2-3 supporting elements. That's it.
 5. BBOX PRECISION - CRITICAL for profile images/avatars: Detect ONLY the circular/rounded profile image itself. The bounding box should tightly wrap around the actual face/avatar circle, excluding any surrounding whitespace, borders, or padding. For circular profile images, the bounding box should be roughly square and should include ONLY the visible circular image content, not the empty space around it.
 6. CONTEXT MATTERS - Consider page type (product vs blog vs landing) when prioritizing
 7. TRUST SIGNALS FIRST - Social proof, ratings, testimonials get highest priority
-8. AVOID FILLER - Skip "Welcome", "About Us", navigation text, legal disclaimers"""
+8. AVOID FILLER - Skip "Welcome", "About Us", navigation text, legal disclaimers
+9. VERIFY PROFILE - If classifying as profile, confirm: (a) ONE person name detected, (b) NO company indicators, (c) has user slug in URL
+10. NAME VALIDATION - Person names are 2-4 words, capitalized, NO job titles ("Senior Designer" is NOT a name)"""
 
 
 STAGE_4_5_PROMPT = """You're designing a preview that has 1.5 seconds to convince someone to click. Every element must earn its place.
@@ -692,7 +856,7 @@ def run_stages_1_2_3(screenshot_bytes: bytes) -> Tuple[List[Dict], Dict[str, str
         messages=[
             {
                 "role": "system",
-                "content": "You are a conversion copywriter extracting the most compelling content from webpages. Be precise with text - extract EXACT wording. Prioritize SPECIFIC claims over generic ones. Numbers and social proof are gold. Output valid JSON only."
+                "content": "You are a conversion copywriter extracting the most compelling content from webpages. Be precise with text - extract EXACT wording. Prioritize SPECIFIC claims over generic ones. Numbers and social proof are gold. CRITICAL: Distinguish between individual profiles and company pages. Verify person names are actual names, not job titles. Output valid JSON only."
             },
             {
                 "role": "user",
@@ -705,8 +869,9 @@ def run_stages_1_2_3(screenshot_bytes: bytes) -> Tuple[List[Dict], Dict[str, str
                 ]
             }
         ],
-        max_tokens=3500,  # Optimized for faster responses while maintaining quality
-        temperature=0.05  # Very low for consistent, precise extraction
+        max_tokens=4000,  # Increased for new fields (detected_person_name, company_indicators)
+        temperature=0.0,  # CHANGED: Fully deterministic for consistent results
+        seed=42  # Deterministic seed for reproducibility
     )
     
     content = response.choices[0].message.content.strip()
@@ -775,6 +940,54 @@ def run_stages_1_2_3(screenshot_bytes: bytes) -> Tuple[List[Dict], Dict[str, str
     
     logger.info(f"🎯 Extracted highlights: hook='{extracted_highlights.get('the_hook', 'none')[:50]}...', proof='{extracted_highlights.get('social_proof_found', 'none')}'")
     logger.info(f"🧬 Design DNA: style={design_dna.get('style')}, mood={design_dna.get('mood')}, typography={design_dna.get('typography_personality')}")
+    
+    # ENHANCED: Validate and score extraction quality
+    if QUALITY_ASSURANCE_AVAILABLE:
+        try:
+            # Validate extraction
+            validation_result = validate_extraction_result(data)
+            
+            # Score quality
+            quality_breakdown = score_extraction_quality(data)
+            
+            # Evaluate quality gates
+            gate_config = QualityGateConfig(
+                min_extraction_quality=0.60,
+                min_confidence=0.50,
+                enforce_profile_name_validation=True
+            )
+            gate_result = evaluate_quality_gates(
+                data,
+                quality_breakdown.overall_score,
+                validation_result,
+                gate_config
+            )
+            
+            # Log quality metrics
+            logger.info(
+                f"📊 Quality: {quality_breakdown.overall_score:.2f} "
+                f"(Grade {quality_breakdown.grade.value}), "
+                f"Confidence: {data.get('analysis_confidence', 0.0):.2f}, "
+                f"Gates: {gate_result.status.value}"
+            )
+            
+            # Add quality metrics to data for downstream use
+            data["_quality_metrics"] = {
+                "quality_score": quality_breakdown.overall_score,
+                "quality_grade": quality_breakdown.grade.value,
+                "validation_passed": validation_result.is_valid,
+                "gate_status": gate_result.status.value,
+                "should_retry": gate_result.should_retry
+            }
+            
+            # Log issues if any
+            if not validation_result.is_valid:
+                logger.warning(f"⚠️  Validation issues: {len(validation_result.issues)} found")
+                for issue in validation_result.get_critical_issues()[:3]:
+                    logger.warning(f"  - {issue.message}")
+            
+        except Exception as e:
+            logger.warning(f"⚠️  Quality assessment failed: {e}")
     
     # Extract logo information if detected
     detected_logo = data.get("detected_logo", {})

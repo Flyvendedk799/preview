@@ -122,7 +122,13 @@ class IntelligentPageClassifier:
             ai_signals = self._analyze_ai_vision(ai_analysis)
             signals.extend(ai_signals)
         
-        # 5. Aggregate signals and determine classification
+        # 5. NEW: Analyze negative signals (what the page ISN'T)
+        negative_signals = self._analyze_negative_signals(
+            signals, content_structure, ai_analysis, url
+        )
+        signals.extend(negative_signals)
+        
+        # 6. Aggregate signals and determine classification
         classification = self._aggregate_signals(signals)
         
         # 6. Adapt preview strategy based on classification
@@ -147,26 +153,51 @@ class IntelligentPageClassifier:
         parsed = urlparse(url)
         path = parsed.path.lower()
         
-        # Profile patterns
+        # Profile patterns - ENHANCED: Require user slug for individual profiles
+        # These patterns indicate INDIVIDUAL profiles, not team/company pages
         profile_patterns = [
-            r'/profile[s]?/',
-            r'/user[s]?/',
-            r'/expert[s]?/',
-            r'/shared/expert/',  # Specific pattern for 99expert.com
-            r'/member[s]?/',
-            r'/people/',
-            r'/person/',
-            r'/team/',
-            r'/about/.*/.*',  # /about/john-doe
+            r'/profile/[^/]+$',      # /profile/username (requires slug)
+            r'/user/[^/]+$',         # /user/username (requires slug)
+            r'/users/[^/]+$',        # /users/username (requires slug)
+            r'/@[^/]+/?$',           # /@username (social media style)
+            r'/~[^/]+',              # /~username (tilde style)
+            r'/shared/expert/[^/]+$', # /shared/expert/name (specific with slug)
+            r'/member/[^/]+$',       # /member/username (requires slug)
+            r'/people/[^/]+$',       # /people/username (requires slug)
+            r'/person/[^/]+$',       # /person/username (requires slug)
         ]
         profile_matches = sum(1 for p in profile_patterns if re.search(p, path))
         if profile_matches > 0:
             signals.append(ClassificationSignal(
                 source="url_pattern",
                 category=PageCategory.PROFILE,
-                confidence=min(0.7 + (profile_matches * 0.1), 0.95),
-                reasoning=f"URL path matches {profile_matches} profile pattern(s): {path}",
-                weight=1.2  # URL patterns are strong signals
+                confidence=min(0.75 + (profile_matches * 0.1), 0.95),
+                reasoning=f"URL path matches {profile_matches} individual profile pattern(s): {path}",
+                weight=1.3  # Strong signal when user slug present
+            ))
+        
+        # Company team/about patterns - THESE ARE NOT PROFILES
+        # These pages are ABOUT companies/teams, not individual profiles
+        company_team_patterns = [
+            r'/team/?$',             # /team (no slug = company team page)
+            r'/teams/?$',            # /teams (company teams page)
+            r'/about/?$',            # /about (company about page)
+            r'/about-us',            # /about-us
+            r'/our-team',            # /our-team
+            r'/meet-the-team',       # /meet-the-team
+            r'/meet-our-team',       # /meet-our-team
+            r'/experts/?$',          # /experts (list page, not individual)
+            r'/people/?$',           # /people (list page, not individual)
+            r'/members/?$',          # /members (list page, not individual)
+        ]
+        company_team_matches = sum(1 for p in company_team_patterns if re.search(p, path))
+        if company_team_matches > 0:
+            signals.append(ClassificationSignal(
+                source="url_pattern",
+                category=PageCategory.COMPANY,
+                confidence=min(0.70 + (company_team_matches * 0.1), 0.90),
+                reasoning=f"URL path matches {company_team_matches} company/team page pattern(s): {path}",
+                weight=1.2  # Strong signal for company pages
             ))
         
         # Product patterns
@@ -505,8 +536,180 @@ class IntelligentPageClassifier:
         
         return signals
     
+    def _analyze_negative_signals(
+        self,
+        existing_signals: List[ClassificationSignal],
+        content_structure: Optional[Dict[str, Any]],
+        ai_analysis: Optional[Dict[str, Any]],
+        url: str
+    ) -> List[ClassificationSignal]:
+        """
+        Generate NEGATIVE signals that DISPROVE certain classifications.
+        
+        This is critical for preventing false positives. Instead of just looking
+        for what a page IS, we also look for what it ISN'T.
+        
+        Examples:
+        - Has pricing table → NOT a profile
+        - Multiple people shown → NOT an individual profile  
+        - Company name in title → NOT a personal profile
+        - No person name detected → NOT a profile
+        """
+        negative_signals = []
+        
+        # Get current classification tendencies
+        category_scores: Dict[PageCategory, float] = {}
+        for signal in existing_signals:
+            if signal.category not in category_scores:
+                category_scores[signal.category] = 0.0
+            category_scores[signal.category] += signal.confidence * signal.weight
+        
+        # Check if currently leaning towards PROFILE
+        profile_tendency = category_scores.get(PageCategory.PROFILE, 0.0)
+        
+        if profile_tendency > 0.5:  # If leaning towards profile, check for disproving evidence
+            
+            # DISPROVE PROFILE: Check for e-commerce indicators
+            if content_structure:
+                has_price = content_structure.get("has_price", False)
+                has_add_to_cart = content_structure.get("has_add_to_cart", False)
+                has_product_image = content_structure.get("has_product_image", False)
+                
+                if has_price and has_add_to_cart:
+                    negative_signals.append(ClassificationSignal(
+                        source="negative_signal",
+                        category=PageCategory.PRODUCT,  # Actually a product page
+                        confidence=0.85,
+                        reasoning="Has pricing and 'add to cart' - this is a product page, NOT a profile",
+                        weight=1.5  # Strong negative evidence
+                    ))
+                elif has_price or has_add_to_cart:
+                    negative_signals.append(ClassificationSignal(
+                        source="negative_signal",
+                        category=PageCategory.PRODUCT,
+                        confidence=0.65,
+                        reasoning="Has e-commerce elements - likely product page, NOT profile",
+                        weight=1.3
+                    ))
+            
+            # DISPROVE PROFILE: Check AI analysis for company indicators
+            if ai_analysis:
+                # Check if detected person name looks like a company
+                detected_name = ai_analysis.get("detected_person_name")
+                company_indicators = ai_analysis.get("company_indicators", [])
+                is_individual = ai_analysis.get("is_individual_profile", True)
+                
+                if not is_individual:
+                    negative_signals.append(ClassificationSignal(
+                        source="negative_signal",
+                        category=PageCategory.COMPANY,
+                        confidence=0.75,
+                        reasoning="AI analysis indicates this is a company/team page, NOT individual profile",
+                        weight=1.4
+                    ))
+                
+                if len(company_indicators) > 2:
+                    negative_signals.append(ClassificationSignal(
+                        source="negative_signal",
+                        category=PageCategory.COMPANY,
+                        confidence=0.70,
+                        reasoning=f"Multiple company indicators detected ({len(company_indicators)}): {', '.join(company_indicators[:3])} - NOT a profile",
+                        weight=1.3
+                    ))
+                
+                # Check if "name" looks like a company name
+                if detected_name and self._looks_like_company_name(detected_name):
+                    negative_signals.append(ClassificationSignal(
+                        source="negative_signal",
+                        category=PageCategory.COMPANY,
+                        confidence=0.70,
+                        reasoning=f"Detected name '{detected_name}' looks like a company name, NOT person name",
+                        weight=1.3
+                    ))
+            
+            # DISPROVE PROFILE: Check for homepage/landing indicators
+            if content_structure:
+                has_hero_section = content_structure.get("has_hero_section", False)
+                has_features = content_structure.get("has_features", False)
+                has_testimonials = content_structure.get("has_testimonials", False)
+                
+                landing_score = sum([has_hero_section, has_features, has_testimonials])
+                if landing_score >= 2:
+                    negative_signals.append(ClassificationSignal(
+                        source="negative_signal",
+                        category=PageCategory.LANDING,
+                        confidence=0.70,
+                        reasoning="Has multiple landing page elements (hero, features, testimonials) - this is a marketing page, NOT a profile",
+                        weight=1.2
+                    ))
+        
+        # DISPROVE PRODUCT: If no pricing or buy button
+        product_tendency = category_scores.get(PageCategory.PRODUCT, 0.0)
+        if product_tendency > 0.5 and content_structure:
+            has_price = content_structure.get("has_price", False)
+            has_add_to_cart = content_structure.get("has_add_to_cart", False)
+            
+            if not has_price and not has_add_to_cart:
+                # Check if it's actually content/article
+                has_article_content = content_structure.get("has_article_content", False)
+                has_author = content_structure.get("has_author", False)
+                
+                if has_article_content or has_author:
+                    negative_signals.append(ClassificationSignal(
+                        source="negative_signal",
+                        category=PageCategory.CONTENT,
+                        confidence=0.65,
+                        reasoning="Lacks pricing but has article content - this is content/blog, NOT product",
+                        weight=1.2
+                    ))
+        
+        # Log negative signals for debugging
+        if negative_signals:
+            logger.info(f"🚫 Generated {len(negative_signals)} negative signals that disprove initial classifications")
+        
+        return negative_signals
+    
+    def _looks_like_company_name(self, name: str) -> bool:
+        """Check if a name looks like a company name rather than a person name."""
+        if not name:
+            return False
+        
+        # Company name indicators
+        company_keywords = [
+            # Legal entities
+            "inc", "llc", "ltd", "corp", "corporation", "company", "co.",
+            # Business types
+            "agency", "studio", "group", "partners", "consulting", "solutions",
+            "services", "tech", "technologies", "software", "systems",
+            # Other indicators
+            "team", "collective", "design", "digital", "creative", "media"
+        ]
+        
+        name_lower = name.lower()
+        
+        # Check for company keywords
+        for keyword in company_keywords:
+            if keyword in name_lower:
+                return True
+        
+        # All caps often indicates brand name (e.g., "IBM", "NASA")
+        if name.isupper() and len(name) >= 2:
+            return True
+        
+        # Single word names that are common company patterns
+        words = name.split()
+        if len(words) == 1 and len(name) > 15:  # Long single word likely company
+            return True
+        
+        return False
+    
     def _aggregate_signals(self, signals: List[ClassificationSignal]) -> PageClassification:
-        """Aggregate signals into final classification."""
+        """
+        Aggregate signals into final classification with multi-signal verification.
+        
+        ENHANCED: Now requires cross-validation from multiple sources to prevent
+        false positives from single high-confidence signals.
+        """
         if not signals:
             return PageClassification(
                 primary_category=PageCategory.UNKNOWN,
@@ -518,6 +721,7 @@ class IntelligentPageClassifier:
         # Weighted aggregation by category
         category_scores: Dict[PageCategory, float] = {}
         category_signals: Dict[PageCategory, List[ClassificationSignal]] = {}
+        category_sources: Dict[PageCategory, set] = {}  # NEW: Track signal sources
         
         for signal in signals:
             category = signal.category
@@ -526,15 +730,48 @@ class IntelligentPageClassifier:
             if category not in category_scores:
                 category_scores[category] = 0.0
                 category_signals[category] = []
+                category_sources[category] = set()
             
             category_scores[category] += weighted_score
             category_signals[category].append(signal)
+            category_sources[category].add(signal.source)
         
         # Normalize scores (divide by sum of weights for each category)
         for category in category_scores:
             total_weight = sum(s.weight for s in category_signals[category])
             if total_weight > 0:
                 category_scores[category] = min(category_scores[category] / total_weight, 1.0)
+        
+        # ENHANCED: Apply multi-signal verification penalty
+        # Reduce confidence if classification comes from single source
+        for category in category_scores:
+            num_sources = len(category_sources[category])
+            
+            if num_sources == 1:
+                # Single source only - reduce confidence
+                original_score = category_scores[category]
+                category_scores[category] *= 0.65  # 35% penalty
+                logger.warning(
+                    f"⚠️  {category.value} classification from single source "
+                    f"({list(category_sources[category])[0]}), "
+                    f"reducing confidence: {original_score:.2f} → {category_scores[category]:.2f}"
+                )
+            elif num_sources == 2:
+                # Two sources - slight penalty
+                original_score = category_scores[category]
+                category_scores[category] *= 0.85  # 15% penalty
+                logger.info(
+                    f"✓ {category.value} classification from 2 sources, "
+                    f"adjusted confidence: {original_score:.2f} → {category_scores[category]:.2f}"
+                )
+            else:
+                # 3+ sources - high confidence, small bonus
+                original_score = category_scores[category]
+                category_scores[category] = min(category_scores[category] * 1.05, 1.0)  # 5% bonus
+                logger.info(
+                    f"✅ {category.value} classification from {num_sources} sources "
+                    f"(strong cross-validation)"
+                )
         
         # Find primary category
         if not category_scores:
@@ -544,6 +781,14 @@ class IntelligentPageClassifier:
             primary = max(category_scores.items(), key=lambda x: x[1])[0]
             confidence = category_scores[primary]
         
+        # ENHANCED: If confidence still low after penalties, mark as UNKNOWN
+        if confidence < 0.40:
+            logger.warning(
+                f"⚠️  Low confidence ({confidence:.2f}) for {primary.value}, "
+                f"marking as UNKNOWN for safety"
+            )
+            primary = PageCategory.UNKNOWN
+        
         # Get alternative categories (sorted by score)
         alternatives = sorted(
             [(cat, score) for cat, score in category_scores.items() if cat != primary],
@@ -551,15 +796,25 @@ class IntelligentPageClassifier:
             reverse=True
         )[:3]  # Top 3 alternatives
         
-        # Build reasoning
+        # Build reasoning with source diversity info
         reasoning_parts = []
-        for signal in category_signals.get(primary, []):
+        primary_signals = category_signals.get(primary, [])
+        num_sources = len(category_sources.get(primary, set()))
+        
+        for signal in primary_signals[:3]:  # Top 3 signals
             reasoning_parts.append(f"{signal.source}: {signal.reasoning}")
         
         if not reasoning_parts:
             reasoning = f"Classified as {primary.value} based on signal aggregation"
         else:
-            reasoning = "; ".join(reasoning_parts[:3])  # Top 3 reasons
+            reasoning = "; ".join(reasoning_parts)
+            # Add cross-validation note
+            if num_sources >= 3:
+                reasoning = f"[Verified by {num_sources} sources] " + reasoning
+            elif num_sources == 2:
+                reasoning = f"[Verified by 2 sources] " + reasoning
+            elif num_sources == 1:
+                reasoning = f"[⚠️ Single source only] " + reasoning
         
         return PageClassification(
             primary_category=primary,
