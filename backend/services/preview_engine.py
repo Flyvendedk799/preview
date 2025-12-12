@@ -1266,21 +1266,29 @@ class PreviewEngine:
                     # ENHANCED: Always extract Design DNA (never skip)
                     design_dna = ai_result.get("design_dna")
                     if not design_dna:
-                        # Fallback: Extract Design DNA if not in AI result
+                        # CRITICAL: Always extract comprehensive Design DNA for brand fidelity
                         try:
                             from backend.services.design_dna_extractor import extract_design_dna
-                            self.logger.info("Extracting Design DNA as fallback")
+                            self.logger.info("Extracting comprehensive Design DNA")
                             design_dna_obj = extract_design_dna(screenshot_bytes, url)
-                            design_dna = {
+                            # Convert full DesignDNA object to comprehensive dict
+                            design_dna = design_dna_obj.to_dict() if hasattr(design_dna_obj, 'to_dict') else {
                                 "style": design_dna_obj.philosophy.primary_style if hasattr(design_dna_obj, 'philosophy') else "corporate",
-                                "color_palette": {
-                                    "primary": design_dna_obj.color_palette.primary if hasattr(design_dna_obj, 'color_palette') else "#2563EB",
-                                    "secondary": design_dna_obj.color_palette.secondary if hasattr(design_dna_obj, 'color_palette') else "#1E40AF",
-                                    "accent": design_dna_obj.color_palette.accent if hasattr(design_dna_obj, 'color_palette') else "#F59E0B"
-                                },
-                                "typography_personality": design_dna_obj.typography.headline_personality if hasattr(design_dna_obj, 'typography') and hasattr(design_dna_obj.typography, 'headline_personality') else "professional"
+                                "primary_color": design_dna_obj.color_psychology.primary_hex if hasattr(design_dna_obj, 'color_psychology') else "#2563EB",
+                                "secondary_color": design_dna_obj.color_psychology.secondary_hex if hasattr(design_dna_obj, 'color_psychology') else "#1E40AF",
+                                "accent_color": design_dna_obj.color_psychology.accent_hex if hasattr(design_dna_obj, 'color_psychology') else "#F59E0B",
+                                "background_color": design_dna_obj.color_psychology.background_hex if hasattr(design_dna_obj, 'color_psychology') else "#FFFFFF",
+                                "text_color": design_dna_obj.color_psychology.text_hex if hasattr(design_dna_obj, 'color_psychology') else "#111827",
+                                "typography_personality": design_dna_obj.typography.headline_personality if hasattr(design_dna_obj, 'typography') else "professional",
+                                "mood": design_dna_obj.philosophy.visual_tension if hasattr(design_dna_obj, 'philosophy') else "balanced",
+                                "spacing_feel": design_dna_obj.spatial.density if hasattr(design_dna_obj, 'spatial') else "balanced",
+                                "brand_adjectives": design_dna_obj.brand_personality.adjectives if hasattr(design_dna_obj, 'brand_personality') else ["professional", "modern"],
+                                "unique_visual_signature": design_dna_obj.brand_personality.unique_visual_signature if hasattr(design_dna_obj, 'brand_personality') else "",
+                                "ui_components": design_dna_obj.ui_components.to_dict() if hasattr(design_dna_obj, 'ui_components') else {},
+                                "visual_effects": design_dna_obj.visual_effects.to_dict() if hasattr(design_dna_obj, 'visual_effects') else {},
+                                "layout_patterns": design_dna_obj.layout_patterns.to_dict() if hasattr(design_dna_obj, 'layout_patterns') else {}
                             }
-                            self.logger.info(f"✅ Design DNA extracted: style={design_dna.get('style')}")
+                            self.logger.info(f"✅ Comprehensive Design DNA extracted: style={design_dna.get('style', 'unknown')}, signature={design_dna.get('unique_visual_signature', 'none')[:50]}")
                         except Exception as e:
                             self.logger.warning(f"Design DNA extraction failed: {e}")
                             design_dna = None
@@ -1348,19 +1356,28 @@ class PreviewEngine:
             # ENHANCED: Always pass Design DNA to image generator
             design_dna_for_image = ai_result.get("design_dna")
             if not design_dna_for_image:
-                # Try to extract if not available
+                # CRITICAL: Always extract comprehensive Design DNA for image generation
                 try:
                     from backend.services.design_dna_extractor import extract_design_dna
                     design_dna_obj = extract_design_dna(screenshot_bytes, url)
-                    design_dna_for_image = {
+                    # Use comprehensive dict conversion
+                    design_dna_for_image = design_dna_obj.to_dict() if hasattr(design_dna_obj, 'to_dict') else {
                         "style": design_dna_obj.philosophy.primary_style if hasattr(design_dna_obj, 'philosophy') else "corporate",
-                        "color_palette": {
-                            "primary": design_dna_obj.color_palette.primary if hasattr(design_dna_obj, 'color_palette') else blueprint_colors.get("primary_color", "#2563EB"),
-                            "secondary": design_dna_obj.color_palette.secondary if hasattr(design_dna_obj, 'color_palette') else blueprint_colors.get("secondary_color", "#1E40AF"),
-                            "accent": design_dna_obj.color_palette.accent if hasattr(design_dna_obj, 'color_palette') else blueprint_colors.get("accent_color", "#F59E0B")
-                        },
-                        "typography_personality": design_dna_obj.typography.headline_personality if hasattr(design_dna_obj, 'typography') and hasattr(design_dna_obj.typography, 'headline_personality') else "professional"
+                        "primary_color": blueprint_colors.get("primary_color", design_dna_obj.color_psychology.primary_hex if hasattr(design_dna_obj, 'color_psychology') else "#2563EB"),
+                        "secondary_color": blueprint_colors.get("secondary_color", design_dna_obj.color_psychology.secondary_hex if hasattr(design_dna_obj, 'color_psychology') else "#1E40AF"),
+                        "accent_color": blueprint_colors.get("accent_color", design_dna_obj.color_psychology.accent_hex if hasattr(design_dna_obj, 'color_psychology') else "#F59E0B"),
+                        "background_color": design_dna_obj.color_psychology.background_hex if hasattr(design_dna_obj, 'color_psychology') else "#FFFFFF",
+                        "text_color": design_dna_obj.color_psychology.text_hex if hasattr(design_dna_obj, 'color_psychology') else "#111827",
+                        "typography_personality": design_dna_obj.typography.headline_personality if hasattr(design_dna_obj, 'typography') else "professional",
+                        "mood": design_dna_obj.philosophy.visual_tension if hasattr(design_dna_obj, 'philosophy') else "balanced",
+                        "spacing_feel": design_dna_obj.spatial.density if hasattr(design_dna_obj, 'spatial') else "balanced",
+                        "brand_adjectives": design_dna_obj.brand_personality.adjectives if hasattr(design_dna_obj, 'brand_personality') else ["professional", "modern"],
+                        "unique_visual_signature": design_dna_obj.brand_personality.unique_visual_signature if hasattr(design_dna_obj, 'brand_personality') else "",
+                        "ui_components": design_dna_obj.ui_components.to_dict() if hasattr(design_dna_obj, 'ui_components') else {},
+                        "visual_effects": design_dna_obj.visual_effects.to_dict() if hasattr(design_dna_obj, 'visual_effects') else {},
+                        "layout_patterns": design_dna_obj.layout_patterns.to_dict() if hasattr(design_dna_obj, 'layout_patterns') else {}
                     }
+                    self.logger.info(f"✅ Comprehensive Design DNA extracted for image: style={design_dna_for_image.get('style', 'unknown')}")
                 except Exception as e:
                     self.logger.warning(f"Design DNA extraction for image failed: {e}")
                     design_dna_for_image = None

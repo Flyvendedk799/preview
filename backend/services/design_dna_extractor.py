@@ -141,6 +141,9 @@ class TypographyDNA:
     spacing_character: str = "balanced"  # tight-dense, balanced, generous-luxury
     font_mood: str = ""
     recommended_weights: List[str] = field(default_factory=lambda: ["bold", "regular"])
+    letter_spacing: str = "normal"  # tight, normal, wide, very-wide
+    line_height: str = "normal"  # tight, normal, relaxed, very-relaxed
+    font_size_hierarchy: str = ""  # Description of size relationships
     
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -159,6 +162,7 @@ class ColorPsychology:
     accent_hex: str = "#F59E0B"
     background_hex: str = "#FFFFFF"
     text_hex: str = "#111827"
+    color_usage_pattern: str = ""  # How colors are used in the design
     
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -172,6 +176,8 @@ class SpatialIntelligence:
     alignment_philosophy: str = "strict-grid"  # strict-grid, organic, mixed
     whitespace_intention: str = ""
     padding_scale: str = "medium"  # compact, medium, generous, luxurious
+    grid_system: str = "8px-grid"  # 8px-grid, 12-column, 16-column, organic, none
+    spacing_pattern: str = ""  # Description of spacing rhythm
     
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -185,6 +191,8 @@ class HeroElement:
     why_important: str
     how_to_honor: str
     visual_weight: float = 1.0  # 0-1, how dominant
+    placement: str = "center"  # center, left, right, top, bottom
+    size_relative_to_page: str = "medium"  # small, medium, large, dominant
     
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -198,6 +206,51 @@ class BrandPersonality:
     voice_tone: str = "professional"  # professional, casual, authoritative, friendly
     design_confidence: float = 0.8
     industry_context: str = ""
+    unique_visual_signature: str = ""  # What makes this brand visually unique
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class UIComponents:
+    """UI component styles and patterns."""
+    button_style: str = "flat"  # flat, raised, outlined, ghost, gradient, glassmorphic, neumorphic
+    button_shape: str = "rounded"  # rounded, sharp, pill, custom
+    button_border_radius: str = "medium"  # none, small, medium, large, pill
+    card_style: str = "flat"  # flat, elevated, bordered, glassmorphic, neumorphic
+    card_shadow: str = "subtle"  # none, subtle, medium, dramatic
+    form_style: str = "outlined"  # minimal, outlined, filled, underlined
+    navigation_style: str = "minimal"  # minimal, bold, transparent, solid
+    component_patterns: str = ""  # Description of unique UI patterns
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class VisualEffects:
+    """Visual effects and styling patterns."""
+    shadows: str = "subtle"  # none, subtle, medium, dramatic
+    gradients: str = "none"  # none, subtle, moderate, vibrant
+    gradient_direction: str = "horizontal"  # horizontal, vertical, diagonal, radial
+    borders: str = "thin"  # none, thin, medium, thick
+    border_style: str = "solid"  # solid, dashed, dotted, gradient
+    effects: List[str] = field(default_factory=list)  # glassmorphism, neumorphism, backdrop-blur, etc.
+    visual_textures: List[str] = field(default_factory=list)  # smooth, grainy, paper, fabric
+    overlay_patterns: str = "none"  # none, dots, grid, lines, geometric
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class LayoutPatterns:
+    """Layout structure and content organization."""
+    content_structure: str = "centered"  # centered, left-aligned, full-width, asymmetric
+    section_spacing: str = "normal"  # tight, normal, generous, very-generous
+    content_width: str = "medium"  # narrow, medium, wide, full
+    visual_hierarchy: str = ""  # Description of how content is organized
     
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -212,6 +265,9 @@ class DesignDNA:
     spatial: SpatialIntelligence
     hero_element: HeroElement
     brand_personality: BrandPersonality
+    ui_components: UIComponents
+    visual_effects: VisualEffects
+    layout_patterns: LayoutPatterns
     
     # Metadata
     confidence: float = 0.0
@@ -226,6 +282,9 @@ class DesignDNA:
             "spatial": self.spatial.to_dict(),
             "hero_element": self.hero_element.to_dict(),
             "brand_personality": self.brand_personality.to_dict(),
+            "ui_components": self.ui_components.to_dict(),
+            "visual_effects": self.visual_effects.to_dict(),
+            "layout_patterns": self.layout_patterns.to_dict(),
             "confidence": self.confidence,
             "processing_time_ms": self.processing_time_ms,
             "model_used": self.model_used
@@ -301,11 +360,11 @@ You think like a designer, not a content extractor. You understand:
 OUTPUT STRICT JSON matching the schema. No markdown, no explanations outside JSON."""
 
 
-DESIGN_DNA_USER_PROMPT = """Analyze this webpage as a design director. Your goal is to understand its DESIGN DNA - the underlying philosophy and emotional intent.
+DESIGN_DNA_USER_PROMPT = """Analyze this webpage as a design director. Your goal is to understand its COMPLETE DESIGN DNA - the underlying philosophy, visual patterns, UI components, and emotional intent.
 
 URL Context: {url}
 
-Don't just describe what you see. Explain WHY it was designed this way and WHAT feeling it creates.
+CRITICAL: Extract EVERY visual detail that makes this brand unique. Don't just describe what you see - capture HOW it's designed so we can recreate its exact "vibe" in a preview.
 
 OUTPUT JSON:
 {{
@@ -325,7 +384,10 @@ OUTPUT JSON:
         "case_strategy": "<mixed|uppercase-accent|lowercase-casual|sentence-case>",
         "spacing_character": "<tight-dense|balanced|generous-luxury>",
         "font_mood": "One sentence describing the emotional quality of the typography",
-        "recommended_weights": ["<weights to use, e.g., 'black', 'bold', 'medium', 'regular', 'light'>"]
+        "recommended_weights": ["<weights to use, e.g., 'black', 'bold', 'medium', 'regular', 'light'>"],
+        "letter_spacing": "<tight|normal|wide|very-wide>",
+        "line_height": "<tight|normal|relaxed|very-relaxed>",
+        "font_size_hierarchy": "Describe the size relationships (e.g., 'headlines are 3x body, subheadings are 1.5x body')"
     }},
     
     "color_psychology": {{
@@ -334,11 +396,12 @@ OUTPUT JSON:
         "saturation_character": "<vivid|balanced|muted|desaturated>",
         "light_dark_balance": <0.0-1.0, where 0=dark theme, 1=light theme>,
         "accent_usage": "How accent colors create emphasis and guide attention",
-        "primary_hex": "<main brand color hex>",
-        "secondary_hex": "<secondary/supporting color hex>",
-        "accent_hex": "<accent/CTA color hex>",
+        "primary_hex": "<main brand color hex - extract EXACT color from logo/branding>",
+        "secondary_hex": "<secondary/supporting color hex - extract from UI>",
+        "accent_hex": "<accent/CTA color hex - extract from buttons/links>",
         "background_hex": "<main background color hex>",
-        "text_hex": "<main text color hex>"
+        "text_hex": "<main text color hex>",
+        "color_usage_pattern": "How colors are used (e.g., 'primary for CTAs, secondary for backgrounds, accent for highlights')"
     }},
     
     "spatial_intelligence": {{
@@ -346,7 +409,31 @@ OUTPUT JSON:
         "rhythm": "<even|dynamic|progressive|asymmetric>",
         "alignment_philosophy": "<strict-grid|organic|mixed>",
         "whitespace_intention": "What the whitespace communicates about the brand",
-        "padding_scale": "<compact|medium|generous|luxurious>"
+        "padding_scale": "<compact|medium|generous|luxurious>",
+        "grid_system": "<8px-grid|12-column|16-column|organic|none>",
+        "spacing_pattern": "Describe spacing rhythm (e.g., '8px base unit, 16px for sections, 32px for major breaks')"
+    }},
+    
+    "ui_components": {{
+        "button_style": "<flat|raised|outlined|ghost|gradient|glassmorphic|neumorphic>",
+        "button_shape": "<rounded|sharp|pill|custom>",
+        "button_border_radius": "<none|small|medium|large|pill>",
+        "card_style": "<flat|elevated|bordered|glassmorphic|neumorphic>",
+        "card_shadow": "<none|subtle|medium|dramatic>",
+        "form_style": "<minimal|outlined|filled|underlined>",
+        "navigation_style": "<minimal|bold|transparent|solid>",
+        "component_patterns": "Describe unique UI patterns (e.g., 'rounded cards with subtle shadows', 'sharp edges with high contrast')"
+    }},
+    
+    "visual_effects": {{
+        "shadows": "<none|subtle|medium|dramatic>",
+        "gradients": "<none|subtle|moderate|vibrant>",
+        "gradient_direction": "<horizontal|vertical|diagonal|radial>",
+        "borders": "<none|thin|medium|thick>",
+        "border_style": "<solid|dashed|dotted|gradient>",
+        "effects": ["<glassmorphism|neumorphism|backdrop-blur|text-shadow|box-shadow|none>"],
+        "visual_textures": ["<smooth|grainy|paper|fabric|none>"],
+        "overlay_patterns": "<none|dots|grid|lines|geometric>"
     }},
     
     "hero_element": {{
@@ -354,7 +441,9 @@ OUTPUT JSON:
         "content": "The actual content/text of the hero element",
         "why_important": "Why this element dominates the visual hierarchy",
         "how_to_honor": "How to preserve this element's importance in a preview",
-        "visual_weight": <0.0-1.0, how dominant this element is>
+        "visual_weight": <0.0-1.0, how dominant this element is>,
+        "placement": "<center|left|right|top|bottom>",
+        "size_relative_to_page": "<small|medium|large|dominant>"
     }},
     
     "brand_personality": {{
@@ -362,7 +451,15 @@ OUTPUT JSON:
         "target_feeling": "How should a viewer FEEL after seeing this design?",
         "voice_tone": "<professional|casual|authoritative|friendly|playful|sophisticated|warm|innovative>",
         "design_confidence": <0.0-1.0, how confident/polished is the design execution>,
-        "industry_context": "What industry/sector this appears to be for"
+        "industry_context": "What industry/sector this appears to be for",
+        "unique_visual_signature": "What makes this brand visually unique? (e.g., 'bold gradients with sharp corners', 'minimalist with generous whitespace')"
+    }},
+    
+    "layout_patterns": {{
+        "content_structure": "<centered|left-aligned|full-width|asymmetric>",
+        "section_spacing": "<tight|normal|generous|very-generous>",
+        "content_width": "<narrow|medium|wide|full>",
+        "visual_hierarchy": "Describe how content is organized (e.g., 'hero at top, features in grid below', 'sidebar navigation with main content')"
     }},
     
     "analysis_confidence": <0.0-1.0>
@@ -374,8 +471,18 @@ ANALYSIS PRINCIPLES:
 3. DESIGNER'S EYE: How would you describe this to a fellow designer?
 4. BRAND ESSENCE: What makes this design uniquely theirs?
 5. PRACTICAL APPLICATION: How should we honor this in a preview?
+6. VISUAL FIDELITY: Extract EXACT visual details - colors, spacing, effects, component styles
+7. PATTERN RECOGNITION: Identify repeating visual patterns that define the brand
 
-Look beyond the obvious. A minimalist design isn't just "simple" - it's a deliberate choice to create clarity, focus, and sophistication. Explain the psychology."""
+CRITICAL EXTRACTION REQUIREMENTS:
+- Extract EXACT brand colors from logo/branding elements (not generic colors)
+- Identify UI component styles (button shapes, card styles, shadows)
+- Capture visual effects (gradients, shadows, borders, textures)
+- Note typography specifics (letter spacing, line height, size hierarchy)
+- Document layout patterns (grid systems, spacing rhythm)
+- Identify unique visual signatures that make this brand distinct
+
+Look beyond the obvious. A minimalist design isn't just "simple" - it's a deliberate choice to create clarity, focus, and sophistication. Extract EVERY visual detail that contributes to the brand's unique "vibe"."""
 
 
 # =============================================================================
@@ -535,7 +642,10 @@ def _build_design_dna(data: Dict[str, Any], processing_time_ms: int) -> DesignDN
         case_strategy=typo_data.get("case_strategy", "mixed"),
         spacing_character=typo_data.get("spacing_character", "balanced"),
         font_mood=typo_data.get("font_mood", ""),
-        recommended_weights=typo_data.get("recommended_weights", ["bold", "regular"])
+        recommended_weights=typo_data.get("recommended_weights", ["bold", "regular"]),
+        letter_spacing=typo_data.get("letter_spacing", "normal"),
+        line_height=typo_data.get("line_height", "normal"),
+        font_size_hierarchy=typo_data.get("font_size_hierarchy", "")
     )
     
     # Color Psychology
@@ -550,7 +660,8 @@ def _build_design_dna(data: Dict[str, Any], processing_time_ms: int) -> DesignDN
         secondary_hex=color_data.get("secondary_hex", "#1E40AF"),
         accent_hex=color_data.get("accent_hex", "#F59E0B"),
         background_hex=color_data.get("background_hex", "#FFFFFF"),
-        text_hex=color_data.get("text_hex", "#111827")
+        text_hex=color_data.get("text_hex", "#111827"),
+        color_usage_pattern=color_data.get("color_usage_pattern", "")
     )
     
     # Spatial Intelligence
@@ -560,7 +671,9 @@ def _build_design_dna(data: Dict[str, Any], processing_time_ms: int) -> DesignDN
         rhythm=spatial_data.get("rhythm", "even"),
         alignment_philosophy=spatial_data.get("alignment_philosophy", "strict-grid"),
         whitespace_intention=spatial_data.get("whitespace_intention", ""),
-        padding_scale=spatial_data.get("padding_scale", "medium")
+        padding_scale=spatial_data.get("padding_scale", "medium"),
+        grid_system=spatial_data.get("grid_system", "8px-grid"),
+        spacing_pattern=spatial_data.get("spacing_pattern", "")
     )
     
     # Hero Element
@@ -570,7 +683,9 @@ def _build_design_dna(data: Dict[str, Any], processing_time_ms: int) -> DesignDN
         content=hero_data.get("content", ""),
         why_important=hero_data.get("why_important", ""),
         how_to_honor=hero_data.get("how_to_honor", ""),
-        visual_weight=float(hero_data.get("visual_weight", 1.0))
+        visual_weight=float(hero_data.get("visual_weight", 1.0)),
+        placement=hero_data.get("placement", "center"),
+        size_relative_to_page=hero_data.get("size_relative_to_page", "medium")
     )
     
     # Brand Personality
@@ -580,7 +695,43 @@ def _build_design_dna(data: Dict[str, Any], processing_time_ms: int) -> DesignDN
         target_feeling=brand_data.get("target_feeling", "Trust and confidence"),
         voice_tone=brand_data.get("voice_tone", "professional"),
         design_confidence=float(brand_data.get("design_confidence", 0.8)),
-        industry_context=brand_data.get("industry_context", "")
+        industry_context=brand_data.get("industry_context", ""),
+        unique_visual_signature=brand_data.get("unique_visual_signature", "")
+    )
+    
+    # UI Components
+    ui_data = data.get("ui_components", {})
+    ui_components = UIComponents(
+        button_style=ui_data.get("button_style", "flat"),
+        button_shape=ui_data.get("button_shape", "rounded"),
+        button_border_radius=ui_data.get("button_border_radius", "medium"),
+        card_style=ui_data.get("card_style", "flat"),
+        card_shadow=ui_data.get("card_shadow", "subtle"),
+        form_style=ui_data.get("form_style", "outlined"),
+        navigation_style=ui_data.get("navigation_style", "minimal"),
+        component_patterns=ui_data.get("component_patterns", "")
+    )
+    
+    # Visual Effects
+    effects_data = data.get("visual_effects", {})
+    visual_effects = VisualEffects(
+        shadows=effects_data.get("shadows", "subtle"),
+        gradients=effects_data.get("gradients", "none"),
+        gradient_direction=effects_data.get("gradient_direction", "horizontal"),
+        borders=effects_data.get("borders", "thin"),
+        border_style=effects_data.get("border_style", "solid"),
+        effects=effects_data.get("effects", []),
+        visual_textures=effects_data.get("visual_textures", []),
+        overlay_patterns=effects_data.get("overlay_patterns", "none")
+    )
+    
+    # Layout Patterns
+    layout_data = data.get("layout_patterns", {})
+    layout_patterns = LayoutPatterns(
+        content_structure=layout_data.get("content_structure", "centered"),
+        section_spacing=layout_data.get("section_spacing", "normal"),
+        content_width=layout_data.get("content_width", "medium"),
+        visual_hierarchy=layout_data.get("visual_hierarchy", "")
     )
     
     return DesignDNA(
@@ -590,6 +741,9 @@ def _build_design_dna(data: Dict[str, Any], processing_time_ms: int) -> DesignDN
         spatial=spatial,
         hero_element=hero_element,
         brand_personality=brand_personality,
+        ui_components=ui_components,
+        visual_effects=visual_effects,
+        layout_patterns=layout_patterns,
         confidence=float(data.get("analysis_confidence", 0.7)),
         processing_time_ms=processing_time_ms
     )
@@ -613,35 +767,70 @@ def _get_fallback_dna(url: str, error: str) -> DesignDNA:
             weight_contrast="medium",
             case_strategy="mixed",
             spacing_character="balanced",
-            font_mood="Professional and clear"
+            font_mood="Professional and clear",
+            letter_spacing="normal",
+            line_height="normal",
+            font_size_hierarchy="Standard hierarchy"
         ),
         color_psychology=ColorPsychology(
             dominant_emotion="trust",
             color_strategy="complementary",
             saturation_character="balanced",
             light_dark_balance=0.7,
-            accent_usage="Standard accent for CTAs"
+            accent_usage="Standard accent for CTAs",
+            color_usage_pattern="Standard color usage"
         ),
         spatial=SpatialIntelligence(
             density="balanced",
             rhythm="even",
             alignment_philosophy="strict-grid",
             whitespace_intention="Standard breathing room",
-            padding_scale="medium"
+            padding_scale="medium",
+            grid_system="8px-grid",
+            spacing_pattern="Standard spacing"
         ),
         hero_element=HeroElement(
             element_type="headline",
             content="Content from " + url[:50],
             why_important="Primary message",
             how_to_honor="Use as main title",
-            visual_weight=1.0
+            visual_weight=1.0,
+            placement="center",
+            size_relative_to_page="medium"
         ),
         brand_personality=BrandPersonality(
             adjectives=["professional", "modern", "trustworthy"],
             target_feeling="Confidence and trust",
             voice_tone="professional",
             design_confidence=0.5,
-            industry_context="General"
+            industry_context="General",
+            unique_visual_signature="Standard professional design"
+        ),
+        ui_components=UIComponents(
+            button_style="flat",
+            button_shape="rounded",
+            button_border_radius="medium",
+            card_style="flat",
+            card_shadow="subtle",
+            form_style="outlined",
+            navigation_style="minimal",
+            component_patterns="Standard UI components"
+        ),
+        visual_effects=VisualEffects(
+            shadows="subtle",
+            gradients="none",
+            gradient_direction="horizontal",
+            borders="thin",
+            border_style="solid",
+            effects=[],
+            visual_textures=[],
+            overlay_patterns="none"
+        ),
+        layout_patterns=LayoutPatterns(
+            content_structure="centered",
+            section_spacing="normal",
+            content_width="medium",
+            visual_hierarchy="Standard hierarchy"
         ),
         confidence=0.3
     )
