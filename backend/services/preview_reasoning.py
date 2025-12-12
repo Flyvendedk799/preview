@@ -1321,7 +1321,7 @@ def run_stages_4_5(regions: List[Dict], page_type: str, palette: Dict[str, str])
             }
         ],
         max_tokens=1800,  # Optimized for faster responses
-        temperature=0.1  # Lower temperature for more consistent, decisive layouts
+        temperature=0.0  # Fully deterministic for consistent results
     )
     
     content = response.choices[0].message.content.strip()
@@ -1458,7 +1458,7 @@ def run_stage_6(layout: Dict[str, Any], included_regions: List[Dict], design_dna
                 }
             ],
             max_tokens=500,  # Reduced for faster responses
-            temperature=0.05  # Lower temperature for more consistent, precise extraction
+            temperature=0.0  # Fully deterministic for consistent results
         )
         
         content = response.choices[0].message.content.strip()

@@ -39,14 +39,30 @@ class CacheConfig:
 # CACHE KEY GENERATION
 # =============================================================================
 
-def generate_cache_key(url: str, prefix: str = CacheConfig.PREVIEW_PREFIX) -> str:
+def generate_cache_key(url: str, prefix: str = CacheConfig.PREVIEW_PREFIX, version: str = "v1") -> str:
     """
     Generate a deterministic cache key for a URL.
     
-    Uses MD5 hash for consistent, fixed-length keys.
+    Uses normalized URL + version for consistent, fixed-length keys.
+    This ensures same URL always produces same cache key.
+    
+    Args:
+        url: URL to generate key for
+        prefix: Cache key prefix
+        version: Cache version (increment when breaking changes occur)
+        
+    Returns:
+        Deterministic cache key
     """
-    url_normalized = url.lower().strip().rstrip('/')
-    url_hash = hashlib.md5(url_normalized.encode()).hexdigest()
+    from backend.utils.url_sanitizer import normalize_url_for_cache
+    
+    # Normalize URL for deterministic hashing
+    url_normalized = normalize_url_for_cache(url)
+    
+    # Create deterministic hash (URL + version)
+    cache_string = f"{url_normalized}:{version}"
+    url_hash = hashlib.md5(cache_string.encode()).hexdigest()
+    
     return f"{prefix}{url_hash}"
 
 

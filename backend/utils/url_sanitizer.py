@@ -49,6 +49,56 @@ def validate_url_security(url: str) -> None:
         raise ValueError(f"Invalid URL format: {str(e)}")
 
 
+def normalize_url_for_cache(url: str) -> str:
+    """
+    Normalize URL for deterministic cache key generation.
+    
+    This ensures the same URL always produces the same cache key, regardless of:
+    - Trailing slashes
+    - www vs non-www
+    - http vs https
+    - URL encoding differences
+    - Fragment (#) or query parameters (if needed)
+    
+    Args:
+        url: URL to normalize
+        
+    Returns:
+        Normalized URL string
+    """
+    if not url or not isinstance(url, str):
+        return ""
+    
+    # Strip whitespace and lowercase
+    url = url.strip().lower()
+    
+    # Parse URL
+    parsed = urlparse(url)
+    
+    # Normalize scheme (always use https for cache key)
+    scheme = "https"
+    
+    # Normalize netloc (remove www. prefix for consistency)
+    netloc = parsed.netloc.lower()
+    if netloc.startswith("www."):
+        netloc = netloc[4:]
+    
+    # Normalize path (remove trailing slash, except root)
+    path = parsed.path.rstrip("/")
+    if not path:
+        path = "/"
+    
+    # Remove query and fragment for cache key (they don't affect preview content)
+    # Note: If query params matter for preview, remove this normalization
+    query = ""
+    fragment = ""
+    
+    # Reconstruct normalized URL
+    normalized = urlunparse((scheme, netloc, path, "", query, fragment))
+    
+    return normalized
+
+
 def sanitize_url(url: str, domain: str = None) -> str:
     """
     Sanitize and validate URL before preview generation.

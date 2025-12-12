@@ -37,6 +37,8 @@ const PlatformPreviewCard: React.FC<PlatformPreviewCardProps> = memo(({
       return text.substring(0, maxLength - 3) + '...'
     }
 
+    // UNIFIED IMAGE SOURCE: Always use composited_preview_image_url as primary source
+    // This ensures consistency with ReconstructedPreview component
     const imageUrl = preview.composited_preview_image_url || preview.screenshot_url || null
     
     return {

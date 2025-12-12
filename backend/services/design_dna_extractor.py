@@ -477,7 +477,8 @@ def extract_design_dna(
                 }
             ],
             max_tokens=2500,
-            temperature=0.2  # Low for consistency
+            temperature=0.0,  # Fully deterministic for consistent results
+            seed=42  # Deterministic seed for reproducibility
         )
         
         elapsed_ms = int((time.time() - start_time) * 1000)

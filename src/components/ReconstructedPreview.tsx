@@ -73,13 +73,12 @@ const QualityBadge = ({ quality, score }: { quality: string; score: number }) =>
  * Best for: Personal pages, freelancer profiles, team members
  */
 const ProfileTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
-  const { blueprint, primary_image_base64, screenshot_url, title, subtitle, description, tags, context_items, credibility_items } = preview
+  const { blueprint, primary_image_base64, screenshot_url, composited_preview_image_url, title, subtitle, description, tags, context_items, credibility_items } = preview
 
-  // For UI card: Use raw images (NOT composited_preview_image_url which is for og:image only)
-  // Priority: AI-extracted image > Screenshot
-  const profileImageUrl = primary_image_base64
-    ? `data:image/png;base64,${primary_image_base64}`
-    : screenshot_url
+  // UNIFIED IMAGE SOURCE: Always use composited_preview_image_url as primary source
+  // Priority: Composited Preview Image > AI-extracted image > Screenshot
+  const profileImageUrl = composited_preview_image_url || 
+    (primary_image_base64 ? `data:image/png;base64,${primary_image_base64}` : screenshot_url)
   
   return (
     <div className="relative overflow-hidden rounded-2xl bg-white shadow-xl">
@@ -193,13 +192,12 @@ const ProfileTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
  * Best for: E-commerce, SaaS products, services
  */
 const ProductTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
-  const { blueprint, primary_image_base64, screenshot_url, title, subtitle, description, tags, cta_text, credibility_items } = preview
+  const { blueprint, primary_image_base64, screenshot_url, composited_preview_image_url, title, subtitle, description, tags, cta_text, credibility_items } = preview
 
-  // For UI card: Use raw images (NOT composited_preview_image_url which is for og:image only)
-  // Priority: AI-extracted image > Screenshot
-  const productImageUrl = primary_image_base64
-    ? `data:image/png;base64,${primary_image_base64}`
-    : screenshot_url
+  // UNIFIED IMAGE SOURCE: Always use composited_preview_image_url as primary source
+  // Priority: Composited Preview Image > AI-extracted image > Screenshot
+  const productImageUrl = composited_preview_image_url || 
+    (primary_image_base64 ? `data:image/png;base64,${primary_image_base64}` : screenshot_url)
   
   return (
     <div className="relative overflow-hidden rounded-2xl bg-white shadow-xl">
@@ -300,12 +298,12 @@ const ProductTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
  * Best for: Landing pages, homepages, promotional content
  */
 const LandingTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
-  const { blueprint, primary_image_base64, screenshot_url, title, subtitle, description, cta_text, tags } = preview
+  const { blueprint, primary_image_base64, screenshot_url, composited_preview_image_url, title, subtitle, description, cta_text, tags } = preview
 
-  // For UI card: Use raw screenshot as background (NOT composited_preview_image_url which is for og:image only)
-  // Priority: Screenshot > AI-extracted image
-  // We use screenshot here because it provides better visual context for landing pages
-  const imageUrl = screenshot_url || (primary_image_base64 ? `data:image/png;base64,${primary_image_base64}` : null)
+  // UNIFIED IMAGE SOURCE: Always use composited_preview_image_url as primary source
+  // Priority: Composited Preview Image > Screenshot > AI-extracted image
+  const imageUrl = composited_preview_image_url || screenshot_url || 
+    (primary_image_base64 ? `data:image/png;base64,${primary_image_base64}` : null)
 
   // DEBUG: Log image source selection for LandingTemplate (only when image URL changes)
   const imageUrlRef = useRef<string | null>(null)
@@ -407,13 +405,12 @@ const LandingTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
  * Best for: Blog posts, news, documentation
  */
 const ArticleTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
-  const { blueprint, primary_image_base64, screenshot_url, title, subtitle, description, tags, credibility_items } = preview
+  const { blueprint, primary_image_base64, screenshot_url, composited_preview_image_url, title, subtitle, description, tags, credibility_items } = preview
 
-  // For UI card: Use raw images (NOT composited_preview_image_url which is for og:image only)
-  // Priority: AI-extracted image > Screenshot
-  const articleImageUrl = primary_image_base64
-    ? `data:image/png;base64,${primary_image_base64}`
-    : screenshot_url
+  // UNIFIED IMAGE SOURCE: Always use composited_preview_image_url as primary source
+  // Priority: Composited Preview Image > AI-extracted image > Screenshot
+  const articleImageUrl = composited_preview_image_url || 
+    (primary_image_base64 ? `data:image/png;base64,${primary_image_base64}` : screenshot_url)
   
   return (
     <div className="relative overflow-hidden rounded-2xl bg-white shadow-xl">
@@ -471,13 +468,12 @@ const ArticleTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
  * Best for: Service pages, portfolios, case studies
  */
 const ServiceTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
-  const { blueprint, primary_image_base64, screenshot_url, title, subtitle, description, tags, cta_text, context_items } = preview
+  const { blueprint, primary_image_base64, screenshot_url, composited_preview_image_url, title, subtitle, description, tags, cta_text, context_items } = preview
 
-  // For UI card: Use raw images (NOT composited_preview_image_url which is for og:image only)
-  // Priority: AI-extracted image > Screenshot
-  const serviceImageUrl = primary_image_base64
-    ? `data:image/png;base64,${primary_image_base64}`
-    : screenshot_url
+  // UNIFIED IMAGE SOURCE: Always use composited_preview_image_url as primary source
+  // Priority: Composited Preview Image > AI-extracted image > Screenshot
+  const serviceImageUrl = composited_preview_image_url || 
+    (primary_image_base64 ? `data:image/png;base64,${primary_image_base64}` : screenshot_url)
   
   return (
     <div className="relative overflow-hidden rounded-2xl bg-white shadow-xl">

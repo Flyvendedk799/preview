@@ -43,6 +43,7 @@ from backend.services.r2_client import upload_file_to_r2
 from backend.services.preview_reasoning import generate_reasoned_preview
 from backend.services.preview_image_generator import generate_and_upload_preview_image
 from backend.services.brand_extractor import extract_all_brand_elements
+from backend.services.quality_orchestrator import QualityOrchestrator
 from backend.services.metadata_extractor import extract_metadata_from_html
 from backend.services.semantic_extractor import extract_semantic_structure
 from backend.services.intelligent_page_classifier import get_page_classifier, PageCategory
@@ -150,6 +151,17 @@ class PreviewEngine:
         self._last_progress = 0.0  # Track last progress for monotonic updates
         # Initialize framework-based fusion engine
         self.fusion_engine = MultiModalFusionEngine()
+        # Initialize quality orchestrator
+        try:
+            self.quality_orchestrator = QualityOrchestrator(
+                min_quality_threshold=0.75,
+                min_design_fidelity=0.70,
+                enable_auto_improvement=True
+            )
+            self.logger.info("Quality Orchestrator enabled")
+        except Exception as e:
+            self.logger.warning(f"Quality Orchestrator not available: {e}")
+            self.quality_orchestrator = None
         self.logger.info("Framework-based quality system enabled")
     
     def generate(
@@ -285,6 +297,69 @@ class PreviewEngine:
             
             # 7X QUALITY: Validate and enhance result
             result = self._validate_result_quality(result, url_str)
+            
+            # QUALITY GATE ENFORCEMENT: Comprehensive quality assessment
+            if self.quality_orchestrator:
+                try:
+                    # Convert result to dict for quality assessment
+                    result_dict = {
+                        "title": result.title,
+                        "subtitle": result.subtitle,
+                        "description": result.description,
+                        "tags": result.tags,
+                        "context_items": result.context_items,
+                        "credibility_items": result.credibility_items,
+                        "cta_text": result.cta_text,
+                        "blueprint": result.blueprint,
+                        "reasoning_confidence": result.reasoning_confidence,
+                        "design_dna": ai_result.get("design_dna")
+                    }
+                    
+                    # Assess quality (note: preview_image would need to be loaded from URL)
+                    quality_metrics = self.quality_orchestrator.assess_quality(
+                        preview_result=result_dict,
+                        preview_image=None,  # Could load from composited_image_url if needed
+                        design_dna=ai_result.get("design_dna"),
+                        brand_colors=brand_elements.get("colors") if brand_elements else None
+                    )
+                    
+                    # Enforce quality gates
+                    if not self.quality_orchestrator.enforce_quality_gates(quality_metrics):
+                        self.logger.warning(
+                            f"⚠️  Quality gates failed: "
+                            f"overall={quality_metrics.overall_quality_score:.2f}, "
+                            f"fidelity={quality_metrics.design_fidelity_score:.2f}, "
+                            f"gate={quality_metrics.gate_status.value}"
+                        )
+                        
+                        # If quality is below threshold but above minimum, log warning but proceed
+                        # If quality is critically low, raise error
+                        if quality_metrics.overall_quality_score < 0.50:
+                            raise ValueError(
+                                f"Preview quality too low: {quality_metrics.overall_quality_score:.2f}. "
+                                f"Issues: {', '.join(quality_metrics.issues[:3])}"
+                            )
+                        else:
+                            # Log warnings but allow to proceed
+                            result.warnings.extend(quality_metrics.issues)
+                            result.warnings.extend([
+                                f"Quality below threshold: {quality_metrics.overall_quality_score:.2f}",
+                                f"Suggestions: {', '.join(quality_metrics.suggestions[:3])}"
+                            ])
+                    
+                    # Add quality metrics to result
+                    result.quality_scores = {
+                        "overall": quality_metrics.overall_quality_score,
+                        "design_fidelity": quality_metrics.design_fidelity_score,
+                        "extraction": quality_metrics.extraction_quality_score,
+                        "visual": quality_metrics.visual_quality_score,
+                        "quality_level": quality_metrics.quality_level.value,
+                        "gate_status": quality_metrics.gate_status.value
+                    }
+                    
+                except Exception as e:
+                    self.logger.warning(f"Quality assessment failed: {e}", exc_info=True)
+                    # Continue without quality assessment if it fails
             
             # Cache result
             if self.config.enable_cache:
@@ -1079,8 +1154,27 @@ class PreviewEngine:
                     if brand_elements and "colors" in brand_elements:
                         brand_colors_rgb = self._hex_colors_to_rgb(brand_elements["colors"])
                     
-                    # Extract Design DNA if available
+                    # ENHANCED: Always extract Design DNA (never skip)
                     design_dna = ai_result.get("design_dna")
+                    if not design_dna:
+                        # Fallback: Extract Design DNA if not in AI result
+                        try:
+                            from backend.services.design_dna_extractor import extract_design_dna
+                            self.logger.info("Extracting Design DNA as fallback")
+                            design_dna_obj = extract_design_dna(screenshot_bytes, url)
+                            design_dna = {
+                                "style": design_dna_obj.philosophy.primary_style if hasattr(design_dna_obj, 'philosophy') else "corporate",
+                                "color_palette": {
+                                    "primary": design_dna_obj.color_palette.primary if hasattr(design_dna_obj, 'color_palette') else "#2563EB",
+                                    "secondary": design_dna_obj.color_palette.secondary if hasattr(design_dna_obj, 'color_palette') else "#1E40AF",
+                                    "accent": design_dna_obj.color_palette.accent if hasattr(design_dna_obj, 'color_palette') else "#F59E0B"
+                                },
+                                "typography_personality": design_dna_obj.typography.personality if hasattr(design_dna_obj, 'typography') else "professional"
+                            }
+                            self.logger.info(f"✅ Design DNA extracted: style={design_dna.get('style')}")
+                        except Exception as e:
+                            self.logger.warning(f"Design DNA extraction failed: {e}")
+                            design_dna = None
                     
                     # Prepare proof text from credibility items
                     proof_text = None
@@ -1142,6 +1236,26 @@ class PreviewEngine:
                     self.logger.warning(f"⚠️  Enhanced system failed, falling back to standard: {e}", exc_info=True)
             
             # Fallback to standard generation
+            # ENHANCED: Always pass Design DNA to image generator
+            design_dna_for_image = ai_result.get("design_dna")
+            if not design_dna_for_image:
+                # Try to extract if not available
+                try:
+                    from backend.services.design_dna_extractor import extract_design_dna
+                    design_dna_obj = extract_design_dna(screenshot_bytes, url)
+                    design_dna_for_image = {
+                        "style": design_dna_obj.philosophy.primary_style if hasattr(design_dna_obj, 'philosophy') else "corporate",
+                        "color_palette": {
+                            "primary": design_dna_obj.color_palette.primary if hasattr(design_dna_obj, 'color_palette') else blueprint_colors.get("primary_color", "#2563EB"),
+                            "secondary": design_dna_obj.color_palette.secondary if hasattr(design_dna_obj, 'color_palette') else blueprint_colors.get("secondary_color", "#1E40AF"),
+                            "accent": design_dna_obj.color_palette.accent if hasattr(design_dna_obj, 'color_palette') else blueprint_colors.get("accent_color", "#F59E0B")
+                        },
+                        "typography_personality": design_dna_obj.typography.personality if hasattr(design_dna_obj, 'typography') else "professional"
+                    }
+                except Exception as e:
+                    self.logger.warning(f"Design DNA extraction for image failed: {e}")
+                    design_dna_for_image = None
+            
             composited_image_url = generate_and_upload_preview_image(
                 screenshot_bytes=screenshot_bytes,
                 url=url,
@@ -1154,7 +1268,8 @@ class PreviewEngine:
                 tags=ai_result.get("tags", []),
                 context_items=ai_result.get("context_items", []),
                 credibility_items=ai_result.get("credibility_items", []),
-                primary_image_base64=primary_image
+                primary_image_base64=primary_image,
+                design_dna=design_dna_for_image  # ENHANCED: Always pass Design DNA
             )
             
             if composited_image_url:
@@ -1164,7 +1279,30 @@ class PreviewEngine:
         except Exception as e:
             self.logger.warning(f"⚠️  Preview image generation failed: {e}", exc_info=True)
         
-        return None
+        # CRITICAL: Ensure composited image is ALWAYS generated (never return None)
+        # Fallback: Use screenshot as composited image if all else fails
+        if not composited_image_url and screenshot_bytes:
+            try:
+                self.logger.warning("⚠️  Using screenshot as fallback composited image")
+                from backend.services.r2_client import upload_file_to_r2
+                filename = f"previews/fallback/{uuid4()}.png"
+                composited_image_url = upload_file_to_r2(
+                    screenshot_bytes,
+                    filename,
+                    "image/png"
+                )
+                if composited_image_url:
+                    self.logger.info(f"✅ Fallback composited image uploaded: {composited_image_url}")
+                    return composited_image_url
+            except Exception as fallback_error:
+                self.logger.error(f"❌ Fallback image upload also failed: {fallback_error}")
+        
+        # If still None, this is a critical error
+        if not composited_image_url:
+            self.logger.error("❌ CRITICAL: Failed to generate composited preview image - all methods failed")
+            raise ValueError("Failed to generate composited preview image - all generation methods failed")
+        
+        return composited_image_url
     
     def _determine_colors(
         self,

@@ -1,0 +1,21 @@
+{
+  "examples": [
+    {
+      "url": "https://stripe.com",
+      "title": "Stripe | Payment processing for the internet",
+      "description": "Millions of businesses of all sizes use Stripe to accept payments online.",
+      "quality_score": 0.92,
+      "design_fidelity": 0.88,
+      "notes": "Clear value prop, specific numbers, professional design"
+    },
+    {
+      "url": "https://github.com",
+      "title": "GitHub: Let's build from here",
+      "description": "The world's leading software development platform",
+      "quality_score": 0.90,
+      "design_fidelity": 0.85,
+      "notes": "Strong hook, clear positioning, brand-aligned"
+    }
+  ]
+}
+

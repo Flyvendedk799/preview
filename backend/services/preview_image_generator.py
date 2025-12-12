@@ -466,11 +466,20 @@ def _generate_hero_template(
     except:
         pass
     
-    # DESIGN FIX 2: Standardized spacing system (8px grid)
-    # Base padding scales with image size for better proportions
-    base_padding = int(OG_IMAGE_WIDTH * 0.067)  # ~6.7% of width (80px at 1200px)
-    padding = max(60, min(100, base_padding))  # Clamp between 60-100px
+    # ENHANCED: Standardized spacing system using 8px grid and golden ratio
+    # Golden ratio: 1.618 (for harmonious proportions)
+    GOLDEN_RATIO = 1.618
+    
+    # Base padding scales with image size using golden ratio for better proportions
+    base_padding = int(OG_IMAGE_WIDTH / (GOLDEN_RATIO * 2))  # ~370px / 1.618 / 2 ≈ 114px
+    padding = max(80, min(120, base_padding))  # Clamp between 80-120px for better spacing
     content_width = OG_IMAGE_WIDTH - (padding * 2)
+    
+    # Vertical spacing using golden ratio
+    vertical_unit = int(padding / GOLDEN_RATIO)  # ~70px at 114px padding
+    spacing_small = vertical_unit // 2  # ~35px
+    spacing_medium = vertical_unit  # ~70px
+    spacing_large = int(vertical_unit * GOLDEN_RATIO)  # ~113px
     
     # LAYOUT: Logo top-left, Social Proof badge top-right, Big headline center
     content_y = padding
@@ -559,13 +568,16 @@ def _generate_hero_template(
         content_y = title_y + min(len(title_lines), 2) * 100 + 40  # Increased spacing
     
     # === SUPPORTING TEXT (subtitle or description) ===
+    # ENHANCED: Typography hierarchy - subtitle is title_size / golden_ratio
     support_text = subtitle or description
     if support_text and support_text != title:
-        # MOBILE-FIRST: Description must be readable on mobile (48px = 4% of 1200px → ~16px on mobile)
-        desc_font = _load_font(48, bold=True)  # Increased dramatically, made bold for mobile readability
+        desc_font_size = int(title_font_size / GOLDEN_RATIO)  # ~91px (148 / 1.618)
+        desc_font = _load_font(desc_font_size, bold=False)  # Regular weight for hierarchy
+        desc_line_height = int(desc_font_size * 1.5)  # 1.5x for body text readability
+        
         desc_lines = _wrap_text(support_text, desc_font, content_width, draw)
         for i, line in enumerate(desc_lines[:2]):
-            y_pos = content_y + (i * 60)  # Increased line spacing from 38 to 60 for 48px font
+            y_pos = content_y + (i * desc_line_height)
             # Subtle shadow for readability on gradient background
             _draw_text_with_shadow(draw, (padding, y_pos), line, desc_font, (240, 240, 245), 3)
     
