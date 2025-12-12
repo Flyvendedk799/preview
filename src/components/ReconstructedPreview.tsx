@@ -604,78 +604,15 @@ const ServiceTemplate = ({ preview }: { preview: DemoPreviewResponse }) => {
 // =============================================================================
 
 export default function ReconstructedPreview({ preview, className = '' }: ReconstructedPreviewProps) {
-  const { blueprint, screenshot_url, primary_image_base64 } = preview
+  const { blueprint, composited_preview_image_url } = preview
+  const [imageError, setImageError] = useState(false)
 
-  // DEBUG: Log template selection and image data (only once per preview change)
-  const previewIdRef = useRef<string | null>(null)
-  useEffect(() => {
-    const currentId = `${blueprint.template_type}-${screenshot_url || 'no-screenshot'}-${preview.title}`
-    if (currentId !== previewIdRef.current) {
-      console.log('[ReconstructedPreview] Rendering:', {
-        template_type: blueprint.template_type,
-        screenshot_url: screenshot_url || 'null',
-        primary_image_base64: primary_image_base64 ? 'present (base64)' : 'null',
-        title: preview.title,
-        note: 'UI card uses raw images, NOT composited_preview_image_url (which is for og:image only)'
-      })
-      previewIdRef.current = currentId
-    }
-  }, [blueprint.template_type, screenshot_url, primary_image_base64, preview.title])
+  // CRITICAL FIX: Always display the composited_preview_image_url directly
+  // This ensures the "AI Reconstructed Preview" matches the "Social Media Preview"
+  // The composited image IS the final preview - we don't rebuild it with templates
   
-  // Select template based on type
-  // Maps AI page types to visual templates
-  // NEW: Uses AdaptivePreview when Design DNA is available for intelligent styling
-  const renderTemplate = () => {
-    const templateType = (blueprint.template_type || '').toLowerCase()
-    
-    // NEW: If Design DNA is available and confidence is high, use AdaptivePreview
-    // This creates previews that honor the original design's personality
-    if (preview.design_dna && preview.design_fidelity_score && preview.design_fidelity_score > 0.5) {
-      console.log('[ReconstructedPreview] Using AdaptivePreview with Design DNA:', {
-        style: preview.design_dna.style,
-        typography: preview.design_dna.typography_personality,
-        fidelity: preview.design_fidelity_score
-      })
-      return <AdaptivePreview preview={preview} />
-    }
-    
-    // Fallback to fixed templates when Design DNA is not available
-    
-    // Profile template: personal pages, freelancers, team members
-    if (templateType === 'profile' || templateType === 'personal') {
-      return <ProfileTemplate preview={preview} />
-    }
-    
-    // Product template: e-commerce, products, marketplaces
-    if (templateType === 'product' || templateType === 'ecommerce' || templateType === 'marketplace') {
-      return <ProductTemplate preview={preview} />
-    }
-    
-    // Article template: blog posts, news, documentation
-    if (templateType === 'article' || templateType === 'blog' || templateType === 'news' || templateType === 'documentation') {
-      return <ArticleTemplate preview={preview} />
-    }
-    
-    // Service template: agencies, portfolios, services
-    if (templateType === 'service' || templateType === 'agency' || templateType === 'portfolio') {
-      return <ServiceTemplate preview={preview} />
-    }
-    
-    // Landing template: SaaS, startups, landing pages, homepages, tools, enterprise
-    // This is the DEFAULT for business/company pages (most common)
-    if (templateType === 'landing' || 
-        templateType === 'saas' || 
-        templateType === 'startup' || 
-        templateType === 'enterprise' || 
-        templateType === 'tool' ||
-        templateType === 'company') {
-      return <LandingTemplate preview={preview} />
-    }
-    
-    // DEFAULT: Use Landing template for unknown types
-    // Landing is the most versatile and professional-looking
-    // (was incorrectly defaulting to Profile before!)
-    return <LandingTemplate preview={preview} />
+  const handleImageError = () => {
+    setImageError(true)
   }
   
   return (
@@ -688,9 +625,32 @@ export default function ReconstructedPreview({ preview, className = '' }: Recons
         }}
       />
       
-      {/* Main content */}
+      {/* Main content - Direct display of composited image */}
       <div className="relative">
-        {renderTemplate()}
+        {composited_preview_image_url && !imageError ? (
+          <div className="relative overflow-hidden rounded-2xl bg-white shadow-xl">
+            <img 
+              src={composited_preview_image_url}
+              alt={preview.title}
+              className="w-full h-auto object-cover"
+              onError={handleImageError}
+            />
+          </div>
+        ) : (
+          <div className="relative overflow-hidden rounded-2xl bg-white shadow-xl p-8">
+            <div 
+              className="aspect-[16/9] flex items-center justify-center rounded-lg"
+              style={{ 
+                background: `linear-gradient(135deg, ${blueprint.primary_color}, ${blueprint.secondary_color})` 
+              }}
+            >
+              <div className="text-center text-white">
+                <div className="text-4xl mb-2">🖼️</div>
+                <div className="text-sm font-medium">Preview Image Unavailable</div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
       
       {/* Quality indicator (subtle) */}

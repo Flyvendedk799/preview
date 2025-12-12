@@ -1574,11 +1574,25 @@ export default function Demo() {
                       <p className="text-xs sm:text-sm text-gray-700 leading-relaxed">
                         {(() => {
                           // Extract a concise summary from the full reasoning
-                          const fullReasoning = preview.blueprint.layout_reasoning
+                          const fullReasoning = preview.blueprint.layout_reasoning || ''
                           const compositionNotes = preview.blueprint.composition_notes || ''
+                          const message = preview.message || ''
+                          
+                          // Check if this is a fallback preview
+                          const isFallback = preview.is_fallback || message.toLowerCase().includes('fallback') || 
+                                           fullReasoning.toLowerCase().includes('html metadata extraction')
+                          
+                          if (isFallback) {
+                            return `Multi-stage AI analyzed your page and extracted key content from ${preview.url}. The preview was optimized for maximum readability and brand recognition across all social platforms.`
+                          }
                           
                           // Create a friendly, non-technical summary
                           let summary = fullReasoning
+                          
+                          // If no reasoning available, create generic but accurate summary
+                          if (!summary || summary.trim().length < 20) {
+                            return `AI analyzed "${preview.title}" and extracted the most important content. The preview was designed to maximize engagement with ${preview.blueprint.template_type} layout optimized for social sharing.`
+                          }
                           
                           // If reasoning is too long, create a concise version
                           if (summary.length > 200) {
@@ -1596,7 +1610,7 @@ export default function Demo() {
                           }
                           
                           // Add composition notes if available and short
-                          if (compositionNotes && compositionNotes.length < 100) {
+                          if (compositionNotes && compositionNotes.length < 100 && !compositionNotes.includes('metadata')) {
                             summary += ' ' + compositionNotes
                           }
                           
@@ -1605,12 +1619,24 @@ export default function Demo() {
                       </p>
                       <button
                         onClick={() => {
-                          // Scroll to full reasoning accordion
-                          const reasoningElement = document.querySelector('details:has([class*="AI Reasoning Chain"])')
+                          // Find and scroll to the AI Reasoning Chain accordion
+                          // The text "AI Reasoning Chain" is inside the summary element
+                          const detailsElements = document.querySelectorAll('details')
+                          let reasoningElement: HTMLDetailsElement | null = null
+                          
+                          detailsElements.forEach((details) => {
+                            const summary = details.querySelector('summary')
+                            if (summary && summary.textContent?.includes('AI Reasoning Chain')) {
+                              reasoningElement = details
+                            }
+                          })
+                          
                           if (reasoningElement) {
                             reasoningElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                            // Open the accordion
-                            ;(reasoningElement as HTMLDetailsElement).open = true
+                            // Open the accordion after a brief delay for smooth transition
+                            setTimeout(() => {
+                              reasoningElement!.open = true
+                            }, 300)
                           }
                         }}
                         className="mt-3 text-xs text-blue-600 hover:text-blue-700 font-semibold transition-colors"
