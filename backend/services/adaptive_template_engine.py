@@ -448,10 +448,95 @@ class AdaptiveTemplateEngine:
         # Select composition
         template_style = design_dna.get_template_recommendation()
         self.composition_class = COMPOSITION_MAP.get(template_style, ProfessionalCleanComposition)
-        self.zones = self.composition_class.get_layout_zones(self.width, self.height)
+        base_zones = self.composition_class.get_layout_zones(self.width, self.height)
+        
+        # Apply layout patterns from Design DNA
+        self.zones = self._adjust_zones_for_layout(base_zones)
         
         # Visual effects
         self.effects = design_dna.get_visual_effects()
+    
+    def _adjust_zones_for_layout(self, base_zones: Dict[str, Tuple[int, int, int, int]]) -> Dict[str, Tuple[int, int, int, int]]:
+        """
+        Adjust layout zones based on layout_patterns from Design DNA.
+        
+        Args:
+            base_zones: Original zones from composition class
+            
+        Returns:
+            Adjusted zones based on layout patterns
+        """
+        layout_patterns = getattr(self.dna, 'layout_patterns', None)
+        if not layout_patterns:
+            return base_zones
+        
+        content_structure = getattr(layout_patterns, 'content_structure', 'centered')
+        content_width = getattr(layout_patterns, 'content_width', 'medium')
+        section_spacing = getattr(layout_patterns, 'section_spacing', 'normal')
+        
+        adjusted_zones = base_zones.copy()
+        
+        # Adjust content width
+        if content_width != 'full':
+            width_adjustments = {
+                'narrow': 0.6,  # 60% of width
+                'medium': 0.75,  # 75% of width
+                'wide': 0.9  # 90% of width
+            }
+            
+            width_factor = width_adjustments.get(content_width, 0.75)
+            center_x = self.width // 2
+            
+            # Adjust horizontal zones (headline, subtitle, description)
+            for zone_name in ['headline', 'subtitle', 'description']:
+                if zone_name in adjusted_zones:
+                    x, y, w, h = adjusted_zones[zone_name]
+                    new_w = int(w * width_factor)
+                    new_x = center_x - (new_w // 2)
+                    adjusted_zones[zone_name] = (new_x, y, new_w, h)
+        
+        # Adjust content structure (centered, left-aligned, etc.)
+        if content_structure == 'left-aligned':
+            # Shift zones to the left
+            padding = int(self.width * 0.07)
+            for zone_name in ['headline', 'subtitle', 'description', 'proof']:
+                if zone_name in adjusted_zones:
+                    x, y, w, h = adjusted_zones[zone_name]
+                    adjusted_zones[zone_name] = (padding, y, w, h)
+        elif content_structure == 'asymmetric':
+            # Create asymmetric layout (shift some elements)
+            for zone_name in ['subtitle', 'description']:
+                if zone_name in adjusted_zones:
+                    x, y, w, h = adjusted_zones[zone_name]
+                    # Shift right by 10%
+                    adjusted_zones[zone_name] = (x + int(self.width * 0.1), y, w, h)
+        
+        # Adjust section spacing
+        spacing_multipliers = {
+            'tight': 0.7,
+            'normal': 1.0,
+            'generous': 1.3,
+            'very-generous': 1.6
+        }
+        
+        spacing_mult = spacing_multipliers.get(section_spacing, 1.0)
+        
+        # Adjust vertical spacing between zones
+        zone_order = ['logo', 'headline', 'subtitle', 'description', 'proof']
+        prev_y_end = 0
+        
+        for zone_name in zone_order:
+            if zone_name in adjusted_zones:
+                x, y, w, h = adjusted_zones[zone_name]
+                if prev_y_end > 0:
+                    # Calculate spacing
+                    current_spacing = y - prev_y_end
+                    new_spacing = int(current_spacing * spacing_mult)
+                    new_y = prev_y_end + new_spacing
+                    adjusted_zones[zone_name] = (x, new_y, w, h)
+                prev_y_end = y + h
+        
+        return adjusted_zones
     
     def generate(
         self,
@@ -473,6 +558,9 @@ class AdaptiveTemplateEngine:
         
         # Apply background
         image = self._apply_background(image, screenshot_bytes)
+        
+        # STEP 1: Apply card styling (if card style is specified)
+        image = self._apply_card_styling(image)
         
         draw = ImageDraw.Draw(image)
         
@@ -502,16 +590,42 @@ class AdaptiveTemplateEngine:
         image: Image.Image,
         screenshot_bytes: Optional[bytes] = None
     ) -> Image.Image:
-        """Apply background based on design style."""
+        """Apply background based on design style and visual effects from Design DNA."""
         style = self.dna.philosophy.primary_style.lower()
+        visual_effects = getattr(self.dna, 'visual_effects', None)
         
-        # Use gradient background
-        if self.colors.gradient_type != "none":
+        # Check if gradients are enabled in visual effects
+        gradients_enabled = False
+        gradient_direction = "horizontal"
+        if visual_effects:
+            gradients_enabled = getattr(visual_effects, 'gradients', 'none') != 'none'
+            gradient_direction = getattr(visual_effects, 'gradient_direction', 'horizontal')
+        
+        # Use gradient background (from color config or visual effects)
+        if self.colors.gradient_type != "none" or gradients_enabled:
+            # Determine gradient style from visual_effects
+            gradient_style = "linear"
+            if visual_effects:
+                gradient_type = getattr(visual_effects, 'gradients', 'none')
+                if gradient_type == "radial":
+                    gradient_style = "radial"
+                elif gradient_type in ["conic", "diagonal"]:
+                    gradient_style = "linear"  # Use linear for diagonal/conic
+            
+            # Calculate angle from gradient_direction
+            angle_map = {
+                "horizontal": 0,
+                "vertical": 90,
+                "diagonal": 135,
+                "radial": 0  # Radial doesn't use angle
+            }
+            angle = angle_map.get(gradient_direction, 135)
+            
             image = apply_gradient_background(
                 image,
                 self.colors.gradient_colors,
-                angle=self.colors.gradient_angle,
-                style="linear"
+                angle=angle,
+                style=gradient_style
             )
         
         # Add screenshot as subtle background for certain styles
@@ -530,9 +644,196 @@ class AdaptiveTemplateEngine:
             except:
                 pass
         
-        # Add noise texture for sophisticated styles
-        if "grain-texture" in self.effects or style in ["luxurious", "editorial"]:
+        # Apply textures from visual_effects
+        image = self._apply_textures(image)
+        
+        return image
+    
+    def _apply_textures(self, image: Image.Image) -> Image.Image:
+        """Apply visual textures based on Design DNA."""
+        visual_effects = getattr(self.dna, 'visual_effects', None)
+        if not visual_effects:
+            return image
+        
+        textures = getattr(visual_effects, 'visual_textures', [])
+        style = self.dna.philosophy.primary_style.lower()
+        
+        # Apply textures based on visual_textures list
+        if 'grainy' in textures or 'noise' in textures:
+            image = apply_noise_texture(image, intensity=0.03)
+        elif 'paper' in textures:
             image = apply_noise_texture(image, intensity=0.02)
+        elif 'fabric' in textures:
+            image = apply_noise_texture(image, intensity=0.015)
+        elif 'smooth' in textures:
+            # No texture for smooth
+            pass
+        
+        # Fallback: Apply texture for sophisticated styles if no texture specified
+        if not textures and style in ["luxurious", "editorial"]:
+            image = apply_noise_texture(image, intensity=0.02)
+        
+        return image
+    
+    def _apply_shadows(self, image: Image.Image, element_zone: Tuple[int, int, int, int]) -> Image.Image:
+        """
+        Apply shadows to a specific element zone based on visual_effects.shadows.
+        
+        Args:
+            image: Image to apply shadow to
+            element_zone: (x, y, w, h) zone to apply shadow to
+            
+        Returns:
+            Image with shadow applied
+        """
+        visual_effects = getattr(self.dna, 'visual_effects', None)
+        if not visual_effects:
+            return image
+        
+        shadows = getattr(visual_effects, 'shadows', 'subtle')
+        if shadows == 'none':
+            return image
+        
+        x, y, w, h = element_zone
+        
+        # Shadow parameters based on intensity
+        shadow_params = {
+            'subtle': {'offset': 2, 'blur': 3, 'opacity': 30},
+            'medium': {'offset': 4, 'blur': 6, 'opacity': 50},
+            'dramatic': {'offset': 8, 'blur': 12, 'opacity': 70}
+        }
+        
+        params = shadow_params.get(shadows, shadow_params['subtle'])
+        
+        # Create shadow layer
+        shadow = Image.new('RGBA', (w + params['offset'] * 2, h + params['offset'] * 2), (0, 0, 0, 0))
+        shadow_draw = ImageDraw.Draw(shadow)
+        shadow_draw.rectangle(
+            [(params['offset'], params['offset']), (params['offset'] + w, params['offset'] + h)],
+            fill=(0, 0, 0, params['opacity'])
+        )
+        shadow = shadow.filter(ImageFilter.GaussianBlur(radius=params['blur']))
+        
+        # Paste shadow
+        image.paste(shadow, (x - params['offset'], y - params['offset']), shadow)
+        
+        return image
+    
+    def _apply_borders(self, image: Image.Image, element_zone: Tuple[int, int, int, int], draw: ImageDraw.Draw) -> None:
+        """
+        Apply borders to a specific element zone based on visual_effects.borders.
+        
+        Args:
+            image: Image (for reference)
+            element_zone: (x, y, w, h) zone to apply border to
+            draw: ImageDraw object to draw border
+        """
+        visual_effects = getattr(self.dna, 'visual_effects', None)
+        if not visual_effects:
+            return
+        
+        borders = getattr(visual_effects, 'borders', 'thin')
+        border_style = getattr(visual_effects, 'border_style', 'solid')
+        
+        if borders == 'none':
+            return
+        
+        x, y, w, h = element_zone
+        
+        # Border width based on borders setting
+        border_width_map = {
+            'thin': 1,
+            'medium': 2,
+            'thick': 4
+        }
+        border_width = border_width_map.get(borders, 1)
+        
+        # Border color (use text color or accent)
+        border_color = self.colors.text if self.dna.color_psychology.light_dark_balance > 0.5 else (255, 255, 255)
+        
+        # Apply border style
+        if border_style == 'solid':
+            draw.rectangle([(x, y), (x + w, y + h)], outline=border_color, width=border_width)
+        elif border_style == 'dashed':
+            # Draw dashed border (simplified - draw multiple small rectangles)
+            dash_length = 8
+            gap_length = 4
+            current_x = x
+            while current_x < x + w:
+                draw.rectangle([(current_x, y), (min(current_x + dash_length, x + w), y + border_width)], fill=border_color)
+                current_x += dash_length + gap_length
+            # Repeat for other sides if needed
+        elif border_style == 'dotted':
+            # Draw dotted border
+            dot_spacing = 4
+            for dot_x in range(x, x + w, dot_spacing):
+                draw.ellipse([(dot_x, y), (dot_x + border_width, y + border_width)], fill=border_color)
+            # Repeat for other sides if needed
+    
+    def _apply_card_styling(self, image: Image.Image) -> Image.Image:
+        """
+        Apply card styling based on UI components from Design DNA.
+        
+        Creates a card with appropriate style (flat, elevated, bordered, glassmorphic, neumorphic)
+        and shadow intensity.
+        """
+        ui_components = getattr(self.dna, 'ui_components', None)
+        if not ui_components:
+            return image
+        
+        card_style = getattr(ui_components, 'card_style', 'flat')
+        card_shadow = getattr(ui_components, 'card_shadow', 'subtle')
+        
+        # For flat style, no card needed (content directly on background)
+        if card_style == 'flat':
+            return image
+        
+        # Define card zone (most of the image, with padding)
+        card_padding = int(self.width * 0.04)  # 4% padding
+        card_x = card_padding
+        card_y = card_padding
+        card_w = self.width - (card_padding * 2)
+        card_h = self.height - (card_padding * 2)
+        
+        # Create card image
+        card_image = Image.new('RGBA', (card_w, card_h), (255, 255, 255, 255))
+        card_draw = ImageDraw.Draw(card_image)
+        
+        # Apply card style
+        if card_style == 'elevated':
+            # Elevated card with shadow
+            card_draw.rectangle([(0, 0), (card_w, card_h)], fill=(255, 255, 255))
+        elif card_style == 'bordered':
+            # Card with border
+            border_width = 2
+            card_draw.rectangle([(0, 0), (card_w, card_h)], fill=(255, 255, 255))
+            card_draw.rectangle([(0, 0), (card_w, card_h)], outline=self.colors.text, width=border_width)
+        elif card_style == 'glassmorphic':
+            # Glassmorphic effect
+            return add_glassmorphism_card(image, (card_x, card_y, card_w, card_h))
+        elif card_style == 'neumorphic':
+            # Neumorphic effect (soft shadows)
+            card_draw.rectangle([(0, 0), (card_w, card_h)], fill=(245, 245, 245))
+        
+        # Apply shadow based on card_shadow intensity
+        if card_shadow != 'none':
+            shadow_offset = {'subtle': 2, 'medium': 4, 'dramatic': 8}.get(card_shadow, 2)
+            shadow_blur = {'subtle': 3, 'medium': 6, 'dramatic': 12}.get(card_shadow, 3)
+            
+            # Create shadow layer
+            shadow = Image.new('RGBA', (card_w + shadow_offset * 2, card_h + shadow_offset * 2), (0, 0, 0, 0))
+            shadow_draw = ImageDraw.Draw(shadow)
+            shadow_draw.rectangle(
+                [(shadow_offset, shadow_offset), (shadow_offset + card_w, shadow_offset + card_h)],
+                fill=(0, 0, 0, 40 if card_shadow == 'subtle' else 60 if card_shadow == 'medium' else 80)
+            )
+            shadow = shadow.filter(ImageFilter.GaussianBlur(radius=shadow_blur))
+            
+            # Paste shadow first
+            image.paste(shadow, (card_x - shadow_offset, card_y - shadow_offset), shadow)
+        
+        # Paste card on top
+        image.paste(card_image.convert('RGB'), (card_x, card_y))
         
         return image
     
@@ -549,37 +850,74 @@ class AdaptiveTemplateEngine:
         
         # Use button style to determine bar style
         button_style = "flat"
+        button_shape = "rounded"
+        button_border_radius = "medium"
         if ui_components:
             button_style = getattr(ui_components, 'button_style', 'flat')
-            button_shape = getattr(ui_components, 'button_border_radius', 'medium')
+            button_shape = getattr(ui_components, 'button_shape', 'rounded')
+            button_border_radius = getattr(ui_components, 'button_border_radius', 'medium')
         
         # Apply visual effects
         shadow_intensity = "subtle"
+        gradients_enabled = False
+        gradient_direction = "horizontal"
         if visual_effects:
             shadow_intensity = getattr(visual_effects, 'shadows', 'subtle')
+            gradients_enabled = getattr(visual_effects, 'gradients', 'none') != 'none'
+            gradient_direction = getattr(visual_effects, 'gradient_direction', 'horizontal')
+        
+        # Calculate border radius based on button_border_radius
+        radius_map = {'none': 0, 'small': 4, 'medium': 8, 'large': 16, 'pill': h // 2}
+        radius = radius_map.get(button_border_radius, 8)
         
         # Render based on button style
-        if button_style == "gradient" and visual_effects and getattr(visual_effects, 'gradients', 'none') != 'none':
+        if button_style == "gradient" and gradients_enabled:
             # Gradient bar
             from backend.services.color_psychology import generate_gradient_colors
             gradient_colors = generate_gradient_colors(
                 self.colors.accent,
                 self.colors.secondary,
-                steps=10
+                steps=min(w, 100)  # Limit steps for performance
             )
-            # Simple gradient implementation
-            for i, color in enumerate(gradient_colors[:w]):
-                draw.rectangle([(x + i, y), (x + i + 1, y + h)], fill=color)
+            
+            # Apply gradient based on direction
+            if gradient_direction == "horizontal":
+                for i in range(min(w, len(gradient_colors))):
+                    color_idx = int((i / w) * (len(gradient_colors) - 1))
+                    draw.rectangle([(x + i, y), (x + i + 1, y + h)], fill=gradient_colors[color_idx])
+            elif gradient_direction == "vertical":
+                for i in range(min(h, len(gradient_colors))):
+                    color_idx = int((i / h) * (len(gradient_colors) - 1))
+                    draw.rectangle([(x, y + i), (x + w, y + i + 1)], fill=gradient_colors[color_idx])
+            else:
+                # Default to horizontal
+                for i in range(min(w, len(gradient_colors))):
+                    color_idx = int((i / w) * (len(gradient_colors) - 1))
+                    draw.rectangle([(x + i, y), (x + i + 1, y + h)], fill=gradient_colors[color_idx])
+        elif button_style == "outlined":
+            # Outlined bar
+            border_width = 2
+            if radius > 0:
+                # Rounded rectangle outline
+                draw.rounded_rectangle([(x, y), (x + w, y + h)], radius=radius, outline=self.colors.accent, width=border_width)
+            else:
+                draw.rectangle([(x, y), (x + w, y + h)], outline=self.colors.accent, width=border_width)
+        elif button_style == "ghost":
+            # Ghost/transparent bar with border
+            border_width = 1
+            if radius > 0:
+                draw.rounded_rectangle([(x, y), (x + w, y + h)], radius=radius, outline=self.colors.accent, width=border_width, fill=None)
+            else:
+                draw.rectangle([(x, y), (x + w, y + h)], outline=self.colors.accent, width=border_width)
         else:
-            # Solid bar (default)
-            draw.rectangle([(x, y), (x + w, y + h)], fill=self.colors.accent)
+            # Solid bar (flat, raised, etc.)
+            if radius > 0 and button_shape in ['rounded', 'pill']:
+                draw.rounded_rectangle([(x, y), (x + w, y + h)], radius=radius, fill=self.colors.accent)
+            else:
+                draw.rectangle([(x, y), (x + w, y + h)], fill=self.colors.accent)
         
-        # Add shadow if specified
-        if shadow_intensity in ["medium", "dramatic"]:
-            # Add subtle shadow effect
-            shadow_color = tuple(max(0, c - 30) for c in self.colors.accent)
-            draw.rectangle([(x + 2, y + 2), (x + w + 2, y + h + 2)], fill=shadow_color)
-            draw.rectangle([(x, y), (x + w, y + h)], fill=self.colors.accent)
+        # Add shadow if specified (applied in post-processing for better quality)
+        # Shadow will be applied in _apply_post_effects if needed
     
     def _render_logo(self, image: Image.Image, logo_base64: Optional[str]):
         """Render logo if available."""
@@ -614,21 +952,46 @@ class AdaptiveTemplateEngine:
             logger.warning(f"Failed to render logo: {e}")
     
     def _render_headline(self, draw: ImageDraw.Draw, title: str):
-        """Render main headline."""
+        """Render main headline with full typography DNA application."""
         if "headline" not in self.zones or not title:
             return
         
         x, y, w, h = self.zones["headline"]
         
-        # Calculate font size
+        # Get typography DNA values
+        letter_spacing = getattr(self.dna.typography, 'letter_spacing', 'normal')
+        line_height_dna = getattr(self.dna.typography, 'line_height', 'normal')
+        case_strategy = getattr(self.dna.typography, 'case_strategy', 'mixed')
+        font_size_hierarchy = getattr(self.dna.typography, 'font_size_hierarchy', '')
+        
+        # Calculate font size (considering hierarchy if specified)
         base_size = self.typography.headline_size
         font_size = calculate_adaptive_font_size(title, base_size, w, min_size=48, max_size=160)
+        
+        # Adjust font size based on hierarchy description if available
+        if font_size_hierarchy and "headline" in font_size_hierarchy.lower():
+            # Try to extract ratio from hierarchy description
+            import re
+            ratio_match = re.search(r'(\d+\.?\d*)x', font_size_hierarchy.lower())
+            if ratio_match:
+                ratio = float(ratio_match.group(1))
+                # Adjust relative to body size (assuming body is ~24px)
+                body_size = 24
+                font_size = max(48, min(160, int(body_size * ratio)))
         
         # Load font
         font = load_pillow_font(self.typography.pillow_fonts, font_size, bold=True)
         
+        # Apply case strategy
+        if case_strategy == "uppercase-accent":
+            # Uppercase for emphasis
+            title = title.upper()
+        elif case_strategy == "lowercase-casual":
+            # Lowercase for casual feel
+            title = title.lower()
+        # "mixed" keeps original case
+        
         # Determine text color
-        # For gradient backgrounds, use white or ensure contrast
         bg_luminance = self.dna.color_psychology.light_dark_balance
         if bg_luminance < 0.5:
             text_color = (255, 255, 255)
@@ -645,56 +1008,99 @@ class AdaptiveTemplateEngine:
         # Wrap text
         lines = get_optimal_line_breaks(title, font_size, w, max_lines=2)
         
-        current_y = y
-        line_height = int(font_size * self.typography.headline_line_height)
+        # Calculate line height based on DNA
+        line_height_multipliers = {
+            'tight': 1.1,
+            'normal': 1.2,
+            'relaxed': 1.4,
+            'very-relaxed': 1.6
+        }
+        line_height_mult = line_height_multipliers.get(line_height_dna, 1.2)
+        line_height = int(font_size * line_height_mult)
         
+        current_y = y
         for line in lines:
-            draw_text_with_effects(
+            # Calculate letter spacing
+            letter_spacing_px = self._get_letter_spacing_px(letter_spacing, font_size)
+            
+            # Render with letter spacing
+            self._draw_text_with_letter_spacing(
                 draw,
                 (x, current_y),
                 line,
                 font,
                 text_color,
-                shadow_params=shadow_params,
-                text_case=self.typography.headline_case
+                letter_spacing_px,
+                shadow_params=shadow_params
             )
             current_y += line_height
     
     def _render_subtitle(self, draw: ImageDraw.Draw, subtitle: Optional[str]):
-        """Render subtitle/tagline."""
+        """Render subtitle/tagline with typography DNA."""
         if "subtitle" not in self.zones or not subtitle:
             return
         
         x, y, w, h = self.zones["subtitle"]
         
+        # Get typography DNA values
+        letter_spacing = getattr(self.dna.typography, 'letter_spacing', 'normal')
+        line_height_dna = getattr(self.dna.typography, 'line_height', 'normal')
+        case_strategy = getattr(self.dna.typography, 'case_strategy', 'mixed')
+        
         font_size = self.typography.subheadline_size
         font = load_pillow_font(self.typography.pillow_fonts, font_size, bold=True)
         
-        # Slightly muted color
-        bg_luminance = self.dna.color_psychology.light_dark_balance
-        if bg_luminance < 0.5:
-            text_color = (230, 230, 235)
-        else:
-            text_color = self.colors.text_muted
+        # Apply case strategy
+        if case_strategy == "uppercase-accent":
+            subtitle = subtitle.upper()
+        elif case_strategy == "lowercase-casual":
+            subtitle = subtitle.lower()
+        
+        # Apply color usage pattern for subtitle
+        text_color = self._get_color_for_element("subtitle")
         
         lines = get_optimal_line_breaks(subtitle, font_size, w, max_lines=2)
         
+        # Calculate line height based on DNA
+        line_height_multipliers = {
+            'tight': 1.1,
+            'normal': 1.2,
+            'relaxed': 1.4,
+            'very-relaxed': 1.6
+        }
+        line_height_mult = line_height_multipliers.get(line_height_dna, 1.2)
+        line_height = int(font_size * line_height_mult)
+        
         current_y = y
-        line_height = int(font_size * self.typography.body_line_height)
+        letter_spacing_px = self._get_letter_spacing_px(letter_spacing, font_size)
         
         for line in lines:
-            draw.text((x, current_y), line, font=font, fill=text_color)
+            if letter_spacing_px != 0:
+                self._draw_text_with_letter_spacing(draw, (x, current_y), line, font, text_color, letter_spacing_px)
+            else:
+                draw.text((x, current_y), line, font=font, fill=text_color)
             current_y += line_height
     
     def _render_description(self, draw: ImageDraw.Draw, description: Optional[str]):
-        """Render description text."""
+        """Render description text with typography DNA."""
         if "description" not in self.zones or not description:
             return
         
         x, y, w, h = self.zones["description"]
         
+        # Get typography DNA values
+        letter_spacing = getattr(self.dna.typography, 'letter_spacing', 'normal')
+        line_height_dna = getattr(self.dna.typography, 'line_height', 'normal')
+        case_strategy = getattr(self.dna.typography, 'case_strategy', 'mixed')
+        
         font_size = self.typography.body_size
         font = load_pillow_font(self.typography.pillow_fonts, font_size, bold=False)
+        
+        # Apply case strategy
+        if case_strategy == "uppercase-accent":
+            description = description.upper()
+        elif case_strategy == "lowercase-casual":
+            description = description.lower()
         
         # Muted color
         bg_luminance = self.dna.color_psychology.light_dark_balance
@@ -705,11 +1111,24 @@ class AdaptiveTemplateEngine:
         
         lines = get_optimal_line_breaks(description, font_size, w, max_lines=2)
         
+        # Calculate line height based on DNA
+        line_height_multipliers = {
+            'tight': 1.1,
+            'normal': 1.2,
+            'relaxed': 1.4,
+            'very-relaxed': 1.6
+        }
+        line_height_mult = line_height_multipliers.get(line_height_dna, 1.2)
+        line_height = int(font_size * line_height_mult)
+        
         current_y = y
-        line_height = int(font_size * self.typography.body_line_height)
+        letter_spacing_px = self._get_letter_spacing_px(letter_spacing, font_size)
         
         for line in lines:
-            draw.text((x, current_y), line, font=font, fill=text_color)
+            if letter_spacing_px != 0:
+                self._draw_text_with_letter_spacing(draw, (x, current_y), line, font, text_color, letter_spacing_px)
+            else:
+                draw.text((x, current_y), line, font=font, fill=text_color)
             current_y += line_height
     
     def _render_proof(self, draw: ImageDraw.Draw, proof_text: Optional[str]):
@@ -722,27 +1141,85 @@ class AdaptiveTemplateEngine:
         font_size = self.typography.caption_size
         font = load_pillow_font(self.typography.pillow_fonts, font_size, bold=True)
         
-        # Accent color for proof (draws attention)
-        style = self.dna.philosophy.primary_style.lower()
-        if style in ["bold", "playful", "maximalist"]:
-            text_color = self.colors.accent
-        else:
-            bg_luminance = self.dna.color_psychology.light_dark_balance
-            text_color = (255, 255, 255) if bg_luminance < 0.5 else self.colors.text
+        # Apply color usage pattern for proof text
+        text_color = self._get_color_for_element("proof")
         
         draw.text((x, y), proof_text, font=font, fill=text_color)
     
     def _apply_post_effects(self, image: Image.Image) -> Image.Image:
-        """Apply post-processing effects."""
+        """Apply post-processing effects including visual effects from Design DNA."""
         style = self.dna.philosophy.primary_style.lower()
+        visual_effects = getattr(self.dna, 'visual_effects', None)
         
-        # Vignette for dramatic/luxurious styles
+        # Apply shadows if specified (vignette for overall image shadow)
+        if visual_effects:
+            shadows = getattr(visual_effects, 'shadows', 'subtle')
+            if shadows == 'dramatic':
+                image = apply_vignette(image, intensity=0.3)
+            elif shadows == 'medium':
+                image = apply_vignette(image, intensity=0.15)
+            elif shadows == 'subtle':
+                image = apply_vignette(image, intensity=0.08)
+        
+        # Vignette for dramatic/luxurious styles (if not already applied)
         if style in ["luxurious", "dramatic"] or self.dna.philosophy.visual_tension == "dramatic":
-            image = apply_vignette(image, intensity=0.2)
+            if not visual_effects or getattr(visual_effects, 'shadows', 'subtle') == 'none':
+                image = apply_vignette(image, intensity=0.2)
+        
+        # Apply overlay patterns if specified
+        if visual_effects:
+            overlay_patterns = getattr(visual_effects, 'overlay_patterns', 'none')
+            if overlay_patterns != 'none':
+                image = self._apply_overlay_patterns(image, overlay_patterns)
+        
+        # Apply special effects (glassmorphism, neumorphism, etc.)
+        if visual_effects:
+            effects = getattr(visual_effects, 'effects', [])
+            if 'glassmorphism' in effects:
+                # Apply glassmorphism to entire image (subtle)
+                image = add_glassmorphism_card(image, (0, 0, self.width, self.height), blur_radius=5, opacity=0.1)
         
         # Slight sharpening for technical styles
         if style == "technical":
             image = image.filter(ImageFilter.SHARPEN)
+        
+        return image
+    
+    def _apply_overlay_patterns(self, image: Image.Image, pattern_type: str) -> Image.Image:
+        """Apply overlay patterns (dots, grid, lines, geometric) to image."""
+        width, height = image.size
+        overlay = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+        overlay_draw = ImageDraw.Draw(overlay)
+        
+        pattern_color = (0, 0, 0, 20)  # Subtle overlay
+        
+        if pattern_type == 'dots':
+            # Dot pattern
+            dot_spacing = 20
+            dot_size = 2
+            for y in range(0, height, dot_spacing):
+                for x in range(0, width, dot_spacing):
+                    overlay_draw.ellipse([(x - dot_size, y - dot_size), (x + dot_size, y + dot_size)], fill=pattern_color)
+        elif pattern_type == 'grid':
+            # Grid pattern
+            grid_spacing = 40
+            for x in range(0, width, grid_spacing):
+                overlay_draw.line([(x, 0), (x, height)], fill=pattern_color, width=1)
+            for y in range(0, height, grid_spacing):
+                overlay_draw.line([(0, y), (width, y)], fill=pattern_color, width=1)
+        elif pattern_type == 'lines':
+            # Horizontal lines
+            line_spacing = 30
+            for y in range(0, height, line_spacing):
+                overlay_draw.line([(0, y), (width, y)], fill=pattern_color, width=1)
+        elif pattern_type == 'geometric':
+            # Geometric pattern (diagonal lines)
+            line_spacing = 50
+            for i in range(0, width + height, line_spacing):
+                overlay_draw.line([(i, 0), (0, i)], fill=pattern_color, width=1)
+        
+        # Composite overlay onto image
+        image = Image.alpha_composite(image.convert('RGBA'), overlay).convert('RGB')
         
         return image
 
@@ -799,17 +1276,32 @@ def generate_preview_from_dna_dict(
     """
     from backend.services.design_dna_extractor import (
         DesignDNA, DesignPhilosophy, TypographyDNA, ColorPsychology,
-        SpatialIntelligence, HeroElement, BrandPersonality
+        SpatialIntelligence, HeroElement, BrandPersonality,
+        UIComponents, VisualEffects, LayoutPatterns
     )
     
-    # Reconstruct DesignDNA from dict
+    # Reconstruct DesignDNA from dict with all components
+    philosophy_data = dna_dict.get("philosophy", {})
+    typography_data = dna_dict.get("typography", {})
+    color_data = dna_dict.get("color_psychology", {})
+    spatial_data = dna_dict.get("spatial", {})
+    hero_data = dna_dict.get("hero_element", {})
+    brand_data = dna_dict.get("brand_personality", {})
+    ui_data = dna_dict.get("ui_components", {})
+    effects_data = dna_dict.get("visual_effects", {})
+    layout_data = dna_dict.get("layout_patterns", {})
+    
+    # Build DesignDNA with all components
     dna = DesignDNA(
-        philosophy=DesignPhilosophy(**dna_dict.get("philosophy", {})),
-        typography=TypographyDNA(**dna_dict.get("typography", {})),
-        color_psychology=ColorPsychology(**dna_dict.get("color_psychology", {})),
-        spatial=SpatialIntelligence(**dna_dict.get("spatial", {})),
-        hero_element=HeroElement(**dna_dict.get("hero_element", {})),
-        brand_personality=BrandPersonality(**dna_dict.get("brand_personality", {})),
+        philosophy=DesignPhilosophy(**philosophy_data),
+        typography=TypographyDNA(**typography_data),
+        color_psychology=ColorPsychology(**color_data),
+        spatial=SpatialIntelligence(**spatial_data),
+        hero_element=HeroElement(**hero_data),
+        brand_personality=BrandPersonality(**brand_data),
+        ui_components=UIComponents(**ui_data) if ui_data else UIComponents(button_style="flat"),
+        visual_effects=VisualEffects(**effects_data) if effects_data else VisualEffects(shadows="subtle"),
+        layout_patterns=LayoutPatterns(**layout_data) if layout_data else LayoutPatterns(content_structure="centered"),
         confidence=dna_dict.get("confidence", 0.7)
     )
     

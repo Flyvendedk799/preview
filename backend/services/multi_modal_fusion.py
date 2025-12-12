@@ -180,6 +180,12 @@ class MultiModalFusionEngine:
                 f"issues={len(quality_report.issues)}"
             )
         
+        # Apply final post-processing filters to ensure no cookie content
+        if fused.get("title"):
+            fused["title"] = self._filter_cookie_content(fused["title"])
+        if fused.get("description"):
+            fused["description"] = self._filter_cookie_content(fused["description"])
+        
         logger.info(
             f"Fusion complete: "
             f"title_source={fused['sources'].get('title')}, "
@@ -422,9 +428,13 @@ MISSION: Extract what users actually SEE on the page, focusing on visual hierarc
                     if features_text:
                         description = f"{description} {features_text}"
             
+            # Apply post-processing filters to remove cookie/navigation content
+            filtered_title = self._filter_cookie_content(result.get("visible_title"))
+            filtered_description = self._filter_cookie_content(description)
+            
             return {
-                "title": result.get("visible_title"),
-                "description": description,
+                "title": filtered_title,
+                "description": filtered_description,
                 "image": result.get("primary_image"),
                 "page_type": result.get("page_type"),
                 "product_features": result.get("product_features", []),

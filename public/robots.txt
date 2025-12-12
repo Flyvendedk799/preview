@@ -1,0 +1,91 @@
+# robots.txt for MetaView
+# Optimized for Google Search Console
+# Last updated: 2024
+
+# Default rules for all crawlers
+User-agent: *
+# Allow public pages - especially blog content for SEO
+Allow: /
+Allow: /blog
+Allow: /blog/
+Allow: /demo
+
+# Block protected dashboard and app routes
+Disallow: /app/
+Disallow: /join
+
+# Block API endpoints (not meant for search engines)
+Disallow: /api/
+
+# Block API documentation
+Disallow: /docs
+Disallow: /redoc
+Disallow: /openapi.json
+
+# Block backend static files
+Disallow: /static/
+
+# Block health check endpoint
+Disallow: /health
+
+# Allow static assets needed for rendering public pages
+Allow: /assets/
+Allow: /*.css$
+Allow: /*.js$
+Allow: /*.png$
+Allow: /*.jpg$
+Allow: /*.jpeg$
+Allow: /*.gif$
+Allow: /*.svg$
+Allow: /*.webp$
+Allow: /*.ico$
+Allow: /*.woff$
+Allow: /*.woff2$
+
+# Googlebot - prioritize blog content
+User-agent: Googlebot
+Allow: /
+Allow: /blog
+Allow: /blog/
+Allow: /blog/*
+Allow: /demo
+Crawl-delay: 0
+
+# Googlebot-Image - allow blog images for image search
+User-agent: Googlebot-Image
+Allow: /blog/*
+Allow: /assets/
+Allow: /*.jpg$
+Allow: /*.jpeg$
+Allow: /*.png$
+Allow: /*.gif$
+Allow: /*.webp$
+Disallow: /app/
+Disallow: /api/
+
+# Bingbot
+User-agent: Bingbot
+Allow: /
+Allow: /blog
+Allow: /blog/*
+Allow: /demo
+Crawl-delay: 0
+
+# Block aggressive scrapers (optional - remove if you want SEO tool access)
+User-agent: AhrefsBot
+Disallow: /
+
+User-agent: SemrushBot
+Disallow: /
+
+User-agent: MJ12bot
+Disallow: /
+
+User-agent: DotBot
+Disallow: /
+
+# Sitemap location
+# IMPORTANT: Uncomment and update with your actual domain when you create a sitemap
+# Example: Sitemap: https://mymetaview.com/sitemap.xml
+# Sitemap: https://yourdomain.com/sitemap.xml
+

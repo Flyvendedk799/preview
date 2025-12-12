@@ -29,6 +29,7 @@ def extract_brand_logo(html_content: str, url: str, screenshot_bytes: bytes) -> 
     1. High-res logo from header/nav
     2. Favicon (if high quality)
     3. First image in header/nav area
+    4. Fallback: Extract from screenshot (top-left region analysis)
 
     Args:
         html_content: HTML content of the page
@@ -38,6 +39,8 @@ def extract_brand_logo(html_content: str, url: str, screenshot_bytes: bytes) -> 
     Returns:
         Base64-encoded logo image or None
     """
+    logger.info(f"🔍 Starting logo extraction for: {url}")
+    
     try:
         soup = BeautifulSoup(html_content, 'html.parser')
         base_url = f"{urlparse(url).scheme}://{urlparse(url).netloc}"
@@ -58,6 +61,7 @@ def extract_brand_logo(html_content: str, url: str, screenshot_bytes: bytes) -> 
             logo_img = soup.select_one(selector)
             if logo_img and logo_img.get('src'):
                 logo_url = urljoin(base_url, logo_img['src'])
+                logger.debug(f"  Trying logo selector: {selector} -> {logo_url}")
 
                 # Download logo
                 try:
@@ -70,13 +74,16 @@ def extract_brand_logo(html_content: str, url: str, screenshot_bytes: bytes) -> 
                             buffered = BytesIO()
                             img.save(buffered, format="PNG")
                             logo_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
-                            logger.info(f"Extracted logo from: {selector}")
+                            logger.info(f"✅ Logo extracted successfully from HTML: {selector} ({img.width}x{img.height})")
                             return logo_base64
+                        else:
+                            logger.debug(f"  Logo too small: {img.width}x{img.height}, skipping")
                 except Exception as e:
-                    logger.warning(f"Failed to download logo from {logo_url}: {e}")
+                    logger.debug(f"  Failed to download logo from {logo_url}: {e}")
                     continue
 
         # Fallback: Try favicon
+        logger.debug("  HTML logo extraction failed, trying favicon...")
         favicon_selectors = [
             'link[rel="icon"]',
             'link[rel="shortcut icon"]',
@@ -87,6 +94,7 @@ def extract_brand_logo(html_content: str, url: str, screenshot_bytes: bytes) -> 
             favicon = soup.select_one(selector)
             if favicon and favicon.get('href'):
                 favicon_url = urljoin(base_url, favicon['href'])
+                logger.debug(f"  Trying favicon: {selector} -> {favicon_url}")
                 try:
                     response = requests.get(favicon_url, timeout=5)
                     if response.status_code == 200:
@@ -95,17 +103,66 @@ def extract_brand_logo(html_content: str, url: str, screenshot_bytes: bytes) -> 
                             buffered = BytesIO()
                             img.save(buffered, format="PNG")
                             logo_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
-                            logger.info(f"Extracted logo from favicon: {selector}")
+                            logger.info(f"✅ Logo extracted from favicon: {selector} ({img.width}x{img.height})")
                             return logo_base64
                 except Exception as e:
-                    logger.warning(f"Failed to download favicon from {favicon_url}: {e}")
+                    logger.debug(f"  Failed to download favicon from {favicon_url}: {e}")
                     continue
 
-        logger.info("No suitable logo found")
+        # Fallback: Try screenshot-based logo extraction
+        logger.debug("  HTML/favicon extraction failed, trying screenshot-based extraction...")
+        logo_base64 = _extract_logo_from_screenshot(screenshot_bytes)
+        if logo_base64:
+            logger.info("✅ Logo extracted from screenshot (fallback method)")
+            return logo_base64
+
+        logger.warning(f"❌ No suitable logo found for: {url}")
         return None
 
     except Exception as e:
-        logger.error(f"Logo extraction failed: {e}", exc_info=True)
+        logger.error(f"❌ Logo extraction failed for {url}: {e}", exc_info=True)
+        return None
+
+
+def _extract_logo_from_screenshot(screenshot_bytes: bytes) -> Optional[str]:
+    """
+    Fallback method: Extract logo from screenshot by analyzing top-left region.
+    
+    This is a simple heuristic that crops the top-left region where logos typically appear.
+    
+    Args:
+        screenshot_bytes: Screenshot bytes
+        
+    Returns:
+        Base64-encoded logo image or None
+    """
+    try:
+        screenshot = Image.open(BytesIO(screenshot_bytes)).convert('RGB')
+        width, height = screenshot.size
+        
+        # Crop top-left region (typically where logos appear)
+        # Use 20% of width and 15% of height
+        crop_width = int(width * 0.2)
+        crop_height = int(height * 0.15)
+        
+        logo_region = screenshot.crop((0, 0, crop_width, crop_height))
+        
+        # Check if region has meaningful content (not just background)
+        # Simple heuristic: check if there's sufficient color variation
+        pixels = list(logo_region.getdata())
+        if len(pixels) < 100:  # Too small
+            return None
+        
+        # Convert to base64
+        buffered = BytesIO()
+        logo_region.save(buffered, format="PNG")
+        logo_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
+        
+        logger.debug(f"  Screenshot logo extraction: cropped {crop_width}x{crop_height} from top-left")
+        return logo_base64
+        
+    except Exception as e:
+        logger.debug(f"  Screenshot logo extraction failed: {e}")
         return None
 
 
