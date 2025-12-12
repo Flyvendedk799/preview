@@ -129,10 +129,11 @@ class ContentQualityGate(QualityGate):
         # CRITICAL: Check if description repeats title (for description field)
         if context.get("field") == "description" and context.get("title"):
             title_lower = context["title"].lower().strip()
-            if description_lower == title_lower:
+            content_lower = content.lower().strip()  # FIX: was using undefined description_lower
+            if content_lower == title_lower:
                 issues.append("Description repeats title exactly")
                 score -= 0.5  # Major issue
-            elif description_lower.startswith(title_lower) and len(description_lower) < len(title_lower) + 20:
+            elif content_lower.startswith(title_lower) and len(content_lower) < len(title_lower) + 20:
                 issues.append("Description too similar to title")
                 score -= 0.3
         

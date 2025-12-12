@@ -547,38 +547,52 @@ def _generate_hero_template(
     content_y += logo_size + 60
     
     # === MAIN HEADLINE - The star of the show ===
-    # ENHANCED: Typography hierarchy using golden ratio
-    # Title font size: base_size * golden_ratio^2 for prominence
-    base_font_size = 72
-    title_font_size = int(base_font_size * (GOLDEN_RATIO ** 1.5))  # ~148px for maximum impact
+    # ENHANCED: Dynamic typography based on title length
+    # Short titles (< 30 chars) get bigger text, long titles get smaller
+    title_length = len(title) if title else 0
+    
+    if title_length < 25:
+        title_font_size = 96  # Large for short titles
+    elif title_length < 40:
+        title_font_size = 80  # Medium for medium titles
+    elif title_length < 60:
+        title_font_size = 64  # Smaller for longer titles
+    else:
+        title_font_size = 56  # Smallest for very long titles
+    
     title_font = _load_font(title_font_size, bold=True)
     
-    # Line height: font_size * golden_ratio for optimal readability
-    title_line_height = int(title_font_size * GOLDEN_RATIO * 0.9)  # ~215px
+    # Line height: 1.2x font size for tighter, modern look
+    title_line_height = int(title_font_size * 1.2)
+    
     if title and title != "Untitled":
         title_lines = _wrap_text(title, title_font, content_width, draw)
         
-        # Center the headline vertically using golden ratio positioning
-        total_title_height = min(len(title_lines), 2) * title_line_height
+        # Calculate vertical position - center the text block
+        max_lines = 3 if title_length > 50 else 2  # Allow 3 lines for long titles
+        actual_lines = min(len(title_lines), max_lines)
+        total_title_height = actual_lines * title_line_height
         remaining_space = OG_IMAGE_HEIGHT - content_y - padding - spacing_medium
-        title_y = content_y + int((remaining_space - total_title_height) / GOLDEN_RATIO)
+        title_y = content_y + max(0, int((remaining_space - total_title_height) / 3))
         
-        # ENHANCED: Proper line spacing using golden ratio
-        for i, line in enumerate(title_lines[:2]):
+        # Draw title lines
+        for i, line in enumerate(title_lines[:max_lines]):
             y_pos = title_y + (i * title_line_height)
             # Enhanced shadow for better readability and premium look
             _draw_text_with_shadow(draw, (padding, y_pos), line, title_font, (255, 255, 255), 5)
-        content_y = title_y + min(len(title_lines), 2) * title_line_height + spacing_medium
+        content_y = title_y + actual_lines * title_line_height + spacing_medium
     
     # === SUPPORTING TEXT (subtitle or description) ===
-    # ENHANCED: Typography hierarchy - subtitle is title_size / golden_ratio
+    # ENHANCED: Typography hierarchy - readable subtitle/description
     support_text = subtitle or description
-    if support_text and support_text != title:
-        desc_font_size = int(title_font_size / GOLDEN_RATIO)  # ~91px (148 / 1.618)
-        desc_font = _load_font(desc_font_size, bold=False)  # Regular weight for hierarchy
-        desc_line_height = int(desc_font_size * 1.5)  # 1.5x for body text readability
+    if support_text and support_text != title and support_text.lower().strip() != title.lower().strip():
+        # Subtitle should be readable but not compete with title
+        desc_font_size = 36  # Fixed readable size
+        desc_font = _load_font(desc_font_size, bold=False)
+        desc_line_height = int(desc_font_size * 1.4)  # Tighter line height
         
         desc_lines = _wrap_text(support_text, desc_font, content_width, draw)
+        # Limit to 2 lines to keep clean
         for i, line in enumerate(desc_lines[:2]):
             y_pos = content_y + (i * desc_line_height)
             # Subtle shadow for readability on gradient background
