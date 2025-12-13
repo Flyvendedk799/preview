@@ -556,24 +556,21 @@ def _generate_hero_template(
     PREMIUM Hero template: Bold headline with cinematic gradient.
     Design philosophy: Big, bold, and impossible to ignore.
     """
-    # Create deep, rich gradient (darker for text contrast)
-    dark_primary = _darken_color(primary_color, 0.4)
-    darker_secondary = _darken_color(secondary_color, 0.3)
+    # Create clean, professional gradient (no screenshot texture for cleaner look)
+    # Use the brand colors to create a polished, modern gradient
+    dark_primary = _darken_color(primary_color, 0.5)  # Darker for better text contrast
+    darker_secondary = _darken_color(secondary_color, 0.6)
     img = Image.new('RGB', (OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT), dark_primary)
     img = _draw_gradient_background(img, dark_primary, darker_secondary, "diagonal")
     
-    # Add subtle noise/texture pattern for depth
+    # Add subtle geometric pattern for visual interest (not screenshot noise)
     draw = ImageDraw.Draw(img)
     
-    # Add screenshot as very subtle background (for texture)
+    # Add very subtle diagonal lines for texture (cleaner than screenshot)
     try:
-        screenshot = Image.open(BytesIO(screenshot_bytes)).convert('RGB')
-        screenshot = _prepare_screenshot_background(screenshot, OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT)
-        screenshot_alpha = Image.new('L', (OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT), 25)
-        screenshot_rgba = screenshot.convert('RGBA')
-        screenshot_rgba.putalpha(screenshot_alpha)
-        img = Image.alpha_composite(img.convert('RGBA'), screenshot_rgba).convert('RGB')
-        draw = ImageDraw.Draw(img)
+        line_color = _lighten_color(dark_primary, 0.05)  # Very subtle
+        for i in range(0, OG_IMAGE_WIDTH + OG_IMAGE_HEIGHT, 120):
+            draw.line([(i, 0), (0, i)], fill=line_color, width=1)
     except:
         pass
     
