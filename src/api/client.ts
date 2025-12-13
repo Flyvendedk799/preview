@@ -481,6 +481,24 @@ export async function fetchAdminWorkerHealth(): Promise<WorkerHealth> {
   return fetchApi<WorkerHealth>('/api/v1/admin/system/worker-health')
 }
 
+// Admin settings endpoints
+
+export interface DemoCacheDisabledResponse {
+  disabled: boolean
+}
+
+export async function getDemoCacheDisabled(): Promise<boolean> {
+  const response = await fetchApi<DemoCacheDisabledResponse>('/api/v1/admin/settings/demo-cache-disabled')
+  return response.disabled
+}
+
+export async function setDemoCacheDisabled(disabled: boolean): Promise<void> {
+  await fetchApi<DemoCacheDisabledResponse>('/api/v1/admin/settings/demo-cache-disabled', {
+    method: 'POST',
+    body: JSON.stringify({ disabled }),
+  })
+}
+
 export interface DeploymentResponse {
   success: boolean
   message: string

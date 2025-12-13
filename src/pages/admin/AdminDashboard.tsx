@@ -7,15 +7,19 @@ import {
   ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline'
 import Card from '../../components/ui/Card'
-import { fetchAdminSystemOverview, type SystemOverview } from '../../api/client'
+import { fetchAdminSystemOverview, getDemoCacheDisabled, setDemoCacheDisabled, type SystemOverview } from '../../api/client'
 
 export default function AdminDashboard() {
   const [overview, setOverview] = useState<SystemOverview | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [demoCacheDisabled, setDemoCacheDisabled] = useState<boolean>(false)
+  const [cacheToggleLoading, setCacheToggleLoading] = useState(false)
+  const [cacheToggleError, setCacheToggleError] = useState<string | null>(null)
 
   useEffect(() => {
     loadOverview()
+    loadDemoCacheSetting()
     // Refresh every 30 seconds
     const interval = setInterval(loadOverview, 30000)
     return () => clearInterval(interval)
@@ -31,6 +35,29 @@ export default function AdminDashboard() {
       setError(err instanceof Error ? err.message : 'Failed to load system overview')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadDemoCacheSetting = async () => {
+    try {
+      const disabled = await getDemoCacheDisabled()
+      setDemoCacheDisabled(disabled)
+    } catch (err) {
+      console.error('Failed to load demo cache setting:', err)
+    }
+  }
+
+  const handleToggleDemoCache = async () => {
+    try {
+      setCacheToggleLoading(true)
+      setCacheToggleError(null)
+      const newValue = !demoCacheDisabled
+      await setDemoCacheDisabled(newValue)
+      setDemoCacheDisabled(newValue)
+    } catch (err) {
+      setCacheToggleError(err instanceof Error ? err.message : 'Failed to update setting')
+    } finally {
+      setCacheToggleLoading(false)
     }
   }
 
@@ -124,6 +151,37 @@ export default function AdminDashboard() {
               )
             })}
           </div>
+
+          {/* Demo Cache Toggle */}
+          <Card className="mb-6 p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <h2 className="text-xl font-semibold text-secondary mb-2">Demo Cache Control</h2>
+                <p className="text-gray-600 text-sm mb-4">
+                  When enabled, demo routes generate fresh previews on each request instead of using cached results.
+                  Useful for development testing.
+                </p>
+                {cacheToggleError && (
+                  <p className="text-red-600 text-sm mb-2">{cacheToggleError}</p>
+                )}
+              </div>
+              <div className="ml-6">
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={demoCacheDisabled}
+                    onChange={handleToggleDemoCache}
+                    disabled={cacheToggleLoading}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                  <span className="ml-3 text-sm font-medium text-gray-700">
+                    {demoCacheDisabled ? 'Cache Disabled' : 'Cache Enabled'}
+                  </span>
+                </label>
+              </div>
+            </div>
+          </Card>
 
           {/* Charts Placeholder */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

@@ -1091,3 +1091,85 @@ def deploy_merge_claude_branch(
             message=helpful_msg,
             output="\n".join(output_lines) if output_lines else f"Error details: {error_msg}"
         )
+
+
+# =============================================================================
+# ADMIN SETTINGS: DEMO CACHE CONTROL
+# =============================================================================
+
+class DemoCacheDisabledResponse(BaseModel):
+    """Response for demo cache disabled setting."""
+    disabled: bool
+
+
+@router.get("/settings/demo-cache-disabled", response_model=DemoCacheDisabledResponse)
+def get_demo_cache_disabled(
+    admin_user: User = Depends(get_admin_user)
+):
+    """Get current demo cache disabled setting."""
+    try:
+        redis_conn = get_redis_connection()
+        if redis_conn is None:
+            return DemoCacheDisabledResponse(disabled=False)
+        
+        key = "admin:settings:demo_cache_disabled"
+        value = redis_conn.get(key)
+        disabled = value is not None and value.lower() == "true"
+        
+        return DemoCacheDisabledResponse(disabled=disabled)
+    except Exception as e:
+        logger = logging.getLogger(__name__)
+        logger.error(f"Failed to get demo cache disabled setting: {e}", exc_info=True)
+        return DemoCacheDisabledResponse(disabled=False)
+
+
+class DemoCacheDisabledUpdate(BaseModel):
+    """Request to update demo cache disabled setting."""
+    disabled: bool
+
+
+@router.post("/settings/demo-cache-disabled", response_model=DemoCacheDisabledResponse)
+def set_demo_cache_disabled(
+    update: DemoCacheDisabledUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(get_admin_user)
+):
+    """Update demo cache disabled setting."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        redis_conn = get_redis_connection()
+        if redis_conn is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Redis is not available"
+            )
+        
+        key = "admin:settings:demo_cache_disabled"
+        value = "true" if update.disabled else "false"
+        
+        # Store setting (no expiration - persistent)
+        redis_conn.set(key, value)
+        
+        # Log admin action
+        log_activity(
+            db=db,
+            user_id=admin_user.id,
+            action="admin.settings.demo_cache_disabled",
+            metadata={"disabled": update.disabled},
+            request=request
+        )
+        
+        logger.info(f"Demo cache disabled setting updated to: {update.disabled} by admin {admin_user.email}")
+        
+        return DemoCacheDisabledResponse(disabled=update.disabled)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update demo cache disabled setting: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update setting: {str(e)}"
+        )

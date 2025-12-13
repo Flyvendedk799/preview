@@ -305,3 +305,28 @@ def get_cache_stats() -> Dict[str, Any]:
     except Exception as e:
         return {"enabled": True, "error": str(e)}
 
+
+# =============================================================================
+# ADMIN SETTINGS: DEMO CACHE CONTROL
+# =============================================================================
+
+def is_demo_cache_disabled() -> bool:
+    """
+    Check if demo caching is disabled via admin toggle.
+    
+    Returns:
+        True if demo caching is disabled, False otherwise (defaults to False for fail-safe)
+    """
+    client = get_redis_client()
+    if client is None:
+        return False  # Fail-safe: if Redis unavailable, allow caching
+    
+    try:
+        key = "admin:settings:demo_cache_disabled"
+        value = client.get(key)
+        if value is None:
+            return False  # Default: caching enabled
+        return value.lower() == "true"
+    except Exception as e:
+        logger.warning(f"Failed to check demo cache disable setting: {e}")
+        return False  # Fail-safe: allow caching if check fails

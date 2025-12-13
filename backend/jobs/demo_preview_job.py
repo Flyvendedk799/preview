@@ -13,7 +13,8 @@ from backend.services.r2_client import upload_file_to_r2
 from backend.services.preview_cache import (
     generate_cache_key,
     get_redis_client,
-    CacheConfig
+    CacheConfig,
+    is_demo_cache_disabled
 )
 import json
 
@@ -50,6 +51,9 @@ def generate_demo_preview_job(url: str) -> Dict[str, Any]:
         url_str = str(url)
         logger.info(f"🚀 Starting demo preview job for: {url_str}")
         
+        # Check if demo caching is disabled via admin toggle
+        cache_disabled = is_demo_cache_disabled()
+        
         # Update initial progress
         _update_job_progress(0.05, "Starting preview generation...")
         
@@ -59,7 +63,7 @@ def generate_demo_preview_job(url: str) -> Dict[str, Any]:
             enable_brand_extraction=True,
             enable_ai_reasoning=True,
             enable_composited_image=True,
-            enable_cache=True,
+            enable_cache=not cache_disabled,  # Disable cache if admin toggle is enabled
             progress_callback=_update_job_progress
         )
         

@@ -12,7 +12,8 @@ from backend.services.preview_engine import PreviewEngine, PreviewEngineConfig
 from backend.services.preview_cache import (
     generate_cache_key,
     get_redis_client,
-    CacheConfig
+    CacheConfig,
+    is_demo_cache_disabled
 )
 import json
 import logging
@@ -132,12 +133,16 @@ def generate_demo_preview(
     """
     url_str = str(request_data.url)
     
+    # Check if demo caching is disabled via admin toggle
+    cache_disabled = is_demo_cache_disabled()
+    
     # IMPROVEMENT: Check cache first for repeated URLs (e.g., subpay.dk)
+    # Skip cache check if disabled via admin toggle
     redis_client = get_redis_client()
     cache_key = generate_cache_key(url_str, "demo:preview:")
     cached_result = None
     
-    if redis_client:
+    if redis_client and not cache_disabled:
         try:
             cached_data = redis_client.get(cache_key)
             if cached_data:
@@ -175,7 +180,7 @@ def generate_demo_preview(
             enable_brand_extraction=True,
             enable_ai_reasoning=True,
             enable_composited_image=True,
-            enable_cache=True
+            enable_cache=not cache_disabled  # Disable cache if admin toggle is enabled
         )
         
         engine = PreviewEngine(config)
@@ -257,7 +262,8 @@ def generate_demo_preview(
     )
     
     # IMPROVEMENT: Cache the result for future requests (24 hour TTL)
-    if redis_client:
+    # Skip cache write if disabled via admin toggle
+    if redis_client and not cache_disabled:
         try:
             # Convert response to dict for caching
             response_dict = response.model_dump()
