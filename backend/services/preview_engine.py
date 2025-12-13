@@ -390,6 +390,17 @@ class PreviewEngine:
                 if self.quality_orchestrator:
                     try:
                         # Convert result to dict for quality assessment
+                        # Include analysis_confidence which is used by quality gates
+                        # Use reasoning_confidence as the AI confidence value
+                        ai_confidence = result.reasoning_confidence
+                        # Also check if fusion returned a confidence value
+                        if ai_result and isinstance(ai_result, dict):
+                            ai_confidence = max(
+                                ai_confidence,
+                                ai_result.get("confidence", 0),
+                                ai_result.get("analysis_confidence", 0)
+                            )
+                        
                         result_dict = {
                             "title": result.title,
                             "subtitle": result.subtitle,
@@ -400,6 +411,8 @@ class PreviewEngine:
                             "cta_text": result.cta_text,
                             "blueprint": result.blueprint,
                             "reasoning_confidence": result.reasoning_confidence,
+                            "analysis_confidence": ai_confidence,  # For quality gates
+                            "the_hook": result.title,  # Use title as hook for quality gates
                             "design_dna": ai_result.get("design_dna")
                         }
                         
@@ -1293,8 +1306,8 @@ class PreviewEngine:
                 "balance_score": 0.5,
                 "clarity_score": 0.5,
                 "overall_quality": "fair",  # Fair because it's HTML-only
-                "layout_reasoning": "HTML metadata extraction (AI unavailable)",
-                "composition_notes": "Preview generated from page metadata"
+                "layout_reasoning": "HTML metadata extraction (fallback mode)",
+                "composition_notes": "Preview generated from page metadata - quality gates triggered fallback"
             },
             "reasoning_confidence": 0.4  # Lower confidence for HTML-only
         }
