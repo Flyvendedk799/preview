@@ -553,11 +553,11 @@ class PreviewEngine:
                                         
                                         if fix_report.fixes_applied:
                                             # Re-upload the fixed image
-                                            from backend.services.r2_client import upload_to_r2
+                                            from backend.services.r2_client import upload_file_to_r2
                                             import uuid
                                             
                                             fixed_filename = f"previews/demo/{uuid.uuid4()}_fixed.png"
-                                            new_url = upload_to_r2(fixed_bytes, fixed_filename, "image/png")
+                                            new_url = upload_file_to_r2(fixed_bytes, fixed_filename, "image/png")
                                             
                                             if new_url:
                                                 result.composited_preview_image_url = new_url

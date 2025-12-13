@@ -585,6 +585,11 @@ def _colors_are_too_similar(colors: list, min_contrast: float = 2.0) -> bool:
     return True  # All colors are too similar
 
 
+def _darken_tuple(rgb: tuple, factor: float = 0.2) -> tuple:
+    """Darken an RGB color tuple by a factor."""
+    return tuple(max(0, int(c * (1 - factor))) for c in rgb)
+
+
 def _extract_colors_from_image(image_bytes: bytes) -> Dict[str, str]:
     """
     Extract dominant colors from an image using PIL.
@@ -643,46 +648,92 @@ def _extract_colors_from_image(image_bytes: bytes) -> Dict[str, str]:
             dark_colors = [c for c in all_colors if _calculate_luminance(c) <= 0.5]
             
             if dark_colors and light_colors:
-                # Use darkest as primary (for text), lightest as secondary (background)
+                # IMPORTANT: In the preview system, primary_color is used for BACKGROUNDS
+                # We need to determine if this is a light or dark themed site
+                
+                # Calculate if the site is predominantly light or dark
+                light_pixel_count = sum(1 for c in all_colors if _calculate_luminance(c) > 0.5)
+                total_colors = len(all_colors)
+                is_light_themed = light_pixel_count > total_colors * 0.6  # 60%+ light = light theme
+                
                 dark_colors.sort(key=lambda c: _calculate_luminance(c))
                 light_colors.sort(key=lambda c: _calculate_luminance(c), reverse=True)
                 
-                primary = dark_colors[0]
-                secondary = light_colors[0]
-                
-                # Find an accent color that contrasts with both
-                accent = None
-                for c in all_colors:
-                    if c != primary and c != secondary:
-                        if _get_contrast_ratio(c, secondary) >= 3.0:
+                if is_light_themed:
+                    # LIGHT THEMED SITE: Use vibrant gradient for visual interest
+                    # Primary should be a rich gradient-friendly color, not pure white
+                    
+                    # Find the most saturated/colorful color from the palette
+                    def get_saturation(rgb):
+                        max_c = max(rgb)
+                        min_c = min(rgb)
+                        if max_c == 0:
+                            return 0
+                        return (max_c - min_c) / max_c
+                    
+                    colorful_colors = sorted(all_colors, key=get_saturation, reverse=True)
+                    
+                    # Use a professional dark gradient for light-themed sites
+                    # This creates a visually appealing preview even for white sites
+                    primary = (30, 41, 59)  # Slate-800 - professional dark blue
+                    secondary = (15, 23, 42)  # Slate-900 - deeper for gradient
+                    
+                    # Try to find a brand color for accent
+                    accent = None
+                    for c in colorful_colors:
+                        sat = get_saturation(c)
+                        if sat > 0.3:  # Has some color
                             accent = c
                             break
-                
-                if not accent:
-                    accent = (249, 115, 22)  # Orange fallback
-                
-                colors = {
-                    "primary_color": rgb_to_hex(primary),
-                    "secondary_color": rgb_to_hex(secondary),
-                    "accent_color": rgb_to_hex(accent)
-                }
-                logger.info(f"Enhanced color extraction with contrast: {colors}")
-                return colors
+                    
+                    if not accent:
+                        accent = (249, 115, 22)  # Orange fallback
+                    
+                    colors = {
+                        "primary_color": rgb_to_hex(primary),
+                        "secondary_color": rgb_to_hex(secondary),
+                        "accent_color": rgb_to_hex(accent)
+                    }
+                    logger.info(f"Light-themed site: using dark gradient for visual appeal: {colors}")
+                    return colors
+                else:
+                    # DARK THEMED SITE: Use the actual dark colors from the site
+                    primary = dark_colors[0]
+                    secondary = dark_colors[1] if len(dark_colors) > 1 else _darken_tuple(primary, 0.2)
+                    
+                    # Find an accent color
+                    accent = None
+                    for c in all_colors:
+                        if c != primary and c != secondary:
+                            if _get_contrast_ratio(c, primary) >= 3.0:
+                                accent = c
+                                break
+                    
+                    if not accent:
+                        accent = (251, 191, 36)  # Amber fallback for dark themes
+                    
+                    colors = {
+                        "primary_color": rgb_to_hex(primary),
+                        "secondary_color": rgb_to_hex(secondary),
+                        "accent_color": rgb_to_hex(accent)
+                    }
+                    logger.info(f"Dark-themed site: using extracted dark colors: {colors}")
+                    return colors
             else:
                 # No dark/light separation possible - all colors are same luminance
-                # Use smart fallback: keep one extracted color if available, add contrasting ones
+                # Use professional gradient fallback
                 if light_colors:
-                    # All light colors - use dark text/accent
+                    # All light colors - use professional dark gradient
                     return {
-                        "primary_color": "#1E293B",  # Dark slate for text
-                        "secondary_color": rgb_to_hex(light_colors[0]),  # Keep light background
+                        "primary_color": "#1E293B",  # Slate-800
+                        "secondary_color": "#0F172A",  # Slate-900
                         "accent_color": "#F97316"  # Orange accent
                     }
                 elif dark_colors:
-                    # All dark colors - use light text
+                    # All dark colors - use extracted dark with amber accent
                     return {
-                        "primary_color": rgb_to_hex(dark_colors[0]),  # Keep dark color
-                        "secondary_color": "#FFFFFF",  # White for contrast
+                        "primary_color": rgb_to_hex(dark_colors[0]),
+                        "secondary_color": "#0F172A",  # Slate-900
                         "accent_color": "#FBBF24"  # Amber accent
                     }
                 else:
