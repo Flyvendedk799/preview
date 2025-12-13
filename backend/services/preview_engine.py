@@ -165,6 +165,7 @@ class PreviewEngineConfig:
     enable_ai_reasoning: bool = True
     enable_composited_image: bool = True
     enable_cache: bool = True
+    enable_ui_element_extraction: bool = True  # Extract actual UI components
     
     # Brand settings (for SaaS)
     brand_settings: Optional[Dict[str, Any]] = None
@@ -198,6 +199,9 @@ class PreviewEngineResult:
     
     # Brand elements
     brand: Dict[str, Any] = field(default_factory=dict)
+    
+    # UI Elements (extracted visual components from the page)
+    ui_elements: Dict[str, Any] = field(default_factory=dict)
     
     # Blueprint (design system)
     blueprint: Dict[str, Any] = field(default_factory=dict)
@@ -319,8 +323,8 @@ class PreviewEngine:
                 f"(confidence: {page_classification.confidence:.2f})"
             )
             
-            # Start brand extraction, screenshot upload, and AI reasoning in parallel
-            with ThreadPoolExecutor(max_workers=3) as executor:
+            # Start brand extraction, screenshot upload, AI reasoning, and UI extraction in parallel
+            with ThreadPoolExecutor(max_workers=4) as executor:
                 futures = {}
                 
                 # Task 1: Upload screenshot
@@ -347,10 +351,20 @@ class PreviewEngine:
                 )
                 futures[future_ai] = "ai"
                 
+                # Task 4: Extract UI elements (actual visual components)
+                # This extracts buttons, badges, CTAs, testimonials, etc.
+                if self.config.enable_ui_element_extraction:
+                    future_ui = executor.submit(
+                        self._extract_ui_elements,
+                        screenshot_bytes, url_str
+                    )
+                    futures[future_ui] = "ui_elements"
+                
                 # Wait for all to complete
                 screenshot_url = None
                 brand_elements = {}
                 ai_result = None
+                ui_elements = {}
                 
                 for future in as_completed(futures):
                     task_name = futures[future]
@@ -364,6 +378,9 @@ class PreviewEngine:
                         elif task_name == "ai":
                             ai_result = future.result()
                             self.logger.info(f"✅ [7X] AI reasoning complete")
+                        elif task_name == "ui_elements":
+                            ui_elements = future.result()
+                            self.logger.info(f"✅ [7X] UI element extraction complete: {len(ui_elements.get('elements', []))} elements")
                     except Exception as e:
                         self.logger.warning(f"⚠️  [7X] {task_name} failed: {e}")
             
@@ -372,10 +389,10 @@ class PreviewEngine:
                 screenshot_bytes, url_str, ai_result, brand_elements, page_classification
             )
             
-            # Step 5: Build result (with classification-aware template)
+            # Step 5: Build result (with classification-aware template and UI elements)
             result = self._build_result(
                 url_str, ai_result, brand_elements, composited_image_url,
-                screenshot_url, start_time, page_classification
+                screenshot_url, start_time, page_classification, ui_elements
             )
             
             # 7X QUALITY: Validate and enhance result
@@ -471,7 +488,7 @@ class PreviewEngine:
                                 # Rebuild result with improved data
                                 result = self._build_result(
                                     url_str, ai_result, brand_elements, composited_image_url,
-                                    screenshot_url, start_time, page_classification
+                                    screenshot_url, start_time, page_classification, ui_elements
                                 )
                                 
                                 # Re-validate
@@ -895,6 +912,47 @@ class PreviewEngine:
                     "accent_color": "#F59E0B"
                 }
             }
+    
+    def _extract_ui_elements(
+        self,
+        screenshot_bytes: bytes,
+        url: str
+    ) -> Dict[str, Any]:
+        """
+        Extract actual UI components from the webpage screenshot.
+        
+        This uses AI vision to detect and crop real visual elements like:
+        - CTA buttons
+        - Badges and trust signals
+        - Testimonials
+        - Hero content
+        - Product images
+        
+        These can be recomposed into compelling previews that
+        honor the original design intent.
+        """
+        try:
+            from backend.services.ui_element_extractor import UIElementExtractor
+            
+            extractor = UIElementExtractor()
+            element_map = extractor.extract_ui_elements(
+                screenshot_bytes=screenshot_bytes,
+                url=url
+            )
+            
+            # Convert to dict for storage
+            result = element_map.to_dict()
+            
+            self.logger.info(
+                f"🎯 UI elements extracted: {len(result.get('elements', []))} elements, "
+                f"page_type={result.get('page_type')}"
+            )
+            
+            return result
+            
+        except Exception as e:
+            self.logger.warning(f"⚠️ UI element extraction failed: {e}")
+            return {}
     
     def _classify_page_intelligently(
         self,
@@ -1735,7 +1793,8 @@ class PreviewEngine:
         composited_image_url: Optional[str],
         screenshot_url: Optional[str],
         start_time: float,
-        page_classification=None
+        page_classification=None,
+        ui_elements: Optional[Dict[str, Any]] = None
     ) -> PreviewEngineResult:
         """Build final PreviewEngineResult with classification-aware template."""
         processing_time_ms = int((time.time() - start_time) * 1000)
@@ -1782,11 +1841,12 @@ class PreviewEngine:
             screenshot_url=screenshot_url,
             composited_preview_image_url=composited_image_url,
             brand=brand_dict,
+            ui_elements=ui_elements or {},  # Extracted UI components
             blueprint=blueprint,
             reasoning_confidence=ai_result.get("reasoning_confidence", 0.0),
             processing_time_ms=processing_time_ms,
             is_demo=self.config.is_demo,
-            message="Framework-based preview with quality gates and design preservation.",
+            message="Framework-based preview with quality gates, design preservation, and UI element extraction.",
             quality_scores={
                 "coherence": blueprint.get("coherence_score", 0.0),
                 "balance": blueprint.get("balance_score", 0.0),
