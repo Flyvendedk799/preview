@@ -1107,18 +1107,22 @@ def get_demo_cache_disabled(
     admin_user: User = Depends(get_admin_user)
 ):
     """Get current demo cache disabled setting."""
+    import logging
+    logger = logging.getLogger(__name__)
     try:
-        redis_conn = get_redis_connection()
-        if redis_conn is None:
+        from backend.services.preview_cache import get_redis_client
+        redis_client = get_redis_client()
+        if redis_client is None:
+            logger.warning("Redis not available, returning default (cache enabled)")
             return DemoCacheDisabledResponse(disabled=False)
         
         key = "admin:settings:demo_cache_disabled"
-        value = redis_conn.get(key)
+        value = redis_client.get(key)
         disabled = value is not None and value.lower() == "true"
         
+        logger.info(f"Retrieved demo cache disabled setting: {disabled} (value: {value})")
         return DemoCacheDisabledResponse(disabled=disabled)
     except Exception as e:
-        logger = logging.getLogger(__name__)
         logger.error(f"Failed to get demo cache disabled setting: {e}", exc_info=True)
         return DemoCacheDisabledResponse(disabled=False)
 
@@ -1140,8 +1144,9 @@ def set_demo_cache_disabled(
     logger = logging.getLogger(__name__)
     
     try:
-        redis_conn = get_redis_connection()
-        if redis_conn is None:
+        from backend.services.preview_cache import get_redis_client
+        redis_client = get_redis_client()
+        if redis_client is None:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Redis is not available"
@@ -1151,7 +1156,16 @@ def set_demo_cache_disabled(
         value = "true" if update.disabled else "false"
         
         # Store setting (no expiration - persistent)
-        redis_conn.set(key, value)
+        redis_client.set(key, value)
+        
+        # Verify the value was saved
+        saved_value = redis_client.get(key)
+        if saved_value != value:
+            logger.error(f"Failed to verify saved value. Expected: {value}, Got: {saved_value}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to verify setting was saved"
+            )
         
         # Log admin action
         log_activity(
@@ -1162,7 +1176,7 @@ def set_demo_cache_disabled(
             request=request
         )
         
-        logger.info(f"Demo cache disabled setting updated to: {update.disabled} by admin {admin_user.email}")
+        logger.info(f"Demo cache disabled setting updated to: {update.disabled} by admin {admin_user.email} (verified in Redis)")
         
         return DemoCacheDisabledResponse(disabled=update.disabled)
     except HTTPException:

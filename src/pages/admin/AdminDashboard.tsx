@@ -42,8 +42,10 @@ export default function AdminDashboard() {
     try {
       const disabled = await getDemoCacheDisabled()
       setDemoCacheDisabled(disabled)
+      console.log('Demo cache setting loaded:', disabled)
     } catch (err) {
       console.error('Failed to load demo cache setting:', err)
+      setCacheToggleError(err instanceof Error ? err.message : 'Failed to load setting')
     }
   }
 
@@ -53,9 +55,18 @@ export default function AdminDashboard() {
       setCacheToggleError(null)
       const newValue = !demoCacheDisabled
       await setDemoCacheDisabled(newValue)
-      setDemoCacheDisabled(newValue)
+      // Reload the setting from server to verify it was saved
+      const verifiedValue = await getDemoCacheDisabled()
+      setDemoCacheDisabled(verifiedValue)
+      console.log('Demo cache setting updated:', verifiedValue)
+      if (verifiedValue !== newValue) {
+        setCacheToggleError('Setting was updated but verification failed. Please refresh the page.')
+      }
     } catch (err) {
+      console.error('Failed to update demo cache setting:', err)
       setCacheToggleError(err instanceof Error ? err.message : 'Failed to update setting')
+      // Reload the current setting on error
+      loadDemoCacheSetting()
     } finally {
       setCacheToggleLoading(false)
     }
