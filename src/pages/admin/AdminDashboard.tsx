@@ -7,7 +7,7 @@ import {
   ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline'
 import Card from '../../components/ui/Card'
-import { fetchAdminSystemOverview, getDemoCacheDisabled, setDemoCacheDisabled, type SystemOverview } from '../../api/client'
+import { fetchAdminSystemOverview, getDemoCacheDisabled, setDemoCacheDisabled as updateDemoCacheDisabled, type SystemOverview } from '../../api/client'
 
 export default function AdminDashboard() {
   const [overview, setOverview] = useState<SystemOverview | null>(null)
@@ -56,7 +56,7 @@ export default function AdminDashboard() {
       const newValue = !demoCacheDisabled
       
       // Update the setting and get the confirmed value from server
-      const confirmedValue = await setDemoCacheDisabled(newValue)
+      const confirmedValue = await updateDemoCacheDisabled(newValue)
       setDemoCacheDisabled(confirmedValue)
       console.log('Demo cache setting updated:', confirmedValue)
       
