@@ -569,11 +569,8 @@ class PreviewEngine:
                                         )
                                         
                                         if fix_report.fixes_applied:
-                                            # Re-upload the fixed image
-                                            from backend.services.r2_client import upload_file_to_r2
-                                            import uuid
-                                            
-                                            fixed_filename = f"previews/demo/{uuid.uuid4()}_fixed.png"
+                                            # Re-upload the fixed image (use module-level import)
+                                            fixed_filename = f"previews/demo/{uuid4()}_fixed.png"
                                             new_url = upload_file_to_r2(fixed_bytes, fixed_filename, "image/png")
                                             
                                             if new_url:
@@ -1644,7 +1641,6 @@ class PreviewEngine:
         if not composited_image_url and screenshot_bytes:
             try:
                 self.logger.warning("⚠️  Using screenshot as fallback composited image")
-                from backend.services.r2_client import upload_file_to_r2
                 filename = f"previews/fallback/{uuid4()}.png"
                 composited_image_url = upload_file_to_r2(
                     screenshot_bytes,
@@ -1926,8 +1922,6 @@ class PreviewEngine:
         # If still no composited image, use screenshot as last resort
         if not composited_image_url and screenshot_bytes:
             try:
-                from backend.services.r2_client import upload_file_to_r2
-                from uuid import uuid4
                 filename = f"previews/fallback/{uuid4()}.png"
                 composited_image_url = upload_file_to_r2(
                     screenshot_bytes,
