@@ -524,6 +524,47 @@ class PreviewEngine:
                         if not visual_quality.passes_minimum:
                             result.warnings.extend(visual_quality.issues)
                             self.logger.warning(f"⚠️ Visual quality issues: {visual_quality.issues}")
+                            
+                            # CRITICAL FIX: Apply ReadabilityAutoFixer when contrast is too low
+                            if visual_quality.contrast_score < 0.5:  # Contrast is particularly bad
+                                try:
+                                    from backend.services.readability_auto_fixer import ReadabilityAutoFixer
+                                    self.logger.info("🔧 Applying ReadabilityAutoFixer for low contrast...")
+                                    
+                                    fixer = ReadabilityAutoFixer()
+                                    
+                                    # Download the current image
+                                    import httpx
+                                    async def fix_image():
+                                        async with httpx.AsyncClient() as client:
+                                            resp = await client.get(result.composited_preview_image_url)
+                                            if resp.status_code == 200:
+                                                return resp.content
+                                        return None
+                                    
+                                    import asyncio
+                                    image_bytes = asyncio.get_event_loop().run_until_complete(fix_image())
+                                    
+                                    if image_bytes:
+                                        fixed_bytes, fix_report = fixer.fix_from_bytes(
+                                            image_bytes,
+                                            quality_score=visual_quality
+                                        )
+                                        
+                                        if fix_report.fixes_applied:
+                                            # Re-upload the fixed image
+                                            from backend.services.r2_client import upload_to_r2
+                                            import uuid
+                                            
+                                            fixed_filename = f"previews/demo/{uuid.uuid4()}_fixed.png"
+                                            new_url = upload_to_r2(fixed_bytes, fixed_filename, "image/png")
+                                            
+                                            if new_url:
+                                                result.composited_preview_image_url = new_url
+                                                result.warnings.append("Contrast auto-fixed")
+                                                self.logger.info(f"✅ Contrast fixed, new image: {new_url}")
+                                except Exception as fix_error:
+                                    self.logger.warning(f"ReadabilityAutoFixer failed: {fix_error}")
                 except Exception as e:
                     self.logger.warning(f"Visual quality validation failed: {e}")
             

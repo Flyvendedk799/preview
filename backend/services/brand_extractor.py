@@ -554,16 +554,57 @@ def extract_hero_image(html_content: str, url: str) -> Optional[str]:
         return None
 
 
+def _calculate_luminance(rgb: tuple) -> float:
+    """Calculate relative luminance of an RGB color (0-1 scale)."""
+    def adjust(c):
+        c = c / 255
+        return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+    r, g, b = [adjust(c) for c in rgb]
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def _get_contrast_ratio(color1: tuple, color2: tuple) -> float:
+    """Calculate WCAG contrast ratio between two RGB colors."""
+    l1 = _calculate_luminance(color1)
+    l2 = _calculate_luminance(color2)
+    if l1 < l2:
+        l1, l2 = l2, l1
+    return (l1 + 0.05) / (l2 + 0.05)
+
+
+def _colors_are_too_similar(colors: list, min_contrast: float = 2.0) -> bool:
+    """Check if all extracted colors are too similar (low contrast potential)."""
+    if len(colors) < 2:
+        return True
+    
+    # Check all pairs for sufficient contrast
+    for i, c1 in enumerate(colors):
+        for c2 in colors[i+1:]:
+            if _get_contrast_ratio(c1, c2) >= min_contrast:
+                return False  # Found at least one good contrast pair
+    return True  # All colors are too similar
+
+
 def _extract_colors_from_image(image_bytes: bytes) -> Dict[str, str]:
     """
     Extract dominant colors from an image using PIL.
+    
+    ENHANCED: Now validates color contrast and uses fallbacks
+    when all extracted colors are too similar (e.g., all white).
     
     Args:
         image_bytes: Image bytes
         
     Returns:
-        Dict with primary, secondary, accent colors
+        Dict with primary, secondary, accent colors with guaranteed contrast
     """
+    # Fallback colors with good contrast
+    FALLBACK_COLORS = {
+        "primary_color": "#1E293B",  # Dark slate (good for text)
+        "secondary_color": "#FFFFFF",  # White (good for backgrounds)
+        "accent_color": "#F97316"  # Orange (brand accent)
+    }
+    
     try:
         img = Image.open(BytesIO(image_bytes))
         # Resize for faster processing
@@ -573,20 +614,81 @@ def _extract_colors_from_image(image_bytes: bytes) -> Dict[str, str]:
         if img.mode != 'RGB':
             img = img.convert('RGB')
         
-        # Get colors (sample every 10th pixel for speed)
+        # Get colors (sample every 5th pixel for speed)
         pixels = []
         width, height = img.size
         for y in range(0, height, 5):
             for x in range(0, width, 5):
                 pixels.append(img.getpixel((x, y)))
         
-        # Get most common colors
+        # Get most common colors - get more to find contrasting ones
         color_counts = Counter(pixels)
-        top_colors = color_counts.most_common(3)
+        top_colors = color_counts.most_common(10)  # Get more colors to find contrast
         
         def rgb_to_hex(rgb):
             return f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}".upper()
         
+        # Get the raw top 3 colors
+        raw_colors = [c[0] for c in top_colors[:3]] if len(top_colors) >= 3 else []
+        
+        # Check if extracted colors have sufficient contrast
+        if len(raw_colors) < 2 or _colors_are_too_similar(raw_colors):
+            logger.warning(f"Extracted colors lack contrast: {[rgb_to_hex(c) for c in raw_colors]}, using enhanced extraction")
+            
+            # Try to find contrasting colors from the extended palette
+            all_colors = [c[0] for c in top_colors]
+            
+            # Separate into light and dark colors
+            light_colors = [c for c in all_colors if _calculate_luminance(c) > 0.5]
+            dark_colors = [c for c in all_colors if _calculate_luminance(c) <= 0.5]
+            
+            if dark_colors and light_colors:
+                # Use darkest as primary (for text), lightest as secondary (background)
+                dark_colors.sort(key=lambda c: _calculate_luminance(c))
+                light_colors.sort(key=lambda c: _calculate_luminance(c), reverse=True)
+                
+                primary = dark_colors[0]
+                secondary = light_colors[0]
+                
+                # Find an accent color that contrasts with both
+                accent = None
+                for c in all_colors:
+                    if c != primary and c != secondary:
+                        if _get_contrast_ratio(c, secondary) >= 3.0:
+                            accent = c
+                            break
+                
+                if not accent:
+                    accent = (249, 115, 22)  # Orange fallback
+                
+                colors = {
+                    "primary_color": rgb_to_hex(primary),
+                    "secondary_color": rgb_to_hex(secondary),
+                    "accent_color": rgb_to_hex(accent)
+                }
+                logger.info(f"Enhanced color extraction with contrast: {colors}")
+                return colors
+            else:
+                # No dark/light separation possible - all colors are same luminance
+                # Use smart fallback: keep one extracted color if available, add contrasting ones
+                if light_colors:
+                    # All light colors - use dark text/accent
+                    return {
+                        "primary_color": "#1E293B",  # Dark slate for text
+                        "secondary_color": rgb_to_hex(light_colors[0]),  # Keep light background
+                        "accent_color": "#F97316"  # Orange accent
+                    }
+                elif dark_colors:
+                    # All dark colors - use light text
+                    return {
+                        "primary_color": rgb_to_hex(dark_colors[0]),  # Keep dark color
+                        "secondary_color": "#FFFFFF",  # White for contrast
+                        "accent_color": "#FBBF24"  # Amber accent
+                    }
+                else:
+                    return FALLBACK_COLORS
+        
+        # Original colors have sufficient contrast - use them
         colors = {
             "primary_color": rgb_to_hex(top_colors[0][0]) if top_colors else "#2563EB",
             "secondary_color": rgb_to_hex(top_colors[1][0]) if len(top_colors) > 1 else "#1E40AF",
@@ -596,11 +698,7 @@ def _extract_colors_from_image(image_bytes: bytes) -> Dict[str, str]:
         return colors
     except Exception as e:
         logger.warning(f"Failed to extract colors from image: {e}")
-        return {
-            "primary_color": "#2563EB",
-            "secondary_color": "#1E40AF",
-            "accent_color": "#F59E0B"
-        }
+        return FALLBACK_COLORS
 
 
 def extract_brand_colors(html_content: str, screenshot_bytes: Optional[bytes] = None) -> Dict[str, str]:
