@@ -492,11 +492,12 @@ export async function getDemoCacheDisabled(): Promise<boolean> {
   return response.disabled
 }
 
-export async function setDemoCacheDisabled(disabled: boolean): Promise<void> {
-  await fetchApi<DemoCacheDisabledResponse>('/api/v1/admin/settings/demo-cache-disabled', {
+export async function setDemoCacheDisabled(disabled: boolean): Promise<boolean> {
+  const response = await fetchApi<DemoCacheDisabledResponse>('/api/v1/admin/settings/demo-cache-disabled', {
     method: 'POST',
     body: JSON.stringify({ disabled }),
   })
+  return response.disabled
 }
 
 export interface DeploymentResponse {

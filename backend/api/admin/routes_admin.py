@@ -1118,9 +1118,9 @@ def get_demo_cache_disabled(
         
         key = "admin:settings:demo_cache_disabled"
         value = redis_client.get(key)
-        disabled = value is not None and value.lower() == "true"
+        disabled = value is not None and str(value).lower() == "true"
         
-        logger.info(f"Retrieved demo cache disabled setting: {disabled} (value: {value})")
+        logger.info(f"Retrieved demo cache disabled setting: key={key}, raw_value={value}, disabled={disabled}")
         return DemoCacheDisabledResponse(disabled=disabled)
     except Exception as e:
         logger.error(f"Failed to get demo cache disabled setting: {e}", exc_info=True)
@@ -1155,16 +1155,24 @@ def set_demo_cache_disabled(
         key = "admin:settings:demo_cache_disabled"
         value = "true" if update.disabled else "false"
         
+        logger.info(f"Setting demo cache disabled: key={key}, value={value}, disabled={update.disabled}")
+        
         # Store setting (no expiration - persistent)
         redis_client.set(key, value)
         
+        # Small delay to ensure write is complete
+        import time
+        time.sleep(0.1)
+        
         # Verify the value was saved
         saved_value = redis_client.get(key)
+        logger.info(f"Verification: saved_value={saved_value}, expected={value}, match={saved_value == value}")
+        
         if saved_value != value:
             logger.error(f"Failed to verify saved value. Expected: {value}, Got: {saved_value}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to verify setting was saved"
+                detail=f"Failed to verify setting was saved. Expected: {value}, Got: {saved_value}"
             )
         
         # Log admin action

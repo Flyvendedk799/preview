@@ -54,19 +54,24 @@ export default function AdminDashboard() {
       setCacheToggleLoading(true)
       setCacheToggleError(null)
       const newValue = !demoCacheDisabled
-      await setDemoCacheDisabled(newValue)
-      // Reload the setting from server to verify it was saved
-      const verifiedValue = await getDemoCacheDisabled()
-      setDemoCacheDisabled(verifiedValue)
-      console.log('Demo cache setting updated:', verifiedValue)
-      if (verifiedValue !== newValue) {
+      
+      // Update the setting and get the confirmed value from server
+      const confirmedValue = await setDemoCacheDisabled(newValue)
+      setDemoCacheDisabled(confirmedValue)
+      console.log('Demo cache setting updated:', confirmedValue)
+      
+      // Verify it matches what we expected
+      if (confirmedValue !== newValue) {
+        console.warn(`Setting mismatch: expected ${newValue}, got ${confirmedValue}`)
         setCacheToggleError('Setting was updated but verification failed. Please refresh the page.')
+        // Reload to get the actual current state
+        await loadDemoCacheSetting()
       }
     } catch (err) {
       console.error('Failed to update demo cache setting:', err)
       setCacheToggleError(err instanceof Error ? err.message : 'Failed to update setting')
-      // Reload the current setting on error
-      loadDemoCacheSetting()
+      // Reload the current setting on error to sync UI
+      await loadDemoCacheSetting()
     } finally {
       setCacheToggleLoading(false)
     }
