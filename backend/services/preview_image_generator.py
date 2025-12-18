@@ -1604,14 +1604,16 @@ def generate_dna_aware_preview(
                 dominant_emotion=design_dna.get("color_emotion", "trust"),
                 color_strategy="complementary",
                 saturation_character="balanced",
-                light_dark_balance=0.7,  # Default to light theme
+                # FIXED: Calculate light_dark_balance from actual primary color for correct text color
+                light_dark_balance=_calculate_luminance_from_hex(design_dna.get("primary_color", "#2563EB")),
                 accent_usage="",
                 # Use palette from blueprint if available, otherwise defaults
                 primary_hex=design_dna.get("primary_color", "#2563EB"),
                 secondary_hex=design_dna.get("secondary_color", "#1E40AF"),
                 accent_hex=design_dna.get("accent_color", "#F59E0B"),
                 background_hex=design_dna.get("background_color", "#FFFFFF"),
-                text_hex=design_dna.get("text_color", "#111827")
+                # FIXED: Text color is WHITE for dark backgrounds, dark for light backgrounds
+                text_hex=_get_optimal_text_hex(design_dna.get("primary_color", "#2563EB"))
             ),
             spatial=SpatialIntelligence(
                 density=design_dna.get("spacing_feel", "balanced"),
@@ -1668,6 +1670,42 @@ def _map_spacing_feel(spacing_feel: str) -> str:
         "ultra-minimal": "generous-luxury"
     }
     return mapping.get(spacing_feel.lower(), "balanced")
+
+
+def _calculate_luminance_from_hex(hex_color: str) -> float:
+    """
+    Calculate relative luminance (0-1) from a hex color.
+    
+    FIXED: Used to determine if background is dark or light for text color selection.
+    Returns value < 0.5 for dark colors (needs white text).
+    Returns value >= 0.5 for light colors (needs dark text).
+    """
+    try:
+        hex_color = hex_color.lstrip('#')
+        if len(hex_color) == 3:
+            hex_color = ''.join(c * 2 for c in hex_color)
+        r = int(hex_color[0:2], 16) / 255.0
+        g = int(hex_color[2:4], 16) / 255.0
+        b = int(hex_color[4:6], 16) / 255.0
+        
+        # Relative luminance formula (sRGB)
+        luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
+        return luminance
+    except:
+        return 0.7  # Default to light theme on error
+
+
+def _get_optimal_text_hex(bg_hex: str) -> str:
+    """
+    Get optimal text color (hex) for a given background color.
+    
+    FIXED: Ensures white text on dark backgrounds and dark text on light backgrounds.
+    """
+    luminance = _calculate_luminance_from_hex(bg_hex)
+    if luminance < 0.5:
+        return "#FFFFFF"  # White text on dark backgrounds
+    else:
+        return "#111827"  # Dark text on light backgrounds
 
 
 def _map_padding_scale(spacing_feel: str) -> str:
