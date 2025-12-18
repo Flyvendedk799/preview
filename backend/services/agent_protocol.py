@@ -7,7 +7,7 @@ This ensures consistent data formats, error handling, and coordination between a
 
 import json
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 from datetime import datetime
