@@ -335,37 +335,45 @@ def _draw_gradient_background(
     color2: Tuple[int, int, int],
     direction: str = "diagonal"
 ) -> Image.Image:
-    """Draw a smooth gradient background."""
-    draw = ImageDraw.Draw(image)
+    """
+    Draw a smooth gradient background using numpy for better quality.
+    FIXED: Uses proper gradient rendering to avoid banding artifacts.
+    """
+    import numpy as np
+    
     width, height = image.size
     
+    # Create gradient array
     if direction == "diagonal":
-        for y in range(height):
-            # Diagonal gradient (135 degrees)
-            progress = y / height
-            r = int(color1[0] * (1 - progress) + color2[0] * progress)
-            g = int(color1[1] * (1 - progress) + color2[1] * progress)
-            b = int(color1[2] * (1 - progress) + color2[2] * progress)
-            draw.line([(0, y), (width, y)], fill=(r, g, b))
+        # Create diagonal gradient (top-left to bottom-right)
+        y_coords = np.linspace(0, 1, height)[:, np.newaxis]
+        x_coords = np.linspace(0, 1, width)[np.newaxis, :]
+        # Combine for diagonal effect (average of x and y progress)
+        progress = (y_coords * 0.7 + x_coords * 0.3)  # More vertical bias
     elif direction == "radial":
-        # Radial gradient from center
-        cx, cy = width // 2, height // 2
-        max_dist = math.sqrt(cx**2 + cy**2)
-        for y in range(height):
-            for x in range(width):
-                dist = math.sqrt((x - cx)**2 + (y - cy)**2)
-                progress = min(dist / max_dist, 1.0)
-                r = int(color1[0] * (1 - progress) + color2[0] * progress)
-                g = int(color1[1] * (1 - progress) + color2[1] * progress)
-                b = int(color1[2] * (1 - progress) + color2[2] * progress)
-                draw.point((x, y), fill=(r, g, b))
+        # Create radial gradient from center
+        y_coords = np.linspace(-1, 1, height)[:, np.newaxis]
+        x_coords = np.linspace(-1, 1, width)[np.newaxis, :]
+        progress = np.sqrt(x_coords**2 + y_coords**2)
+        progress = np.clip(progress / np.sqrt(2), 0, 1)  # Normalize
     else:  # horizontal
-        for x in range(width):
-            progress = x / width
-            r = int(color1[0] * (1 - progress) + color2[0] * progress)
-            g = int(color1[1] * (1 - progress) + color2[1] * progress)
-            b = int(color1[2] * (1 - progress) + color2[2] * progress)
-            draw.line([(x, 0), (x, height)], fill=(r, g, b))
+        progress = np.linspace(0, 1, width)[np.newaxis, :]
+        progress = np.broadcast_to(progress, (height, width))
+    
+    # Ensure progress is 2D array with shape (height, width)
+    progress = np.broadcast_to(progress, (height, width))
+    
+    # Interpolate colors
+    r = (color1[0] * (1 - progress) + color2[0] * progress).astype(np.uint8)
+    g = (color1[1] * (1 - progress) + color2[1] * progress).astype(np.uint8)
+    b = (color1[2] * (1 - progress) + color2[2] * progress).astype(np.uint8)
+    
+    # Stack into RGB array
+    gradient_array = np.stack([r, g, b], axis=2)
+    
+    # Create image from array
+    gradient_img = Image.fromarray(gradient_array, mode='RGB')
+    image.paste(gradient_img)
     
     return image
 
@@ -381,27 +389,16 @@ def _draw_text_with_shadow(
     shadow_blur: int = 0
 ) -> None:
     """
-    Draw text with enhanced shadow for better readability and depth.
-    Uses multiple shadow layers for professional appearance.
+    Draw text with a SINGLE clean shadow for better readability.
+    FIXED: No more multiple stacked shadows that create messy 3D effect.
     """
     x, y = position
-    if shadow_color is None:
-        # Determine shadow color based on text color
-        if fill[0] > 200:  # Light text (white/light)
-            shadow_color = (0, 0, 0, 120)  # Darker shadow for contrast
-        else:  # Dark text
-            shadow_color = (255, 255, 255, 80)  # Light shadow
     
-    # Multi-layer shadow for depth (professional look)
-    shadow_rgb = shadow_color[:3]
-    shadow_alpha = shadow_color[3] if len(shadow_color) > 3 else 120
-    
-    # Draw multiple shadow layers for depth
-    for i in range(3):
-        offset = shadow_offset + i
-        alpha_factor = (shadow_alpha / 255) * (1 - i * 0.3)
-        shadow_fill = tuple(int(c * alpha_factor) for c in shadow_rgb)
-        draw.text((x + offset, y + offset), text, font=font, fill=shadow_fill)
+    # Only draw shadow for light text on dark backgrounds (where it helps readability)
+    if fill[0] > 200:  # Light text (white/light) - add subtle shadow
+        shadow_fill = (0, 0, 0)  # Clean black shadow
+        # Single shadow layer at small offset
+        draw.text((x + shadow_offset, y + shadow_offset), text, font=font, fill=shadow_fill)
     
     # Draw main text on top
     draw.text((x, y), text, font=font, fill=fill)
@@ -563,16 +560,8 @@ def _generate_hero_template(
     img = Image.new('RGB', (OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT), dark_primary)
     img = _draw_gradient_background(img, dark_primary, darker_secondary, "diagonal")
     
-    # Add subtle geometric pattern for visual interest (not screenshot noise)
+    # CLEAN design - no noisy patterns, just the gradient
     draw = ImageDraw.Draw(img)
-    
-    # Add very subtle diagonal lines for texture (cleaner than screenshot)
-    try:
-        line_color = _lighten_color(dark_primary, 0.05)  # Very subtle
-        for i in range(0, OG_IMAGE_WIDTH + OG_IMAGE_HEIGHT, 120):
-            draw.line([(i, 0), (0, i)], fill=line_color, width=1)
-    except:
-        pass
     
     # ENHANCED: Standardized spacing system using 8px grid and golden ratio
     # Golden ratio: 1.618 (for harmonious proportions)
@@ -1509,14 +1498,10 @@ def _generate_fallback_preview(
         primary_color = _hex_to_rgb(blueprint.get("primary_color", "#3B82F6"))
         secondary_color = _hex_to_rgb(blueprint.get("secondary_color", "#1E293B"))
         
-        # Create gradient background
+        # Create clean gradient background (no patterns)
         img = Image.new('RGB', (OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT), primary_color)
         img = _draw_gradient_background(img, primary_color, _darken_color(secondary_color, 0.7), "diagonal")
         draw = ImageDraw.Draw(img)
-        
-        # Add subtle pattern overlay
-        for i in range(0, OG_IMAGE_WIDTH + OG_IMAGE_HEIGHT, 60):
-            draw.line([(i, 0), (0, i)], fill=(*_lighten_color(primary_color, 0.1)[:3],), width=1)
         
         # Center content vertically
         padding = 80
