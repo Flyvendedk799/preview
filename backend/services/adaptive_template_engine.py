@@ -418,54 +418,61 @@ def apply_gradient_background(
     angle: int = 135,
     style: str = "linear"
 ) -> Image.Image:
-    """Apply gradient background to image."""
+    """
+    Apply gradient background to image using numpy for smooth, band-free rendering.
+    FIXED: Uses array-based interpolation to avoid visible banding artifacts.
+    """
+    import numpy as np
+    
     width, height = image.size
-    draw = ImageDraw.Draw(image)
     
     if len(colors) < 2:
         colors = [colors[0], darken_color(colors[0], 0.3)]
     
+    color1 = colors[0]
+    color2 = colors[-1]
+    
     if style == "linear":
-        # Calculate gradient direction
+        # Create smooth gradient using numpy
         angle_rad = math.radians(angle)
         cos_a = math.cos(angle_rad)
         sin_a = math.sin(angle_rad)
         
-        for y in range(height):
-            for x in range(width):
-                # Calculate position along gradient axis
-                t = (x * cos_a + y * sin_a) / (width * abs(cos_a) + height * abs(sin_a))
-                t = max(0, min(1, t))
-                
-                # Interpolate color
-                if len(colors) == 2:
-                    r = int(colors[0][0] * (1 - t) + colors[1][0] * t)
-                    g = int(colors[0][1] * (1 - t) + colors[1][1] * t)
-                    b = int(colors[0][2] * (1 - t) + colors[1][2] * t)
-                else:
-                    # Multi-stop gradient
-                    idx = min(int(t * (len(colors) - 1)), len(colors) - 2)
-                    local_t = (t * (len(colors) - 1)) - idx
-                    r = int(colors[idx][0] * (1 - local_t) + colors[idx + 1][0] * local_t)
-                    g = int(colors[idx][1] * (1 - local_t) + colors[idx + 1][1] * local_t)
-                    b = int(colors[idx][2] * (1 - local_t) + colors[idx + 1][2] * local_t)
-                
-                draw.point((x, y), fill=(r, g, b))
-    
+        # Create coordinate grids
+        y_coords = np.arange(height)[:, np.newaxis]
+        x_coords = np.arange(width)[np.newaxis, :]
+        
+        # Calculate progress along gradient axis
+        progress = (x_coords * cos_a + y_coords * sin_a)
+        progress = progress / (width * abs(cos_a) + height * abs(sin_a))
+        progress = np.clip(progress, 0, 1)
+        
     elif style == "radial":
         cx, cy = width // 2, height // 2
         max_dist = math.sqrt(cx**2 + cy**2)
         
-        for y in range(height):
-            for x in range(width):
-                dist = math.sqrt((x - cx)**2 + (y - cy)**2)
-                t = min(dist / max_dist, 1.0)
-                
-                r = int(colors[0][0] * (1 - t) + colors[-1][0] * t)
-                g = int(colors[0][1] * (1 - t) + colors[-1][1] * t)
-                b = int(colors[0][2] * (1 - t) + colors[-1][2] * t)
-                
-                draw.point((x, y), fill=(r, g, b))
+        y_coords = np.arange(height)[:, np.newaxis] - cy
+        x_coords = np.arange(width)[np.newaxis, :] - cx
+        
+        progress = np.sqrt(x_coords**2 + y_coords**2) / max_dist
+        progress = np.clip(progress, 0, 1)
+    else:
+        # Default to vertical
+        progress = np.linspace(0, 1, height)[:, np.newaxis]
+        progress = np.broadcast_to(progress, (height, width))
+    
+    # Ensure progress is 2D
+    progress = np.broadcast_to(progress, (height, width))
+    
+    # Interpolate colors
+    r = (color1[0] * (1 - progress) + color2[0] * progress).astype(np.uint8)
+    g = (color1[1] * (1 - progress) + color2[1] * progress).astype(np.uint8)
+    b = (color1[2] * (1 - progress) + color2[2] * progress).astype(np.uint8)
+    
+    # Stack into RGB array and create image
+    gradient_array = np.stack([r, g, b], axis=2)
+    gradient_img = Image.fromarray(gradient_array, mode='RGB')
+    image.paste(gradient_img)
     
     return image
 
@@ -493,24 +500,30 @@ def apply_noise_texture(image: Image.Image, intensity: float = 0.03) -> Image.Im
 
 
 def apply_vignette(image: Image.Image, intensity: float = 0.3) -> Image.Image:
-    """Apply vignette effect for depth."""
+    """
+    Apply vignette effect for depth using numpy for smooth rendering.
+    FIXED: Uses array-based calculation to avoid banding.
+    """
+    import numpy as np
+    
     width, height = image.size
     
-    # Create radial gradient mask
-    mask = Image.new('L', (width, height), 255)
-    mask_draw = ImageDraw.Draw(mask)
-    
+    # Create radial gradient mask using numpy
     cx, cy = width // 2, height // 2
     max_dist = math.sqrt(cx**2 + cy**2)
     
-    for y in range(height):
-        for x in range(width):
-            dist = math.sqrt((x - cx)**2 + (y - cy)**2)
-            t = dist / max_dist
-            
-            # Stronger at edges
-            brightness = int(255 * (1 - t * t * intensity))
-            mask_draw.point((x, y), fill=brightness)
+    y_coords = np.arange(height)[:, np.newaxis] - cy
+    x_coords = np.arange(width)[np.newaxis, :] - cx
+    
+    # Calculate distance from center
+    dist = np.sqrt(x_coords**2 + y_coords**2)
+    t = dist / max_dist
+    
+    # Stronger at edges (quadratic falloff)
+    brightness = (255 * (1 - t * t * intensity)).astype(np.uint8)
+    
+    # Create mask from array
+    mask = Image.fromarray(brightness, mode='L')
     
     # Apply mask
     image = Image.composite(image, Image.new('RGB', (width, height), (0, 0, 0)), mask)
@@ -562,6 +575,7 @@ def draw_text_with_effects(
 ) -> int:
     """
     Draw text with optional effects (shadow, letter spacing, case).
+    FIXED: Single clean shadow, no multi-layer mess.
     
     Returns the height of the rendered text.
     """
@@ -575,18 +589,12 @@ def draw_text_with_effects(
     elif text_case == "capitalize":
         text = text.title()
     
-    # Draw shadow if enabled
+    # Draw shadow if enabled - SINGLE layer only for clean look
     if shadow_params and shadow_params.get("enabled"):
-        shadow_color = shadow_params["color"]
-        shadow_alpha = shadow_params["alpha"]
-        offset = shadow_params["offset"]
-        
-        # Multiple shadow layers for depth
-        for i in range(3):
-            layer_offset = (offset[0] + i, offset[1] + i)
-            layer_alpha = max(0, shadow_alpha - i * 20)
-            shadow_rgb = tuple(int(c * layer_alpha / 255) for c in shadow_color)
-            draw.text((x + layer_offset[0], y + layer_offset[1]), text, font=font, fill=shadow_rgb)
+        offset = shadow_params.get("offset", (2, 2))
+        # Single clean shadow
+        shadow_fill = (0, 0, 0) if color[0] > 128 else (255, 255, 255)
+        draw.text((x + offset[0], y + offset[1]), text, font=font, fill=shadow_fill)
     
     # Draw main text
     draw.text((x, y), text, font=font, fill=color)
@@ -1852,32 +1860,27 @@ class AdaptiveTemplateEngine:
     ) -> None:
         """
         Draw text with custom letter spacing.
+        FIXED: Single clean shadow, no multi-layer mess.
         
         PIL doesn't support letter spacing directly, so we draw each character separately.
         """
         x, y = position
         
-        # Draw shadow if enabled
+        # Draw shadow if enabled - SINGLE layer only for clean look
         if shadow_params and shadow_params.get("enabled"):
-            shadow_color = shadow_params["color"]
-            shadow_alpha = shadow_params["alpha"]
-            offset = shadow_params["offset"]
+            offset = shadow_params.get("offset", (2, 2))
+            shadow_fill = (0, 0, 0) if color[0] > 128 else (255, 255, 255)
             
             current_x = x
             for char in text:
-                # Draw shadow
-                for i in range(3):
-                    layer_offset = (offset[0] + i, offset[1] + i)
-                    layer_alpha = max(0, shadow_alpha - i * 20)
-                    shadow_rgb = tuple(int(c * layer_alpha / 255) for c in shadow_color)
-                    draw.text((current_x + layer_offset[0], y + layer_offset[1]), char, font=font, fill=shadow_rgb)
+                # Draw single shadow
+                draw.text((current_x + offset[0], y + offset[1]), char, font=font, fill=shadow_fill)
                 
                 # Get character width
                 try:
                     bbox = draw.textbbox((0, 0), char, font=font)
                     char_width = bbox[2] - bbox[0]
                 except:
-                    # Fallback: estimate width based on font size
                     char_width = font.size if hasattr(font, 'size') else 20
                 
                 current_x += char_width + letter_spacing_px
@@ -1892,7 +1895,6 @@ class AdaptiveTemplateEngine:
                 bbox = draw.textbbox((0, 0), char, font=font)
                 char_width = bbox[2] - bbox[0]
             except:
-                # Fallback: estimate width based on font size
                 char_width = font.size if hasattr(font, 'size') else 20
             
             current_x += char_width + letter_spacing_px
