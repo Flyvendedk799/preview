@@ -127,7 +127,9 @@ class MultiModalFusionEngine:
             None
         )
         
-        # Step 3: Determine if vision is needed
+        # Step 3: ALWAYS use vision analysis for brand-faithful extraction
+        # Vision captures visual hierarchy, UI components, and design patterns
+        # that HTML metadata cannot provide
         html_has_good_title = (
             html_scores.get("title") and
             html_scores["title"].passed_gates and
@@ -139,24 +141,29 @@ class MultiModalFusionEngine:
             html_scores["description"].confidence >= 0.7
         )
         
-        # Only use vision if HTML is insufficient
+        # ALWAYS run vision extraction for brand-faithful previews
+        # Vision provides: UI components, visual hierarchy, design patterns
         vision_data = None
         vision_scores = {}
         
-        if not (html_has_good_title and html_has_good_description):
-            logger.info("HTML metadata insufficient, using vision extraction")
-            vision_data = self._extract_from_vision(screenshot_bytes, url, html_content)
-            
-            if vision_data:
-                # Use best title for description validation
-                vision_title = vision_data.get("title") or best_title_candidate
-                vision_scores = self.quality_framework.validate_content(
-                    vision_data.get("title"),
-                    vision_data.get("description"),
-                    "vision"
-                )
+        logger.info("🔍 Running vision-first extraction for brand fidelity")
+        vision_data = self._extract_from_vision(screenshot_bytes, url, html_content)
+        
+        if vision_data:
+            # Use best title for description validation
+            vision_title = vision_data.get("title") or best_title_candidate
+            vision_scores = self.quality_framework.validate_content(
+                vision_data.get("title"),
+                vision_data.get("description"),
+                "vision"
+            )
+            logger.info(
+                f"✅ Vision extraction complete: "
+                f"title_conf={vision_scores.get('title', {}).confidence if vision_scores.get('title') else 0:.2f}, "
+                f"ui_components={len(vision_data.get('ui_components', []))}"
+            )
         else:
-            logger.info("HTML metadata sufficient, skipping vision extraction")
+            logger.warning("⚠️ Vision extraction returned no data, relying on HTML")
         
         # Step 4: Extract design elements
         design_elements = self.design_extractor.extract_design(

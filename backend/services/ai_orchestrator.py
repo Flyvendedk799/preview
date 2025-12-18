@@ -7,6 +7,8 @@ Coordinates specialized AI agents to generate high-quality previews through:
 - Context fusion
 - Conflict resolution
 - Quality-driven iteration
+
+UPGRADED: Now uses real GPT-4o agents via AgentExecutor for actual AI-powered extraction.
 """
 
 import logging
@@ -21,6 +23,7 @@ from backend.services.agent_protocol import (
 )
 from backend.services.ai_rate_limiter import AIRateLimiter, RateLimitStatus
 from backend.services.ai_cost_optimizer import AICostOptimizer, AIModel
+from backend.services.agent_executor import get_agent_executor, AgentExecutor
 
 logger = logging.getLogger(__name__)
 
@@ -64,12 +67,15 @@ class AIOrchestrator:
     3. Coordinate multi-agent workflow
     4. Manage context and memory
     5. Handle failures and retries
+    
+    UPGRADED: Now uses real GPT-4o agents via AgentExecutor.
     """
     
     def __init__(
         self,
         rate_limiter: Optional[AIRateLimiter] = None,
-        cost_optimizer: Optional[AICostOptimizer] = None
+        cost_optimizer: Optional[AICostOptimizer] = None,
+        agent_executor: Optional[AgentExecutor] = None
     ):
         """
         Initialize AI orchestrator.
@@ -77,11 +83,14 @@ class AIOrchestrator:
         Args:
             rate_limiter: Rate limiter instance
             cost_optimizer: Cost optimizer instance
+            agent_executor: Agent executor for real AI calls
         """
         self.rate_limiter = rate_limiter or AIRateLimiter()
         self.cost_optimizer = cost_optimizer or AICostOptimizer()
+        self.agent_executor = agent_executor or get_agent_executor()
         self.logger = logging.getLogger(__name__)
         self.protocol = AgentProtocol()
+        self.logger.info("🤖 AIOrchestrator initialized with real agent execution")
         
     def select_agent_team(
         self,
@@ -254,40 +263,47 @@ class AIOrchestrator:
         message: AgentMessage
     ) -> AgentResponse:
         """
-        Execute a single agent (placeholder - would call actual agent implementation).
+        Execute a single agent using the AgentExecutor.
+        
+        This method now routes to real GPT-4o powered agents for:
+        - Visual analysis (screenshot understanding)
+        - Content curation (HTML/metadata extraction)
+        - Design archaeology (design DNA extraction)
+        - Quality criticism (preview evaluation)
+        - Context fusion (combining agent outputs)
         
         Args:
-            message: Agent message
+            message: Agent message with input data
             
         Returns:
-            Agent response
+            AgentResponse with real AI-generated output
         """
-        # This is a placeholder - in real implementation, this would:
-        # 1. Route to appropriate agent implementation
-        # 2. Call OpenAI API with appropriate model
-        # 3. Process response
-        # 4. Return AgentResponse
+        self.logger.info(f"🚀 Executing agent: {message.agent_type.value}")
         
-        start_time = time.time()
-        
-        # Placeholder: Simulate agent execution
-        # In real implementation, this would call the actual agent
-        self.logger.info(f"Executing agent: {message.agent_type.value}")
-        
-        # For now, return a placeholder response
-        # Real implementation would call actual agent logic
-        response = AgentResponse(
-            message_id=message.message_id,
-            agent_type=message.agent_type,
-            success=True,
-            output_data={},
-            confidence=0.8,
-            cost=0.0,
-            latency_ms=(time.time() - start_time) * 1000,
-            reasoning="Placeholder agent execution"
-        )
-        
-        return response
+        try:
+            # Use the real agent executor for AI-powered execution
+            response = self.agent_executor.execute(message)
+            
+            self.logger.info(
+                f"✅ Agent {message.agent_type.value} completed: "
+                f"success={response.success}, "
+                f"confidence={response.confidence:.2f}, "
+                f"latency={response.latency_ms:.0f}ms"
+            )
+            
+            return response
+            
+        except Exception as e:
+            self.logger.error(
+                f"❌ Agent {message.agent_type.value} execution failed: {e}",
+                exc_info=True
+            )
+            # Return error response
+            return self.protocol.create_error_response(
+                message.message_id,
+                message.agent_type,
+                str(e)
+            )
     
     def fuse_agent_responses(
         self,

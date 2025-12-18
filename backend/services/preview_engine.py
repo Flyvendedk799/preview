@@ -153,6 +153,132 @@ except ImportError as e:
     ENHANCED_SYSTEM_AVAILABLE = False
     logger.warning(f"7-Layer Enhancement System not available: {e}")
 
+# ============================================================================
+# PHASE 8: UPGRADED BACKEND COMPONENTS (Plan Implementation)
+# ============================================================================
+
+# Design DNA Applicator - Bridges extraction and rendering
+try:
+    from backend.services.design_dna_applicator import (
+        DesignDNAApplicator,
+        apply_design_dna,
+        RenderingParams,
+        get_dna_applicator
+    )
+    DESIGN_DNA_APPLICATOR_AVAILABLE = True
+    logger.info("🧬 Design DNA Applicator enabled")
+except ImportError as e:
+    DESIGN_DNA_APPLICATOR_AVAILABLE = False
+    logger.warning(f"Design DNA Applicator not available: {e}")
+
+# Template Selector - Dynamic template selection
+try:
+    from backend.services.template_selector import (
+        TemplateSelector,
+        select_template,
+        TemplateType,
+        get_template_selector
+    )
+    TEMPLATE_SELECTOR_AVAILABLE = True
+    logger.info("📐 Template Selector enabled")
+except ImportError as e:
+    TEMPLATE_SELECTOR_AVAILABLE = False
+    logger.warning(f"Template Selector not available: {e}")
+
+# Visual Style Classifier - Style classification for templates
+try:
+    from backend.services.visual_style_classifier import (
+        VisualStyleClassifier,
+        classify_style,
+        DesignStyle,
+        get_style_classifier
+    )
+    STYLE_CLASSIFIER_AVAILABLE = True
+    logger.info("🎨 Visual Style Classifier enabled")
+except ImportError as e:
+    STYLE_CLASSIFIER_AVAILABLE = False
+    logger.warning(f"Visual Style Classifier not available: {e}")
+
+# Quality Critic - AI-powered quality evaluation
+try:
+    from backend.services.quality_critic import (
+        QualityCritic,
+        critique_preview,
+        CritiqueResult,
+        get_quality_critic
+    )
+    QUALITY_CRITIC_AVAILABLE = True
+    logger.info("🎯 Quality Critic enabled")
+except ImportError as e:
+    QUALITY_CRITIC_AVAILABLE = False
+    logger.warning(f"Quality Critic not available: {e}")
+
+# Preview Iterator - Closed-loop quality improvement
+try:
+    from backend.services.preview_iterator import (
+        PreviewIterator,
+        iterate_preview,
+        IterationSummary,
+        get_preview_iterator
+    )
+    PREVIEW_ITERATOR_AVAILABLE = True
+    logger.info("🔄 Preview Iterator enabled")
+except ImportError as e:
+    PREVIEW_ITERATOR_AVAILABLE = False
+    logger.warning(f"Preview Iterator not available: {e}")
+
+# Product Preview Renderer - E-commerce specific rendering
+try:
+    from backend.services.product_preview_renderer import (
+        ProductPreviewRenderer,
+        render_product_preview,
+        ProductRenderData,
+        get_product_renderer
+    )
+    PRODUCT_RENDERER_AVAILABLE = True
+    logger.info("🛍️ Product Preview Renderer enabled")
+except ImportError as e:
+    PRODUCT_RENDERER_AVAILABLE = False
+    logger.warning(f"Product Preview Renderer not available: {e}")
+
+# Graceful Degradation - Tiered fallback system
+try:
+    from backend.services.graceful_degradation import (
+        GracefulDegradationHandler,
+        execute_with_graceful_degradation,
+        QualityTier,
+        get_degradation_handler
+    )
+    GRACEFUL_DEGRADATION_AVAILABLE = True
+    logger.info("🛡️ Graceful Degradation enabled")
+except ImportError as e:
+    GRACEFUL_DEGRADATION_AVAILABLE = False
+    logger.warning(f"Graceful Degradation not available: {e}")
+
+# Predictive Cache - Smart caching
+try:
+    from backend.services.predictive_cache import (
+        PredictiveCache,
+        get_predictive_cache,
+        cache_preview,
+        get_cached_preview
+    )
+    PREDICTIVE_CACHE_AVAILABLE = True
+    logger.info("📦 Predictive Cache enabled")
+except ImportError as e:
+    PREDICTIVE_CACHE_AVAILABLE = False
+    logger.warning(f"Predictive Cache not available: {e}")
+
+# AI Orchestrator with real agent execution
+try:
+    from backend.services.ai_orchestrator import AIOrchestrator
+    from backend.services.agent_executor import get_agent_executor
+    AGENT_EXECUTOR_AVAILABLE = True
+    logger.info("🤖 AI Agent Executor enabled")
+except ImportError as e:
+    AGENT_EXECUTOR_AVAILABLE = False
+    logger.warning(f"AI Agent Executor not available: {e}")
+
 
 @dataclass
 class PreviewEngineConfig:
@@ -166,6 +292,19 @@ class PreviewEngineConfig:
     enable_composited_image: bool = True
     enable_cache: bool = True
     enable_ui_element_extraction: bool = True  # Extract actual UI components
+    
+    # UPGRADED: New feature flags for enhanced pipeline
+    enable_multi_agent: bool = True  # Use real multi-agent orchestration
+    enable_design_dna_application: bool = True  # Apply Design DNA to rendering
+    enable_dynamic_templates: bool = True  # Use dynamic template selection
+    enable_quality_iteration: bool = True  # Enable quality critic loop
+    enable_graceful_degradation: bool = True  # Use tiered fallback system
+    enable_predictive_cache: bool = True  # Use smart predictive caching
+    enable_product_rendering: bool = True  # Enhanced product page rendering
+    
+    # Quality iteration settings
+    quality_threshold: float = 0.80  # Minimum quality to pass
+    max_quality_iterations: int = 2  # Max iterations for quality loop
     
     # Brand settings (for SaaS)
     brand_settings: Optional[Dict[str, Any]] = None
@@ -250,6 +389,87 @@ class PreviewEngine:
             self.logger.warning(f"Quality Orchestrator not available: {e}")
             self.quality_orchestrator = None
         self.logger.info("Framework-based quality system enabled")
+        
+        # ============================================================================
+        # UPGRADED: Initialize new Phase 8 components
+        # ============================================================================
+        
+        # Design DNA Applicator
+        self.dna_applicator = None
+        if config.enable_design_dna_application and DESIGN_DNA_APPLICATOR_AVAILABLE:
+            try:
+                self.dna_applicator = get_dna_applicator()
+                self.logger.info("🧬 Design DNA Applicator initialized")
+            except Exception as e:
+                self.logger.warning(f"DNA Applicator init failed: {e}")
+        
+        # Template Selector
+        self.template_selector = None
+        if config.enable_dynamic_templates and TEMPLATE_SELECTOR_AVAILABLE:
+            try:
+                self.template_selector = get_template_selector()
+                self.logger.info("📐 Template Selector initialized")
+            except Exception as e:
+                self.logger.warning(f"Template Selector init failed: {e}")
+        
+        # Quality Critic
+        self.quality_critic = None
+        if config.enable_quality_iteration and QUALITY_CRITIC_AVAILABLE:
+            try:
+                self.quality_critic = get_quality_critic(config.quality_threshold)
+                self.logger.info("🎯 Quality Critic initialized")
+            except Exception as e:
+                self.logger.warning(f"Quality Critic init failed: {e}")
+        
+        # Preview Iterator
+        self.preview_iterator = None
+        if config.enable_quality_iteration and PREVIEW_ITERATOR_AVAILABLE:
+            try:
+                self.preview_iterator = get_preview_iterator(
+                    threshold=config.quality_threshold,
+                    max_iterations=config.max_quality_iterations
+                )
+                self.logger.info("🔄 Preview Iterator initialized")
+            except Exception as e:
+                self.logger.warning(f"Preview Iterator init failed: {e}")
+        
+        # Product Renderer
+        self.product_renderer = None
+        if config.enable_product_rendering and PRODUCT_RENDERER_AVAILABLE:
+            try:
+                self.product_renderer = get_product_renderer()
+                self.logger.info("🛍️ Product Renderer initialized")
+            except Exception as e:
+                self.logger.warning(f"Product Renderer init failed: {e}")
+        
+        # Graceful Degradation Handler
+        self.degradation_handler = None
+        if config.enable_graceful_degradation and GRACEFUL_DEGRADATION_AVAILABLE:
+            try:
+                self.degradation_handler = get_degradation_handler()
+                self.logger.info("🛡️ Graceful Degradation initialized")
+            except Exception as e:
+                self.logger.warning(f"Degradation Handler init failed: {e}")
+        
+        # Predictive Cache
+        self.predictive_cache = None
+        if config.enable_predictive_cache and PREDICTIVE_CACHE_AVAILABLE:
+            try:
+                self.predictive_cache = get_predictive_cache()
+                self.logger.info("📦 Predictive Cache initialized")
+            except Exception as e:
+                self.logger.warning(f"Predictive Cache init failed: {e}")
+        
+        # AI Orchestrator with real agents
+        self.ai_orchestrator = None
+        if config.enable_multi_agent and AGENT_EXECUTOR_AVAILABLE:
+            try:
+                self.ai_orchestrator = AIOrchestrator()
+                self.logger.info("🤖 AI Orchestrator with real agents initialized")
+            except Exception as e:
+                self.logger.warning(f"AI Orchestrator init failed: {e}")
+        
+        self.logger.info("🚀 PreviewEngine fully initialized with Phase 8 upgrades")
     
     def generate(
         self,
