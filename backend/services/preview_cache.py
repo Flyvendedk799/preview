@@ -252,22 +252,31 @@ def cache_preview_urls(
 
 def invalidate_cache(url: str) -> bool:
     """
-    Invalidate all cache entries for a URL.
+    Invalidate all cache entries for a URL across ALL prefixes.
     
     Call this when a preview needs to be regenerated.
+    FIXED: Now clears all cache prefixes including demo caches.
     """
     client = get_redis_client()
     if client is None:
         return False
     
     try:
-        keys = [
-            generate_cache_key(url, CacheConfig.PREVIEW_PREFIX),
-            generate_cache_key(url, CacheConfig.ANALYSIS_PREFIX)
+        # All possible cache prefixes used in the system
+        all_prefixes = [
+            CacheConfig.PREVIEW_PREFIX,   # "preview:focus:"
+            CacheConfig.ANALYSIS_PREFIX,  # "analysis:"
+            "demo:preview:",              # Demo route v1
+            "demo:preview:v2:",           # Demo route v2 (job-based)
+            "preview:engine:",            # Engine default
+            "preview:enhanced:",          # Enhanced engine
+            "saas:preview:",              # SaaS preview
         ]
         
+        keys = [generate_cache_key(url, prefix) for prefix in all_prefixes]
+        
         deleted = client.delete(*keys)
-        logger.info(f"Invalidated {deleted} cache entries for: {url[:50]}...")
+        logger.info(f"Invalidated {deleted} cache entries for: {url[:50]}... (checked {len(keys)} prefixes)")
         return True
         
     except Exception as e:

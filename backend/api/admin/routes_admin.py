@@ -1195,3 +1195,128 @@ def set_demo_cache_disabled(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update setting: {str(e)}"
         )
+
+
+# =============================================================================
+# CACHE INVALIDATION
+# =============================================================================
+
+class CacheInvalidateRequest(BaseModel):
+    """Request to invalidate cache for a URL."""
+    url: str
+
+
+class CacheInvalidateResponse(BaseModel):
+    """Response for cache invalidation."""
+    success: bool
+    message: str
+
+
+@router.post("/cache/invalidate", response_model=CacheInvalidateResponse)
+def invalidate_url_cache(
+    request_body: CacheInvalidateRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(get_admin_user)
+):
+    """
+    Invalidate all cache entries for a specific URL.
+    
+    Use this to force regeneration of a preview.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        from backend.services.preview_cache import invalidate_cache
+        
+        url = request_body.url
+        logger.info(f"Admin {admin_user.email} invalidating cache for: {url}")
+        
+        success = invalidate_cache(url)
+        
+        if success:
+            # Log admin action
+            log_admin_action(
+                db,
+                admin_user.id,
+                action="admin.cache.invalidate",
+                details={"url": url},
+                ip_address=request.client.host
+            )
+            return CacheInvalidateResponse(
+                success=True,
+                message=f"Cache invalidated for {url}"
+            )
+        else:
+            return CacheInvalidateResponse(
+                success=False,
+                message="Redis not available or invalidation failed"
+            )
+    except Exception as e:
+        logger.error(f"Cache invalidation failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Cache invalidation failed: {str(e)}"
+        )
+
+
+@router.post("/cache/clear-all-demo")
+def clear_all_demo_cache(
+    request: Request,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(get_admin_user)
+):
+    """
+    Clear ALL demo cache entries.
+    
+    WARNING: This clears all cached demo previews.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        from backend.services.preview_cache import get_redis_client
+        redis_client = get_redis_client()
+        
+        if redis_client is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Redis is not available"
+            )
+        
+        # Find and delete all demo cache keys
+        patterns = ["demo:preview:*", "demo:preview:v2:*"]
+        total_deleted = 0
+        
+        for pattern in patterns:
+            cursor = 0
+            while True:
+                cursor, keys = redis_client.scan(cursor=cursor, match=pattern, count=100)
+                if keys:
+                    deleted = redis_client.delete(*keys)
+                    total_deleted += deleted
+                if cursor == 0:
+                    break
+        
+        logger.info(f"Admin {admin_user.email} cleared {total_deleted} demo cache entries")
+        
+        # Log admin action
+        log_admin_action(
+            db,
+            admin_user.id,
+            action="admin.cache.clear_all_demo",
+            details={"deleted_count": total_deleted},
+            ip_address=request.client.host
+        )
+        
+        return {"success": True, "deleted_count": total_deleted}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to clear demo cache: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to clear demo cache: {str(e)}"
+        )

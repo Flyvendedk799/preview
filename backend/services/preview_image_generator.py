@@ -1690,8 +1690,10 @@ def _calculate_luminance_from_hex(hex_color: str) -> float:
         
         # Relative luminance formula (sRGB)
         luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
+        logger.info(f"🎨 Luminance calculation: #{hex_color} → L={luminance:.3f} ({'dark' if luminance < 0.5 else 'light'} bg)")
         return luminance
-    except:
+    except Exception as e:
+        logger.warning(f"⚠️ Luminance calculation failed for {hex_color}: {e}")
         return 0.7  # Default to light theme on error
 
 
@@ -1702,10 +1704,9 @@ def _get_optimal_text_hex(bg_hex: str) -> str:
     FIXED: Ensures white text on dark backgrounds and dark text on light backgrounds.
     """
     luminance = _calculate_luminance_from_hex(bg_hex)
-    if luminance < 0.5:
-        return "#FFFFFF"  # White text on dark backgrounds
-    else:
-        return "#111827"  # Dark text on light backgrounds
+    text_hex = "#FFFFFF" if luminance < 0.5 else "#111827"
+    logger.info(f"🎨 Optimal text color: bg={bg_hex}, L={luminance:.3f} → text={text_hex}")
+    return text_hex
 
 
 def _map_padding_scale(spacing_feel: str) -> str:
