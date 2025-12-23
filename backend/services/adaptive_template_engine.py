@@ -1330,10 +1330,10 @@ class AdaptiveTemplateEngine:
         force_gradient: bool = False
     ) -> Image.Image:
         """Apply background based on design style and visual effects from Design DNA."""
-        logger.info(f"🎨 [ADAPTIVE_TEMPLATE] _apply_background called: {image.size}, force_gradient={force_gradient}")
         style = self.dna.philosophy.primary_style.lower()
         visual_effects = getattr(self.dna, 'visual_effects', None)
-        logger.info(f"🎨 [ADAPTIVE_TEMPLATE] Style: {style}, visual_effects present: {visual_effects is not None}")
+        logger.info(f"🎨 [STEP 2/10] _apply_background: size={image.size}, force_gradient={force_gradient}, style={style}")
+        logger.info(f"🎨 [STEP 2/10] Visual effects present: {visual_effects is not None}")
         
         # PHASE 2: Check if gradients are enabled in visual effects or forced by composition
         gradients_enabled = force_gradient
@@ -1341,9 +1341,9 @@ class AdaptiveTemplateEngine:
         if visual_effects:
             gradients_enabled = gradients_enabled or getattr(visual_effects, 'gradients', 'none') != 'none'
             gradient_direction = getattr(visual_effects, 'gradient_direction', 'horizontal')
-            logger.info(f"🎨 [ADAPTIVE_TEMPLATE] Visual effects gradients: {getattr(visual_effects, 'gradients', 'none')}, direction: {gradient_direction}")
+            logger.info(f"🎨 [STEP 2/10] Visual effects gradients: {getattr(visual_effects, 'gradients', 'none')}, direction: {gradient_direction}")
         
-        logger.info(f"🎨 [ADAPTIVE_TEMPLATE] Gradient enabled: {gradients_enabled}, gradient_type: {self.colors.gradient_type}")
+        logger.info(f"🎨 [STEP 2/10] Gradient enabled: {gradients_enabled}, gradient_type: {self.colors.gradient_type}")
         
         # Use gradient background (from color config or visual effects)
         if self.colors.gradient_type != "none" or gradients_enabled:
