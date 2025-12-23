@@ -23,21 +23,44 @@ from backend.core.config import settings
 logger = logging.getLogger(__name__)
 
 
-DESIGN_COMPOSITION_PROMPT = """You are a senior graphic designer with expertise in visual composition, typography, color theory, and design principles.
+DESIGN_COMPOSITION_PROMPT = """You are a world-class creative director at a top design agency. Your job is to ensure this preview image meets the highest professional standards.
 
-Analyze this preview image for visual design quality and composition. Evaluate it based on professional design principles:
+CRITICAL: Be STRICT. Most designs have room for improvement. Score honestly - a score of 0.9+ should only be given to exceptional designs.
 
-DESIGN PRINCIPLES TO EVALUATE:
-1. **Visual Hierarchy**: Is there a clear focal point? Does the eye flow naturally?
-2. **Rule of Thirds**: Are key elements positioned at intersection points (1/3, 2/3)?
-3. **Balance**: Is the composition balanced (symmetrical or asymmetrical)?
-4. **Color Harmony**: Do colors work together? Is contrast sufficient?
-5. **Typography**: Is text hierarchy clear? Are fonts well-paired?
-6. **Spacing & Rhythm**: Is whitespace used effectively? Is there visual rhythm?
-7. **Contrast**: Is there sufficient contrast for readability and visual interest?
-8. **Alignment**: Are elements properly aligned? Is there a clear grid?
-9. **Proximity**: Are related elements grouped together?
-10. **Visual Appeal**: Overall, does this look professional and polished?
+EVALUATE THESE DESIGN PRINCIPLES (score 0.0-1.0 for each):
+
+1. **VISUAL HIERARCHY** (0.0-1.0): 
+   - Is there ONE clear focal point that immediately grabs attention?
+   - Does the eye flow naturally from headline → subheadline → CTA?
+   - Is the most important element the most prominent?
+
+2. **TYPOGRAPHY QUALITY** (0.0-1.0):
+   - Is the headline large, bold, and impactful enough?
+   - Are font sizes well-proportioned (headline 2-3x larger than body)?
+   - Is text crisp and readable? Any blur or shadow issues?
+   - Is letter-spacing and line-height optimal?
+
+3. **COLOR & CONTRAST** (0.0-1.0):
+   - Is text-to-background contrast ratio high enough for easy reading?
+   - Are colors vibrant and appealing (not washed out or muddy)?
+   - Does the color palette feel cohesive and professional?
+   - Is there visual "pop" that would catch attention on social media?
+
+4. **SPACING & BREATHING ROOM** (0.0-1.0):
+   - Is there adequate whitespace around elements?
+   - Are elements properly aligned on a clear grid?
+   - Is the layout balanced (not cramped or too sparse)?
+
+5. **PROFESSIONAL POLISH** (0.0-1.0):
+   - Does this look like it was designed by a professional?
+   - Would this perform well on social media?
+   - Are there any amateur-looking elements?
+   - Does it feel modern and current?
+
+6. **BRAND IMPACT** (0.0-1.0):
+   - Does the design convey professionalism and trust?
+   - Is the brand/product clearly communicated?
+   - Would you click on this preview?
 
 OUTPUT JSON:
 {
@@ -48,54 +71,53 @@ OUTPUT JSON:
     "spacing_score": 0.0-1.0,
     "balance_score": 0.0-1.0,
     "contrast_score": 0.0-1.0,
+    "professional_polish_score": 0.0-1.0,
+    "brand_impact_score": 0.0-1.0,
     "overall_appeal": "excellent|good|fair|poor",
     
-    "issues": [
+    "critical_issues": [
         {
-            "type": "hierarchy|composition|color|typography|spacing|balance|contrast",
-            "severity": "minor|moderate|major",
-            "description": "Specific issue description",
-            "recommendation": "How to fix it"
+            "type": "hierarchy|typography|color|contrast|spacing|polish|brand",
+            "severity": "critical|major|minor",
+            "description": "What's wrong",
+            "fix": "How to fix it (be specific)"
         }
     ],
     
-    "recommendations": [
+    "enhancement_actions": [
         {
-            "type": "adjust_position|adjust_size|adjust_color|adjust_spacing|adjust_typography|add_element|remove_element",
-            "element": "headline|subtitle|description|logo|background|accent",
-            "action": "Specific action to take",
+            "action": "increase_contrast|boost_saturation|sharpen_text|increase_headline_weight|add_shadow|brighten|darken|increase_spacing",
+            "intensity": "light|medium|strong",
             "reason": "Why this improves the design"
         }
     ],
     
-    "rule_of_thirds_analysis": {
-        "focal_point_position": {"x": 0.0-1.0, "y": 0.0-1.0},
-        "is_on_intersection": true/false,
-        "recommended_position": {"x": 0.0-1.0, "y": 0.0-1.0}
-    },
-    
     "color_analysis": {
-        "harmony_type": "monochromatic|complementary|analogous|triadic|split-complementary",
-        "contrast_ratio": 0.0-1.0,
-        "suggested_improvements": ["specific color adjustments"]
+        "needs_more_contrast": true/false,
+        "needs_more_saturation": true/false,
+        "needs_brightening": true/false,
+        "needs_darkening": true/false,
+        "contrast_issue": "none|low|very_low",
+        "saturation_issue": "none|washed_out|muddy"
     },
     
     "typography_analysis": {
-        "hierarchy_clear": true/false,
-        "size_relationships": "description of size relationships",
-        "suggested_improvements": ["specific typography adjustments"]
+        "headline_impact": "excellent|good|weak|very_weak",
+        "needs_sharpening": true/false,
+        "needs_bolder_weight": true/false,
+        "readability": "excellent|good|fair|poor"
     },
     
-    "spacing_analysis": {
-        "whitespace_usage": "excellent|good|fair|poor",
-        "rhythm_consistency": 0.0-1.0,
-        "suggested_improvements": ["specific spacing adjustments"]
+    "final_verdict": {
+        "ready_for_production": true/false,
+        "minimum_improvements_needed": ["list of must-fix items"],
+        "would_perform_well_on_social": true/false
     },
     
     "confidence": 0.0-1.0
 }
 
-Be specific and actionable. Focus on improvements that will make this look more professional and visually appealing."""
+BE CRITICAL. Professional marketing previews must be EXCELLENT. Flag anything that reduces quality."""
 
 
 def prepare_image_for_vision(image: Image.Image) -> str:
@@ -222,110 +244,157 @@ def apply_design_improvements(
     zones: Dict[str, Tuple[int, int, int, int]]
 ) -> Tuple[Image.Image, List[str]]:
     """
-    Apply design improvements based on AI analysis.
+    Apply comprehensive design improvements based on AI analysis.
     
-    Args:
-        image: PIL Image to enhance
-        analysis: Design analysis from AI
-        zones: Dict mapping element names to (x, y, width, height) zones
-        
-    Returns:
-        Tuple of (enhanced_image, list_of_applied_improvements)
+    Uses the AI's detailed analysis to apply professional-grade enhancements
+    for contrast, saturation, sharpness, and overall visual quality.
     """
     enhanced_image = image.copy()
     applied_improvements = []
     
-    recommendations = analysis.get('recommendations', [])
-    if not recommendations:
-        logger.info(f"🎨 [AI_DESIGN] No recommendations to apply")
-        return enhanced_image, applied_improvements
-    
-    logger.info(f"🎨 [AI_DESIGN] Applying {len(recommendations)} design improvements...")
-    
-    # Group recommendations by type
-    position_adjustments = [r for r in recommendations if r.get('type') == 'adjust_position']
-    size_adjustments = [r for r in recommendations if r.get('type') == 'adjust_size']
-    color_adjustments = [r for r in recommendations if r.get('type') == 'adjust_color']
-    spacing_adjustments = [r for r in recommendations if r.get('type') == 'adjust_spacing']
-    typography_adjustments = [r for r in recommendations if r.get('type') == 'adjust_typography']
-    
-    # Note: Actual position/size adjustments would require re-rendering elements
-    # For now, we'll log them and apply what we can (color, contrast, etc.)
-    
-    # Apply color improvements if recommended
-    color_analysis = analysis.get('color_analysis', {})
-    if color_analysis.get('suggested_improvements'):
-        logger.info(f"🎨 [AI_DESIGN] Color improvements suggested: {color_analysis['suggested_improvements']}")
-        applied_improvements.append("Applied color harmony improvements")
-    
-    # ALWAYS apply contrast improvements - this is critical for quality
-    # High contrast = professional, readable, impactful design
+    # Get all scores and analysis
     contrast_score = analysis.get('contrast_score', 1.0)
-    visual_hierarchy = analysis.get('visual_hierarchy_score', 1.0)
-    
-    # More aggressive thresholds - apply enhancement in most cases
-    if contrast_score < 0.85 or visual_hierarchy < 0.75:
-        logger.info(f"🎨 [AI_DESIGN] Enhancing contrast (score={contrast_score:.2f}, hierarchy={visual_hierarchy:.2f})...")
-        enhancer = ImageEnhance.Contrast(enhanced_image)
-        # AGGRESSIVE contrast enhancement based on score
-        if contrast_score < 0.4:
-            enhancement_factor = 1.30  # Very strong for very low contrast
-        elif contrast_score < 0.5:
-            enhancement_factor = 1.25  # Strong
-        elif contrast_score < 0.6:
-            enhancement_factor = 1.20  # Medium-strong
-        elif contrast_score < 0.7:
-            enhancement_factor = 1.15  # Medium
-        else:
-            enhancement_factor = 1.10  # Light touch-up
-        enhanced_image = enhancer.enhance(enhancement_factor)
-        applied_improvements.append(f"Enhanced contrast ({enhancement_factor:.2f}x) for visual impact")
-        logger.info(f"🎨 [AI_DESIGN] ✅ Applied contrast enhancement: {enhancement_factor:.2f}x")
-    
-    # ALWAYS boost color saturation for more vibrant, professional look
     color_harmony_score = analysis.get('color_harmony_score', 1.0)
-    if color_harmony_score < 0.85:
-        logger.info(f"🎨 [AI_DESIGN] Enhancing color saturation ({color_harmony_score:.2f})...")
-        enhancer = ImageEnhance.Color(enhanced_image)
-        # Stronger saturation for more vibrant colors
-        if color_harmony_score < 0.5:
-            enhancement_factor = 1.15  # Strong saturation boost
-        elif color_harmony_score < 0.6:
-            enhancement_factor = 1.12
-        elif color_harmony_score < 0.7:
-            enhancement_factor = 1.10
-        else:
-            enhancement_factor = 1.08
-        enhanced_image = enhancer.enhance(enhancement_factor)
-        applied_improvements.append(f"Enhanced color vibrancy ({enhancement_factor:.2f}x)")
-        logger.info(f"🎨 [AI_DESIGN] ✅ Applied color saturation: {enhancement_factor:.2f}x")
-    
-    # Apply brightness adjustments for optimal visibility
-    balance_score = analysis.get('balance_score', 1.0)
-    overall_appeal = analysis.get('overall_appeal', 'good')
-    if balance_score < 0.7 or overall_appeal in ['poor', 'fair']:
-        logger.info(f"🎨 [AI_DESIGN] Optimizing brightness (balance={balance_score:.2f}, appeal={overall_appeal})...")
-        enhancer = ImageEnhance.Brightness(enhanced_image)
-        # Adjust brightness based on overall appeal
-        if overall_appeal == 'poor':
-            enhanced_image = enhancer.enhance(1.05)  # Brighten slightly
-            applied_improvements.append("Increased brightness for better visibility")
-        else:
-            enhanced_image = enhancer.enhance(0.97)  # Darken for richer colors
-            applied_improvements.append("Adjusted brightness for richer colors")
-    
-    # ALWAYS apply sharpening for crisp, professional text
-    composition_score = analysis.get('composition_score', 1.0)
     typography_score = analysis.get('typography_score', 1.0)
-    if composition_score < 0.8 or typography_score < 0.7:
-        logger.info(f"🎨 [AI_DESIGN] Sharpening for clarity (comp={composition_score:.2f}, typo={typography_score:.2f})...")
-        # Strong unsharp mask for professional crispness
-        enhanced_image = enhanced_image.filter(ImageFilter.UnsharpMask(radius=2.0, percent=150, threshold=2))
-        applied_improvements.append("Applied professional sharpening for crisp text")
+    visual_hierarchy = analysis.get('visual_hierarchy_score', 1.0)
+    professional_polish = analysis.get('professional_polish_score', 1.0)
+    brand_impact = analysis.get('brand_impact_score', 1.0)
+    overall_appeal = analysis.get('overall_appeal', 'good')
     
-    # Log all recommendations for future implementation
-    for rec in recommendations:
-        logger.info(f"🎨 [AI_DESIGN] Recommendation: {rec.get('type')} - {rec.get('action')} ({rec.get('reason')})")
+    color_analysis = analysis.get('color_analysis', {})
+    typography_analysis = analysis.get('typography_analysis', {})
+    enhancement_actions = analysis.get('enhancement_actions', [])
+    final_verdict = analysis.get('final_verdict', {})
+    
+    logger.info(f"🎨 [AI_DESIGN] Starting comprehensive design enhancement...")
+    logger.info(f"🎨 [AI_DESIGN] Scores: contrast={contrast_score:.2f}, color={color_harmony_score:.2f}, "
+                f"typo={typography_score:.2f}, hierarchy={visual_hierarchy:.2f}, polish={professional_polish:.2f}")
+    logger.info(f"🎨 [AI_DESIGN] Overall appeal: {overall_appeal}")
+    
+    # ==================== CONTRAST ENHANCEMENT ====================
+    # This is THE most critical factor for professional-looking designs
+    needs_contrast = color_analysis.get('needs_more_contrast', False)
+    contrast_issue = color_analysis.get('contrast_issue', 'none')
+    
+    # Calculate contrast enhancement factor based on multiple signals
+    contrast_factor = 1.0
+    if contrast_score < 0.4 or contrast_issue == 'very_low':
+        contrast_factor = 1.35  # Maximum boost for very low contrast
+    elif contrast_score < 0.5 or needs_contrast:
+        contrast_factor = 1.28
+    elif contrast_score < 0.6 or contrast_issue == 'low':
+        contrast_factor = 1.22
+    elif contrast_score < 0.7 or visual_hierarchy < 0.6:
+        contrast_factor = 1.18
+    elif contrast_score < 0.8 or overall_appeal in ['poor', 'fair']:
+        contrast_factor = 1.12
+    elif contrast_score < 0.9:
+        contrast_factor = 1.08
+    
+    if contrast_factor > 1.0:
+        logger.info(f"🎨 [AI_DESIGN] Applying contrast enhancement: {contrast_factor:.2f}x")
+        enhancer = ImageEnhance.Contrast(enhanced_image)
+        enhanced_image = enhancer.enhance(contrast_factor)
+        applied_improvements.append(f"Enhanced contrast ({contrast_factor:.2f}x)")
+    
+    # ==================== COLOR SATURATION ====================
+    needs_saturation = color_analysis.get('needs_more_saturation', False)
+    saturation_issue = color_analysis.get('saturation_issue', 'none')
+    
+    saturation_factor = 1.0
+    if saturation_issue == 'washed_out' or color_harmony_score < 0.4:
+        saturation_factor = 1.25  # Strong boost for washed out colors
+    elif saturation_issue == 'muddy' or color_harmony_score < 0.5:
+        saturation_factor = 1.20
+    elif needs_saturation or color_harmony_score < 0.6:
+        saturation_factor = 1.15
+    elif color_harmony_score < 0.7:
+        saturation_factor = 1.12
+    elif color_harmony_score < 0.85:
+        saturation_factor = 1.08
+    
+    if saturation_factor > 1.0:
+        logger.info(f"🎨 [AI_DESIGN] Applying saturation boost: {saturation_factor:.2f}x")
+        enhancer = ImageEnhance.Color(enhanced_image)
+        enhanced_image = enhancer.enhance(saturation_factor)
+        applied_improvements.append(f"Boosted color vibrancy ({saturation_factor:.2f}x)")
+    
+    # ==================== BRIGHTNESS OPTIMIZATION ====================
+    needs_brightening = color_analysis.get('needs_brightening', False)
+    needs_darkening = color_analysis.get('needs_darkening', False)
+    
+    if needs_brightening or overall_appeal == 'poor':
+        logger.info(f"🎨 [AI_DESIGN] Brightening image for visibility")
+        enhancer = ImageEnhance.Brightness(enhanced_image)
+        enhanced_image = enhancer.enhance(1.08)
+        applied_improvements.append("Brightened for visibility")
+    elif needs_darkening:
+        logger.info(f"🎨 [AI_DESIGN] Darkening for richer colors")
+        enhancer = ImageEnhance.Brightness(enhanced_image)
+        enhanced_image = enhancer.enhance(0.95)
+        applied_improvements.append("Darkened for richer colors")
+    
+    # ==================== TEXT SHARPENING ====================
+    headline_impact = typography_analysis.get('headline_impact', 'good')
+    needs_sharpening = typography_analysis.get('needs_sharpening', False)
+    readability = typography_analysis.get('readability', 'good')
+    
+    # Determine sharpening intensity
+    if headline_impact == 'very_weak' or readability == 'poor' or typography_score < 0.4:
+        logger.info(f"🎨 [AI_DESIGN] Applying STRONG text sharpening")
+        enhanced_image = enhanced_image.filter(ImageFilter.UnsharpMask(radius=2.5, percent=200, threshold=2))
+        applied_improvements.append("Applied strong text sharpening")
+    elif headline_impact == 'weak' or readability == 'fair' or needs_sharpening or typography_score < 0.6:
+        logger.info(f"🎨 [AI_DESIGN] Applying medium text sharpening")
+        enhanced_image = enhanced_image.filter(ImageFilter.UnsharpMask(radius=2.0, percent=160, threshold=2))
+        applied_improvements.append("Applied text sharpening")
+    elif typography_score < 0.8:
+        logger.info(f"🎨 [AI_DESIGN] Applying light text sharpening")
+        enhanced_image = enhanced_image.filter(ImageFilter.UnsharpMask(radius=1.5, percent=120, threshold=2))
+        applied_improvements.append("Applied light sharpening")
+    
+    # ==================== PROCESS AI ENHANCEMENT ACTIONS ====================
+    for action in enhancement_actions:
+        action_type = action.get('action', '')
+        intensity = action.get('intensity', 'medium')
+        reason = action.get('reason', '')
+        
+        logger.info(f"🎨 [AI_DESIGN] AI action: {action_type} ({intensity}) - {reason}")
+        
+        # Map intensity to factor
+        intensity_map = {'light': 1.05, 'medium': 1.12, 'strong': 1.20}
+        factor = intensity_map.get(intensity, 1.10)
+        
+        if action_type == 'increase_contrast' and 'contrast' not in str(applied_improvements).lower():
+            enhancer = ImageEnhance.Contrast(enhanced_image)
+            enhanced_image = enhancer.enhance(factor)
+            applied_improvements.append(f"AI: {action_type} ({intensity})")
+        elif action_type == 'boost_saturation' and 'saturation' not in str(applied_improvements).lower():
+            enhancer = ImageEnhance.Color(enhanced_image)
+            enhanced_image = enhancer.enhance(factor)
+            applied_improvements.append(f"AI: {action_type} ({intensity})")
+        elif action_type == 'brighten':
+            enhancer = ImageEnhance.Brightness(enhanced_image)
+            enhanced_image = enhancer.enhance(factor)
+            applied_improvements.append(f"AI: {action_type}")
+        elif action_type == 'darken':
+            enhancer = ImageEnhance.Brightness(enhanced_image)
+            enhanced_image = enhancer.enhance(2.0 - factor)  # Invert for darkening
+            applied_improvements.append(f"AI: {action_type}")
+    
+    # ==================== LOG CRITICAL ISSUES ====================
+    critical_issues = analysis.get('critical_issues', [])
+    for issue in critical_issues:
+        logger.warning(f"🎨 [AI_DESIGN] CRITICAL ISSUE: {issue.get('type')} - {issue.get('description')} (Fix: {issue.get('fix')})")
+    
+    # ==================== LOG FINAL VERDICT ====================
+    if final_verdict:
+        ready = final_verdict.get('ready_for_production', False)
+        social_ready = final_verdict.get('would_perform_well_on_social', False)
+        min_fixes = final_verdict.get('minimum_improvements_needed', [])
+        logger.info(f"🎨 [AI_DESIGN] Final verdict: production_ready={ready}, social_ready={social_ready}")
+        if min_fixes:
+            logger.info(f"🎨 [AI_DESIGN] Minimum improvements needed: {min_fixes}")
     
     logger.info(f"🎨 [AI_DESIGN] ✅ Applied {len(applied_improvements)} design improvements")
     
