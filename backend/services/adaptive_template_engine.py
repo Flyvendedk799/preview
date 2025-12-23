@@ -469,16 +469,28 @@ def apply_gradient_background(
     g = (color1[1] * (1 - progress) + color2[1] * progress)
     b = (color1[2] * (1 - progress) + color2[2] * progress)
     
-    # Add very strong random dither noise (-4.0 to +4.0) to eliminate banding artifacts
-    # Very strong dithering needed for dark gradients where banding is highly visible
-    # Using different dither per channel for better noise distribution
-    # Increased to -4/+4 for maximum effectiveness against visible banding
-    dither_r = np.random.uniform(-4.0, 4.0, (height, width))
-    dither_g = np.random.uniform(-4.0, 4.0, (height, width))
-    dither_b = np.random.uniform(-4.0, 4.0, (height, width))
-    r = np.clip(r + dither_r, 0, 255).astype(np.uint8)
-    g = np.clip(g + dither_g, 0, 255).astype(np.uint8)
-    b = np.clip(b + dither_b, 0, 255).astype(np.uint8)
+    # Use ordered dithering (Bayer matrix) for better banding elimination
+    # Ordered dithering is more effective than random noise for smooth gradients
+    # Create 8x8 Bayer matrix for ordered dithering
+    bayer_matrix = np.array([
+        [0, 32, 8, 40, 2, 34, 10, 42],
+        [48, 16, 56, 24, 50, 18, 58, 26],
+        [12, 44, 4, 36, 14, 46, 6, 38],
+        [60, 28, 52, 20, 62, 30, 54, 22],
+        [3, 35, 11, 43, 1, 33, 9, 41],
+        [51, 19, 59, 27, 49, 17, 57, 25],
+        [15, 47, 7, 39, 13, 45, 5, 37],
+        [63, 31, 55, 23, 61, 29, 53, 21]
+    ], dtype=np.float32) / 64.0 - 0.5  # Normalize to -0.5 to 0.5
+    
+    # Tile Bayer matrix across image
+    bayer_tiled = np.tile(bayer_matrix, (height // 8 + 1, width // 8 + 1))[:height, :width]
+    
+    # Apply ordered dithering with stronger intensity for dark gradients
+    dither_strength = 6.0  # Stronger dithering for dark gradients
+    r = np.clip(r + bayer_tiled * dither_strength, 0, 255).astype(np.uint8)
+    g = np.clip(g + bayer_tiled * dither_strength, 0, 255).astype(np.uint8)
+    b = np.clip(b + bayer_tiled * dither_strength, 0, 255).astype(np.uint8)
     
     # Stack into RGB array and create image
     gradient_array = np.stack([r, g, b], axis=2)

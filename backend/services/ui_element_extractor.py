@@ -504,14 +504,27 @@ class UIElementExtractor:
         g = (base_color[1] * (1 - progress * 0.3) + darker[1] * (progress * 0.3))
         b = (base_color[2] * (1 - progress * 0.3) + darker[2] * (progress * 0.3))
         
-        # Add strong per-channel dithering to eliminate banding
-        dither_r = np.random.uniform(-3.0, 3.0, (height, width))
-        dither_g = np.random.uniform(-3.0, 3.0, (height, width))
-        dither_b = np.random.uniform(-3.0, 3.0, (height, width))
+        # Use ordered dithering (Bayer matrix) for better banding elimination
+        # Create 8x8 Bayer matrix for ordered dithering
+        bayer_matrix = np.array([
+            [0, 32, 8, 40, 2, 34, 10, 42],
+            [48, 16, 56, 24, 50, 18, 58, 26],
+            [12, 44, 4, 36, 14, 46, 6, 38],
+            [60, 28, 52, 20, 62, 30, 54, 22],
+            [3, 35, 11, 43, 1, 33, 9, 41],
+            [51, 19, 59, 27, 49, 17, 57, 25],
+            [15, 47, 7, 39, 13, 45, 5, 37],
+            [63, 31, 55, 23, 61, 29, 53, 21]
+        ], dtype=np.float32) / 64.0 - 0.5  # Normalize to -0.5 to 0.5
         
-        r = np.clip(r + dither_r, 0, 255).astype(np.uint8)
-        g = np.clip(g + dither_g, 0, 255).astype(np.uint8)
-        b = np.clip(b + dither_b, 0, 255).astype(np.uint8)
+        # Tile Bayer matrix across image
+        bayer_tiled = np.tile(bayer_matrix, (height // 8 + 1, width // 8 + 1))[:height, :width]
+        
+        # Apply ordered dithering with stronger intensity for dark gradients
+        dither_strength = 6.0  # Stronger dithering for dark gradients
+        r = np.clip(r + bayer_tiled * dither_strength, 0, 255).astype(np.uint8)
+        g = np.clip(g + bayer_tiled * dither_strength, 0, 255).astype(np.uint8)
+        b = np.clip(b + bayer_tiled * dither_strength, 0, 255).astype(np.uint8)
         
         # Create image from array
         gradient_array = np.stack([r, g, b], axis=2)
