@@ -35,6 +35,9 @@ def fetch_page_html(url: str) -> str:
         }
         response = requests.get(url, timeout=10, headers=headers, allow_redirects=True)  # Increased to 10s max
         response.raise_for_status()
+        
+        # Fix encoding issues: explicitly set UTF-8 encoding to prevent garbled characters
+        response.encoding = 'utf-8'
         return response.text
     except Exception as e:
         # Log error without exposing sensitive data

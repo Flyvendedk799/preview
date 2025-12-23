@@ -78,6 +78,8 @@ def verify_html_file(domain: str, token: str) -> Tuple[bool, Optional[str]]:
         try:
             response = requests.get(url, timeout=6, allow_redirects=True)
             response.raise_for_status()
+            # Fix encoding issues: explicitly set UTF-8 encoding
+            response.encoding = 'utf-8'
         except requests.RequestException as e:
             return False, f"Could not fetch verification file: {str(e)}"
         
@@ -115,6 +117,8 @@ def verify_meta_tag(domain: str, token: str) -> Tuple[bool, Optional[str]]:
             }
             response = requests.get(url, timeout=6, allow_redirects=True, headers=headers)
             response.raise_for_status()
+            # Fix encoding issues: explicitly set UTF-8 encoding
+            response.encoding = 'utf-8'
         except requests.RequestException as e:
             return False, f"Could not fetch homepage: {str(e)}"
         
