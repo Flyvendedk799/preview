@@ -367,12 +367,12 @@ def _draw_gradient_background(
         progress = (y_coords * 0.7 + x_coords * 0.3)  # More vertical bias
     elif direction == "radial":
         # Create radial gradient from center
-        y_coords = np.linspace(-1, 1, height)[:, np.newaxis]
-        x_coords = np.linspace(-1, 1, width)[np.newaxis, :]
+        y_coords = (np.arange(height, dtype=np.float64)[:, np.newaxis] / max(height - 1, 1) * 2 - 1) if height > 1 else np.zeros((height, 1))
+        x_coords = (np.arange(width, dtype=np.float64)[np.newaxis, :] / max(width - 1, 1) * 2 - 1) if width > 1 else np.zeros((1, width))
         progress = np.sqrt(x_coords**2 + y_coords**2)
         progress = np.clip(progress / np.sqrt(2), 0, 1)  # Normalize
     else:  # horizontal
-        progress = np.linspace(0, 1, width)[np.newaxis, :]
+        progress = (np.arange(width, dtype=np.float64)[np.newaxis, :] / max(width - 1, 1)) if width > 1 else np.zeros((1, width))
         progress = np.broadcast_to(progress, (height, width))
     
     # Ensure progress is 2D array with shape (height, width)
@@ -761,7 +761,7 @@ def _generate_hero_template(
     draw.rectangle([(0, OG_IMAGE_HEIGHT - bar_height), (OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT)], fill=accent_color)
     
     buffer = BytesIO()
-    img.save(buffer, format='PNG', optimize=True)
+    img.save(buffer, format='PNG', optimize=False)  # Disable optimization to preserve dithering
     return buffer.getvalue()
 
 
@@ -1279,7 +1279,7 @@ def _generate_product_template(
             pass
     
     buffer = BytesIO()
-    img.save(buffer, format='PNG', optimize=True)
+    img.save(buffer, format='PNG', optimize=False)  # Disable optimization to preserve dithering
     return buffer.getvalue()
 
 
@@ -1472,7 +1472,7 @@ def _generate_modern_card_template(
     )
     
     buffer = BytesIO()
-    img.save(buffer, format='PNG', optimize=True)
+    img.save(buffer, format='PNG', optimize=False)  # Disable optimization to preserve dithering
     return buffer.getvalue()
 
 
@@ -1594,7 +1594,7 @@ def _generate_fallback_preview(
         )
         
         buffer = BytesIO()
-        img.save(buffer, format='PNG', optimize=True)
+        img.save(buffer, format='PNG', optimize=False)  # Disable optimization to preserve dithering
         return buffer.getvalue()
         
     except Exception as e:
