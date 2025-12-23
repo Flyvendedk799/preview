@@ -60,8 +60,14 @@ Be precise and only flag issues that are clearly visible. Confidence should refl
 
 def prepare_image_for_vision(image: Image.Image) -> str:
     """Prepare PIL Image for OpenAI Vision API."""
+    original_size = image.size
+    original_mode = image.mode
+    
+    logger.info(f"🤖 [OPENAI_VISION] Preparing image: original_size={original_size}, mode={original_mode}")
+    
     # Convert to RGB if needed
     if image.mode in ('RGBA', 'P', 'LA'):
+        logger.info(f"🤖 [OPENAI_VISION] Converting {image.mode} to RGB...")
         background = Image.new('RGB', image.size, (255, 255, 255))
         if image.mode == 'P':
             image = image.convert('RGBA')
@@ -74,12 +80,17 @@ def prepare_image_for_vision(image: Image.Image) -> str:
     if image.width > max_dim or image.height > max_dim:
         ratio = min(max_dim / image.width, max_dim / image.height)
         new_size = (int(image.width * ratio), int(image.height * ratio))
+        logger.info(f"🤖 [OPENAI_VISION] Resizing {image.size} -> {new_size} (ratio={ratio:.3f})")
         image = image.resize(new_size, Image.Resampling.LANCZOS)
     
     # Encode to base64 JPEG
     buffer = BytesIO()
     image.save(buffer, format='JPEG', quality=90)
     image_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+    image_size_bytes = len(buffer.getvalue())
+    base64_size_chars = len(image_base64)
+    
+    logger.info(f"🤖 [OPENAI_VISION] Image encoded: JPEG size={image_size_bytes} bytes, base64={base64_size_chars} chars, final_size={image.size}")
     
     return image_base64
 
@@ -99,12 +110,19 @@ def detect_quality_issues_with_ai(image: Image.Image) -> Optional[Dict[str, Any]
         return None
     
     try:
-        logger.info("🤖 Using AI Vision API to detect quality issues...")
+        logger.info(f"🤖 [OPENAI_VISION] Starting AI Vision API call for quality detection...")
+        logger.info(f"🤖 [OPENAI_VISION] Input image: {image.size}, mode={image.mode}")
         
         # Prepare image
         image_base64 = prepare_image_for_vision(image)
         
         # Call OpenAI Vision API
+        logger.info(f"🤖 [OPENAI_VISION] Calling OpenAI API: model=gpt-4o, max_tokens=500, temperature=0.3")
+        logger.info(f"🤖 [OPENAI_VISION] Request: image_detail=high, prompt_length={len(BANDING_DETECTION_PROMPT)} chars")
+        
+        import time
+        start_time = time.time()
+        
         client = OpenAI(api_key=settings.OPENAI_API_KEY, timeout=30)
         
         response = client.chat.completions.create(
@@ -135,27 +153,50 @@ def detect_quality_issues_with_ai(image: Image.Image) -> Optional[Dict[str, Any]
             temperature=0.3  # Lower temperature for more consistent analysis
         )
         
+        elapsed_time = time.time() - start_time
+        
+        # Log API response details
+        usage = response.usage
+        logger.info(f"🤖 [OPENAI_VISION] API response received in {elapsed_time:.2f}s")
+        logger.info(f"🤖 [OPENAI_VISION] Token usage: prompt={usage.prompt_tokens}, completion={usage.completion_tokens}, total={usage.total_tokens}")
+        
         content = response.choices[0].message.content.strip()
+        logger.info(f"🤖 [OPENAI_VISION] Raw response length: {len(content)} chars")
         
         # Parse JSON response
+        logger.info(f"🤖 [OPENAI_VISION] Parsing JSON response...")
+        original_content = content
         if "```json" in content:
             content = content.split("```json")[1].split("```")[0].strip()
+            logger.info(f"🤖 [OPENAI_VISION] Extracted JSON from ```json``` block")
         elif "```" in content:
             content = content.split("```")[1].split("```")[0].strip()
+            logger.info(f"🤖 [OPENAI_VISION] Extracted JSON from ``` block")
         
         analysis = json.loads(content)
         
-        logger.info(f"✅ AI quality analysis: banding={analysis.get('has_banding')}, "
-                   f"blurry_text={analysis.get('has_blurry_text')}, "
-                   f"quality={analysis.get('overall_quality')}")
+        # Log full analysis results
+        logger.info(f"🤖 [OPENAI_VISION] ✅ Analysis complete:")
+        logger.info(f"🤖 [OPENAI_VISION]   - has_banding: {analysis.get('has_banding')}")
+        logger.info(f"🤖 [OPENAI_VISION]   - banding_severity: {analysis.get('banding_severity')}")
+        logger.info(f"🤖 [OPENAI_VISION]   - banding_location: {analysis.get('banding_location')}")
+        logger.info(f"🤖 [OPENAI_VISION]   - has_blurry_text: {analysis.get('has_blurry_text')}")
+        logger.info(f"🤖 [OPENAI_VISION]   - text_blur_severity: {analysis.get('text_blur_severity')}")
+        logger.info(f"🤖 [OPENAI_VISION]   - has_color_artifacts: {analysis.get('has_color_artifacts')}")
+        logger.info(f"🤖 [OPENAI_VISION]   - overall_quality: {analysis.get('overall_quality')}")
+        logger.info(f"🤖 [OPENAI_VISION]   - confidence: {analysis.get('confidence')}")
+        logger.info(f"🤖 [OPENAI_VISION]   - recommended_fixes: {analysis.get('recommended_fixes', [])}")
         
         return analysis
         
     except json.JSONDecodeError as e:
-        logger.warning(f"Failed to parse AI response: {e}")
+        logger.error(f"🤖 [OPENAI_VISION] ❌ Failed to parse JSON response: {e}")
+        logger.error(f"🤖 [OPENAI_VISION] Response content: {original_content[:500]}...")
         return None
     except Exception as e:
-        logger.warning(f"AI quality detection failed: {e}")
+        logger.error(f"🤖 [OPENAI_VISION] ❌ API call failed: {type(e).__name__}: {e}")
+        import traceback
+        logger.debug(f"🤖 [OPENAI_VISION] Traceback: {traceback.format_exc()}")
         return None
 
 
