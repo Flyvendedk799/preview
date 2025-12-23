@@ -475,9 +475,10 @@ def apply_gradient_background(
     g_float = g.astype(np.float64)
     b_float = b.astype(np.float64)
     
-    # Add moderate per-pixel random noise to break up banding
-    # Combined with blur filter for smooth gradients
-    noise_strength = 4.0  # Moderate noise - blur will smooth it out
+    # Add stronger per-pixel random noise to break up banding
+    # Increased strength for dark gradients which show banding more prominently
+    avg_brightness = (color1[0] + color1[1] + color1[2] + color2[0] + color2[1] + color2[2]) / 6
+    noise_strength = 6.0 if avg_brightness < 100 else 4.0  # Stronger noise for dark gradients
     r_noise = np.random.uniform(-noise_strength, noise_strength, (height, width))
     g_noise = np.random.uniform(-noise_strength, noise_strength, (height, width))
     b_noise = np.random.uniform(-noise_strength, noise_strength, (height, width))
@@ -491,9 +492,10 @@ def apply_gradient_background(
     gradient_array = np.stack([r, g, b], axis=2)
     gradient_img = Image.fromarray(gradient_array, mode='RGB')
     
-    # Apply very subtle Gaussian blur to smooth out any remaining banding
-    # This is more effective than noise dithering for eliminating visible bands
-    gradient_img = gradient_img.filter(ImageFilter.GaussianBlur(radius=0.5))
+    # Apply stronger Gaussian blur to eliminate visible banding
+    # Increased radius for dark gradients which are more prone to banding
+    blur_radius = 1.5 if (color1[0] + color1[1] + color1[2] + color2[0] + color2[1] + color2[2]) < 600 else 1.0
+    gradient_img = gradient_img.filter(ImageFilter.GaussianBlur(radius=blur_radius))
     
     image.paste(gradient_img)
     
