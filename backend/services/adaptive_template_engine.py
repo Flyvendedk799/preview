@@ -1233,32 +1233,47 @@ class AdaptiveTemplateEngine:
             logger.info(f"🎨 [STEP 8/10] No visual effects to apply")
         
         # 6. Apply post-effects (style-specific enhancements)
+        logger.info(f"🎨 [STEP 9/10] Applying post-effects...")
+        img_array_before_post = np.array(image)
+        unique_before_post = len(np.unique(img_array_before_post.reshape(-1, 3), axis=0))
         image = self._apply_post_effects(image)
+        img_array_after_post = np.array(image)
+        unique_after_post = len(np.unique(img_array_after_post.reshape(-1, 3), axis=0))
+        logger.info(f"🎨 [STEP 9/10] After post-effects: unique_colors={unique_after_post} (change: {unique_after_post-unique_before_post:+d})")
         
         # 7. AI-powered quality improvement: detect and fix banding/blur issues
+        logger.info(f"🎨 [STEP 9/10] Running AI quality analysis...")
+        img_array_before_ai = np.array(image)
+        unique_before_ai = len(np.unique(img_array_before_ai.reshape(-1, 3), axis=0))
+        density_before_ai = unique_before_ai / pixel_count
+        logger.info(f"🎨 [STEP 9/10] Before AI fixes: unique_colors={unique_before_ai}, color_density={density_before_ai:.4f}")
+        
         try:
             from backend.services.ai_image_quality_fixer import improve_image_quality_with_ai
             improved_image, ai_results = improve_image_quality_with_ai(image)
             
             if ai_results.get("fixes_applied"):
-                logger.info(f"✅ AI applied {len(ai_results['fixes_applied'])} quality fixes to adaptive preview")
+                fixes = ai_results['fixes_applied']
+                logger.info(f"🎨 [STEP 9/10] AI applied {len(fixes)} fixes: {fixes}")
                 image = improved_image
+                img_array_after_ai = np.array(image)
+                unique_after_ai = len(np.unique(img_array_after_ai.reshape(-1, 3), axis=0))
+                density_after_ai = unique_after_ai / pixel_count
+                logger.info(f"🎨 [STEP 9/10] After AI fixes: unique_colors={unique_after_ai}, color_density={density_after_ai:.4f} (change: {unique_after_ai-unique_before_ai:+d})")
             elif ai_results.get("analysis"):
-                logger.debug("✅ AI quality check passed for adaptive preview")
+                logger.info(f"🎨 [STEP 9/10] AI quality check passed - no fixes needed")
         except Exception as e:
-            logger.debug(f"AI quality improvement skipped (non-critical): {e}")
+            logger.warning(f"🎨 [STEP 9/10] AI quality improvement skipped (non-critical): {e}")
             # Continue with original image if AI fix fails
         
         # Output - save without optimization to preserve dithering
-        logger.info(f"🎨 [ADAPTIVE_TEMPLATE] Saving final image: {image.size}, mode={image.mode}")
+        logger.info(f"🎨 [STEP 10/10] Preparing final save: {image.size}, mode={image.mode}")
         
         # Check for potential banding sources before saving
-        import numpy as np
         img_array = np.array(image)
         unique_colors = len(np.unique(img_array.reshape(-1, 3), axis=0))
-        pixel_count = image.size[0] * image.size[1]
         color_density = unique_colors / pixel_count
-        logger.info(f"🎨 [ADAPTIVE_TEMPLATE] Image stats before save: unique_colors={unique_colors}, color_density={color_density:.4f}")
+        logger.info(f"🎨 [STEP 10/10] Final stats before save: unique_colors={unique_colors}, color_density={color_density:.4f}, total_pixels={pixel_count}")
         
         if color_density < 0.1:
             logger.warning(f"🎨 [STEP 10/10] ⚠️ LOW COLOR DENSITY detected! Applying dithering fix...")
