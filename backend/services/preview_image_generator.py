@@ -358,11 +358,12 @@ def _draw_gradient_background(
     
     width, height = image.size
     
-    # Create gradient array
+    # Create gradient array with high precision using arange for continuous values
     if direction == "diagonal":
         # Create diagonal gradient (top-left to bottom-right)
-        y_coords = np.linspace(0, 1, height)[:, np.newaxis]
-        x_coords = np.linspace(0, 1, width)[np.newaxis, :]
+        # Use arange for continuous values instead of linspace for smoother gradients
+        y_coords = np.arange(height, dtype=np.float64)[:, np.newaxis] / max(height - 1, 1) if height > 1 else np.zeros((height, 1))
+        x_coords = np.arange(width, dtype=np.float64)[np.newaxis, :] / max(width - 1, 1) if width > 1 else np.zeros((1, width))
         # Combine for diagonal effect (average of x and y progress)
         progress = (y_coords * 0.7 + x_coords * 0.3)  # More vertical bias
     elif direction == "radial":
