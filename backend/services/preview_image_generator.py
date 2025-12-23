@@ -351,73 +351,104 @@ def _draw_gradient_background(
     direction: str = "diagonal"
 ) -> Image.Image:
     """
-    Draw a smooth gradient background using numpy for better quality.
-    FIXED: Uses proper gradient rendering to avoid banding artifacts.
+    Draw a smooth gradient background using high-resolution rendering with downscaling.
+    NEW METHOD: Generate at 2x resolution, apply smooth interpolation, then downscale.
+    This eliminates banding by providing more color steps.
     """
-    import numpy as np
-    
     width, height = image.size
     
-    # Create gradient array with high precision using arange for continuous values
+    # Generate at 2x resolution for smoother gradients (more color steps)
+    scale_factor = 2
+    high_width = width * scale_factor
+    high_height = height * scale_factor
+    
+    # Create high-resolution gradient using PIL ImageDraw with smooth color interpolation
+    high_res_img = Image.new('RGB', (high_width, high_height), color1)
+    draw = ImageDraw.Draw(high_res_img)
+    
+    # Calculate gradient direction
     if direction == "diagonal":
-        # Create diagonal gradient (top-left to bottom-right)
-        # Use arange for continuous values instead of linspace for smoother gradients
-        y_coords = np.arange(height, dtype=np.float64)[:, np.newaxis] / max(height - 1, 1) if height > 1 else np.zeros((height, 1))
-        x_coords = np.arange(width, dtype=np.float64)[np.newaxis, :] / max(width - 1, 1) if width > 1 else np.zeros((1, width))
-        # Combine for diagonal effect (average of x and y progress)
-        progress = (y_coords * 0.7 + x_coords * 0.3)  # More vertical bias
+        # Draw diagonal gradient using many horizontal strips for smooth transition
+        num_strips = high_height * 2  # More strips = smoother gradient
+        for i in range(num_strips):
+            y_start = int(i * high_height / num_strips)
+            y_end = int((i + 1) * high_height / num_strips)
+            
+            # Calculate progress (0.0 to 1.0) for this strip
+            progress = (i + 0.5) / num_strips
+            
+            # Interpolate color smoothly
+            r = int(color1[0] * (1 - progress) + color2[0] * progress)
+            g = int(color1[1] * (1 - progress) + color2[1] * progress)
+            b = int(color1[2] * (1 - progress) + color2[2] * progress)
+            
+            # Draw horizontal strip
+            draw.rectangle([(0, y_start), (high_width, y_end)], fill=(r, g, b))
+        
+        # Apply diagonal bias by overlaying a vertical gradient
+        for i in range(high_width):
+            x_start = int(i * high_width / high_width)
+            x_end = int((i + 1) * high_width / high_width)
+            progress = (i + 0.5) / high_width
+            
+            # Create overlay with transparency effect
+            overlay = Image.new('RGB', (high_width, high_height), (0, 0, 0))
+            overlay_draw = ImageDraw.Draw(overlay)
+            alpha = int(progress * 30)  # Subtle diagonal effect
+            overlay_draw.rectangle([(x_start, 0), (x_end, high_height)], fill=(alpha, alpha, alpha))
+            high_res_img = Image.blend(high_res_img, overlay, 0.1)
+            
     elif direction == "radial":
-        # Create radial gradient from center
-        y_coords = (np.arange(height, dtype=np.float64)[:, np.newaxis] / max(height - 1, 1) * 2 - 1) if height > 1 else np.zeros((height, 1))
-        x_coords = (np.arange(width, dtype=np.float64)[np.newaxis, :] / max(width - 1, 1) * 2 - 1) if width > 1 else np.zeros((1, width))
-        progress = np.sqrt(x_coords**2 + y_coords**2)
-        progress = np.clip(progress / np.sqrt(2), 0, 1)  # Normalize
-    else:  # horizontal
-        progress = (np.arange(width, dtype=np.float64)[np.newaxis, :] / max(width - 1, 1)) if width > 1 else np.zeros((1, width))
-        progress = np.broadcast_to(progress, (height, width))
+        # Radial gradient using concentric circles
+        center_x, center_y = high_width // 2, high_height // 2
+        max_radius = int(math.sqrt(center_x**2 + center_y**2))
+        
+        num_rings = max_radius * 2
+        for i in range(num_rings):
+            radius_start = int(i * max_radius / num_rings)
+            radius_end = int((i + 1) * max_radius / num_rings)
+            progress = (i + 0.5) / num_rings
+            
+            r = int(color1[0] * (1 - progress) + color2[0] * progress)
+            g = int(color1[1] * (1 - progress) + color2[1] * progress)
+            b = int(color1[2] * (1 - progress) + color2[2] * progress)
+            
+            # Draw ring
+            bbox = [
+                (center_x - radius_end, center_y - radius_end),
+                (center_x + radius_end, center_y + radius_end)
+            ]
+            draw.ellipse(bbox, fill=(r, g, b))
+            if radius_start > 0:
+                inner_bbox = [
+                    (center_x - radius_start, center_y - radius_start),
+                    (center_x + radius_start, center_y + radius_start)
+                ]
+                draw.ellipse(inner_bbox, fill=color1)
+    else:  # horizontal or vertical
+        # Simple vertical gradient with many strips
+        num_strips = high_height * 2
+        for i in range(num_strips):
+            y_start = int(i * high_height / num_strips)
+            y_end = int((i + 1) * high_height / num_strips)
+            progress = (i + 0.5) / num_strips
+            
+            r = int(color1[0] * (1 - progress) + color2[0] * progress)
+            g = int(color1[1] * (1 - progress) + color2[1] * progress)
+            b = int(color1[2] * (1 - progress) + color2[2] * progress)
+            
+            draw.rectangle([(0, y_start), (high_width, y_end)], fill=(r, g, b))
     
-    # Ensure progress is 2D array with shape (height, width)
-    progress = np.broadcast_to(progress, (height, width))
+    # Apply smooth downscaling using LANCZOS resampling (best quality)
+    gradient_img = high_res_img.resize((width, height), Image.Resampling.LANCZOS)
     
-    # Interpolate colors with dithering to prevent banding
-    # Dithering adds subtle random noise to break up visible color bands
-    r = (color1[0] * (1 - progress) + color2[0] * progress)
-    g = (color1[1] * (1 - progress) + color2[1] * progress)
-    b = (color1[2] * (1 - progress) + color2[2] * progress)
+    # Apply subtle smoothing filter to eliminate any remaining artifacts
+    gradient_img = gradient_img.filter(ImageFilter.SMOOTH_MORE)
     
-    # Use high-precision gradient with strong noise dithering
-    # Convert to float64 for maximum precision to prevent quantization artifacts
-    r_float = r.astype(np.float64)
-    g_float = g.astype(np.float64)
-    b_float = b.astype(np.float64)
-    
-    # Add stronger per-pixel random noise to break up banding
-    # Increased strength for dark gradients which show banding more prominently
-    avg_brightness = (color1[0] + color1[1] + color1[2] + color2[0] + color2[1] + color2[2]) / 6
-    noise_strength = 6.0 if avg_brightness < 100 else 4.0  # Stronger noise for dark gradients
-    r_noise = np.random.uniform(-noise_strength, noise_strength, (height, width))
-    g_noise = np.random.uniform(-noise_strength, noise_strength, (height, width))
-    b_noise = np.random.uniform(-noise_strength, noise_strength, (height, width))
-    
-    # Apply noise and convert to uint8 with proper rounding
-    r = np.clip(np.round(r_float + r_noise), 0, 255).astype(np.uint8)
-    g = np.clip(np.round(g_float + g_noise), 0, 255).astype(np.uint8)
-    b = np.clip(np.round(b_float + b_noise), 0, 255).astype(np.uint8)
-    
-    # Stack into RGB array
-    gradient_array = np.stack([r, g, b], axis=2)
-    
-    # Create image from array
-    gradient_img = Image.fromarray(gradient_array, mode='RGB')
-    
-    # Apply stronger Gaussian blur to eliminate visible banding
-    # Increased radius for dark gradients which are more prone to banding
-    total_brightness = color1[0] + color1[1] + color1[2] + color2[0] + color2[1] + color2[2]
-    blur_radius = 1.5 if total_brightness < 600 else 1.0
-    gradient_img = gradient_img.filter(ImageFilter.GaussianBlur(radius=blur_radius))
-    logger.debug(f"Applied gradient blur: radius={blur_radius}, brightness={total_brightness}, noise_strength={noise_strength}")
-    
+    # Paste onto original image
     image.paste(gradient_img)
+    
+    logger.debug(f"Generated gradient using high-res method: {width}x{height} -> {high_width}x{high_height} -> {width}x{height}")
     
     return image
 
