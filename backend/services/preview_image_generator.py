@@ -379,13 +379,15 @@ def _draw_gradient_background(
         
         # Apply strong smoothing before quantization to eliminate banding
         # Use Gaussian blur on the float arrays before converting to uint8
-        from scipy import ndimage
         try:
+            from scipy import ndimage
             r_float = ndimage.gaussian_filter(r_float, sigma=1.5)
             g_float = ndimage.gaussian_filter(g_float, sigma=1.5)
             b_float = ndimage.gaussian_filter(b_float, sigma=1.5)
+            logger.debug("Applied scipy Gaussian filter for gradient smoothing")
         except ImportError:
-            # Fallback: use numpy-based smoothing
+            # Fallback: smoothing will happen during downscale
+            logger.debug("Scipy not available, using downscale smoothing only")
             pass
         
         # Convert to uint8 with proper rounding
