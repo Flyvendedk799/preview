@@ -177,25 +177,25 @@ class TypographyConfig:
 # Base sizes for different design densities (1200x630 image)
 SIZE_SCALES = {
     "compact": {
-        "headline": 72,
-        "subheadline": 32,
-        "body": 24,
-        "caption": 18,
-        "tag": 16
+        "headline": 80,      # Increased from 72 for mobile readability
+        "subheadline": 36,    # Increased from 32 for mobile readability
+        "body": 28,           # Increased from 24 for mobile readability
+        "caption": 22,        # Increased from 18 for mobile readability
+        "tag": 18             # Increased from 16 for mobile readability
     },
     "balanced": {
-        "headline": 96,
-        "subheadline": 40,
-        "body": 28,
-        "caption": 20,
-        "tag": 18
+        "headline": 104,      # Increased from 96 for mobile readability
+        "subheadline": 44,    # Increased from 40 for mobile readability
+        "body": 32,           # Increased from 28 for mobile readability
+        "caption": 24,        # Increased from 20 for mobile readability
+        "tag": 20             # Increased from 18 for mobile readability
     },
     "spacious": {
-        "headline": 120,
-        "subheadline": 48,
-        "body": 32,
-        "caption": 22,
-        "tag": 20
+        "headline": 128,      # Increased from 120 for mobile readability
+        "subheadline": 52,   # Increased from 48 for mobile readability
+        "body": 36,           # Increased from 32 for mobile readability
+        "caption": 26,        # Increased from 22 for mobile readability
+        "tag": 22             # Increased from 20 for mobile readability
     },
     "ultra-minimal": {
         "headline": 144,

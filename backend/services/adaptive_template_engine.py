@@ -1762,7 +1762,9 @@ class AdaptiveTemplateEngine:
         font_size_mult = getattr(self, '_font_size_multiplier', 1.0)
         base_size = int(base_size * font_size_mult)
         
-        font_size = calculate_adaptive_font_size(title, base_size, w, min_size=48, max_size=160)
+        # MOBILE-FIRST: Increase minimum font size for mobile readability
+        # OG images are often displayed at 200-400px wide on mobile, so we need larger minimums
+        font_size = calculate_adaptive_font_size(title, base_size, w, min_size=64, max_size=180)
         
         # Adjust font size based on hierarchy description if available
         if font_size_hierarchy and "headline" in font_size_hierarchy.lower():
@@ -1868,7 +1870,9 @@ class AdaptiveTemplateEngine:
         line_height_dna = getattr(self.dna.typography, 'line_height', 'normal')
         case_strategy = getattr(self.dna.typography, 'case_strategy', 'mixed')
         
-        font_size = self.typography.subheadline_size
+        # MOBILE-FIRST: Ensure subtitle is readable on mobile (minimum 36px)
+        base_subtitle_size = self.typography.subheadline_size
+        font_size = max(36, base_subtitle_size)  # Minimum 36px for mobile readability
         font = load_pillow_font(self.typography.pillow_fonts, font_size, bold=True)
         
         # Apply case strategy
@@ -1914,7 +1918,9 @@ class AdaptiveTemplateEngine:
         line_height_dna = getattr(self.dna.typography, 'line_height', 'normal')
         case_strategy = getattr(self.dna.typography, 'case_strategy', 'mixed')
         
-        font_size = self.typography.body_size
+        # MOBILE-FIRST: Ensure description is readable on mobile (minimum 28px)
+        base_body_size = self.typography.body_size
+        font_size = max(28, base_body_size)  # Minimum 28px for mobile readability
         font = load_pillow_font(self.typography.pillow_fonts, font_size, bold=False)
         
         # Apply case strategy
