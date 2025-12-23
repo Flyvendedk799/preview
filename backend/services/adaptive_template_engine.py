@@ -1249,8 +1249,9 @@ class AdaptiveTemplateEngine:
         density_before_ai = unique_before_ai / pixel_count
         
         # 7a. AI-powered design enhancement: apply graphic design principles
-        # NOTE: This runs BEFORE quality fixes so improvements can be applied during rendering
-        # For now, we analyze but apply improvements post-render
+        # NOTE: This runs AFTER post-effects but BEFORE quality fixes
+        # Design enhancements (contrast, color) can make banding more visible,
+        # so we apply them before quality fixes which will then fix any banding
         logger.info(f"🎨 [STEP 9a/10] Running AI design composition analysis...")
         try:
             from backend.services.ai_design_enhancer import enhance_with_design_principles
