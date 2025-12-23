@@ -601,10 +601,10 @@ def draw_text_with_effects(
         offset = shadow_params.get("offset", (2, 2))
         # Single clean shadow
         shadow_fill = (0, 0, 0) if color[0] > 128 else (255, 255, 255)
-        draw.text((x + offset[0], y + offset[1]), text, font=font, fill=shadow_fill)
+        draw.text((x + offset[0], y + offset[1]), str(text), font=font, fill=shadow_fill)
     
     # Draw main text
-    draw.text((x, y), text, font=font, fill=color)
+    draw.text((x, y), str(text), font=font, fill=color)
     
     # Get text height
     try:
@@ -1742,7 +1742,7 @@ class AdaptiveTemplateEngine:
             if letter_spacing_px != 0:
                 self._draw_text_with_letter_spacing(draw, (x, current_y), line, font, text_color, letter_spacing_px)
             else:
-                draw.text((x, current_y), line, font=font, fill=text_color)
+                draw.text((x, current_y), str(line), font=font, fill=text_color)
             current_y += line_height
     
     def _render_description(self, draw: ImageDraw.Draw, description: Optional[str]):
@@ -1788,7 +1788,7 @@ class AdaptiveTemplateEngine:
             if letter_spacing_px != 0:
                 self._draw_text_with_letter_spacing(draw, (x, current_y), line, font, text_color, letter_spacing_px)
             else:
-                draw.text((x, current_y), line, font=font, fill=text_color)
+                draw.text((x, current_y), str(line), font=font, fill=text_color)
             current_y += line_height
     
     def _render_proof(self, draw: ImageDraw.Draw, proof_text: Optional[str]):
@@ -1804,7 +1804,7 @@ class AdaptiveTemplateEngine:
         # Apply color usage pattern for proof text
         text_color = self._get_color_for_element("proof")
         
-        draw.text((x, y), proof_text, font=font, fill=text_color)
+        draw.text((x, y), str(proof_text), font=font, fill=text_color)
     
     def _apply_post_effects(self, image: Image.Image) -> Image.Image:
         """Apply post-processing effects including visual effects from Design DNA."""
@@ -1881,7 +1881,7 @@ class AdaptiveTemplateEngine:
             current_x = x
             for char in text:
                 # Draw single shadow
-                draw.text((current_x + offset[0], y + offset[1]), char, font=font, fill=shadow_fill)
+                draw.text((current_x + offset[0], y + offset[1]), str(char), font=font, fill=shadow_fill)
                 
                 # Get character width
                 try:
@@ -1895,7 +1895,7 @@ class AdaptiveTemplateEngine:
         # Draw main text
         current_x = x
         for char in text:
-            draw.text((current_x, y), char, font=font, fill=color)
+            draw.text((current_x, y), str(char), font=font, fill=color)
             
             # Get character width
             try:
@@ -2045,6 +2045,15 @@ def generate_adaptive_preview(
     Returns:
         PNG image bytes
     """
+    # Input validation and string conversion to prevent PIL text rendering issues
+    title = str(title) if title is not None else ""
+    subtitle = str(subtitle) if subtitle is not None else None
+    description = str(description) if description is not None else None
+    proof_text = str(proof_text) if proof_text is not None else None
+    logo_base64 = str(logo_base64) if logo_base64 is not None else None
+    
+    logger.debug(f"🔧 Input validation complete - title: {type(title)}, subtitle: {type(subtitle)}")
+    
     content = PreviewContent(
         title=title,
         subtitle=subtitle,
