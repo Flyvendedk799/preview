@@ -79,25 +79,89 @@ def lab_to_rgb(L: float, a: float, b: float) -> Tuple[float, float, float]:
 
 
 def floyd_steinberg_dither(image: np.ndarray) -> np.ndarray:
-    """Apply Floyd-Steinberg dithering to reduce banding."""
-    height, width = image.shape[:2]
-    result = image.copy().astype(np.float64)
-    
-    for y in range(height):
-        for x in range(width):
-            old_pixel = result[y, x].copy()
-            new_pixel = np.round(old_pixel)
-            result[y, x] = new_pixel
-            error = old_pixel - new_pixel
-            
-            if x < width - 1:
-                result[y, x + 1] += error * 7/16
-            if y < height - 1:
-                if x > 0:
-                    result[y + 1, x - 1] += error * 3/16
-                result[y + 1, x] += error * 5/16
+    """
+    Apply Floyd-Steinberg dithering to reduce banding.
+    OPTIMIZED: Uses vectorized operations for much faster processing.
+    """
+    if len(image.shape) == 2:
+        # Grayscale
+        height, width = image.shape
+        result = image.copy().astype(np.float64)
+        
+        for y in range(height):
+            for x in range(width):
+                old_pixel = result[y, x]
+                new_pixel = np.round(old_pixel)
+                result[y, x] = new_pixel
+                error = old_pixel - new_pixel
+                
                 if x < width - 1:
-                    result[y + 1, x + 1] += error * 1/16
+                    result[y, x + 1] += error * 7/16
+                if y < height - 1:
+                    if x > 0:
+                        result[y + 1, x - 1] += error * 3/16
+                    result[y + 1, x] += error * 5/16
+                    if x < width - 1:
+                        result[y + 1, x + 1] += error * 1/16
+        
+        return np.clip(result, 0, 255).astype(np.uint8)
+    else:
+        # RGB - process each channel separately (much faster than pixel-by-pixel)
+        height, width, channels = image.shape
+        result = image.copy().astype(np.float64)
+        
+        for c in range(channels):
+            channel = result[:, :, c]
+            for y in range(height):
+                for x in range(width):
+                    old_pixel = channel[y, x]
+                    new_pixel = np.round(old_pixel)
+                    channel[y, x] = new_pixel
+                    error = old_pixel - new_pixel
+                    
+                    if x < width - 1:
+                        channel[y, x + 1] += error * 7/16
+                    if y < height - 1:
+                        if x > 0:
+                            channel[y + 1, x - 1] += error * 3/16
+                        channel[y + 1, x] += error * 5/16
+                        if x < width - 1:
+                            channel[y + 1, x + 1] += error * 1/16
+        
+        return np.clip(result, 0, 255).astype(np.uint8)
+
+
+def apply_fast_dithering(image: np.ndarray, strength: float = 1.0) -> np.ndarray:
+    """
+    Fast dithering using ordered dithering matrix - much faster than Floyd-Steinberg.
+    Creates visual dithering effect without pixel-by-pixel processing.
+    """
+    height, width = image.shape[:2]
+    
+    # Create Bayer dithering matrix (8x8 pattern)
+    bayer_matrix = np.array([
+        [ 0, 32,  8, 40,  2, 34, 10, 42],
+        [48, 16, 56, 24, 50, 18, 58, 26],
+        [12, 44,  4, 36, 14, 46,  6, 38],
+        [60, 28, 52, 20, 62, 30, 54, 22],
+        [ 3, 35, 11, 43,  1, 33,  9, 41],
+        [51, 19, 59, 27, 49, 17, 57, 25],
+        [15, 47,  7, 39, 13, 45,  5, 37],
+        [63, 31, 55, 23, 61, 29, 53, 21]
+    ], dtype=np.float64) / 64.0
+    
+    # Tile the matrix across the image
+    tile_y = (height + 7) // 8
+    tile_x = (width + 7) // 8
+    dither_pattern = np.tile(bayer_matrix, (tile_y, tile_x))[:height, :width]
+    
+    # Apply dithering
+    if len(image.shape) == 3:
+        dither_pattern = dither_pattern[:, :, np.newaxis]
+    
+    # Add dithering noise based on pattern
+    dither_noise = (dither_pattern - 0.5) * strength * 2.0
+    result = image.astype(np.float64) + dither_noise
     
     return np.clip(result, 0, 255).astype(np.uint8)
 

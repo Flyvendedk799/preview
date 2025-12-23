@@ -181,16 +181,21 @@ def apply_ai_recommended_fixes(
     banding_severity = analysis.get("banding_severity", "none")
     
     if has_banding and banding_severity != "none":
-        # Apply stronger blur for gradient smoothing
-        blur_radius = {
-            "mild": 1.5,
-            "moderate": 2.0,
-            "severe": 2.5
-        }.get(banding_severity, 1.5)
+        # Apply dithering instead of blur - blur masks the problem, dithering fixes it
+        import numpy as np
+        from backend.services.gradient_generator import apply_fast_dithering
         
-        fixed_image = fixed_image.filter(ImageFilter.GaussianBlur(radius=blur_radius))
-        applied_fixes.append(f"Applied Gaussian blur (radius={blur_radius}) to fix gradient banding")
-        logger.info(f"🔧 Fixed banding with blur radius {blur_radius}")
+        logger.info(f"🔧 Applying fast dithering to fix banding (severity: {banding_severity})")
+        img_array = np.array(fixed_image)
+        dithered_array = apply_fast_dithering(img_array, strength={
+            "mild": 2.0,
+            "moderate": 3.0,
+            "severe": 4.0
+        }.get(banding_severity, 2.5))
+        
+        fixed_image = Image.fromarray(dithered_array, mode='RGB')
+        applied_fixes.append(f"Applied fast dithering (strength={banding_severity}) to fix gradient banding")
+        logger.info(f"🔧 Fixed banding with dithering (strength: {banding_severity})")
     
     # Check for blurry text (we can't fix this post-render, but we log it)
     has_blurry_text = analysis.get("has_blurry_text", False)
