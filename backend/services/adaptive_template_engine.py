@@ -1111,12 +1111,18 @@ class AdaptiveTemplateEngine:
         bg_color = self.colors.background
         logger.info(f"🎨 [ADAPTIVE_TEMPLATE] Creating base image with background color: {bg_color}")
         
-        # Create base image array with subtle noise to prevent banding
+        # Create base image array with stronger dithering to prevent banding
         base_array = np.full((self.height, self.width, 3), bg_color, dtype=np.uint8)
         
-        # Add very subtle random noise (0.5% variation) to prevent banding in solid colors
-        noise = np.random.randint(-2, 3, (self.height, self.width, 3), dtype=np.int16)
+        # Add stronger random noise (±3 RGB variation) to prevent banding in solid colors
+        # This creates more color diversity to prevent visible quantization artifacts
+        noise = np.random.randint(-3, 4, (self.height, self.width, 3), dtype=np.int16)
         base_array = np.clip(base_array.astype(np.int16) + noise, 0, 255).astype(np.uint8)
+        
+        # Apply Floyd-Steinberg dithering to the base for even smoother appearance
+        from backend.services.gradient_generator import floyd_steinberg_dither
+        base_array = floyd_steinberg_dither(base_array.astype(np.float64))
+        logger.info(f"🎨 [ADAPTIVE_TEMPLATE] Applied Floyd-Steinberg dithering to base image")
         
         image = Image.fromarray(base_array, mode='RGB')
         logger.info(f"🎨 [ADAPTIVE_TEMPLATE] Base image created with dithering: {image.size}, mode={image.mode}")
@@ -1191,7 +1197,17 @@ class AdaptiveTemplateEngine:
         logger.info(f"🎨 [ADAPTIVE_TEMPLATE] Image stats before save: unique_colors={unique_colors}, color_density={color_density:.4f}")
         
         if color_density < 0.1:
-            logger.warning(f"🎨 [ADAPTIVE_TEMPLATE] ⚠️ LOW COLOR DENSITY before save - potential banding risk! color_density={color_density:.4f}")
+            logger.warning(f"🎨 [ADAPTIVE_TEMPLATE] ⚠️ LOW COLOR DENSITY before save - applying dithering fix! color_density={color_density:.4f}")
+            # Apply Floyd-Steinberg dithering to increase color diversity and prevent banding
+            from backend.services.gradient_generator import floyd_steinberg_dither
+            dithered_array = floyd_steinberg_dither(img_array.astype(np.float64))
+            image = Image.fromarray(dithered_array, mode='RGB')
+            
+            # Re-check stats after dithering
+            img_array = np.array(image)
+            unique_colors_after = len(np.unique(img_array.reshape(-1, 3), axis=0))
+            color_density_after = unique_colors_after / pixel_count
+            logger.info(f"🎨 [ADAPTIVE_TEMPLATE] After dithering: unique_colors={unique_colors_after}, color_density={color_density_after:.4f} (improvement: {color_density_after/color_density:.2f}x)")
         
         buffer = BytesIO()
         image.save(buffer, format='PNG', optimize=False)
