@@ -165,7 +165,7 @@ def detect_quality_issues_with_ai(image: Image.Image) -> Optional[Dict[str, Any]
         
         # Parse JSON response
         logger.info(f"🤖 [OPENAI_VISION] Parsing JSON response...")
-        original_content = content
+        original_content = content  # Store for error logging
         if "```json" in content:
             content = content.split("```json")[1].split("```")[0].strip()
             logger.info(f"🤖 [OPENAI_VISION] Extracted JSON from ```json``` block")
@@ -191,7 +191,10 @@ def detect_quality_issues_with_ai(image: Image.Image) -> Optional[Dict[str, Any]
         
     except json.JSONDecodeError as e:
         logger.error(f"🤖 [OPENAI_VISION] ❌ Failed to parse JSON response: {e}")
-        logger.error(f"🤖 [OPENAI_VISION] Response content: {original_content[:500]}...")
+        try:
+            logger.error(f"🤖 [OPENAI_VISION] Response content (first 500 chars): {original_content[:500]}...")
+        except NameError:
+            logger.error(f"🤖 [OPENAI_VISION] Could not log response content")
         return None
     except Exception as e:
         logger.error(f"🤖 [OPENAI_VISION] ❌ API call failed: {type(e).__name__}: {e}")
