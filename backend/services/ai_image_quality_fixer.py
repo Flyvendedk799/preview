@@ -12,7 +12,7 @@ import logging
 import base64
 import json
 from io import BytesIO
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple, List
 from PIL import Image, ImageFilter, ImageEnhance
 
 from backend.core.config import settings

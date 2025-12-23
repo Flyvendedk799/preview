@@ -442,33 +442,69 @@ def apply_gradient_background(
     draw = ImageDraw.Draw(high_res_img)
     
     if style == "linear":
+        # Use HSV color space interpolation for smoother gradients (like preview_image_generator.py)
+        import colorsys
+        import numpy as np
+        
+        # Convert RGB to HSV for smoother interpolation
+        h1, s1, v1 = colorsys.rgb_to_hsv(color1[0]/255.0, color1[1]/255.0, color1[2]/255.0)
+        h2, s2, v2 = colorsys.rgb_to_hsv(color2[0]/255.0, color2[1]/255.0, color2[2]/255.0)
+        
         # Calculate gradient direction
         angle_rad = math.radians(angle)
         
-        # Use many strips perpendicular to gradient direction for smooth transition
-        gradient_length = math.sqrt(high_width**2 + high_height**2)
-        num_strips = int(gradient_length * 2)  # More strips = smoother
+        # Create coordinate arrays for gradient
+        y_coords = np.arange(high_height, dtype=np.float64)[:, np.newaxis] / max(high_height - 1, 1)
+        x_coords = np.arange(high_width, dtype=np.float64)[np.newaxis, :] / max(high_width - 1, 1)
         
-        for i in range(num_strips):
-            progress = i / num_strips
-            
-            r = int(color1[0] * (1 - progress) + color2[0] * progress)
-            g = int(color1[1] * (1 - progress) + color2[1] * progress)
-            b = int(color1[2] * (1 - progress) + color2[2] * progress)
-            
-            # Draw horizontal strips (will be rotated if needed)
-            strip_height = high_height / num_strips
-            y_start = int(i * strip_height)
-            y_end = int((i + 1) * strip_height)
-            draw.rectangle([(0, y_start), (high_width, y_end)], fill=(r, g, b))
+        # Calculate progress based on angle (diagonal gradient)
+        if angle == 90:  # Vertical
+            progress = y_coords
+        elif angle == 0:  # Horizontal
+            progress = x_coords
+        else:  # Diagonal
+            # Rotate coordinates for diagonal effect
+            cos_a = math.cos(angle_rad)
+            sin_a = math.sin(angle_rad)
+            center_x, center_y = high_width / 2, high_height / 2
+            x_rel = x_coords * high_width - center_x
+            y_rel = y_coords * high_height - center_y
+            # Rotate and normalize
+            rotated_x = x_rel * cos_a - y_rel * sin_a
+            rotated_y = x_rel * sin_a + y_rel * cos_a
+            max_dist = math.sqrt(high_width**2 + high_height**2) / 2
+            progress = (rotated_y + max_dist) / (2 * max_dist)
+            progress = np.clip(progress, 0, 1)
         
-        # Apply rotation if needed (simplified - for diagonal gradients)
-        if angle != 90:  # Not vertical
-            high_res_img = high_res_img.rotate(-angle + 90, expand=True, fillcolor=color1)
-            new_width, new_height = high_res_img.size
-            left = (new_width - high_width) // 2
-            top = (new_height - high_height) // 2
-            high_res_img = high_res_img.crop((left, top, left + high_width, top + high_height))
+        # Interpolate in HSV space (smoother perceptual transitions)
+        h = h1 * (1 - progress) + h2 * progress
+        s = s1 * (1 - progress) + s2 * progress
+        v = v1 * (1 - progress) + v2 * progress
+        
+        # Use PIL's HSV mode for accurate conversion
+        h_scaled = np.clip((h * 255 / 360.0), 0, 255).astype(np.uint8)
+        s_scaled = np.clip((s * 255), 0, 255).astype(np.uint8)
+        v_scaled = np.clip((v * 255), 0, 255).astype(np.uint8)
+        
+        # Create HSV image
+        hsv_array = np.stack([h_scaled, s_scaled, v_scaled], axis=2)
+        hsv_img = Image.fromarray(hsv_array, mode='HSV')
+        
+        # Convert HSV to RGB using PIL (most accurate method)
+        high_res_img = hsv_img.convert('RGB')
+        
+        # Apply strong Gaussian smoothing before quantization
+        try:
+            from scipy import ndimage
+            rgb_array = np.array(high_res_img, dtype=np.float64)
+            rgb_array[:, :, 0] = ndimage.gaussian_filter(rgb_array[:, :, 0], sigma=2.0)
+            rgb_array[:, :, 1] = ndimage.gaussian_filter(rgb_array[:, :, 1], sigma=2.0)
+            rgb_array[:, :, 2] = ndimage.gaussian_filter(rgb_array[:, :, 2], sigma=2.0)
+            high_res_img = Image.fromarray(np.clip(np.round(rgb_array), 0, 255).astype(np.uint8), mode='RGB')
+            logger.debug("Applied scipy Gaussian filter in HSV space")
+        except ImportError:
+            logger.debug("Scipy not available, using downscale smoothing only")
+            pass
         
     elif style == "radial":
         # Radial gradient using concentric circles
