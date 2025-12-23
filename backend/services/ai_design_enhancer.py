@@ -268,6 +268,23 @@ def apply_design_improvements(
         enhanced_image = enhancer.enhance(1.1)  # 10% increase
         applied_improvements.append("Enhanced contrast for better readability")
     
+    # Apply color harmony improvements
+    color_harmony_score = analysis.get('color_harmony_score', 1.0)
+    if color_harmony_score < 0.7:
+        logger.info(f"🎨 [AI_DESIGN] Low color harmony detected ({color_harmony_score:.2f}), enhancing saturation...")
+        # Enhance color saturation slightly for better harmony
+        enhancer = ImageEnhance.Color(enhanced_image)
+        enhanced_image = enhancer.enhance(1.05)  # 5% increase
+        applied_improvements.append("Enhanced color harmony")
+    
+    # Apply sharpness improvements if needed
+    composition_score = analysis.get('composition_score', 1.0)
+    if composition_score < 0.6:
+        logger.info(f"🎨 [AI_DESIGN] Low composition score ({composition_score:.2f}), applying subtle sharpening...")
+        # Apply subtle sharpening filter
+        enhanced_image = enhanced_image.filter(ImageFilter.UnsharpMask(radius=1, percent=100, threshold=3))
+        applied_improvements.append("Applied subtle sharpening for better clarity")
+    
     # Log all recommendations for future implementation
     for rec in recommendations:
         logger.info(f"🎨 [AI_DESIGN] Recommendation: {rec.get('type')} - {rec.get('action')} ({rec.get('reason')})")
