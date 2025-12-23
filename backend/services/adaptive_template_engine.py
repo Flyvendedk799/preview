@@ -1247,6 +1247,28 @@ class AdaptiveTemplateEngine:
         img_array_before_ai = np.array(image)
         unique_before_ai = len(np.unique(img_array_before_ai.reshape(-1, 3), axis=0))
         density_before_ai = unique_before_ai / pixel_count
+        
+        # 7a. AI-powered design enhancement: apply graphic design principles
+        logger.info(f"🎨 [STEP 9a/10] Running AI design composition analysis...")
+        try:
+            from backend.services.ai_design_enhancer import enhance_with_design_principles
+            enhanced_image, design_analysis = enhance_with_design_principles(image, self.zones)
+            if design_analysis:
+                composition_score = design_analysis.get('composition_score', 0)
+                overall_appeal = design_analysis.get('overall_appeal', 'unknown')
+                logger.info(f"🎨 [STEP 9a/10] Design analysis: composition={composition_score:.2f}, appeal={overall_appeal}")
+                if composition_score < 0.7:
+                    logger.info(f"🎨 [STEP 9a/10] Applying design improvements (score {composition_score:.2f} < 0.7)...")
+                    image = enhanced_image
+                    applied_improvements = design_analysis.get('applied_improvements', [])
+                    if applied_improvements:
+                        logger.info(f"🎨 [STEP 9a/10] ✅ Applied design improvements: {applied_improvements}")
+                else:
+                    logger.info(f"🎨 [STEP 9a/10] ✅ Design composition is good (score {composition_score:.2f} >= 0.7)")
+            else:
+                logger.warning(f"🎨 [STEP 9a/10] Design analysis failed, skipping enhancement")
+        except Exception as e:
+            logger.warning(f"🎨 [STEP 9a/10] Design enhancement failed: {e}", exc_info=True)
         logger.info(f"🎨 [STEP 9/10] Before AI fixes: unique_colors={unique_before_ai}, color_density={density_before_ai:.4f}")
         
         try:
