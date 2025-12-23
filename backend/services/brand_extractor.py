@@ -505,6 +505,15 @@ def extract_hero_image(html_content: str, url: str) -> Optional[str]:
                         new_size = (1200, int(img.height * ratio))
                         img = img.resize(new_size, Image.Resampling.LANCZOS)
 
+                    # Convert RGBA/LA/P to RGB before saving as JPEG
+                    if img.mode in ('RGBA', 'LA', 'P'):
+                        rgb_img = Image.new('RGB', img.size, (255, 255, 255))
+                        if img.mode == 'P':
+                            img = img.convert('RGBA')
+                        if img.mode in ('RGBA', 'LA'):
+                            rgb_img.paste(img, mask=img.split()[-1])
+                        img = rgb_img
+
                     buffered = BytesIO()
                     img.save(buffered, format="JPEG", quality=85)
                     hero_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
@@ -536,6 +545,15 @@ def extract_hero_image(html_content: str, url: str) -> Optional[str]:
                                 ratio = 1200 / img.width
                                 new_size = (1200, int(img.height * ratio))
                                 img = img.resize(new_size, Image.Resampling.LANCZOS)
+
+                            # Convert RGBA/LA/P to RGB before saving as JPEG
+                            if img.mode in ('RGBA', 'LA', 'P'):
+                                rgb_img = Image.new('RGB', img.size, (255, 255, 255))
+                                if img.mode == 'P':
+                                    img = img.convert('RGBA')
+                                if img.mode in ('RGBA', 'LA'):
+                                    rgb_img.paste(img, mask=img.split()[-1])
+                                img = rgb_img
 
                             buffered = BytesIO()
                             img.save(buffered, format="JPEG", quality=85)
