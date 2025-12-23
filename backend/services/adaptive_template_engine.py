@@ -419,10 +419,10 @@ def apply_gradient_background(
     style: str = "linear"
 ) -> Image.Image:
     """
-    Apply gradient background to image using numpy for smooth, band-free rendering.
-    FIXED: Uses array-based interpolation to avoid visible banding artifacts.
+    Apply gradient background using LAB color space for perceptually uniform gradients.
+    Uses proper dithering to eliminate banding artifacts.
     """
-    import numpy as np
+    from backend.services.gradient_generator import generate_smooth_gradient
     
     width, height = image.size
     
@@ -432,12 +432,26 @@ def apply_gradient_background(
     color1 = colors[0]
     color2 = colors[-1]
     
-    # Generate at 3x resolution for much smoother gradients (more color steps = less banding)
-    scale_factor = 3
-    high_width = width * scale_factor
-    high_height = height * scale_factor
+    # Generate smooth gradient using LAB color space
+    gradient_img = generate_smooth_gradient(
+        width, height, color1, color2, angle=angle, style=style
+    )
     
-    if style == "linear":
+    image.paste(gradient_img)
+    logger.debug(f"Generated gradient using LAB color space: {width}x{height}")
+    
+    return image
+    
+    # OLD METHOD - KEPT FOR REFERENCE BUT NOT USED
+    if False:
+        import numpy as np
+        
+        # Generate at 3x resolution for much smoother gradients (more color steps = less banding)
+        scale_factor = 3
+        high_width = width * scale_factor
+        high_height = height * scale_factor
+        
+        if style == "linear":
         # Use HSV color space interpolation for smoother gradients (like preview_image_generator.py)
         import colorsys
         import numpy as np

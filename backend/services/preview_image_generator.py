@@ -351,21 +351,45 @@ def _draw_gradient_background(
     direction: str = "diagonal"
 ) -> Image.Image:
     """
-    Draw a smooth gradient background using high-resolution rendering with downscaling.
-    NEW METHOD: Generate at 2x resolution, apply smooth interpolation, then downscale.
-    This eliminates banding by providing more color steps.
+    Draw a smooth gradient background using LAB color space for perceptually uniform gradients.
     """
+    from backend.services.gradient_generator import generate_smooth_gradient
+    
     width, height = image.size
     
-    # Generate at 3x resolution for much smoother gradients (more color steps = less banding)
-    scale_factor = 3
-    high_width = width * scale_factor
-    high_height = height * scale_factor
+    # Map direction to angle
+    angle_map = {
+        "diagonal": 135,
+        "vertical": 90,
+        "horizontal": 0,
+        "radial": 0  # Will use radial style
+    }
+    angle = angle_map.get(direction, 135)
+    style = "radial" if direction == "radial" else "linear"
     
-    # Calculate gradient direction using numpy for speed
-    import numpy as np
+    # Generate smooth gradient using LAB color space
+    gradient_img = generate_smooth_gradient(
+        width, height, color1, color2, angle=angle, style=style
+    )
     
-    if direction == "diagonal":
+    # Paste onto original image
+    image.paste(gradient_img)
+    
+    logger.debug(f"Generated gradient using LAB color space: {width}x{height}")
+    
+    return image
+    
+    # OLD METHOD - KEPT FOR REFERENCE BUT NOT USED
+    if False:
+        # Generate at 3x resolution for much smoother gradients (more color steps = less banding)
+        scale_factor = 3
+        high_width = width * scale_factor
+        high_height = height * scale_factor
+        
+        # Calculate gradient direction using numpy for speed
+        import numpy as np
+        
+        if direction == "diagonal":
         # Create diagonal gradient using PIL's HSV mode for smoother perceptual transitions
         # This is more reliable than manual HSV conversion
         import colorsys
