@@ -184,6 +184,12 @@ def smart_truncate(text: str, max_chars: int) -> str:
     Returns:
         Truncated text with proper ending
     """
+    # CRITICAL FIX: Ensure text is a string to prevent garbled rendering
+    if text is None:
+        return ""
+    
+    text = str(text)
+    
     if not text or len(text) <= max_chars:
         return text
     
@@ -257,6 +263,12 @@ def _wrap_text(text: str, font: ImageFont.FreeTypeFont, max_width: int, draw: Im
     Returns:
         List of lines that fit within constraints
     """
+    # CRITICAL FIX: Ensure text is a string to prevent garbled rendering
+    if text is None:
+        return []
+    
+    text = str(text)
+    
     if not text or not text.strip():
         return []
     
@@ -400,6 +412,9 @@ def _draw_text_with_shadow(
     Draw text with a SINGLE clean shadow for better readability.
     FIXED: No more multiple stacked shadows that create messy 3D effect.
     """
+    # CRITICAL FIX: Ensure text is a string to prevent garbled rendering
+    text = str(text) if text is not None else ""
+    
     x, y = position
     
     # Only draw shadow for light text on dark backgrounds (where it helps readability)
@@ -456,6 +471,26 @@ def generate_designed_preview(
         context_items = []
     if credibility_items is None:
         credibility_items = []
+    
+    # CRITICAL FIX: Ensure all text parameters are strings to prevent garbled rendering
+    title = str(title) if title is not None else "Untitled"
+    subtitle = str(subtitle) if subtitle is not None else None
+    description = str(description) if description is not None else None
+    cta_text = str(cta_text) if cta_text is not None else None
+    domain = str(domain) if domain is not None else "example.com"
+    
+    # Ensure tags are strings
+    tags = [str(tag) for tag in tags if tag is not None]
+    
+    # Ensure context_items have string values
+    for item in context_items:
+        if 'text' in item and item['text'] is not None:
+            item['text'] = str(item['text'])
+    
+    # Ensure credibility_items have string values
+    for item in credibility_items:
+        if 'value' in item and item['value'] is not None:
+            item['value'] = str(item['value'])
     
     try:
         # Ensure we have valid colors
@@ -631,7 +666,7 @@ def _generate_hero_template(
     
     # Social proof badge on RIGHT (premium positioning)
     if credibility_items:
-        proof_text = credibility_items[0].get("value", "")
+        proof_text = str(credibility_items[0].get("value", "")).strip()
         if proof_text and len(proof_text) > 2:
             # MOBILE-FIRST: Social proof badge readable on mobile
             proof_font = _load_font(32, bold=True)  # Increased from 22 for mobile readability
@@ -649,7 +684,7 @@ def _generate_hero_template(
             badge_img = Image.new('RGBA', (int(badge_width), badge_height), (*accent_color, 255))
             img.paste(badge_img.convert('RGB'), (badge_x, content_y))
             draw = ImageDraw.Draw(img)
-            draw.text((badge_x + 20, content_y + 12), proof_text, font=proof_font, fill=(255, 255, 255))
+            draw.text((badge_x + 20, content_y + 12), str(proof_text), font=proof_font, fill=(255, 255, 255))
     
     content_y += logo_size + 60
     
@@ -882,7 +917,7 @@ def _generate_profile_template(
         
         # Draw initial letter with shadow
         initial_font = _load_font(56, bold=True)
-        initial = title[0].upper() if title else "?"
+        initial = str(title[0]).upper() if title else "?"
         try:
             bbox = draw.textbbox((0, 0), initial, font=initial_font)
             text_width = bbox[2] - bbox[0]
@@ -894,14 +929,14 @@ def _generate_profile_template(
         # Text shadow
         draw.text(
             (avatar_x + (avatar_size - text_width) // 2 + 2, avatar_y + (avatar_size - text_height) // 2 + 2),
-            initial,
+            str(initial),
             font=initial_font,
             fill=(0, 0, 0, 30)
         )
         # Text
         draw.text(
             (avatar_x + (avatar_size - text_width) // 2, avatar_y + (avatar_size - text_height) // 2),
-            initial,
+            str(initial),
             font=initial_font,
             fill=(255, 255, 255)
         )
@@ -955,7 +990,7 @@ def _generate_profile_template(
             
             draw.text(
                 ((OG_IMAGE_WIDTH - text_width) // 2, subtitle_y + (i * 24)),
-                line,
+                str(line),
                 font=subtitle_font,
                 fill=(75, 85, 99)
             )
@@ -969,7 +1004,7 @@ def _generate_profile_template(
         
         context_texts = []
         for item in context_items[:2]:
-            text = item.get("text", "").strip()
+            text = str(item.get("text", "")).strip()
             if text:
                 context_texts.append(text)
         
@@ -983,7 +1018,7 @@ def _generate_profile_template(
             
             draw.text(
                 ((OG_IMAGE_WIDTH - text_width) // 2, context_y),
-                context_str,
+                str(context_str),
                 font=context_font,
                 fill=(107, 114, 128)  # Lighter gray
             )
@@ -999,10 +1034,10 @@ def _generate_profile_template(
         tag_widths = []
         for tag in tags[:4]:
             try:
-                bbox = draw.textbbox((0, 0), tag, font=tag_font)
+                bbox = draw.textbbox((0, 0), str(tag), font=tag_font)
                 tag_widths.append(bbox[2] - bbox[0] + 28)  # More padding
             except:
-                tag_widths.append(len(tag) * 8 + 28)
+                tag_widths.append(len(str(tag)) * 8 + 28)
         
         total_tags_width = sum(tag_widths) + (tag_spacing * (len(tags[:4]) - 1))
         tag_start_x = (OG_IMAGE_WIDTH - total_tags_width) // 2
@@ -1021,14 +1056,14 @@ def _generate_profile_template(
             
             # Tag text
             try:
-                bbox = draw.textbbox((0, 0), tag, font=tag_font)
+                bbox = draw.textbbox((0, 0), str(tag), font=tag_font)
                 text_width = bbox[2] - bbox[0]
             except:
-                text_width = len(tag) * 8
+                text_width = len(str(tag)) * 8
             
             draw.text(
                 (current_x + (tag_width - text_width) // 2, tag_y + 7),
-                tag,
+                str(tag),
                 font=tag_font,
                 fill=primary_color
             )
@@ -1053,7 +1088,7 @@ def _generate_profile_template(
             
             draw.text(
                 ((OG_IMAGE_WIDTH - text_width) // 2, desc_y + (i * 26)),
-                line,
+                str(line),
                 font=desc_font,
                 fill=(55, 65, 81),
                 spacing=2  # Better line spacing
@@ -1068,7 +1103,7 @@ def _generate_profile_template(
         
         cred_texts = []
         for item in credibility_items[:2]:
-            value = item.get("value", "").strip()
+            value = str(item.get("value", "")).strip()
             if value:
                 cred_texts.append(value)
         
@@ -1082,7 +1117,7 @@ def _generate_profile_template(
             
             draw.text(
                 ((OG_IMAGE_WIDTH - text_width) // 2, cred_y),
-                cred_str,
+                str(cred_str),
                 font=cred_font,
                 fill=(107, 114, 128)  # Subtle gray
             )
@@ -1122,7 +1157,7 @@ def _generate_product_template(
     
     # === SOCIAL PROOF BADGE (prominent at top) ===
     if credibility_items:
-        proof_text = credibility_items[0].get("value", "")
+        proof_text = str(credibility_items[0].get("value", "")).strip()
         if proof_text and len(proof_text) > 2:
             # MOBILE-FIRST: Social proof badge readable on mobile
             proof_font = _load_font(32, bold=True)  # Increased from 22 for mobile readability
@@ -1140,7 +1175,7 @@ def _generate_product_template(
                 radius=19,
                 fill=accent_color
             )
-            draw.text((padding + 12, content_y + 8), proof_text, font=proof_font, fill=(255, 255, 255))
+            draw.text((padding + 12, content_y + 8), str(proof_text), font=proof_font, fill=(255, 255, 255))
             content_y += badge_height + 32
     
     # === TITLE (big and bold) ===
@@ -1150,7 +1185,7 @@ def _generate_product_template(
         title_lines = _wrap_text(title, title_font, left_width - padding - 40, draw)
         for i, line in enumerate(title_lines[:2]):
             y_pos = content_y + (i * 56)
-            draw.text((padding, y_pos), line, font=title_font, fill=(15, 23, 42))
+            draw.text((padding, y_pos), str(line), font=title_font, fill=(15, 23, 42))
         content_y += min(len(title_lines), 2) * 56 + 24
     
     # === DESCRIPTION/BENEFIT ===
@@ -1160,7 +1195,7 @@ def _generate_product_template(
         desc_lines = _wrap_text(description, desc_font, left_width - padding - 40, draw)
         for i, line in enumerate(desc_lines[:3]):
             y_pos = content_y + (i * 30)
-            draw.text((padding, y_pos), line, font=desc_font, fill=(71, 85, 105))
+            draw.text((padding, y_pos), str(line), font=desc_font, fill=(71, 85, 105))
         content_y += min(len(desc_lines), 3) * 30 + 28
     
     # === FEATURE CHECKMARKS ===
@@ -1175,7 +1210,7 @@ def _generate_product_template(
                 fill=_lighten_color(primary_color, 0.85)
             )
             draw.text((padding + 5, tag_y + 3), "✓", font=check_font, fill=primary_color)
-            draw.text((padding + 32, tag_y + 3), tag, font=check_font, fill=(51, 65, 85))
+            draw.text((padding + 32, tag_y + 3), str(tag), font=check_font, fill=(51, 65, 85))
     
     # === RIGHT SIDE: PRODUCT/SCREENSHOT ===
     right_x = left_width + 20
@@ -1327,7 +1362,7 @@ def _generate_modern_card_template(
     
     # Social proof badge prominently on right (if available)
     if credibility_items:
-        proof_text = credibility_items[0].get("value", "")
+        proof_text = str(credibility_items[0].get("value", "")).strip()
         if proof_text and len(proof_text) > 2:
             # MOBILE-FIRST: Social proof badge readable on mobile
             proof_font = _load_font(32, bold=True)  # Increased from 20 for mobile readability
@@ -1347,7 +1382,7 @@ def _generate_modern_card_template(
                 radius=18,
                 fill=accent_color
             )
-            draw.text((badge_x + 14, row_y + 17), proof_text, font=proof_font, fill=(255, 255, 255))
+            draw.text((badge_x + 14, row_y + 17), str(proof_text), font=proof_font, fill=(255, 255, 255))
     
     content_y = row_y + logo_size + 36
     
@@ -1357,7 +1392,7 @@ def _generate_modern_card_template(
         title_lines = _wrap_text(title, title_font, content_width, draw)
         for i, line in enumerate(title_lines[:2]):
             y_pos = content_y + (i * 58)
-            draw.text((content_x, y_pos), line, font=title_font, fill=(15, 23, 42))  # Near black
+            draw.text((content_x, y_pos), str(line), font=title_font, fill=(15, 23, 42))  # Near black
         content_y += min(len(title_lines), 2) * 58 + 20
     
     # === SUBTITLE/PROOF (if not shown in badge) ===
@@ -1368,7 +1403,7 @@ def _generate_modern_card_template(
         sub_lines = _wrap_text(subtitle, sub_font, content_width, draw)
         for i, line in enumerate(sub_lines[:2]):
             y_pos = content_y + (i * 32)
-            draw.text((content_x, y_pos), line, font=sub_font, fill=(71, 85, 105))  # Slate-500
+            draw.text((content_x, y_pos), str(line), font=sub_font, fill=(71, 85, 105))  # Slate-500
         content_y += min(len(sub_lines), 2) * 32 + 16
     
     # === DESCRIPTION ===
@@ -1378,7 +1413,7 @@ def _generate_modern_card_template(
         desc_lines = _wrap_text(description, desc_font, content_width, draw)
         for i, line in enumerate(desc_lines[:2]):
             y_pos = content_y + (i * 30)
-            draw.text((content_x, y_pos), line, font=desc_font, fill=(100, 116, 139))  # Slate-400
+            draw.text((content_x, y_pos), str(line), font=desc_font, fill=(100, 116, 139))  # Slate-400
         content_y += min(len(desc_lines), 2) * 30 + 20
     
     # === TAGS (bottom, as subtle chips) ===
@@ -1390,10 +1425,10 @@ def _generate_modern_card_template(
         
         for tag in tags[:3]:  # Max 3 tags
             try:
-                bbox = draw.textbbox((0, 0), tag, font=tag_font)
+                bbox = draw.textbbox((0, 0), str(tag), font=tag_font)
                 tag_width = bbox[2] - bbox[0] + 18
             except:
-                tag_width = len(tag) * 9 + 18
+                tag_width = len(str(tag)) * 9 + 18
             
             # Subtle pill
             draw.rounded_rectangle(
@@ -1401,7 +1436,7 @@ def _generate_modern_card_template(
                 radius=13,
                 fill=_lighten_color(primary_color, 0.9)
             )
-            draw.text((tag_x + 9, tag_y + 4), tag, font=tag_font, fill=_darken_color(primary_color, 0.7))
+            draw.text((tag_x + 9, tag_y + 4), str(tag), font=tag_font, fill=_darken_color(primary_color, 0.7))
             tag_x += int(tag_width) + 8
     
     # === DOMAIN (bottom-right, subtle) ===
@@ -1415,7 +1450,7 @@ def _generate_modern_card_template(
     
     draw.text(
         (card_x + card_width - padding - domain_width, card_y + card_height - padding - 20),
-        domain_clean,
+        str(domain_clean),
         font=domain_font,
         fill=(148, 163, 184)  # Slate-400
     )
@@ -1537,7 +1572,7 @@ def _generate_fallback_preview(
         domain_clean = domain.replace('www.', '').upper()
         draw.text(
             (padding, OG_IMAGE_HEIGHT - padding - 24),
-            domain_clean,
+            str(domain_clean),
             fill=(255, 255, 255, 180),
             font=domain_font
         )
