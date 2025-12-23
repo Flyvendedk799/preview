@@ -1817,21 +1817,27 @@ class AdaptiveTemplateEngine:
         # Calculate font size (considering hierarchy if specified)
         base_size = self.typography.headline_size
         
+        # Apply headline_boost from personality settings (1.05 - 1.20x)
+        headline_boost = personality_settings.get("headline_boost", 1.0)
+        base_size = int(base_size * headline_boost)
+        logger.info(f"🎨 Headline base_size after boost ({headline_boost}x): {base_size}px")
+        
         # Adjust base size based on weight contrast
         weight_size_adjust = {
-            'high': 1.15,  # Larger headlines for high contrast
-            'medium': 1.0,
-            'subtle': 0.9  # Smaller for subtle contrast
+            'high': 1.20,  # LARGER headlines for maximum impact
+            'medium': 1.10,  # Increased from 1.0
+            'subtle': 1.0   # Increased from 0.9
         }
-        base_size = int(base_size * weight_size_adjust.get(weight_contrast, 1.0))
+        base_size = int(base_size * weight_size_adjust.get(weight_contrast, 1.10))
         
         # PHASE 2: Apply font size multiplier from CompositionDecision
         font_size_mult = getattr(self, '_font_size_multiplier', 1.0)
         base_size = int(base_size * font_size_mult)
         
-        # MOBILE-FIRST: Increase minimum font size for mobile readability
-        # OG images are often displayed at 200-400px wide on mobile, so we need larger minimums
-        font_size = calculate_adaptive_font_size(title, base_size, w, min_size=64, max_size=180)
+        # MOBILE-FIRST: LARGER minimum for maximum impact
+        # OG images displayed at 200-400px need BIG headlines
+        font_size = calculate_adaptive_font_size(title, base_size, w, min_size=72, max_size=200)
+        logger.info(f"🎨 Final headline font_size: {font_size}px (base_size={base_size}px)")
         
         # Adjust font size based on hierarchy description if available
         if font_size_hierarchy and "headline" in font_size_hierarchy.lower():
@@ -1857,12 +1863,19 @@ class AdaptiveTemplateEngine:
             title = title.capitalize()
         # "mixed" keeps original case
         
-        # Determine text color based on background luminance
-        bg_luminance = self.dna.color_psychology.light_dark_balance
-        if bg_luminance < 0.5:
-            text_color = (255, 255, 255)
+        # CRITICAL FIX: Use ACTUAL RENDERED BACKGROUND for text color, not brand balance
+        actual_bg = self.colors.background
+        actual_bg_luminance = (actual_bg[0] * 299 + actual_bg[1] * 587 + actual_bg[2] * 114) / 255000
+        is_light_bg = actual_bg_luminance > 0.5
+        
+        if is_light_bg:
+            # Dark text on light background - MAXIMUM CONTRAST
+            text_color = (17, 24, 39)  # Near-black for excellent contrast
         else:
-            text_color = self.colors.text
+            # White text on dark background
+            text_color = (255, 255, 255)
+        
+        logger.info(f"🎨 Headline text color: bg={actual_bg}, luminance={actual_bg_luminance:.2f}, text_color={text_color}")
         
         # Get shadow params based on design style and visual effects
         visual_effects = getattr(self.dna, 'visual_effects', None)
@@ -1937,9 +1950,9 @@ class AdaptiveTemplateEngine:
         line_height_dna = getattr(self.dna.typography, 'line_height', 'normal')
         case_strategy = getattr(self.dna.typography, 'case_strategy', 'mixed')
         
-        # MOBILE-FIRST: Ensure subtitle is readable on mobile (minimum 36px)
+        # MOBILE-FIRST: Ensure subtitle is BOLD and READABLE (minimum 42px)
         base_subtitle_size = self.typography.subheadline_size
-        font_size = max(36, base_subtitle_size)  # Minimum 36px for mobile readability
+        font_size = max(42, int(base_subtitle_size * 1.1))  # Minimum 42px, boosted for impact
         font = load_pillow_font(self.typography.pillow_fonts, font_size, bold=True)
         
         # Apply case strategy
@@ -2140,61 +2153,80 @@ class AdaptiveTemplateEngine:
     
     def _get_color_for_element(self, element_type: str) -> Tuple[int, int, int]:
         """
-        Get color for element based on color_usage_pattern and accent_usage from Design DNA.
+        Get color for element based on ACTUAL RENDERED BACKGROUND for proper contrast.
+        
+        CRITICAL FIX: Uses the actual background color being rendered,
+        NOT the extracted brand colors, to ensure readable text contrast.
         
         Args:
             element_type: Type of element (headline, subtitle, description, accent_bar, etc.)
             
         Returns:
-            RGB color tuple
+            RGB color tuple with guaranteed contrast against background
         """
         color_usage_pattern = getattr(self.dna.color_psychology, 'color_usage_pattern', '')
         accent_usage = getattr(self.dna.color_psychology, 'accent_usage', '')
         saturation_character = getattr(self.dna.color_psychology, 'saturation_character', 'balanced')
         
+        # CRITICAL: Calculate luminance from ACTUAL RENDERED BACKGROUND, not brand balance
+        actual_bg = self.colors.background  # This is what's actually being rendered
+        actual_bg_luminance = (actual_bg[0] * 299 + actual_bg[1] * 587 + actual_bg[2] * 114) / 255000
+        is_light_bg = actual_bg_luminance > 0.5
+        
+        logger.info(f"🎨 Text color calculation: actual_bg={actual_bg}, luminance={actual_bg_luminance:.2f}, is_light_bg={is_light_bg}")
+        
         # Parse color usage pattern to determine color for element
         pattern_lower = color_usage_pattern.lower()
         accent_lower = accent_usage.lower()
         
-        # Determine base color based on usage pattern
+        # Determine base color based on usage pattern - USING ACTUAL BACKGROUND
         if element_type == "headline":
             if "primary" in pattern_lower and "headline" in pattern_lower:
                 base_color = self.colors.primary
             elif "accent" in pattern_lower and "headline" in pattern_lower:
                 base_color = self.colors.accent
             else:
-                # Default: use text color
-                bg_luminance = self.dna.color_psychology.light_dark_balance
-                base_color = (255, 255, 255) if bg_luminance < 0.5 else self.colors.text
+                # Default: HIGH CONTRAST text color based on actual background
+                if is_light_bg:
+                    # Dark text on light background - use near-black for maximum contrast
+                    base_color = (17, 24, 39)  # Dark slate, not pure black for softer look
+                else:
+                    # White text on dark background
+                    base_color = (255, 255, 255)
         elif element_type == "subtitle":
             if "secondary" in pattern_lower and "subtitle" in pattern_lower:
                 base_color = self.colors.secondary
             else:
-                # Default: muted text color
-                bg_luminance = self.dna.color_psychology.light_dark_balance
-                base_color = (230, 230, 235) if bg_luminance < 0.5 else self.colors.text_muted
+                # Muted but readable subtitle color
+                if is_light_bg:
+                    base_color = (55, 65, 81)  # Gray-700 for light backgrounds
+                else:
+                    base_color = (229, 231, 235)  # Gray-200 for dark backgrounds
         elif element_type == "description":
-            # Description typically uses muted colors
-            bg_luminance = self.dna.color_psychology.light_dark_balance
-            base_color = (180, 180, 190) if bg_luminance < 0.5 else self.colors.text_muted
-        elif element_type == "accent_bar":
-            # Accent bar uses accent color
-            if "accent" in accent_lower or "cta" in accent_lower or "button" in accent_lower:
-                base_color = self.colors.accent
+            # Description: readable but less prominent
+            if is_light_bg:
+                base_color = (75, 85, 99)  # Gray-600 for light backgrounds
             else:
-                base_color = self.colors.accent  # Default to accent
+                base_color = (209, 213, 219)  # Gray-300 for dark backgrounds
+        elif element_type == "accent_bar":
+            # Accent bar uses accent color (always prominent)
+            base_color = self.colors.accent
         elif element_type == "proof":
-            # Proof text uses accent color for attention
+            # Proof text: prominent but not overwhelming
             style = self.dna.philosophy.primary_style.lower()
             if style in ["bold", "playful", "maximalist"]:
                 base_color = self.colors.accent
             else:
-                bg_luminance = self.dna.color_psychology.light_dark_balance
-                base_color = (255, 255, 255) if bg_luminance < 0.5 else self.colors.text
+                if is_light_bg:
+                    base_color = (31, 41, 55)  # Gray-800 for light backgrounds
+                else:
+                    base_color = (243, 244, 246)  # Gray-100 for dark backgrounds
         else:
-            # Default: use text color
-            bg_luminance = self.dna.color_psychology.light_dark_balance
-            base_color = (255, 255, 255) if bg_luminance < 0.5 else self.colors.text
+            # Default: high contrast text
+            if is_light_bg:
+                base_color = (17, 24, 39)  # Dark on light
+            else:
+                base_color = (255, 255, 255)  # White on dark
         
         # Apply saturation adjustment
         if saturation_character == "vivid":
