@@ -362,10 +362,6 @@ def _draw_gradient_background(
     high_width = width * scale_factor
     high_height = height * scale_factor
     
-    # Create high-resolution gradient using PIL ImageDraw with smooth color interpolation
-    high_res_img = Image.new('RGB', (high_width, high_height), color1)
-    draw = ImageDraw.Draw(high_res_img)
-    
     # Calculate gradient direction using numpy for speed
     import numpy as np
     
