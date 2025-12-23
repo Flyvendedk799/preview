@@ -368,35 +368,24 @@ def _draw_gradient_background(
     
     # Calculate gradient direction
     if direction == "diagonal":
-        # Draw diagonal gradient using many horizontal strips for smooth transition
+        # Draw diagonal gradient using many strips with diagonal interpolation
+        # Use both vertical and horizontal progress for diagonal effect
         num_strips = high_height * 2  # More strips = smoother gradient
-        for i in range(num_strips):
-            y_start = int(i * high_height / num_strips)
-            y_end = int((i + 1) * high_height / num_strips)
-            
-            # Calculate progress (0.0 to 1.0) for this strip
-            progress = (i + 0.5) / num_strips
-            
-            # Interpolate color smoothly
-            r = int(color1[0] * (1 - progress) + color2[0] * progress)
-            g = int(color1[1] * (1 - progress) + color2[1] * progress)
-            b = int(color1[2] * (1 - progress) + color2[2] * progress)
-            
-            # Draw horizontal strip
-            draw.rectangle([(0, y_start), (high_width, y_end)], fill=(r, g, b))
-        
-        # Apply diagonal bias by overlaying a vertical gradient
-        for i in range(high_width):
-            x_start = int(i * high_width / high_width)
-            x_end = int((i + 1) * high_width / high_width)
-            progress = (i + 0.5) / high_width
-            
-            # Create overlay with transparency effect
-            overlay = Image.new('RGB', (high_width, high_height), (0, 0, 0))
-            overlay_draw = ImageDraw.Draw(overlay)
-            alpha = int(progress * 30)  # Subtle diagonal effect
-            overlay_draw.rectangle([(x_start, 0), (x_end, high_height)], fill=(alpha, alpha, alpha))
-            high_res_img = Image.blend(high_res_img, overlay, 0.1)
+        for y in range(high_height):
+            for x in range(high_width):
+                # Calculate diagonal progress (0.0 to 1.0)
+                # Combine vertical (70%) and horizontal (30%) for diagonal effect
+                y_progress = y / max(high_height - 1, 1)
+                x_progress = x / max(high_width - 1, 1)
+                progress = y_progress * 0.7 + x_progress * 0.3
+                
+                # Interpolate color smoothly
+                r = int(color1[0] * (1 - progress) + color2[0] * progress)
+                g = int(color1[1] * (1 - progress) + color2[1] * progress)
+                b = int(color1[2] * (1 - progress) + color2[2] * progress)
+                
+                # Draw pixel
+                draw.point((x, y), fill=(r, g, b))
             
     elif direction == "radial":
         # Radial gradient using concentric circles
