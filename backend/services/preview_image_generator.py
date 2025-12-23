@@ -384,12 +384,55 @@ def _draw_gradient_background(
         s = s1 * (1 - progress) + s2 * progress
         v = v1 * (1 - progress) + v2 * progress
         
-        # Convert back to RGB
-        rgb_array = np.zeros((high_height, high_width, 3), dtype=np.float64)
-        for y in range(high_height):
-            for x in range(high_width):
-                r, g, b = colorsys.hsv_to_rgb(h[y, x], s[y, x], v[y, x])
-                rgb_array[y, x] = [r * 255, g * 255, b * 255]
+        # Convert HSV to RGB using vectorized operations
+        # HSV to RGB conversion formula
+        c = v * s
+        x = c * (1 - np.abs((h * 6) % 2 - 1))
+        m = v - c
+        
+        # Determine which sector of the color wheel
+        h6 = h * 6
+        sector = np.floor(h6).astype(int) % 6
+        
+        # Build RGB arrays based on sector
+        r_float = np.zeros_like(h)
+        g_float = np.zeros_like(h)
+        b_float = np.zeros_like(h)
+        
+        mask0 = (sector == 0)
+        mask1 = (sector == 1)
+        mask2 = (sector == 2)
+        mask3 = (sector == 3)
+        mask4 = (sector == 4)
+        mask5 = (sector == 5)
+        
+        r_float[mask0] = c[mask0]
+        r_float[mask1] = x[mask1]
+        r_float[mask2] = 0
+        r_float[mask3] = 0
+        r_float[mask4] = x[mask4]
+        r_float[mask5] = c[mask5]
+        
+        g_float[mask0] = x[mask0]
+        g_float[mask1] = c[mask1]
+        g_float[mask2] = c[mask2]
+        g_float[mask3] = x[mask3]
+        g_float[mask4] = 0
+        g_float[mask5] = 0
+        
+        b_float[mask0] = 0
+        b_float[mask1] = 0
+        b_float[mask2] = x[mask2]
+        b_float[mask3] = c[mask3]
+        b_float[mask4] = c[mask4]
+        b_float[mask5] = x[mask5]
+        
+        # Add m and scale to 0-255
+        r_float = (r_float + m) * 255
+        g_float = (g_float + m) * 255
+        b_float = (b_float + m) * 255
+        
+        rgb_array = np.stack([r_float, g_float, b_float], axis=2)
         
         # Apply strong Gaussian smoothing before quantization
         try:
