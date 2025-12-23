@@ -458,8 +458,8 @@ def _draw_gradient_background(
     # Apply multiple smoothing passes to eliminate any remaining banding
     gradient_img = gradient_img.filter(ImageFilter.SMOOTH_MORE)
     gradient_img = gradient_img.filter(ImageFilter.SMOOTH_MORE)  # Second pass for extra smoothness
-    # Apply gentle Gaussian blur as final smoothing
-    gradient_img = gradient_img.filter(ImageFilter.GaussianBlur(radius=0.8))
+    # Apply stronger Gaussian blur as final smoothing to eliminate banding
+    gradient_img = gradient_img.filter(ImageFilter.GaussianBlur(radius=1.2))
     
     # Paste onto original image
     image.paste(gradient_img)

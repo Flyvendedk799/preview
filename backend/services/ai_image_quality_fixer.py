@@ -183,10 +183,10 @@ def apply_ai_recommended_fixes(
     if has_banding and banding_severity != "none":
         # Apply stronger blur for gradient smoothing
         blur_radius = {
-            "mild": 0.8,
-            "moderate": 1.2,
-            "severe": 1.5
-        }.get(banding_severity, 1.0)
+            "mild": 1.5,
+            "moderate": 2.0,
+            "severe": 2.5
+        }.get(banding_severity, 1.5)
         
         fixed_image = fixed_image.filter(ImageFilter.GaussianBlur(radius=blur_radius))
         applied_fixes.append(f"Applied Gaussian blur (radius={blur_radius}) to fix gradient banding")
