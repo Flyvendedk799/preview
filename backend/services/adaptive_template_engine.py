@@ -437,10 +437,6 @@ def apply_gradient_background(
     high_width = width * scale_factor
     high_height = height * scale_factor
     
-    # Create high-resolution gradient
-    high_res_img = Image.new('RGB', (high_width, high_height), color1)
-    draw = ImageDraw.Draw(high_res_img)
-    
     if style == "linear":
         # Use HSV color space interpolation for smoother gradients (like preview_image_generator.py)
         import colorsys
@@ -450,31 +446,18 @@ def apply_gradient_background(
         h1, s1, v1 = colorsys.rgb_to_hsv(color1[0]/255.0, color1[1]/255.0, color1[2]/255.0)
         h2, s2, v2 = colorsys.rgb_to_hsv(color2[0]/255.0, color2[1]/255.0, color2[2]/255.0)
         
-        # Calculate gradient direction
-        angle_rad = math.radians(angle)
-        
         # Create coordinate arrays for gradient
         y_coords = np.arange(high_height, dtype=np.float64)[:, np.newaxis] / max(high_height - 1, 1)
         x_coords = np.arange(high_width, dtype=np.float64)[np.newaxis, :] / max(high_width - 1, 1)
         
-        # Calculate progress based on angle (diagonal gradient)
+        # Calculate progress based on angle (simplified approach like preview_image_generator.py)
         if angle == 90:  # Vertical
             progress = y_coords
         elif angle == 0:  # Horizontal
             progress = x_coords
-        else:  # Diagonal
-            # Rotate coordinates for diagonal effect
-            cos_a = math.cos(angle_rad)
-            sin_a = math.sin(angle_rad)
-            center_x, center_y = high_width / 2, high_height / 2
-            x_rel = x_coords * high_width - center_x
-            y_rel = y_coords * high_height - center_y
-            # Rotate and normalize
-            rotated_x = x_rel * cos_a - y_rel * sin_a
-            rotated_y = x_rel * sin_a + y_rel * cos_a
-            max_dist = math.sqrt(high_width**2 + high_height**2) / 2
-            progress = (rotated_y + max_dist) / (2 * max_dist)
-            progress = np.clip(progress, 0, 1)
+        else:  # Diagonal - use simple weighted combination (more reliable than rotation)
+            # For diagonal gradients, use 70% vertical + 30% horizontal (like preview_image_generator.py)
+            progress = y_coords * 0.7 + x_coords * 0.3
         
         # Interpolate in HSV space (smoother perceptual transitions)
         h = h1 * (1 - progress) + h2 * progress
@@ -497,11 +480,11 @@ def apply_gradient_background(
         try:
             from scipy import ndimage
             rgb_array = np.array(high_res_img, dtype=np.float64)
-            rgb_array[:, :, 0] = ndimage.gaussian_filter(rgb_array[:, :, 0], sigma=2.0)
-            rgb_array[:, :, 1] = ndimage.gaussian_filter(rgb_array[:, :, 1], sigma=2.0)
-            rgb_array[:, :, 2] = ndimage.gaussian_filter(rgb_array[:, :, 2], sigma=2.0)
+            rgb_array[:, :, 0] = ndimage.gaussian_filter(rgb_array[:, :, 0], sigma=2.5)
+            rgb_array[:, :, 1] = ndimage.gaussian_filter(rgb_array[:, :, 1], sigma=2.5)
+            rgb_array[:, :, 2] = ndimage.gaussian_filter(rgb_array[:, :, 2], sigma=2.5)
             high_res_img = Image.fromarray(np.clip(np.round(rgb_array), 0, 255).astype(np.uint8), mode='RGB')
-            logger.debug("Applied scipy Gaussian filter in HSV space")
+            logger.debug("Applied scipy Gaussian filter (sigma=2.5) in HSV space")
         except ImportError:
             logger.debug("Scipy not available, using downscale smoothing only")
             pass
