@@ -520,7 +520,7 @@ class PreviewEngine:
         self.logger.info(f"🚀 [7X] Starting enhanced preview generation for: {url_str}")
         self._update_progress(0.02, "Initializing enhanced engine...")
         
-        # 7X PERFORMANCE: Check cache first
+        # 7X PERFORMANCE: Check cache first (only if enabled)
         if self.config.enable_cache:
             cached_result = self._check_cache(url_str, cache_key_prefix)
             if cached_result:
@@ -528,6 +528,12 @@ class PreviewEngine:
                 # Update progress to 100% for cache hits so frontend knows it's complete
                 self._update_progress(1.0, "Preview loaded from cache")
                 return cached_result
+        else:
+            self.logger.info(f"🚫 [7X] Cache DISABLED - generating fresh preview for: {url_str[:50]}...")
+            # Invalidate any existing cache to ensure fresh results
+            from backend.services.preview_cache import invalidate_cache
+            invalidate_cache(url_str)
+            self.logger.info(f"🗑️  [7X] Cleared existing cache entries for: {url_str[:50]}...")
         
         try:
             # 7X PERFORMANCE: Use triple parallelization when possible

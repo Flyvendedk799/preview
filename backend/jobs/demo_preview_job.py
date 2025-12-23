@@ -54,6 +54,15 @@ def generate_demo_preview_job(url: str) -> Dict[str, Any]:
         # Check if demo caching is disabled via admin toggle
         cache_disabled = is_demo_cache_disabled()
         
+        if cache_disabled:
+            logger.info(f"🚫 Cache DISABLED - generating fresh preview for: {url_str[:50]}...")
+            # Invalidate any existing cache to ensure fresh results
+            from backend.services.preview_cache import invalidate_cache
+            invalidate_cache(url_str)
+            logger.info(f"🗑️  Cleared existing cache entries for: {url_str[:50]}...")
+        else:
+            logger.info(f"✅ Cache ENABLED - checking cache first for: {url_str[:50]}...")
+        
         # Update initial progress
         _update_job_progress(0.05, "Starting preview generation...")
         

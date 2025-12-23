@@ -375,18 +375,26 @@ def generate_demo_preview_optimized(
         # Check if demo caching is disabled via admin toggle
         cache_disabled = is_demo_cache_disabled()
 
-        # Check cache first (skip if disabled via admin toggle)
-        redis_client = get_redis_client()
-        cache_key = generate_cache_key(url_str, "demo:preview:v2:")
+        if cache_disabled:
+            logger.info(f"🚫 Cache DISABLED - generating fresh preview for: {url_str[:50]}...")
+            # Invalidate any existing cache to ensure fresh results
+            from backend.services.preview_cache import invalidate_cache
+            invalidate_cache(url_str)
+            logger.info(f"🗑️  Cleared existing cache entries for: {url_str[:50]}...")
+        else:
+            logger.info(f"✅ Cache ENABLED - checking cache first for: {url_str[:50]}...")
+            # Check cache first (skip if disabled via admin toggle)
+            redis_client = get_redis_client()
+            cache_key = generate_cache_key(url_str, "demo:preview:v2:")
 
-        if redis_client and not cache_disabled:
-            try:
-                cached_data = redis_client.get(cache_key)
-                if cached_data:
-                    logger.info(f"✅ Cache hit for: {url_str[:50]}...")
-                    return DemoPreviewResponse(**json.loads(cached_data))
-            except Exception as e:
-                logger.warning(f"Cache read error: {e}")
+            if redis_client:
+                try:
+                    cached_data = redis_client.get(cache_key)
+                    if cached_data:
+                        logger.info(f"✅ Cache hit for: {url_str[:50]}...")
+                        return DemoPreviewResponse(**json.loads(cached_data))
+                except Exception as e:
+                    logger.warning(f"Cache read error: {e}")
 
         # Rate limiting
         client_ip = get_client_ip(request)
