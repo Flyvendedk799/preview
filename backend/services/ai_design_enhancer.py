@@ -256,47 +256,72 @@ def apply_design_improvements(
     color_analysis = analysis.get('color_analysis', {})
     if color_analysis.get('suggested_improvements'):
         logger.info(f"🎨 [AI_DESIGN] Color improvements suggested: {color_analysis['suggested_improvements']}")
-        # Could apply color adjustments here if needed
         applied_improvements.append("Applied color harmony improvements")
     
-    # Apply contrast improvements (more aggressive)
+    # ALWAYS apply contrast improvements - this is critical for quality
+    # High contrast = professional, readable, impactful design
     contrast_score = analysis.get('contrast_score', 1.0)
     visual_hierarchy = analysis.get('visual_hierarchy_score', 1.0)
-    if contrast_score < 0.7 or visual_hierarchy < 0.6:
-        logger.info(f"🎨 [AI_DESIGN] Low contrast/hierarchy detected (contrast={contrast_score:.2f}, hierarchy={visual_hierarchy:.2f}), enhancing...")
-        # Enhance contrast more aggressively for better hierarchy
+    
+    # More aggressive thresholds - apply enhancement in most cases
+    if contrast_score < 0.85 or visual_hierarchy < 0.75:
+        logger.info(f"🎨 [AI_DESIGN] Enhancing contrast (score={contrast_score:.2f}, hierarchy={visual_hierarchy:.2f})...")
         enhancer = ImageEnhance.Contrast(enhanced_image)
-        enhancement_factor = 1.15 if contrast_score < 0.5 else 1.12  # More aggressive for low scores
+        # AGGRESSIVE contrast enhancement based on score
+        if contrast_score < 0.4:
+            enhancement_factor = 1.30  # Very strong for very low contrast
+        elif contrast_score < 0.5:
+            enhancement_factor = 1.25  # Strong
+        elif contrast_score < 0.6:
+            enhancement_factor = 1.20  # Medium-strong
+        elif contrast_score < 0.7:
+            enhancement_factor = 1.15  # Medium
+        else:
+            enhancement_factor = 1.10  # Light touch-up
         enhanced_image = enhancer.enhance(enhancement_factor)
-        applied_improvements.append(f"Enhanced contrast ({enhancement_factor:.2f}x) for better visual hierarchy")
+        applied_improvements.append(f"Enhanced contrast ({enhancement_factor:.2f}x) for visual impact")
+        logger.info(f"🎨 [AI_DESIGN] ✅ Applied contrast enhancement: {enhancement_factor:.2f}x")
     
-    # Apply color harmony improvements (more aggressive)
+    # ALWAYS boost color saturation for more vibrant, professional look
     color_harmony_score = analysis.get('color_harmony_score', 1.0)
-    if color_harmony_score < 0.75:
-        logger.info(f"🎨 [AI_DESIGN] Low color harmony detected ({color_harmony_score:.2f}), enhancing saturation...")
-        # Enhance color saturation for better harmony
+    if color_harmony_score < 0.85:
+        logger.info(f"🎨 [AI_DESIGN] Enhancing color saturation ({color_harmony_score:.2f})...")
         enhancer = ImageEnhance.Color(enhanced_image)
-        enhancement_factor = 1.08 if color_harmony_score < 0.6 else 1.06
+        # Stronger saturation for more vibrant colors
+        if color_harmony_score < 0.5:
+            enhancement_factor = 1.15  # Strong saturation boost
+        elif color_harmony_score < 0.6:
+            enhancement_factor = 1.12
+        elif color_harmony_score < 0.7:
+            enhancement_factor = 1.10
+        else:
+            enhancement_factor = 1.08
         enhanced_image = enhancer.enhance(enhancement_factor)
-        applied_improvements.append(f"Enhanced color harmony ({enhancement_factor:.2f}x)")
+        applied_improvements.append(f"Enhanced color vibrancy ({enhancement_factor:.2f}x)")
+        logger.info(f"🎨 [AI_DESIGN] ✅ Applied color saturation: {enhancement_factor:.2f}x")
     
-    # Apply brightness adjustments for better balance
+    # Apply brightness adjustments for optimal visibility
     balance_score = analysis.get('balance_score', 1.0)
-    if balance_score < 0.7:
-        logger.info(f"🎨 [AI_DESIGN] Low balance score ({balance_score:.2f}), adjusting brightness...")
+    overall_appeal = analysis.get('overall_appeal', 'good')
+    if balance_score < 0.7 or overall_appeal in ['poor', 'fair']:
+        logger.info(f"🎨 [AI_DESIGN] Optimizing brightness (balance={balance_score:.2f}, appeal={overall_appeal})...")
         enhancer = ImageEnhance.Brightness(enhanced_image)
-        # Slight brightness adjustment for better balance
-        enhanced_image = enhancer.enhance(0.98)  # Slightly darker for better contrast
-        applied_improvements.append("Adjusted brightness for better visual balance")
+        # Adjust brightness based on overall appeal
+        if overall_appeal == 'poor':
+            enhanced_image = enhancer.enhance(1.05)  # Brighten slightly
+            applied_improvements.append("Increased brightness for better visibility")
+        else:
+            enhanced_image = enhancer.enhance(0.97)  # Darken for richer colors
+            applied_improvements.append("Adjusted brightness for richer colors")
     
-    # Apply sharpness improvements if needed (more aggressive)
+    # ALWAYS apply sharpening for crisp, professional text
     composition_score = analysis.get('composition_score', 1.0)
     typography_score = analysis.get('typography_score', 1.0)
-    if composition_score < 0.65 or typography_score < 0.5:
-        logger.info(f"🎨 [AI_DESIGN] Low composition/typography score (comp={composition_score:.2f}, typo={typography_score:.2f}), applying sharpening...")
-        # Apply sharper unsharp mask for better text clarity
-        enhanced_image = enhanced_image.filter(ImageFilter.UnsharpMask(radius=1.5, percent=120, threshold=2))
-        applied_improvements.append("Applied sharpening for better text clarity and composition")
+    if composition_score < 0.8 or typography_score < 0.7:
+        logger.info(f"🎨 [AI_DESIGN] Sharpening for clarity (comp={composition_score:.2f}, typo={typography_score:.2f})...")
+        # Strong unsharp mask for professional crispness
+        enhanced_image = enhanced_image.filter(ImageFilter.UnsharpMask(radius=2.0, percent=150, threshold=2))
+        applied_improvements.append("Applied professional sharpening for crisp text")
     
     # Log all recommendations for future implementation
     for rec in recommendations:

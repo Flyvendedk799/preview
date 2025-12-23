@@ -34,13 +34,17 @@ except ImportError:
     logger.warning("OpenAI package not installed - AI image quality fixes disabled")
 
 
-BANDING_DETECTION_PROMPT = """Analyze this preview image for visual quality issues, specifically:
+BANDING_DETECTION_PROMPT = """Analyze this preview image for visual quality issues. Be STRICT - we want EXCELLENT quality.
 
 1. GRADIENT BANDING: Look for visible horizontal or vertical bands/stripes in gradient backgrounds. These appear as distinct color steps instead of smooth transitions.
 
 2. TEXT BLURRINESS: Check if text appears blurry, has unwanted 3D/shadow effects, or lacks crispness.
 
 3. COLOR ARTIFACTS: Look for any color quantization issues, posterization, or unnatural color transitions.
+
+4. CONTRAST ISSUES: Is the contrast between text and background sufficient? Does the image "pop" visually? Are colors vibrant or washed out?
+
+5. OVERALL IMPACT: Does this look like a professional, polished marketing preview that would perform well on social media?
 
 OUTPUT JSON:
 {
@@ -50,12 +54,14 @@ OUTPUT JSON:
     "has_blurry_text": true/false,
     "text_blur_severity": "none|mild|moderate|severe",
     "has_color_artifacts": true/false,
+    "needs_more_contrast": true/false,
+    "contrast_issue": "none|low_text_contrast|washed_out_colors|lacks_punch",
     "overall_quality": "excellent|good|fair|poor",
-    "recommended_fixes": ["blur_gradient", "reduce_text_shadow", "smooth_colors", etc.],
+    "recommended_fixes": ["enhance_contrast", "boost_saturation", "sharpen_text", "blur_gradient", "reduce_text_shadow", etc.],
     "confidence": 0.0-1.0
 }
 
-Be precise and only flag issues that are clearly visible. Confidence should reflect how certain you are about the issues detected."""
+Be STRICT about quality. Only "excellent" images should pass without recommendations. Flag any issues that reduce professional quality."""
 
 
 def prepare_image_for_vision(image: Image.Image) -> str:
@@ -224,33 +230,70 @@ def apply_ai_recommended_fixes(
     has_banding = analysis.get("has_banding", False)
     banding_severity = analysis.get("banding_severity", "none")
     
-    # Check for blurry text (we can't fix this post-render, but we log it)
+    # Check for blurry text - apply sharpening
     has_blurry_text = analysis.get("has_blurry_text", False)
-    if has_blurry_text:
-        applied_fixes.append("Blurry text detected - consider reducing shadow offset in next generation")
-        logger.warning("⚠️ Blurry text detected - this should be fixed in rendering phase")
+    text_blur_severity = analysis.get("text_blur_severity", "none")
+    if has_blurry_text and text_blur_severity != "none":
+        logger.info(f"🔧 Applying sharpening for blurry text (severity: {text_blur_severity})")
+        # Apply unsharp mask to improve text clarity
+        if text_blur_severity == "severe":
+            fixed_image = fixed_image.filter(ImageFilter.UnsharpMask(radius=2.5, percent=200, threshold=2))
+        elif text_blur_severity == "moderate":
+            fixed_image = fixed_image.filter(ImageFilter.UnsharpMask(radius=2.0, percent=150, threshold=2))
+        else:
+            fixed_image = fixed_image.filter(ImageFilter.UnsharpMask(radius=1.5, percent=120, threshold=2))
+        applied_fixes.append(f"Applied text sharpening ({text_blur_severity})")
     
     # Check for color artifacts - SKIP smoothing if banding is detected
-    # SMOOTH_MORE undoes dithering, so we can't use it when fighting banding
     has_color_artifacts = analysis.get("has_color_artifacts", False)
     if has_color_artifacts and not has_banding:
-        # Only apply smoothing if NO banding - smoothing causes banding
-        fixed_image = fixed_image.filter(ImageFilter.SMOOTH)  # Use SMOOTH not SMOOTH_MORE (less aggressive)
-        applied_fixes.append("Applied light color smoothing to reduce artifacts")
+        fixed_image = fixed_image.filter(ImageFilter.SMOOTH)
+        applied_fixes.append("Applied light color smoothing")
         logger.info("🔧 Applied light color smoothing (no banding detected)")
     elif has_color_artifacts:
         logger.info("🔧 Skipping color smoothing - would undo banding fix")
     
-    # Apply recommended fixes from AI - but SKIP smoothing to prevent banding
+    # CONTRAST ENHANCEMENT - Critical for quality
+    needs_more_contrast = analysis.get("needs_more_contrast", False)
+    contrast_issue = analysis.get("contrast_issue", "none")
+    overall_quality = analysis.get("overall_quality", "good")
+    
+    # Apply contrast enhancement if needed or if quality isn't excellent
+    if needs_more_contrast or contrast_issue != "none" or overall_quality in ["fair", "poor"]:
+        logger.info(f"🔧 Enhancing contrast (issue={contrast_issue}, quality={overall_quality})")
+        enhancer = ImageEnhance.Contrast(fixed_image)
+        
+        # Aggressive contrast based on issue severity
+        if overall_quality == "poor" or contrast_issue == "washed_out_colors":
+            contrast_factor = 1.25  # Strong
+        elif overall_quality == "fair" or contrast_issue == "low_text_contrast":
+            contrast_factor = 1.20  # Medium-strong
+        elif contrast_issue == "lacks_punch":
+            contrast_factor = 1.15  # Medium
+        else:
+            contrast_factor = 1.12  # Light
+        
+        fixed_image = enhancer.enhance(contrast_factor)
+        applied_fixes.append(f"Enhanced contrast ({contrast_factor:.2f}x)")
+        logger.info(f"🔧 ✅ Applied contrast enhancement: {contrast_factor:.2f}x")
+    
+    # Apply recommended fixes from AI
     recommended_fixes = analysis.get("recommended_fixes", [])
     for fix in recommended_fixes:
         if fix == "smooth_colors":
-            # SKIP - smoothing causes banding
             logger.info("🔧 Skipping smooth_colors - causes banding artifacts")
-        elif fix == "enhance_contrast":
+        elif fix == "enhance_contrast" and "Enhanced contrast" not in str(applied_fixes):
             enhancer = ImageEnhance.Contrast(fixed_image)
-            fixed_image = enhancer.enhance(1.1)  # Slight contrast boost
-            applied_fixes.append("Enhanced contrast slightly")
+            fixed_image = enhancer.enhance(1.15)
+            applied_fixes.append("Enhanced contrast (AI recommended)")
+        elif fix == "boost_saturation":
+            logger.info("🔧 Boosting color saturation (AI recommended)")
+            enhancer = ImageEnhance.Color(fixed_image)
+            fixed_image = enhancer.enhance(1.15)
+            applied_fixes.append("Boosted color saturation")
+        elif fix == "sharpen_text" and "sharpening" not in str(applied_fixes).lower():
+            fixed_image = fixed_image.filter(ImageFilter.UnsharpMask(radius=1.5, percent=120, threshold=2))
+            applied_fixes.append("Sharpened text (AI recommended)")
     
     # CRITICAL: Apply dithering LAST after all other fixes
     # Dithering must be the final step or other filters will undo it
