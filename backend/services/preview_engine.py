@@ -1833,18 +1833,52 @@ class PreviewEngine:
                     self.logger.warning(f"Design DNA extraction for image failed: {e}")
                     design_dna_for_image = None
             
+            # CRITICAL FIX: Ensure all data passed to image generator is properly typed
+            # This prevents garbled text from non-string values in AI reasoning results
+            safe_ai_result = {
+                "title": str(ai_result.get("title", "Untitled")),
+                "subtitle": str(ai_result.get("subtitle", "")) if ai_result.get("subtitle") else None,
+                "description": str(ai_result.get("description", "")) if ai_result.get("description") else None,
+                "cta_text": str(ai_result.get("cta_text", "")) if ai_result.get("cta_text") else None,
+                "tags": [str(tag) for tag in ai_result.get("tags", []) if tag is not None],
+                "context_items": [],
+                "credibility_items": []
+            }
+            
+            # Safely convert context_items
+            for item in ai_result.get("context_items", []):
+                if isinstance(item, dict):
+                    safe_item = {}
+                    if "icon" in item and item["icon"] is not None:
+                        safe_item["icon"] = str(item["icon"])
+                    if "text" in item and item["text"] is not None:
+                        safe_item["text"] = str(item["text"])
+                    if safe_item:  # Only add if we have valid data
+                        safe_ai_result["context_items"].append(safe_item)
+            
+            # Safely convert credibility_items
+            for item in ai_result.get("credibility_items", []):
+                if isinstance(item, dict):
+                    safe_item = {}
+                    if "type" in item and item["type"] is not None:
+                        safe_item["type"] = str(item["type"])
+                    if "value" in item and item["value"] is not None:
+                        safe_item["value"] = str(item["value"])
+                    if safe_item:  # Only add if we have valid data
+                        safe_ai_result["credibility_items"].append(safe_item)
+            
             composited_image_url = generate_and_upload_preview_image(
                 screenshot_bytes=screenshot_bytes,
                 url=url,
-                title=ai_result["title"],
-                subtitle=ai_result.get("subtitle"),
-                description=ai_result["description"],
-                cta_text=ai_result.get("cta_text"),
+                title=safe_ai_result["title"],
+                subtitle=safe_ai_result["subtitle"],
+                description=safe_ai_result["description"],
+                cta_text=safe_ai_result["cta_text"],
                 blueprint=blueprint_colors,
                 template_type=template_type,
-                tags=ai_result.get("tags", []),
-                context_items=ai_result.get("context_items", []),
-                credibility_items=ai_result.get("credibility_items", []),
+                tags=safe_ai_result["tags"],
+                context_items=safe_ai_result["context_items"],
+                credibility_items=safe_ai_result["credibility_items"],
                 primary_image_base64=primary_image,
                 design_dna=design_dna_for_image  # ENHANCED: Always pass Design DNA
             )
