@@ -366,37 +366,44 @@ def _draw_gradient_background(
     import numpy as np
     
     if direction == "diagonal":
-        # Create diagonal gradient using numpy arrays with high precision
+        # Create diagonal gradient using HSV color space for smoother perceptual transitions
+        import colorsys
+        
+        # Convert RGB to HSV for smoother interpolation
+        h1, s1, v1 = colorsys.rgb_to_hsv(color1[0]/255.0, color1[1]/255.0, color1[2]/255.0)
+        h2, s2, v2 = colorsys.rgb_to_hsv(color2[0]/255.0, color2[1]/255.0, color2[2]/255.0)
+        
+        # Create coordinate arrays
         y_coords = np.arange(high_height, dtype=np.float64)[:, np.newaxis] / max(high_height - 1, 1)
         x_coords = np.arange(high_width, dtype=np.float64)[np.newaxis, :] / max(high_width - 1, 1)
         # Combine for diagonal effect (70% vertical, 30% horizontal)
         progress = y_coords * 0.7 + x_coords * 0.3
         
-        # Interpolate colors in float64 for maximum precision
-        r_float = color1[0] * (1 - progress) + color2[0] * progress
-        g_float = color1[1] * (1 - progress) + color2[1] * progress
-        b_float = color1[2] * (1 - progress) + color2[2] * progress
+        # Interpolate in HSV space (smoother perceptual transitions)
+        h = h1 * (1 - progress) + h2 * progress
+        s = s1 * (1 - progress) + s2 * progress
+        v = v1 * (1 - progress) + v2 * progress
         
-        # Apply strong smoothing before quantization to eliminate banding
-        # Use Gaussian blur on the float arrays before converting to uint8
+        # Convert back to RGB
+        rgb_array = np.zeros((high_height, high_width, 3), dtype=np.float64)
+        for y in range(high_height):
+            for x in range(high_width):
+                r, g, b = colorsys.hsv_to_rgb(h[y, x], s[y, x], v[y, x])
+                rgb_array[y, x] = [r * 255, g * 255, b * 255]
+        
+        # Apply strong Gaussian smoothing before quantization
         try:
             from scipy import ndimage
-            r_float = ndimage.gaussian_filter(r_float, sigma=1.5)
-            g_float = ndimage.gaussian_filter(g_float, sigma=1.5)
-            b_float = ndimage.gaussian_filter(b_float, sigma=1.5)
-            logger.debug("Applied scipy Gaussian filter for gradient smoothing")
+            rgb_array[:, :, 0] = ndimage.gaussian_filter(rgb_array[:, :, 0], sigma=2.0)
+            rgb_array[:, :, 1] = ndimage.gaussian_filter(rgb_array[:, :, 1], sigma=2.0)
+            rgb_array[:, :, 2] = ndimage.gaussian_filter(rgb_array[:, :, 2], sigma=2.0)
+            logger.debug("Applied scipy Gaussian filter in HSV space")
         except ImportError:
-            # Fallback: smoothing will happen during downscale
             logger.debug("Scipy not available, using downscale smoothing only")
             pass
         
-        # Convert to uint8 with proper rounding
-        r = np.clip(np.round(r_float), 0, 255).astype(np.uint8)
-        g = np.clip(np.round(g_float), 0, 255).astype(np.uint8)
-        b = np.clip(np.round(b_float), 0, 255).astype(np.uint8)
-        
-        # Stack into RGB array
-        gradient_array = np.stack([r, g, b], axis=2)
+        # Convert to uint8
+        gradient_array = np.clip(np.round(rgb_array), 0, 255).astype(np.uint8)
         high_res_img = Image.fromarray(gradient_array, mode='RGB')
             
     elif direction == "radial":
