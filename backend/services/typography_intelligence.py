@@ -174,76 +174,126 @@ class TypographyConfig:
 # SIZE CALCULATIONS
 # =============================================================================
 
-# Base sizes for different design densities (1200x630 image)
+# =============================================================================
+# PROFESSIONAL SIZE SCALES - Optimized for maximum visual impact
+# =============================================================================
+# These sizes are calibrated for 1200x630 OG images to ensure:
+# - Headlines that COMMAND attention (large, bold, impactful)
+# - Clear visual hierarchy (headline 2.5-3x larger than body)
+# - Mobile readability (minimum 28px for body text)
+# - Professional proportions based on typographic scales
+
 SIZE_SCALES = {
     "compact": {
-        "headline": 80,      # Increased from 72 for mobile readability
-        "subheadline": 36,    # Increased from 32 for mobile readability
-        "body": 28,           # Increased from 24 for mobile readability
-        "caption": 22,        # Increased from 18 for mobile readability
-        "tag": 18             # Increased from 16 for mobile readability
+        "headline": 88,       # Bold and impactful - grabs attention
+        "subheadline": 42,    # Clear secondary hierarchy
+        "body": 30,           # Readable on mobile
+        "caption": 24,        # Visible proof/credibility text
+        "tag": 20             # Labels and badges
     },
     "balanced": {
-        "headline": 104,      # Increased from 96 for mobile readability
-        "subheadline": 44,    # Increased from 40 for mobile readability
-        "body": 32,           # Increased from 28 for mobile readability
-        "caption": 24,        # Increased from 20 for mobile readability
-        "tag": 20             # Increased from 18 for mobile readability
+        "headline": 112,      # MAXIMUM IMPACT - the hero of the preview
+        "subheadline": 48,    # Strong supporting text
+        "body": 34,           # Comfortable reading size
+        "caption": 26,        # Clear social proof
+        "tag": 22             # Visible tags
     },
     "spacious": {
-        "headline": 128,      # Increased from 120 for mobile readability
-        "subheadline": 52,   # Increased from 48 for mobile readability
-        "body": 36,           # Increased from 32 for mobile readability
-        "caption": 26,        # Increased from 22 for mobile readability
-        "tag": 22             # Increased from 20 for mobile readability
+        "headline": 136,      # COMMANDING presence
+        "subheadline": 56,    # Prominent subheadline
+        "body": 38,           # Very readable
+        "caption": 28,        # Large captions
+        "tag": 24             # Prominent tags
     },
     "ultra-minimal": {
-        "headline": 144,
-        "subheadline": 56,
-        "body": 36,
-        "caption": 24,
-        "tag": 22
+        "headline": 156,      # MASSIVE headline for minimal designs
+        "subheadline": 64,    # Large supporting text
+        "body": 40,           # Extra readable
+        "caption": 28,        # Clear captions
+        "tag": 24             # Visible tags
+    },
+    # NEW: High-impact scale for marketing previews
+    "high-impact": {
+        "headline": 144,      # MAXIMUM visual impact
+        "subheadline": 52,    # Strong hierarchy
+        "body": 36,           # Very readable
+        "caption": 28,        # Prominent proof
+        "tag": 24             # Clear badges
     }
 }
 
-# Weight mappings
+# =============================================================================
+# WEIGHT MAPPINGS - Professional weight contrast for visual hierarchy
+# =============================================================================
+# Strong weight contrast creates clear visual hierarchy:
+# - Headlines should be BOLD to command attention
+# - Body should be readable (not too light)
+# - Accents bridge the hierarchy
+
 WEIGHT_MAPPINGS = {
     "high": {
-        "headline": "black",  # 900
-        "body": "regular",    # 400
-        "accent": "bold"      # 700
+        "headline": "black",     # 900 - MAXIMUM impact
+        "body": "medium",        # 500 - More readable than regular
+        "accent": "bold"         # 700 - Strong accents
     },
     "medium": {
-        "headline": "bold",   # 700
-        "body": "regular",    # 400
-        "accent": "semibold"  # 600
+        "headline": "extrabold", # 800 - Strong but not maximum
+        "body": "regular",       # 400 - Standard readability
+        "accent": "bold"         # 700 - Clear hierarchy
     },
     "subtle": {
-        "headline": "semibold",  # 600
-        "body": "regular",       # 400
-        "accent": "medium"       # 500
+        "headline": "bold",      # 700 - Still impactful
+        "body": "regular",       # 400 - Standard
+        "accent": "semibold"     # 600 - Subtle accent
+    },
+    # NEW: Marketing-focused weight scheme
+    "marketing": {
+        "headline": "black",     # 900 - COMMAND attention
+        "body": "medium",        # 500 - Clear and readable
+        "accent": "extrabold"    # 800 - Strong CTAs
     }
 }
 
-# Spacing by character
+# =============================================================================
+# SPACING MAPPINGS - Professional typographic rhythm
+# =============================================================================
+# Proper spacing creates visual rhythm and improves readability:
+# - Tight letter-spacing for headlines (professional, modern)
+# - Generous line-height for multi-line text
+# - Breathing room between elements
+
 SPACING_MAPPINGS = {
     "tight-dense": {
-        "headline_letter": -0.02,
+        "headline_letter": -0.03,  # Tighter for impact
         "body_letter": 0,
-        "headline_line": 1.1,
+        "headline_line": 1.05,    # Very tight for single lines
         "body_line": 1.4
     },
     "balanced": {
-        "headline_letter": -0.01,
+        "headline_letter": -0.02,  # Slightly tight (professional)
         "body_letter": 0.01,
-        "headline_line": 1.2,
+        "headline_line": 1.15,     # Comfortable multi-line
         "body_line": 1.5
     },
     "generous-luxury": {
-        "headline_letter": 0.02,
-        "body_letter": 0.02,
-        "headline_line": 1.3,
+        "headline_letter": 0.05,   # Luxurious letter-spacing
+        "body_letter": 0.03,
+        "headline_line": 1.25,
         "body_line": 1.6
+    },
+    # NEW: Modern tech/startup spacing
+    "modern": {
+        "headline_letter": -0.02,
+        "body_letter": 0.02,
+        "headline_line": 1.1,
+        "body_line": 1.55
+    },
+    # NEW: Bold/expressive spacing
+    "expressive": {
+        "headline_letter": -0.04,  # Very tight for impact
+        "body_letter": 0,
+        "headline_line": 1.0,      # Minimal line gap
+        "body_line": 1.45
     }
 }
 
@@ -434,7 +484,10 @@ def get_text_shadow_params(
     design_style: str
 ) -> Dict[str, Any]:
     """
-    Calculate text shadow parameters based on design style.
+    Calculate professional text shadow parameters.
+    
+    Creates shadows that enhance readability and add depth without
+    looking amateur or dated. Modern shadows are subtle but effective.
     
     Returns shadow configuration for rendering.
     """
@@ -444,32 +497,53 @@ def get_text_shadow_params(
     # Determine shadow color based on text color brightness
     brightness = (text_color[0] * 299 + text_color[1] * 587 + text_color[2] * 114) / 1000
     
-    if brightness > 128:  # Light text
+    if brightness > 128:  # Light text on dark background
+        # Dark shadow for contrast
         shadow_color = (0, 0, 0)
-        shadow_alpha = int(100 * shadow_intensity)
-    else:  # Dark text
+        shadow_alpha = int(min(180, 120 * shadow_intensity))  # Strong but not harsh
+    else:  # Dark text on light background
+        # Subtle light glow effect
         shadow_color = (255, 255, 255)
-        shadow_alpha = int(60 * shadow_intensity)
+        shadow_alpha = int(min(100, 80 * shadow_intensity))
     
-    # Shadow offset and blur based on style
+    # Professional shadow parameters based on style
     style_lower = design_style.lower()
     
-    if style_lower in ["bold", "expressive", "maximalist"]:
-        offset = (4, 4)
+    if style_lower in ["bold", "expressive", "maximalist", "marketing"]:
+        # Strong drop shadow for impact
+        offset = (3, 3)
+        blur = 6
+        # Also add a subtle outer glow
+        glow_enabled = True
+        glow_blur = 12
+    elif style_lower in ["technical", "minimal", "corporate"]:
+        # Subtle shadow for depth without distraction
+        offset = (1, 2)
+        blur = 3
+        glow_enabled = False
+        glow_blur = 0
+    elif style_lower in ["elegant", "luxury", "refined"]:
+        # Soft, diffuse shadow for sophistication
+        offset = (2, 3)
         blur = 8
-    elif style_lower in ["technical", "minimal"]:
-        offset = (1, 1)
-        blur = 2
+        glow_enabled = True
+        glow_blur = 10
     else:
+        # Balanced default
         offset = (2, 2)
         blur = 4
+        glow_enabled = False
+        glow_blur = 0
     
     return {
         "enabled": True,
         "color": shadow_color,
         "alpha": shadow_alpha,
         "offset": offset,
-        "blur": blur
+        "blur": blur,
+        "glow_enabled": glow_enabled,
+        "glow_blur": glow_blur,
+        "glow_alpha": int(shadow_alpha * 0.5)
     }
 
 

@@ -59,29 +59,42 @@ class QualityGateResult:
 
 
 class QualityGateConfig:
-    """Configuration for quality gates."""
+    """
+    UPGRADED: Professional-grade quality gate configuration.
+    
+    Higher standards for production marketing quality.
+    """
     
     def __init__(
         self,
-        min_extraction_quality: float = 0.60,
-        min_confidence: float = 0.50,
-        min_classification_confidence: float = 0.40,
+        min_extraction_quality: float = 0.65,  # UPGRADED from 0.60
+        min_confidence: float = 0.55,           # UPGRADED from 0.50
+        min_classification_confidence: float = 0.45,  # UPGRADED from 0.40
         require_hook: bool = True,
         allow_navigation_hooks: bool = False,
         require_social_proof_numbers: bool = False,
-        enforce_profile_name_validation: bool = True
+        enforce_profile_name_validation: bool = True,
+        # NEW: Professional quality requirements
+        min_visual_quality: float = 0.60,       # Minimum visual quality score
+        min_contrast_ratio: float = 4.5,        # WCAG AA standard
+        require_headline: bool = True,           # Must have a headline
+        max_text_blur: float = 0.3               # Maximum acceptable blur
     ):
         """
-        Initialize quality gate configuration.
+        Initialize PROFESSIONAL quality gate configuration.
         
         Args:
-            min_extraction_quality: Minimum overall quality score (0.0-1.0)
-            min_confidence: Minimum AI confidence score
+            min_extraction_quality: Minimum overall quality score (0.65 for professional)
+            min_confidence: Minimum AI confidence score (0.55 for reliability)
             min_classification_confidence: Minimum page classification confidence
             require_hook: Whether hook/title is mandatory
             allow_navigation_hooks: Whether to allow navigation text as hooks
             require_social_proof_numbers: Whether social proof must have numbers
-            enforce_profile_name_validation: Whether to enforce strict name validation for profiles
+            enforce_profile_name_validation: Whether to enforce strict name validation
+            min_visual_quality: Minimum visual quality for the output image
+            min_contrast_ratio: Minimum contrast ratio for text readability
+            require_headline: Whether a headline is mandatory
+            max_text_blur: Maximum acceptable text blur level
         """
         self.min_extraction_quality = min_extraction_quality
         self.min_confidence = min_confidence
@@ -90,6 +103,11 @@ class QualityGateConfig:
         self.allow_navigation_hooks = allow_navigation_hooks
         self.require_social_proof_numbers = require_social_proof_numbers
         self.enforce_profile_name_validation = enforce_profile_name_validation
+        # Professional standards
+        self.min_visual_quality = min_visual_quality
+        self.min_contrast_ratio = min_contrast_ratio
+        self.require_headline = require_headline
+        self.max_text_blur = max_text_blur
 
 
 class QualityGateEvaluator:

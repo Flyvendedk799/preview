@@ -297,6 +297,9 @@ def ensure_contrast(
 ) -> Tuple[int, int, int]:
     """
     Adjust foreground color to ensure minimum contrast ratio.
+    
+    WCAG AA requires 4.5:1 for normal text, 3:1 for large text.
+    For professional marketing, aim for 7:1 (AAA) when possible.
     """
     current_ratio = get_contrast_ratio(foreground, background)
     
@@ -307,18 +310,105 @@ def ensure_contrast(
     bg_luminance = get_luminance(background)
     
     h, s, l = rgb_to_hsl(foreground)
-    step = 0.05
+    step = 0.03  # Smaller steps for more precise adjustment
+    max_iterations = 50
+    iterations = 0
     
     if bg_luminance > 0.5:
-        # Dark background needs lighter foreground
-        while l > 0 and get_contrast_ratio(hsl_to_rgb((h, s, l)), background) < min_ratio:
-            l -= step
-    else:
         # Light background needs darker foreground
-        while l < 1 and get_contrast_ratio(hsl_to_rgb((h, s, l)), background) < min_ratio:
+        while l > 0 and iterations < max_iterations:
+            new_color = hsl_to_rgb((h, s, l))
+            if get_contrast_ratio(new_color, background) >= min_ratio:
+                return new_color
+            l -= step
+            iterations += 1
+    else:
+        # Dark background needs lighter foreground
+        while l < 1 and iterations < max_iterations:
+            new_color = hsl_to_rgb((h, s, l))
+            if get_contrast_ratio(new_color, background) >= min_ratio:
+                return new_color
             l += step
+            iterations += 1
     
-    return hsl_to_rgb((h, s, l))
+    # If we couldn't achieve contrast, return pure white or black
+    return (255, 255, 255) if bg_luminance < 0.5 else (17, 24, 39)
+
+
+def get_high_impact_colors(
+    primary: Tuple[int, int, int],
+    background: Tuple[int, int, int]
+) -> Dict[str, Tuple[int, int, int]]:
+    """
+    Generate high-impact color variations for professional marketing.
+    
+    Creates vibrant, attention-grabbing colors while maintaining
+    professional appearance and contrast requirements.
+    """
+    h, s, l = rgb_to_hsl(primary)
+    
+    # Boost saturation for vibrancy (but not too much)
+    vibrant_s = min(1.0, s * 1.3) if s < 0.7 else s
+    
+    # Create variations
+    vibrant = hsl_to_rgb((h, vibrant_s, l))
+    
+    # Ensure text colors have excellent contrast
+    text_on_bg = ensure_contrast((255, 255, 255), background, min_ratio=7.0)
+    text_muted = ensure_contrast(
+        hsl_to_rgb((h, s * 0.5, l * 0.8 if l > 0.5 else l * 1.2)),
+        background,
+        min_ratio=4.5
+    )
+    
+    # Create accent that pops
+    accent_h = (h + 30) % 360  # Analogous but different
+    accent = hsl_to_rgb((accent_h, min(1.0, vibrant_s * 1.2), 0.55))
+    accent = ensure_contrast(accent, background, min_ratio=4.5)
+    
+    # Create CTA color (high visibility)
+    cta_h = (h + 180) % 360 if abs(h - 30) > 60 else 30  # Complementary or orange
+    cta = hsl_to_rgb((cta_h, 0.9, 0.5))
+    cta = ensure_contrast(cta, (255, 255, 255), min_ratio=4.5)
+    
+    return {
+        "vibrant_primary": vibrant,
+        "text": text_on_bg,
+        "text_muted": text_muted,
+        "accent": accent,
+        "cta": cta,
+        "cta_text": get_optimal_text_color(cta)
+    }
+
+
+def enhance_color_vibrancy(
+    color: Tuple[int, int, int],
+    boost: float = 0.15
+) -> Tuple[int, int, int]:
+    """
+    Enhance color vibrancy while maintaining professional appearance.
+    
+    Args:
+        color: RGB color tuple
+        boost: Amount to boost saturation (0.0-0.5)
+    
+    Returns:
+        Enhanced RGB color
+    """
+    h, s, l = rgb_to_hsl(color)
+    
+    # Boost saturation
+    new_s = min(1.0, s + boost)
+    
+    # Slightly adjust lightness for optimal vibrancy
+    if l > 0.6:
+        new_l = l - 0.05  # Darken overly light colors
+    elif l < 0.3:
+        new_l = l + 0.05  # Lighten overly dark colors
+    else:
+        new_l = l
+    
+    return hsl_to_rgb((h, new_s, new_l))
 
 
 # =============================================================================

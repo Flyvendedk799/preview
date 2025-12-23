@@ -82,62 +82,93 @@ OG_IMAGE_HEIGHT = 630
 # TYPOGRAPHY PERSONALITY MAPPING (Phase 2)
 # =============================================================================
 
+# =============================================================================
+# TYPOGRAPHY PERSONALITY MAPPING - PROFESSIONAL UPGRADE
+# =============================================================================
+# Optimized for MAXIMUM VISUAL IMPACT and professional marketing quality
+
 TYPOGRAPHY_PERSONALITY_MAP = {
     "authoritative": {
-        "weight": "bold",
+        "weight": "black",           # UPGRADED: Maximum weight for authority
         "tracking": "tight",
         "case": "uppercase",
-        "font_style": ["Impact", "Oswald", "Bebas Neue"],
-        "letter_spacing_mult": -0.02
+        "font_style": ["Impact", "Oswald", "Bebas Neue", "Anton"],
+        "letter_spacing_mult": -0.03,  # Tighter for modern look
+        "headline_boost": 1.15         # Larger headlines
     },
     "friendly": {
-        "weight": "medium",
+        "weight": "bold",             # UPGRADED: Bolder for better hierarchy
         "tracking": "normal",
         "case": "sentence",
-        "font_style": ["Nunito", "Poppins", "Quicksand"],
-        "letter_spacing_mult": 0
+        "font_style": ["Nunito", "Poppins", "Quicksand", "Comfortaa"],
+        "letter_spacing_mult": 0.01,   # Slightly open for friendliness
+        "headline_boost": 1.10
     },
     "elegant": {
-        "weight": "light",
+        "weight": "medium",           # UPGRADED: Medium for elegance with clarity
         "tracking": "wide",
         "case": "mixed",
         "font_style": ["Playfair Display", "Cormorant", "Libre Baskerville"],
-        "letter_spacing_mult": 0.05
+        "letter_spacing_mult": 0.06,   # Luxurious spacing
+        "headline_boost": 1.08
     },
     "technical": {
-        "weight": "medium",
+        "weight": "semibold",          # UPGRADED: Semibold for modern tech look
         "tracking": "normal",
         "case": "mixed",
         "font_style": ["JetBrains Mono", "Fira Code", "Source Code Pro"],
-        "letter_spacing_mult": 0
+        "letter_spacing_mult": 0.02,
+        "headline_boost": 1.05
     },
     "bold": {
-        "weight": "black",
+        "weight": "black",             # Maximum impact
         "tracking": "tight",
         "case": "uppercase",
-        "font_style": ["Impact", "Oswald", "Anton"],
-        "letter_spacing_mult": -0.03
+        "font_style": ["Impact", "Oswald", "Anton", "Bebas Neue"],
+        "letter_spacing_mult": -0.04,  # Very tight for impact
+        "headline_boost": 1.20         # MAXIMUM headline size
     },
     "expressive": {
         "weight": "bold",
         "tracking": "wide",
         "case": "mixed",
         "font_style": ["Abril Fatface", "Lobster", "Pacifico"],
-        "letter_spacing_mult": 0.03
+        "letter_spacing_mult": 0.04,
+        "headline_boost": 1.15
     },
     "subtle": {
-        "weight": "regular",
+        "weight": "medium",            # UPGRADED: Medium for better readability
         "tracking": "normal",
         "case": "sentence",
         "font_style": ["Lato", "Open Sans", "Roboto"],
-        "letter_spacing_mult": 0
+        "letter_spacing_mult": 0.01,
+        "headline_boost": 1.05
     },
     "refined": {
-        "weight": "light",
+        "weight": "medium",            # UPGRADED: Medium for refined but clear
         "tracking": "wide",
         "case": "mixed",
         "font_style": ["Crimson Text", "Merriweather", "Georgia"],
-        "letter_spacing_mult": 0.04
+        "letter_spacing_mult": 0.05,
+        "headline_boost": 1.08
+    },
+    # NEW: Marketing/Conversion focused personality
+    "marketing": {
+        "weight": "black",
+        "tracking": "tight",
+        "case": "sentence",
+        "font_style": ["Inter", "Montserrat", "Poppins"],
+        "letter_spacing_mult": -0.02,
+        "headline_boost": 1.18
+    },
+    # NEW: Corporate/Professional personality
+    "corporate": {
+        "weight": "bold",
+        "tracking": "normal",
+        "case": "sentence",
+        "font_style": ["Inter", "SF Pro Display", "Helvetica Neue"],
+        "letter_spacing_mult": 0,
+        "headline_boost": 1.12
     }
 }
 
@@ -168,14 +199,17 @@ def apply_dna_visual_effects(image: Image.Image, visual_effects, colors) -> Imag
     if not visual_effects:
         return image
     
-    # Apply shadows (vignette-style for overall image)
+    # Apply shadows (vignette-style for overall image) - UPGRADED for professional polish
     shadows = getattr(visual_effects, 'shadows', 'subtle')
     if shadows == "dramatic":
-        image = apply_vignette(image, intensity=0.35)
+        image = apply_vignette(image, intensity=0.40)  # Stronger for drama
     elif shadows == "medium":
-        image = apply_vignette(image, intensity=0.2)
+        image = apply_vignette(image, intensity=0.25)  # Noticeable depth
     elif shadows == "subtle":
-        image = apply_vignette(image, intensity=0.1)
+        image = apply_vignette(image, intensity=0.15)  # Professional subtle depth
+    else:
+        # Even "none" gets a very subtle vignette for professional polish
+        image = apply_vignette(image, intensity=0.08)
     
     # Apply gradient overlay if specified
     gradients = getattr(visual_effects, 'gradients', 'none')

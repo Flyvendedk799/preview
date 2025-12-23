@@ -136,20 +136,22 @@ class VisualHierarchyEngine:
             # Base score from AI priority
             score = priority
             
-            # Content type multipliers
+            # Content type multipliers - UPGRADED for professional hierarchy
+            # Headlines should DOMINATE, supporting elements should SUPPORT
             type_weights = {
-                "headline": 1.0,
-                "title": 1.0,
-                "hero_image": 0.9,
-                "logo": 0.8,
-                "subheadline": 0.7,
-                "rating": 0.7,
-                "statistic": 0.7,
-                "image": 0.6,
-                "description": 0.5,
-                "badge": 0.4,
-                "tag": 0.3,
-                "caption": 0.2
+                "headline": 1.0,      # MAXIMUM dominance
+                "title": 1.0,         # Equal to headline
+                "hero_image": 0.85,   # Strong visual presence
+                "logo": 0.75,         # Important but not hero
+                "subheadline": 0.65,  # Clear secondary hierarchy
+                "rating": 0.60,       # Social proof
+                "statistic": 0.60,    # Numbers catch attention
+                "cta": 0.55,          # Call to action
+                "image": 0.50,        # Supporting visual
+                "description": 0.40,  # Context, less dominant
+                "badge": 0.35,        # Small accent
+                "tag": 0.25,          # Minor element
+                "caption": 0.20       # Smallest text
             }
             score *= type_weights.get(content_type, 0.5)
             
@@ -242,11 +244,12 @@ class VisualHierarchyEngine:
         level = elem.get("hierarchy_level", HierarchyLevel.SECONDARY)
         content_type = elem.get("content_type", "text")
         
-        # Base font sizes by level
+        # UPGRADED: Professional font sizes for MAXIMUM IMPACT
+        # These sizes are calibrated for 1200x630 OG images
         size_map = {
-            HierarchyLevel.HERO: 96,      # Huge, dominant
-            HierarchyLevel.PRIMARY: 48,   # Large, important
-            HierarchyLevel.SECONDARY: 32, # Medium
+            HierarchyLevel.HERO: 120,     # COMMANDING presence - the star
+            HierarchyLevel.PRIMARY: 56,   # Strong supporting hierarchy
+            HierarchyLevel.SECONDARY: 36, # Clear but secondary
             HierarchyLevel.TERTIARY: 20,  # Small
             HierarchyLevel.OMIT: 0
         }

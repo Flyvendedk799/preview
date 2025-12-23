@@ -60,25 +60,29 @@ except ImportError:
 
 
 class QualityLevel(str, Enum):
-    """Quality level classification."""
-    EXCELLENT = "excellent"  # >= 0.90
-    GOOD = "good"  # >= 0.75
-    FAIR = "fair"  # >= 0.60
-    POOR = "poor"  # < 0.60
+    """
+    UPGRADED: Professional quality level classification.
+    
+    Higher standards for production marketing quality.
+    """
+    EXCELLENT = "excellent"  # >= 0.85 - Professional marketing quality
+    GOOD = "good"            # >= 0.70 - Meets quality standards
+    FAIR = "fair"            # >= 0.55 - Needs improvement
+    POOR = "poor"            # < 0.55 - Below professional standards
 
 
 class QualityTier(str, Enum):
     """
-    PHASE 5: Graduated quality tier system.
+    UPGRADED: Professional-grade quality tier system.
     
-    Instead of binary pass/fail, this system uses tiers to make
-    more nuanced decisions about preview quality and actions.
+    Higher standards for production-ready marketing previews.
+    Previews must meet professional design quality standards.
     """
-    PREMIUM = "premium"       # >= 0.85 - Use as-is, no improvements needed
-    STANDARD = "standard"     # >= 0.70 - Use with minor enhancements
-    ACCEPTABLE = "acceptable" # >= 0.55 - Use with warnings, suggest improvements
-    RETRY = "retry"           # >= 0.40 - Retry with different extraction
-    FALLBACK = "fallback"     # < 0.40 - Use smart fallback instead
+    PREMIUM = "premium"       # >= 0.80 - EXCELLENT: Use as-is, professional quality
+    STANDARD = "standard"     # >= 0.65 - GOOD: Use with minor AI enhancements
+    ACCEPTABLE = "acceptable" # >= 0.50 - FAIR: Use with auto-improvements applied
+    RETRY = "retry"           # >= 0.35 - POOR: Retry with different approach
+    FALLBACK = "fallback"     # < 0.35 - FAIL: Use smart fallback instead
 
 
 @dataclass
