@@ -1167,10 +1167,23 @@ class AdaptiveTemplateEngine:
             # Continue with original image if AI fix fails
         
         # Output - save without optimization to preserve dithering
+        logger.info(f"🎨 [ADAPTIVE_TEMPLATE] Saving final image: {image.size}, mode={image.mode}")
+        
+        # Check for potential banding sources before saving
+        import numpy as np
+        img_array = np.array(image)
+        unique_colors = len(np.unique(img_array.reshape(-1, 3), axis=0))
+        pixel_count = image.size[0] * image.size[1]
+        color_density = unique_colors / pixel_count
+        logger.info(f"🎨 [ADAPTIVE_TEMPLATE] Image stats before save: unique_colors={unique_colors}, color_density={color_density:.4f}")
+        
+        if color_density < 0.1:
+            logger.warning(f"🎨 [ADAPTIVE_TEMPLATE] ⚠️ LOW COLOR DENSITY before save - potential banding risk! color_density={color_density:.4f}")
+        
         buffer = BytesIO()
         image.save(buffer, format='PNG', optimize=False)
         
-        logger.debug(f"✅ Preview generated: {len(buffer.getvalue())} bytes")
+        logger.info(f"🎨 [ADAPTIVE_TEMPLATE] ✅ Preview saved: {len(buffer.getvalue())} bytes")
         return buffer.getvalue()
     
     def _apply_background(
