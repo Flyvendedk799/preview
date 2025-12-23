@@ -356,6 +356,7 @@ def _draw_gradient_background(
     from backend.services.gradient_generator import generate_smooth_gradient
     
     width, height = image.size
+    logger.info(f"🎨 [PREVIEW_IMAGE] _draw_gradient_background called: {width}x{height}, color1={color1}, color2={color2}, direction={direction}")
     
     # Map direction to angle
     angle_map = {
@@ -366,16 +367,18 @@ def _draw_gradient_background(
     }
     angle = angle_map.get(direction, 135)
     style = "radial" if direction == "radial" else "linear"
+    logger.info(f"🎨 [PREVIEW_IMAGE] Mapped direction '{direction}' -> angle={angle}, style={style}")
     
     # Generate smooth gradient using LAB color space
+    logger.info(f"🎨 [PREVIEW_IMAGE] Calling generate_smooth_gradient...")
     gradient_img = generate_smooth_gradient(
         width, height, color1, color2, angle=angle, style=style
     )
     
+    logger.info(f"🎨 [PREVIEW_IMAGE] Gradient generated: {gradient_img.size}, mode={gradient_img.mode}")
     # Paste onto original image
     image.paste(gradient_img)
-    
-    logger.debug(f"Generated gradient using LAB color space: {width}x{height}")
+    logger.info(f"🎨 [PREVIEW_IMAGE] ✅ Gradient applied to image: {width}x{height}")
     
     return image
 

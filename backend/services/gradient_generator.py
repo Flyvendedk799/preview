@@ -6,7 +6,10 @@ import numpy as np
 from PIL import Image
 import math
 import colorsys
+import logging
 from typing import Tuple, List
+
+logger = logging.getLogger(__name__)
 
 
 def rgb_to_lab(r: float, g: float, b: float) -> Tuple[float, float, float]:
@@ -121,14 +124,18 @@ def generate_smooth_gradient(
     Returns:
         PIL Image with smooth gradient
     """
+    logger.info(f"🎨 [GRADIENT] Starting LAB gradient generation: {width}x{height}, color1={color1}, color2={color2}, angle={angle}, style={style}")
+    
     # Generate at 4x resolution for maximum smoothness
     scale_factor = 4
     high_width = width * scale_factor
     high_height = height * scale_factor
+    logger.info(f"🎨 [GRADIENT] High-res generation: {high_width}x{high_height} (scale={scale_factor}x)")
     
     # Convert colors to LAB (perceptually uniform)
     L1, a1, b1 = rgb_to_lab(color1[0], color1[1], color1[2])
     L2, a2, b2 = rgb_to_lab(color2[0], color2[1], color2[2])
+    logger.info(f"🎨 [GRADIENT] RGB->LAB conversion: color1 RGB{color1} -> LAB({L1:.2f}, {a1:.2f}, {b1:.2f}), color2 RGB{color2} -> LAB({L2:.2f}, {a2:.2f}, {b2:.2f})")
     
     # Create coordinate arrays
     y_coords = np.arange(high_height, dtype=np.float64)[:, np.newaxis]
@@ -159,12 +166,17 @@ def generate_smooth_gradient(
             progress = np.clip(progress, 0, 1)
     
     # Interpolate in LAB space (perceptually uniform)
+    logger.info(f"🎨 [GRADIENT] Interpolating in LAB color space...")
     L = L1 * (1 - progress) + L2 * progress
     a = a1 * (1 - progress) + a2 * progress
     b = b1 * (1 - progress) + b2 * progress
     
+    # Log LAB range
+    logger.info(f"🎨 [GRADIENT] LAB ranges: L=[{L.min():.2f}, {L.max():.2f}], a=[{a.min():.2f}, {a.max():.2f}], b=[{b.min():.2f}, {b.max():.2f}]")
+    
     # Convert back to RGB using vectorized operations (much faster)
     # First convert LAB to XYZ, then XYZ to RGB
+    logger.info(f"🎨 [GRADIENT] Converting LAB->XYZ->RGB...")
     fy = (L + 16) / 116
     fx = a / 500 + fy
     fz = fy - b / 200
@@ -194,14 +206,38 @@ def generate_smooth_gradient(
     
     rgb_array = np.stack([r, g, b], axis=2).astype(np.float64)
     
+    # Log RGB range before dithering
+    logger.info(f"🎨 [GRADIENT] RGB ranges before dithering: R=[{rgb_array[:,:,0].min():.2f}, {rgb_array[:,:,0].max():.2f}], G=[{rgb_array[:,:,1].min():.2f}, {rgb_array[:,:,1].max():.2f}], B=[{rgb_array[:,:,2].min():.2f}, {rgb_array[:,:,2].max():.2f}]")
+    
     # Apply Floyd-Steinberg dithering to reduce quantization artifacts
+    logger.info(f"🎨 [GRADIENT] Applying Floyd-Steinberg dithering...")
     rgb_array = floyd_steinberg_dither(rgb_array)
+    
+    # Log RGB range after dithering
+    logger.info(f"🎨 [GRADIENT] RGB ranges after dithering: R=[{rgb_array[:,:,0].min():.2f}, {rgb_array[:,:,0].max():.2f}], G=[{rgb_array[:,:,1].min():.2f}, {rgb_array[:,:,1].max():.2f}], B=[{rgb_array[:,:,2].min():.2f}, {rgb_array[:,:,2].max():.2f}]")
     
     # Create PIL image
     high_res_img = Image.fromarray(rgb_array.astype(np.uint8), mode='RGB')
+    logger.info(f"🎨 [GRADIENT] High-res image created: {high_res_img.size}, mode={high_res_img.mode}")
     
     # Downscale using LANCZOS (best quality)
+    logger.info(f"🎨 [GRADIENT] Downscaling {high_width}x{high_height} -> {width}x{height} using LANCZOS...")
     gradient_img = high_res_img.resize((width, height), Image.Resampling.LANCZOS)
+    
+    # Calculate gradient quality metrics
+    gradient_array = np.array(gradient_img)
+    unique_colors = len(np.unique(gradient_array.reshape(-1, 3), axis=0))
+    logger.info(f"🎨 [GRADIENT] Final gradient: {gradient_img.size}, mode={gradient_img.mode}, unique_colors={unique_colors}")
+    
+    # Check for potential banding (low unique color count relative to image size)
+    pixel_count = width * height
+    color_density = unique_colors / pixel_count
+    logger.info(f"🎨 [GRADIENT] Color density: {color_density:.4f} ({unique_colors} unique colors / {pixel_count} pixels)")
+    
+    if color_density < 0.1:
+        logger.warning(f"🎨 [GRADIENT] ⚠️ LOW COLOR DENSITY - Potential banding risk! color_density={color_density:.4f}")
+    
+    logger.info(f"🎨 [GRADIENT] ✅ Gradient generation complete: {width}x{height}")
     
     return gradient_img
 

@@ -425,20 +425,26 @@ def apply_gradient_background(
     from backend.services.gradient_generator import generate_smooth_gradient
     
     width, height = image.size
+    logger.info(f"🎨 [ADAPTIVE_TEMPLATE] apply_gradient_background called: {width}x{height}, colors={colors}, angle={angle}, style={style}")
     
     if len(colors) < 2:
+        original_color = colors[0]
         colors = [colors[0], darken_color(colors[0], 0.3)]
+        logger.info(f"🎨 [ADAPTIVE_TEMPLATE] Only 1 color provided, generated second: {colors[0]} -> {colors[1]}")
     
     color1 = colors[0]
     color2 = colors[-1]
+    logger.info(f"🎨 [ADAPTIVE_TEMPLATE] Gradient colors: color1={color1}, color2={color2}")
     
     # Generate smooth gradient using LAB color space
+    logger.info(f"🎨 [ADAPTIVE_TEMPLATE] Calling generate_smooth_gradient...")
     gradient_img = generate_smooth_gradient(
         width, height, color1, color2, angle=angle, style=style
     )
     
+    logger.info(f"🎨 [ADAPTIVE_TEMPLATE] Gradient generated: {gradient_img.size}, mode={gradient_img.mode}")
     image.paste(gradient_img)
-    logger.debug(f"Generated gradient using LAB color space: {width}x{height}")
+    logger.info(f"🎨 [ADAPTIVE_TEMPLATE] ✅ Gradient applied to image: {width}x{height}")
     
     return image
 
