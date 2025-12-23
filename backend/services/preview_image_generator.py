@@ -1904,6 +1904,24 @@ def generate_and_upload_preview_image(
                 product_intelligence=product_intelligence
             )
         
+        # AI-powered quality improvement: detect and fix banding/blur issues
+        try:
+            from backend.services.ai_image_quality_fixer import improve_image_quality_with_ai
+            image_pil = Image.open(BytesIO(image_bytes))
+            improved_image, ai_results = improve_image_quality_with_ai(image_pil)
+            
+            if ai_results.get("fixes_applied"):
+                logger.info(f"✅ AI applied {len(ai_results['fixes_applied'])} quality fixes")
+                # Convert back to bytes
+                buffer = BytesIO()
+                improved_image.save(buffer, format='PNG', optimize=False)
+                image_bytes = buffer.getvalue()
+            elif ai_results.get("analysis"):
+                logger.info("✅ AI quality check passed - no fixes needed")
+        except Exception as e:
+            logger.warning(f"AI quality improvement failed (non-critical): {e}")
+            # Continue with original image if AI fix fails
+        
         # Upload to R2
         filename = f"previews/demo/{uuid4()}.png"
         image_url = upload_file_to_r2(image_bytes, filename, "image/png")
