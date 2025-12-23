@@ -488,20 +488,35 @@ class UIElementExtractor:
         img: Image.Image,
         base_color: Tuple[int, int, int]
     ) -> Image.Image:
-        """Apply a professional gradient background."""
-        draw = ImageDraw.Draw(img)
+        """Apply a professional gradient background with dithering to prevent banding."""
+        import numpy as np
         width, height = img.size
         
         # Create darker shade for gradient
         darker = tuple(max(0, c - 20) for c in base_color)
         
-        # Diagonal gradient
-        for y in range(height):
-            progress = y / height
-            r = int(base_color[0] * (1 - progress * 0.3) + darker[0] * (progress * 0.3))
-            g = int(base_color[1] * (1 - progress * 0.3) + darker[1] * (progress * 0.3))
-            b = int(base_color[2] * (1 - progress * 0.3) + darker[2] * (progress * 0.3))
-            draw.line([(0, y), (width, y)], fill=(r, g, b))
+        # Create smooth gradient using numpy with dithering
+        y_coords = np.linspace(0, 1, height)[:, np.newaxis]
+        progress = np.broadcast_to(y_coords, (height, width))
+        
+        # Interpolate colors
+        r = (base_color[0] * (1 - progress * 0.3) + darker[0] * (progress * 0.3))
+        g = (base_color[1] * (1 - progress * 0.3) + darker[1] * (progress * 0.3))
+        b = (base_color[2] * (1 - progress * 0.3) + darker[2] * (progress * 0.3))
+        
+        # Add strong per-channel dithering to eliminate banding
+        dither_r = np.random.uniform(-3.0, 3.0, (height, width))
+        dither_g = np.random.uniform(-3.0, 3.0, (height, width))
+        dither_b = np.random.uniform(-3.0, 3.0, (height, width))
+        
+        r = np.clip(r + dither_r, 0, 255).astype(np.uint8)
+        g = np.clip(g + dither_g, 0, 255).astype(np.uint8)
+        b = np.clip(b + dither_b, 0, 255).astype(np.uint8)
+        
+        # Create image from array
+        gradient_array = np.stack([r, g, b], axis=2)
+        gradient_img = Image.fromarray(gradient_array, mode='RGB')
+        img.paste(gradient_img)
         
         return img
     

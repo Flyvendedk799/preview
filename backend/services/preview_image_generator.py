@@ -384,12 +384,13 @@ def _draw_gradient_background(
     g = (color1[1] * (1 - progress) + color2[1] * progress)
     b = (color1[2] * (1 - progress) + color2[2] * progress)
     
-    # Add very strong random dither noise (-2.5 to +2.5) to eliminate banding artifacts
+    # Add very strong random dither noise (-4.0 to +4.0) to eliminate banding artifacts
     # Very strong dithering needed for dark gradients where banding is highly visible
     # Using different dither per channel for better noise distribution
-    dither_r = np.random.uniform(-2.5, 2.5, (height, width))
-    dither_g = np.random.uniform(-2.5, 2.5, (height, width))
-    dither_b = np.random.uniform(-2.5, 2.5, (height, width))
+    # Increased to -4/+4 for maximum effectiveness against visible banding
+    dither_r = np.random.uniform(-4.0, 4.0, (height, width))
+    dither_g = np.random.uniform(-4.0, 4.0, (height, width))
+    dither_b = np.random.uniform(-4.0, 4.0, (height, width))
     r = np.clip(r + dither_r, 0, 255).astype(np.uint8)
     g = np.clip(g + dither_g, 0, 255).astype(np.uint8)
     b = np.clip(b + dither_b, 0, 255).astype(np.uint8)
