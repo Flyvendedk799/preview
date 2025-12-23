@@ -464,10 +464,16 @@ def apply_gradient_background(
         s = s1 * (1 - progress) + s2 * progress
         v = v1 * (1 - progress) + v2 * progress
         
-        # Use PIL's HSV mode for accurate conversion
-        h_scaled = np.clip((h * 255 / 360.0), 0, 255).astype(np.uint8)
-        s_scaled = np.clip((s * 255), 0, 255).astype(np.uint8)
-        v_scaled = np.clip((v * 255), 0, 255).astype(np.uint8)
+        # Use PIL's HSV mode for accurate conversion with dithering to prevent banding
+        # Add subtle noise before quantization to break up banding
+        noise_strength = 0.3  # Small noise to prevent quantization artifacts
+        h_noise = np.random.uniform(-noise_strength, noise_strength, h.shape)
+        s_noise = np.random.uniform(-noise_strength, noise_strength, s.shape)
+        v_noise = np.random.uniform(-noise_strength, noise_strength, v.shape)
+        
+        h_scaled = np.clip((h * 255 / 360.0) + h_noise, 0, 255).astype(np.uint8)
+        s_scaled = np.clip((s * 255) + s_noise, 0, 255).astype(np.uint8)
+        v_scaled = np.clip((v * 255) + v_noise, 0, 255).astype(np.uint8)
         
         # Create HSV image
         hsv_array = np.stack([h_scaled, s_scaled, v_scaled], axis=2)
