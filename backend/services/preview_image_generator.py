@@ -369,8 +369,9 @@ def _draw_gradient_background(
     g = (color1[1] * (1 - progress) + color2[1] * progress)
     b = (color1[2] * (1 - progress) + color2[2] * progress)
     
-    # Add random dither noise (-0.5 to 0.5) to each pixel to eliminate banding
-    dither = np.random.uniform(-0.5, 0.5, (height, width))
+    # Add stronger random dither noise (-1.5 to +1.5) to eliminate banding artifacts
+    # Stronger dithering needed for dark gradients where banding is more visible
+    dither = np.random.uniform(-1.5, 1.5, (height, width))
     r = np.clip(r + dither, 0, 255).astype(np.uint8)
     g = np.clip(g + dither, 0, 255).astype(np.uint8)
     b = np.clip(b + dither, 0, 255).astype(np.uint8)
@@ -402,9 +403,11 @@ def _draw_text_with_shadow(
     x, y = position
     
     # Only draw shadow for light text on dark backgrounds (where it helps readability)
-    if fill[0] > 200:  # Light text (white/light) - add subtle shadow
-        shadow_fill = (0, 0, 0)  # Clean black shadow
-        # Single shadow layer at small offset
+    # FIXED: Use very subtle gray shadow instead of black to avoid blurry 3D effect
+    if fill[0] > 200:  # Light text (white/light) - add very subtle shadow
+        # Use light gray shadow (much more subtle than black) with minimal offset
+        shadow_fill = (40, 40, 40)  # Very dark gray instead of pure black
+        # Single shadow layer at small offset (already reduced to 2px)
         draw.text((x + shadow_offset, y + shadow_offset), text, font=font, fill=shadow_fill)
     
     # Draw main text on top

@@ -675,9 +675,9 @@ def _extract_colors_from_image(image_bytes: bytes) -> Dict[str, str]:
                     
                     # Use a softer dark gradient for light-themed sites (not pitch black)
                     # This creates a visually appealing preview even for white sites
-                    # FIXED: Use lighter slate colors to avoid "too black" look
-                    primary = (51, 65, 85)  # Slate-700 - softer than Slate-800
-                    secondary = (30, 41, 59)  # Slate-800 - softer than Slate-900
+                    # FIXED: Use even lighter slate colors to avoid "too black" look
+                    primary = (71, 85, 105)  # Slate-600 - much softer, professional
+                    secondary = (51, 65, 85)  # Slate-700 - softer than before
                     
                     # Try to find a brand color for accent (must be colorful, not dark)
                     accent = None
@@ -729,8 +729,8 @@ def _extract_colors_from_image(image_bytes: bytes) -> Dict[str, str]:
                 if light_colors:
                     # All light colors - use softer dark gradient (not pitch black)
                     return {
-                        "primary_color": "#334155",  # Slate-700 - softer than Slate-800
-                        "secondary_color": "#1E293B",  # Slate-800 - softer than Slate-900
+                        "primary_color": "#475569",  # Slate-600 - much softer, professional
+                        "secondary_color": "#334155",  # Slate-700 - softer than before
                         "accent_color": "#F97316"  # Orange accent - vibrant
                     }
                 elif dark_colors:

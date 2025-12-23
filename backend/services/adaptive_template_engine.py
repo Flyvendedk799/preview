@@ -469,8 +469,9 @@ def apply_gradient_background(
     g = (color1[1] * (1 - progress) + color2[1] * progress)
     b = (color1[2] * (1 - progress) + color2[2] * progress)
     
-    # Add random dither noise (-0.5 to 0.5) to eliminate banding artifacts
-    dither = np.random.uniform(-0.5, 0.5, (height, width))
+    # Add stronger random dither noise (-1.5 to +1.5) to eliminate banding artifacts
+    # Stronger dithering needed for dark gradients where banding is more visible
+    dither = np.random.uniform(-1.5, 1.5, (height, width))
     r = np.clip(r + dither, 0, 255).astype(np.uint8)
     g = np.clip(g + dither, 0, 255).astype(np.uint8)
     b = np.clip(b + dither, 0, 255).astype(np.uint8)
