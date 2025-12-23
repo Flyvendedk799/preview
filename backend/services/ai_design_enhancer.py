@@ -259,31 +259,44 @@ def apply_design_improvements(
         # Could apply color adjustments here if needed
         applied_improvements.append("Applied color harmony improvements")
     
-    # Apply contrast improvements
+    # Apply contrast improvements (more aggressive)
     contrast_score = analysis.get('contrast_score', 1.0)
-    if contrast_score < 0.7:
-        logger.info(f"🎨 [AI_DESIGN] Low contrast detected ({contrast_score:.2f}), enhancing...")
-        # Enhance contrast slightly
+    visual_hierarchy = analysis.get('visual_hierarchy_score', 1.0)
+    if contrast_score < 0.7 or visual_hierarchy < 0.6:
+        logger.info(f"🎨 [AI_DESIGN] Low contrast/hierarchy detected (contrast={contrast_score:.2f}, hierarchy={visual_hierarchy:.2f}), enhancing...")
+        # Enhance contrast more aggressively for better hierarchy
         enhancer = ImageEnhance.Contrast(enhanced_image)
-        enhanced_image = enhancer.enhance(1.1)  # 10% increase
-        applied_improvements.append("Enhanced contrast for better readability")
+        enhancement_factor = 1.15 if contrast_score < 0.5 else 1.12  # More aggressive for low scores
+        enhanced_image = enhancer.enhance(enhancement_factor)
+        applied_improvements.append(f"Enhanced contrast ({enhancement_factor:.2f}x) for better visual hierarchy")
     
-    # Apply color harmony improvements
+    # Apply color harmony improvements (more aggressive)
     color_harmony_score = analysis.get('color_harmony_score', 1.0)
-    if color_harmony_score < 0.7:
+    if color_harmony_score < 0.75:
         logger.info(f"🎨 [AI_DESIGN] Low color harmony detected ({color_harmony_score:.2f}), enhancing saturation...")
-        # Enhance color saturation slightly for better harmony
+        # Enhance color saturation for better harmony
         enhancer = ImageEnhance.Color(enhanced_image)
-        enhanced_image = enhancer.enhance(1.05)  # 5% increase
-        applied_improvements.append("Enhanced color harmony")
+        enhancement_factor = 1.08 if color_harmony_score < 0.6 else 1.06
+        enhanced_image = enhancer.enhance(enhancement_factor)
+        applied_improvements.append(f"Enhanced color harmony ({enhancement_factor:.2f}x)")
     
-    # Apply sharpness improvements if needed
+    # Apply brightness adjustments for better balance
+    balance_score = analysis.get('balance_score', 1.0)
+    if balance_score < 0.7:
+        logger.info(f"🎨 [AI_DESIGN] Low balance score ({balance_score:.2f}), adjusting brightness...")
+        enhancer = ImageEnhance.Brightness(enhanced_image)
+        # Slight brightness adjustment for better balance
+        enhanced_image = enhancer.enhance(0.98)  # Slightly darker for better contrast
+        applied_improvements.append("Adjusted brightness for better visual balance")
+    
+    # Apply sharpness improvements if needed (more aggressive)
     composition_score = analysis.get('composition_score', 1.0)
-    if composition_score < 0.6:
-        logger.info(f"🎨 [AI_DESIGN] Low composition score ({composition_score:.2f}), applying subtle sharpening...")
-        # Apply subtle sharpening filter
-        enhanced_image = enhanced_image.filter(ImageFilter.UnsharpMask(radius=1, percent=100, threshold=3))
-        applied_improvements.append("Applied subtle sharpening for better clarity")
+    typography_score = analysis.get('typography_score', 1.0)
+    if composition_score < 0.65 or typography_score < 0.5:
+        logger.info(f"🎨 [AI_DESIGN] Low composition/typography score (comp={composition_score:.2f}, typo={typography_score:.2f}), applying sharpening...")
+        # Apply sharper unsharp mask for better text clarity
+        enhanced_image = enhanced_image.filter(ImageFilter.UnsharpMask(radius=1.5, percent=120, threshold=2))
+        applied_improvements.append("Applied sharpening for better text clarity and composition")
     
     # Log all recommendations for future implementation
     for rec in recommendations:

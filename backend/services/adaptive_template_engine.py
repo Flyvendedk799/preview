@@ -1249,6 +1249,8 @@ class AdaptiveTemplateEngine:
         density_before_ai = unique_before_ai / pixel_count
         
         # 7a. AI-powered design enhancement: apply graphic design principles
+        # NOTE: This runs BEFORE quality fixes so improvements can be applied during rendering
+        # For now, we analyze but apply improvements post-render
         logger.info(f"🎨 [STEP 9a/10] Running AI design composition analysis...")
         try:
             from backend.services.ai_design_enhancer import enhance_with_design_principles
@@ -1256,15 +1258,30 @@ class AdaptiveTemplateEngine:
             if design_analysis:
                 composition_score = design_analysis.get('composition_score', 0)
                 overall_appeal = design_analysis.get('overall_appeal', 'unknown')
+                visual_hierarchy = design_analysis.get('visual_hierarchy_score', 0)
+                typography_score = design_analysis.get('typography_score', 0)
+                color_harmony = design_analysis.get('color_harmony_score', 0)
+                spacing_score = design_analysis.get('spacing_score', 0)
+                
                 logger.info(f"🎨 [STEP 9a/10] Design analysis: composition={composition_score:.2f}, appeal={overall_appeal}")
-                if composition_score < 0.7:
-                    logger.info(f"🎨 [STEP 9a/10] Applying design improvements (score {composition_score:.2f} < 0.7)...")
+                logger.info(f"🎨 [STEP 9a/10] Scores - Hierarchy: {visual_hierarchy:.2f}, Typography: {typography_score:.2f}, Color: {color_harmony:.2f}, Spacing: {spacing_score:.2f}")
+                
+                # Always apply enhancements if score is below threshold
+                if composition_score < 0.8:  # More aggressive threshold
+                    logger.info(f"🎨 [STEP 9a/10] Applying design improvements (score {composition_score:.2f} < 0.8)...")
                     image = enhanced_image
                     applied_improvements = design_analysis.get('applied_improvements', [])
                     if applied_improvements:
                         logger.info(f"🎨 [STEP 9a/10] ✅ Applied design improvements: {applied_improvements}")
+                    
+                    # Log recommendations for future implementation
+                    recommendations = design_analysis.get('recommendations', [])
+                    if recommendations:
+                        logger.info(f"🎨 [STEP 9a/10] 📋 Design recommendations (for future implementation):")
+                        for i, rec in enumerate(recommendations[:5], 1):  # Log top 5
+                            logger.info(f"🎨 [STEP 9a/10]   {i}. {rec.get('type')}: {rec.get('action')} - {rec.get('reason')}")
                 else:
-                    logger.info(f"🎨 [STEP 9a/10] ✅ Design composition is good (score {composition_score:.2f} >= 0.7)")
+                    logger.info(f"🎨 [STEP 9a/10] ✅ Design composition is good (score {composition_score:.2f} >= 0.8)")
             else:
                 logger.warning(f"🎨 [STEP 9a/10] Design analysis failed, skipping enhancement")
         except Exception as e:
