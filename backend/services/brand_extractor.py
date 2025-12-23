@@ -673,21 +673,25 @@ def _extract_colors_from_image(image_bytes: bytes) -> Dict[str, str]:
                     
                     colorful_colors = sorted(all_colors, key=get_saturation, reverse=True)
                     
-                    # Use a professional dark gradient for light-themed sites
+                    # Use a softer dark gradient for light-themed sites (not pitch black)
                     # This creates a visually appealing preview even for white sites
-                    primary = (30, 41, 59)  # Slate-800 - professional dark blue
-                    secondary = (15, 23, 42)  # Slate-900 - deeper for gradient
+                    # FIXED: Use lighter slate colors to avoid "too black" look
+                    primary = (51, 65, 85)  # Slate-700 - softer than Slate-800
+                    secondary = (30, 41, 59)  # Slate-800 - softer than Slate-900
                     
-                    # Try to find a brand color for accent
+                    # Try to find a brand color for accent (must be colorful, not dark)
                     accent = None
                     for c in colorful_colors:
                         sat = get_saturation(c)
-                        if sat > 0.3:  # Has some color
+                        lum = _calculate_luminance(c)
+                        # Must have color AND not be too dark (luminance > 0.3)
+                        if sat > 0.3 and lum > 0.3:
                             accent = c
                             break
                     
+                    # Fallback to vibrant orange if no colorful accent found
                     if not accent:
-                        accent = (249, 115, 22)  # Orange fallback
+                        accent = (249, 115, 22)  # Orange-500 - vibrant and visible
                     
                     colors = {
                         "primary_color": rgb_to_hex(primary),
@@ -723,11 +727,11 @@ def _extract_colors_from_image(image_bytes: bytes) -> Dict[str, str]:
                 # No dark/light separation possible - all colors are same luminance
                 # Use professional gradient fallback
                 if light_colors:
-                    # All light colors - use professional dark gradient
+                    # All light colors - use softer dark gradient (not pitch black)
                     return {
-                        "primary_color": "#1E293B",  # Slate-800
-                        "secondary_color": "#0F172A",  # Slate-900
-                        "accent_color": "#F97316"  # Orange accent
+                        "primary_color": "#334155",  # Slate-700 - softer than Slate-800
+                        "secondary_color": "#1E293B",  # Slate-800 - softer than Slate-900
+                        "accent_color": "#F97316"  # Orange accent - vibrant
                     }
                 elif dark_colors:
                     # All dark colors - use extracted dark with amber accent

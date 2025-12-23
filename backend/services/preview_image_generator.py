@@ -363,10 +363,17 @@ def _draw_gradient_background(
     # Ensure progress is 2D array with shape (height, width)
     progress = np.broadcast_to(progress, (height, width))
     
-    # Interpolate colors
-    r = (color1[0] * (1 - progress) + color2[0] * progress).astype(np.uint8)
-    g = (color1[1] * (1 - progress) + color2[1] * progress).astype(np.uint8)
-    b = (color1[2] * (1 - progress) + color2[2] * progress).astype(np.uint8)
+    # Interpolate colors with dithering to prevent banding
+    # Dithering adds subtle random noise to break up visible color bands
+    r = (color1[0] * (1 - progress) + color2[0] * progress)
+    g = (color1[1] * (1 - progress) + color2[1] * progress)
+    b = (color1[2] * (1 - progress) + color2[2] * progress)
+    
+    # Add random dither noise (-0.5 to 0.5) to each pixel to eliminate banding
+    dither = np.random.uniform(-0.5, 0.5, (height, width))
+    r = np.clip(r + dither, 0, 255).astype(np.uint8)
+    g = np.clip(g + dither, 0, 255).astype(np.uint8)
+    b = np.clip(b + dither, 0, 255).astype(np.uint8)
     
     # Stack into RGB array
     gradient_array = np.stack([r, g, b], axis=2)
