@@ -386,10 +386,10 @@ def _draw_gradient_background(
         v = v1 * (1 - progress) + v2 * progress
         
         # Use PIL's HSV mode for accurate conversion (more reliable than manual conversion)
-        # Scale: H=0-360, S=0-100, V=0-100 for PIL HSV mode
-        h_scaled = (h * 360).astype(np.uint16)
-        s_scaled = (s * 100).astype(np.uint8)
-        v_scaled = (v * 100).astype(np.uint8)
+        # PIL HSV mode: H=0-255 (represents 0-360°), S=0-255 (represents 0-100%), V=0-255 (represents 0-100%)
+        h_scaled = np.clip((h * 255 / 360.0), 0, 255).astype(np.uint8)  # H: 0-360° -> 0-255
+        s_scaled = np.clip((s * 255), 0, 255).astype(np.uint8)  # S: 0-1 -> 0-255
+        v_scaled = np.clip((v * 255), 0, 255).astype(np.uint8)  # V: 0-1 -> 0-255
         
         # Create HSV image
         hsv_array = np.stack([h_scaled, s_scaled, v_scaled], axis=2)
