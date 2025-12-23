@@ -384,28 +384,23 @@ def _draw_gradient_background(
     g = (color1[1] * (1 - progress) + color2[1] * progress)
     b = (color1[2] * (1 - progress) + color2[2] * progress)
     
-    # Use ordered dithering (Bayer matrix) for better banding elimination
-    # Ordered dithering is more effective than random noise for smooth gradients
-    # Create 8x8 Bayer matrix for ordered dithering
-    bayer_matrix = np.array([
-        [0, 32, 8, 40, 2, 34, 10, 42],
-        [48, 16, 56, 24, 50, 18, 58, 26],
-        [12, 44, 4, 36, 14, 46, 6, 38],
-        [60, 28, 52, 20, 62, 30, 54, 22],
-        [3, 35, 11, 43, 1, 33, 9, 41],
-        [51, 19, 59, 27, 49, 17, 57, 25],
-        [15, 47, 7, 39, 13, 45, 5, 37],
-        [63, 31, 55, 23, 61, 29, 53, 21]
-    ], dtype=np.float32) / 64.0 - 0.5  # Normalize to -0.5 to 0.5
+    # Use high-precision gradient with strong noise dithering
+    # Convert to float64 for maximum precision to prevent quantization artifacts
+    r_float = r.astype(np.float64)
+    g_float = g.astype(np.float64)
+    b_float = b.astype(np.float64)
     
-    # Tile Bayer matrix across image
-    bayer_tiled = np.tile(bayer_matrix, (height // 8 + 1, width // 8 + 1))[:height, :width]
+    # Add strong per-pixel random noise to break up banding
+    # Using uniform distribution with high variance for dark gradients
+    noise_strength = 8.0  # Strong noise to eliminate visible banding
+    r_noise = np.random.uniform(-noise_strength, noise_strength, (height, width))
+    g_noise = np.random.uniform(-noise_strength, noise_strength, (height, width))
+    b_noise = np.random.uniform(-noise_strength, noise_strength, (height, width))
     
-    # Apply ordered dithering with stronger intensity for dark gradients
-    dither_strength = 6.0  # Stronger dithering for dark gradients
-    r = np.clip(r + bayer_tiled * dither_strength, 0, 255).astype(np.uint8)
-    g = np.clip(g + bayer_tiled * dither_strength, 0, 255).astype(np.uint8)
-    b = np.clip(b + bayer_tiled * dither_strength, 0, 255).astype(np.uint8)
+    # Apply noise and convert to uint8 with proper rounding
+    r = np.clip(np.round(r_float + r_noise), 0, 255).astype(np.uint8)
+    g = np.clip(np.round(g_float + g_noise), 0, 255).astype(np.uint8)
+    b = np.clip(np.round(b_float + b_noise), 0, 255).astype(np.uint8)
     
     # Stack into RGB array
     gradient_array = np.stack([r, g, b], axis=2)
@@ -423,25 +418,24 @@ def _draw_text_with_shadow(
     text: str,
     font: ImageFont.FreeTypeFont,
     fill: Tuple[int, int, int],
-    shadow_offset: int = 2,
+    shadow_offset: int = 1,
     shadow_color: Tuple[int, int, int, int] = None,
     shadow_blur: int = 0
 ) -> None:
     """
-    Draw text with a SINGLE clean shadow for better readability.
-    FIXED: No more multiple stacked shadows that create messy 3D effect.
+    Draw text with minimal shadow for crisp rendering.
+    FIXED: Reduced shadow offset to 1px and only for very dark backgrounds to prevent blurry 3D effect.
     """
     # CRITICAL FIX: Ensure text is a string to prevent garbled rendering
     text = str(text) if text is not None else ""
     
     x, y = position
     
-    # Only draw shadow for light text on dark backgrounds (where it helps readability)
-    # FIXED: Use very subtle gray shadow instead of black to avoid blurry 3D effect
-    if fill[0] > 200:  # Light text (white/light) - add very subtle shadow
-        # Use light gray shadow (much more subtle than black) with minimal offset
-        shadow_fill = (40, 40, 40)  # Very dark gray instead of pure black
-        # Single shadow layer at small offset (already reduced to 2px)
+    # Only draw shadow for very light text on very dark backgrounds, with minimal offset
+    # Reduced offset to 1px to prevent blurry/3D appearance
+    if fill[0] > 220:  # Very light text (almost white) - add minimal shadow
+        # Use very subtle shadow with 1px offset only
+        shadow_fill = (30, 30, 30)  # Very dark gray
         draw.text((x + shadow_offset, y + shadow_offset), text, font=font, fill=shadow_fill)
     
     # Draw main text on top

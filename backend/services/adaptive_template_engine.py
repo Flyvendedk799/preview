@@ -469,28 +469,23 @@ def apply_gradient_background(
     g = (color1[1] * (1 - progress) + color2[1] * progress)
     b = (color1[2] * (1 - progress) + color2[2] * progress)
     
-    # Use ordered dithering (Bayer matrix) for better banding elimination
-    # Ordered dithering is more effective than random noise for smooth gradients
-    # Create 8x8 Bayer matrix for ordered dithering
-    bayer_matrix = np.array([
-        [0, 32, 8, 40, 2, 34, 10, 42],
-        [48, 16, 56, 24, 50, 18, 58, 26],
-        [12, 44, 4, 36, 14, 46, 6, 38],
-        [60, 28, 52, 20, 62, 30, 54, 22],
-        [3, 35, 11, 43, 1, 33, 9, 41],
-        [51, 19, 59, 27, 49, 17, 57, 25],
-        [15, 47, 7, 39, 13, 45, 5, 37],
-        [63, 31, 55, 23, 61, 29, 53, 21]
-    ], dtype=np.float32) / 64.0 - 0.5  # Normalize to -0.5 to 0.5
+    # Use high-precision gradient with strong noise dithering
+    # Convert to float64 for maximum precision to prevent quantization artifacts
+    r_float = r.astype(np.float64)
+    g_float = g.astype(np.float64)
+    b_float = b.astype(np.float64)
     
-    # Tile Bayer matrix across image
-    bayer_tiled = np.tile(bayer_matrix, (height // 8 + 1, width // 8 + 1))[:height, :width]
+    # Add strong per-pixel random noise to break up banding
+    # Using uniform distribution with high variance for dark gradients
+    noise_strength = 8.0  # Strong noise to eliminate visible banding
+    r_noise = np.random.uniform(-noise_strength, noise_strength, (height, width))
+    g_noise = np.random.uniform(-noise_strength, noise_strength, (height, width))
+    b_noise = np.random.uniform(-noise_strength, noise_strength, (height, width))
     
-    # Apply ordered dithering with stronger intensity for dark gradients
-    dither_strength = 6.0  # Stronger dithering for dark gradients
-    r = np.clip(r + bayer_tiled * dither_strength, 0, 255).astype(np.uint8)
-    g = np.clip(g + bayer_tiled * dither_strength, 0, 255).astype(np.uint8)
-    b = np.clip(b + bayer_tiled * dither_strength, 0, 255).astype(np.uint8)
+    # Apply noise and convert to uint8 with proper rounding
+    r = np.clip(np.round(r_float + r_noise), 0, 255).astype(np.uint8)
+    g = np.clip(np.round(g_float + g_noise), 0, 255).astype(np.uint8)
+    b = np.clip(np.round(b_float + b_noise), 0, 255).astype(np.uint8)
     
     # Stack into RGB array and create image
     gradient_array = np.stack([r, g, b], axis=2)
@@ -612,12 +607,13 @@ def draw_text_with_effects(
     elif text_case == "capitalize":
         text = text.title()
     
-    # Draw shadow if enabled - SINGLE layer only for clean look
+    # Draw shadow if enabled - SINGLE layer only for clean look, minimal offset
     if shadow_params and shadow_params.get("enabled"):
-        offset = shadow_params.get("offset", (2, 2))
-        # Single clean shadow
-        shadow_fill = (0, 0, 0) if color[0] > 128 else (255, 255, 255)
-        draw.text((x + offset[0], y + offset[1]), str(text), font=font, fill=shadow_fill)
+        offset = shadow_params.get("offset", (1, 1))  # Reduced to 1px to prevent blurry effect
+        # Single clean shadow - only for very light text on dark backgrounds
+        if color[0] > 220:  # Very light text
+            shadow_fill = (30, 30, 30)  # Very subtle dark shadow
+            draw.text((x + offset[0], y + offset[1]), str(text), font=font, fill=shadow_fill)
     
     # Draw main text
     draw.text((x, y), str(text), font=font, fill=color)
