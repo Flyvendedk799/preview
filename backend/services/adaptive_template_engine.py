@@ -1413,10 +1413,65 @@ class AdaptiveTemplateEngine:
         
         logger.info(f"🎨 [STEP 2/10] Gradient enabled: {gradients_enabled}, gradient_type: {self.colors.gradient_type}")
         
-        # Use gradient background (from color config or visual effects)
-        if self.colors.gradient_type != "none" or gradients_enabled:
-            logger.info(f"🎨 [STEP 2/10] Applying gradient background...")
-            logger.info(f"🎨 [STEP 2/10] Gradient colors: {self.colors.gradient_colors}")
+        # UPGRADED: ALWAYS apply gradient for visually appealing backgrounds
+        # Plain solid backgrounds look unprofessional in marketing previews
+        # Use the brand's colors to create an elegant gradient
+        should_apply_gradient = True  # Always apply for professional appearance
+        
+        # Determine gradient colors - use brand colors for PROFESSIONAL visual appeal
+        gradient_colors = self.colors.gradient_colors
+        primary = self.colors.primary
+        secondary = self.colors.secondary
+        accent = self.colors.accent
+        background = self.colors.background
+        
+        # Calculate background luminance
+        bg_luminance = (background[0] * 299 + background[1] * 587 + background[2] * 114) / 255000
+        
+        if not gradient_colors or len(gradient_colors) < 2 or bg_luminance > 0.8:
+            # Create a PROFESSIONAL gradient based on background type
+            if bg_luminance > 0.8:
+                # Light background: create sophisticated gradient with brand tint
+                # This makes white backgrounds look more designed and less plain
+                
+                # Create a gentle color wash using the primary color
+                # More noticeable than before for visual impact
+                tint_strength = 0.08  # 8% tint for visible but subtle effect
+                light_tint = (
+                    min(255, int(255 * (1 - tint_strength) + primary[0] * tint_strength)),
+                    min(255, int(255 * (1 - tint_strength) + primary[1] * tint_strength)),
+                    min(255, int(255 * (1 - tint_strength) + primary[2] * tint_strength))
+                )
+                
+                # Add a very subtle accent touch at the other end
+                accent_tint = (
+                    min(255, int(250 * (1 - tint_strength/2) + accent[0] * tint_strength/2)),
+                    min(255, int(250 * (1 - tint_strength/2) + accent[1] * tint_strength/2)),
+                    min(255, int(250 * (1 - tint_strength/2) + accent[2] * tint_strength/2))
+                )
+                
+                gradient_colors = [light_tint, accent_tint]
+                logger.info(f"🎨 [STEP 2/10] Created PROFESSIONAL light gradient: {light_tint} -> {accent_tint}")
+            else:
+                # Dark background: create rich, vibrant gradient
+                # Use primary to accent for energy, or primary to secondary for sophistication
+                primary_lum = (primary[0] * 299 + primary[1] * 587 + primary[2] * 114) / 255000
+                
+                if primary_lum < 0.4:
+                    # Dark primary - create lighter gradient end
+                    lighter_primary = (
+                        min(255, int(primary[0] * 1.3)),
+                        min(255, int(primary[1] * 1.3)),
+                        min(255, int(primary[2] * 1.3))
+                    )
+                    gradient_colors = [primary, lighter_primary]
+                else:
+                    gradient_colors = [primary, secondary]
+                logger.info(f"🎨 [STEP 2/10] Created rich dark gradient: {gradient_colors[0]} -> {gradient_colors[1]}")
+        
+        if should_apply_gradient:
+            logger.info(f"🎨 [STEP 2/10] Applying ENHANCED gradient background...")
+            logger.info(f"🎨 [STEP 2/10] Gradient colors: {gradient_colors}")
             
             # Determine gradient style from visual_effects
             gradient_style = "linear"
@@ -1429,13 +1484,18 @@ class AdaptiveTemplateEngine:
                 logger.info(f"🎨 [STEP 2/10] Gradient type from visual_effects: {gradient_type} -> style: {gradient_style}")
             
             # Calculate angle from gradient_direction
+            # Default to diagonal (135°) for dynamic, professional appearance
             angle_map = {
                 "horizontal": 0,
                 "vertical": 90,
                 "diagonal": 135,
                 "radial": 0  # Radial doesn't use angle
             }
+            # Use diagonal as default for more visual interest
             angle = angle_map.get(gradient_direction, 135)
+            if gradient_direction == "horizontal" and not gradients_enabled:
+                # Override horizontal with diagonal for better aesthetics
+                angle = 145  # Slightly steeper diagonal
             logger.info(f"🎨 [STEP 2/10] Gradient direction '{gradient_direction}' -> angle: {angle}, style: {gradient_style}")
             
             import numpy as np
@@ -1444,7 +1504,7 @@ class AdaptiveTemplateEngine:
             
             image = apply_gradient_background(
                 image,
-                self.colors.gradient_colors,
+                gradient_colors,  # Use the determined gradient colors
                 angle=angle,
                 style=gradient_style
             )
@@ -1452,8 +1512,6 @@ class AdaptiveTemplateEngine:
             img_array_after_gradient = np.array(image)
             unique_after_gradient = len(np.unique(img_array_after_gradient.reshape(-1, 3), axis=0))
             logger.info(f"🎨 [STEP 2/10] ✅ Gradient applied: unique_colors={unique_after_gradient} (change: {unique_after_gradient-unique_before_gradient:+d})")
-        else:
-            logger.info(f"🎨 [STEP 2/10] No gradient background (gradient_type={self.colors.gradient_type}, gradients_enabled={gradients_enabled})")
         
         # Add screenshot as subtle background for certain styles
         if screenshot_bytes and style in ["bold", "playful", "maximalist"]:
