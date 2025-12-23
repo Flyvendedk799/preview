@@ -366,7 +366,8 @@ def _draw_gradient_background(
     import numpy as np
     
     if direction == "diagonal":
-        # Create diagonal gradient using HSV color space for smoother perceptual transitions
+        # Create diagonal gradient using PIL's HSV mode for smoother perceptual transitions
+        # This is more reliable than manual HSV conversion
         import colorsys
         
         # Convert RGB to HSV for smoother interpolation
@@ -384,70 +385,31 @@ def _draw_gradient_background(
         s = s1 * (1 - progress) + s2 * progress
         v = v1 * (1 - progress) + v2 * progress
         
-        # Convert HSV to RGB using vectorized operations
-        # HSV to RGB conversion formula
-        c = v * s
-        x = c * (1 - np.abs((h * 6) % 2 - 1))
-        m = v - c
+        # Use PIL's HSV mode for accurate conversion (more reliable than manual conversion)
+        # Scale: H=0-360, S=0-100, V=0-100 for PIL HSV mode
+        h_scaled = (h * 360).astype(np.uint16)
+        s_scaled = (s * 100).astype(np.uint8)
+        v_scaled = (v * 100).astype(np.uint8)
         
-        # Determine which sector of the color wheel
-        h6 = h * 6
-        sector = np.floor(h6).astype(int) % 6
+        # Create HSV image
+        hsv_array = np.stack([h_scaled, s_scaled, v_scaled], axis=2)
+        hsv_img = Image.fromarray(hsv_array, mode='HSV')
         
-        # Build RGB arrays based on sector
-        r_float = np.zeros_like(h)
-        g_float = np.zeros_like(h)
-        b_float = np.zeros_like(h)
-        
-        mask0 = (sector == 0)
-        mask1 = (sector == 1)
-        mask2 = (sector == 2)
-        mask3 = (sector == 3)
-        mask4 = (sector == 4)
-        mask5 = (sector == 5)
-        
-        r_float[mask0] = c[mask0]
-        r_float[mask1] = x[mask1]
-        r_float[mask2] = 0
-        r_float[mask3] = 0
-        r_float[mask4] = x[mask4]
-        r_float[mask5] = c[mask5]
-        
-        g_float[mask0] = x[mask0]
-        g_float[mask1] = c[mask1]
-        g_float[mask2] = c[mask2]
-        g_float[mask3] = x[mask3]
-        g_float[mask4] = 0
-        g_float[mask5] = 0
-        
-        b_float[mask0] = 0
-        b_float[mask1] = 0
-        b_float[mask2] = x[mask2]
-        b_float[mask3] = c[mask3]
-        b_float[mask4] = c[mask4]
-        b_float[mask5] = x[mask5]
-        
-        # Add m and scale to 0-255
-        r_float = (r_float + m) * 255
-        g_float = (g_float + m) * 255
-        b_float = (b_float + m) * 255
-        
-        rgb_array = np.stack([r_float, g_float, b_float], axis=2)
+        # Convert HSV to RGB using PIL (most accurate method)
+        high_res_img = hsv_img.convert('RGB')
         
         # Apply strong Gaussian smoothing before quantization
         try:
             from scipy import ndimage
+            rgb_array = np.array(high_res_img, dtype=np.float64)
             rgb_array[:, :, 0] = ndimage.gaussian_filter(rgb_array[:, :, 0], sigma=2.0)
             rgb_array[:, :, 1] = ndimage.gaussian_filter(rgb_array[:, :, 1], sigma=2.0)
             rgb_array[:, :, 2] = ndimage.gaussian_filter(rgb_array[:, :, 2], sigma=2.0)
+            high_res_img = Image.fromarray(np.clip(np.round(rgb_array), 0, 255).astype(np.uint8), mode='RGB')
             logger.debug("Applied scipy Gaussian filter in HSV space")
         except ImportError:
             logger.debug("Scipy not available, using downscale smoothing only")
             pass
-        
-        # Convert to uint8
-        gradient_array = np.clip(np.round(rgb_array), 0, 255).astype(np.uint8)
-        high_res_img = Image.fromarray(gradient_array, mode='RGB')
             
     elif direction == "radial":
         # Radial gradient using concentric circles
