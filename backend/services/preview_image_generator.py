@@ -440,63 +440,6 @@ def _draw_gradient_background(
         except ImportError:
             logger.debug("Scipy not available, using downscale smoothing only")
             pass
-            
-    elif direction == "radial":
-        # Radial gradient using concentric circles
-        center_x, center_y = high_width // 2, high_height // 2
-        max_radius = int(math.sqrt(center_x**2 + center_y**2))
-        
-        num_rings = max_radius * 2
-        for i in range(num_rings):
-            radius_start = int(i * max_radius / num_rings)
-            radius_end = int((i + 1) * max_radius / num_rings)
-            progress = (i + 0.5) / num_rings
-            
-            r = int(color1[0] * (1 - progress) + color2[0] * progress)
-            g = int(color1[1] * (1 - progress) + color2[1] * progress)
-            b = int(color1[2] * (1 - progress) + color2[2] * progress)
-            
-            # Draw ring
-            bbox = [
-                (center_x - radius_end, center_y - radius_end),
-                (center_x + radius_end, center_y + radius_end)
-            ]
-            draw.ellipse(bbox, fill=(r, g, b))
-            if radius_start > 0:
-                inner_bbox = [
-                    (center_x - radius_start, center_y - radius_start),
-                    (center_x + radius_start, center_y + radius_start)
-                ]
-                draw.ellipse(inner_bbox, fill=color1)
-    else:  # horizontal or vertical
-        # Simple vertical gradient with many strips
-        num_strips = high_height * 2
-        for i in range(num_strips):
-            y_start = int(i * high_height / num_strips)
-            y_end = int((i + 1) * high_height / num_strips)
-            progress = (i + 0.5) / num_strips
-            
-            r = int(color1[0] * (1 - progress) + color2[0] * progress)
-            g = int(color1[1] * (1 - progress) + color2[1] * progress)
-            b = int(color1[2] * (1 - progress) + color2[2] * progress)
-            
-            draw.rectangle([(0, y_start), (high_width, y_end)], fill=(r, g, b))
-    
-    # Apply smooth downscaling using LANCZOS resampling (best quality)
-    gradient_img = high_res_img.resize((width, height), Image.Resampling.LANCZOS)
-    
-    # Apply multiple smoothing passes to eliminate any remaining banding
-    gradient_img = gradient_img.filter(ImageFilter.SMOOTH_MORE)
-    gradient_img = gradient_img.filter(ImageFilter.SMOOTH_MORE)  # Second pass for extra smoothness
-    # Apply stronger Gaussian blur as final smoothing to eliminate banding
-    gradient_img = gradient_img.filter(ImageFilter.GaussianBlur(radius=1.2))
-    
-    # Paste onto original image
-    image.paste(gradient_img)
-    
-    logger.debug(f"Generated gradient using high-res method: {width}x{height} -> {high_width}x{high_height} -> {width}x{height}")
-    
-    return image
 
 
 def _draw_text_with_shadow(
