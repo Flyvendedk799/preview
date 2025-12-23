@@ -1139,6 +1139,68 @@ class AdaptiveTemplateEngine:
         if self._content is None:
             self._content = content
         
+        # =================================================================
+        # AI DESIGN DIRECTOR: Let AI make creative design decisions
+        # =================================================================
+        ai_design_decisions = None
+        if screenshot_bytes:
+            try:
+                from backend.services.ai_design_director import get_ai_design_decisions, get_default_design_decisions
+                
+                # Get AI's creative decisions based on the screenshot
+                extracted_colors = {
+                    'primary_color': rgb_to_hex(self.colors.primary),
+                    'secondary_color': rgb_to_hex(self.colors.secondary),
+                    'accent_color': rgb_to_hex(self.colors.accent)
+                }
+                
+                brand_name = getattr(content, 'brand_name', '') or ''
+                ai_design_decisions = get_ai_design_decisions(
+                    screenshot_bytes,
+                    brand_name=brand_name,
+                    extracted_colors=extracted_colors
+                )
+                
+                if ai_design_decisions:
+                    logger.info(f"🎨 [AI_DIRECTOR] ✅ AI design decisions received")
+                    
+                    # Apply AI's background decisions
+                    bg_decisions = ai_design_decisions.get('background', {})
+                    if bg_decisions:
+                        # Override background with AI's choice
+                        primary_hex = bg_decisions.get('primary_color', '')
+                        secondary_hex = bg_decisions.get('secondary_color', '')
+                        if primary_hex:
+                            self.colors = self.colors._replace(
+                                background=hex_to_rgb(primary_hex)
+                            ) if hasattr(self.colors, '_replace') else self.colors
+                            # Store AI gradient colors
+                            self._ai_gradient_colors = [
+                                hex_to_rgb(primary_hex),
+                                hex_to_rgb(secondary_hex) if secondary_hex else self.colors.secondary
+                            ]
+                            self._ai_gradient_angle = bg_decisions.get('angle', 135)
+                            self._ai_gradient_style = bg_decisions.get('style', 'diagonal')
+                            logger.info(f"🎨 [AI_DIRECTOR] Background: {primary_hex} -> {secondary_hex}, angle={self._ai_gradient_angle}")
+                    
+                    # Apply AI's text color decisions
+                    color_decisions = ai_design_decisions.get('colors', {})
+                    if color_decisions:
+                        self._ai_text_color = hex_to_rgb(color_decisions.get('text_color', '#FFFFFF'))
+                        self._ai_use_dark_bg = color_decisions.get('use_dark_bg', False)
+                        logger.info(f"🎨 [AI_DIRECTOR] Text color: {color_decisions.get('text_color')}, dark_bg={self._ai_use_dark_bg}")
+                    
+                    # Apply visual style decisions
+                    visual_decisions = ai_design_decisions.get('visual_style', {})
+                    if visual_decisions:
+                        self._ai_vignette_strength = visual_decisions.get('vignette_strength', 0.15)
+                        self._ai_use_accent_bar = visual_decisions.get('use_accent_bar', True)
+                        logger.info(f"🎨 [AI_DIRECTOR] Style: vignette={self._ai_vignette_strength}, accent_bar={self._ai_use_accent_bar}")
+                else:
+                    logger.warning(f"🎨 [AI_DIRECTOR] AI decisions failed, using defaults")
+            except Exception as e:
+                logger.warning(f"🎨 [AI_DIRECTOR] Error getting AI decisions: {e}")
+        
         # Create base image with dithering to prevent banding
         # Even solid colors need dithering to prevent quantization artifacts
         import numpy as np
@@ -1469,8 +1531,13 @@ class AdaptiveTemplateEngine:
                     gradient_colors = [primary, secondary]
                 logger.info(f"🎨 [STEP 2/10] Created rich dark gradient: {gradient_colors[0]} -> {gradient_colors[1]}")
         
+        # Check if AI Director has made gradient decisions
+        if hasattr(self, '_ai_gradient_colors') and self._ai_gradient_colors:
+            gradient_colors = self._ai_gradient_colors
+            logger.info(f"🎨 [STEP 2/10] Using AI DIRECTOR gradient colors: {gradient_colors}")
+        
         if should_apply_gradient:
-            logger.info(f"🎨 [STEP 2/10] Applying ENHANCED gradient background...")
+            logger.info(f"🎨 [STEP 2/10] Applying AI-DIRECTED gradient background...")
             logger.info(f"🎨 [STEP 2/10] Gradient colors: {gradient_colors}")
             
             # Determine gradient style from visual_effects
@@ -1483,20 +1550,28 @@ class AdaptiveTemplateEngine:
                     gradient_style = "linear"  # Use linear for diagonal/conic
                 logger.info(f"🎨 [STEP 2/10] Gradient type from visual_effects: {gradient_type} -> style: {gradient_style}")
             
-            # Calculate angle from gradient_direction
-            # Default to diagonal (135°) for dynamic, professional appearance
-            angle_map = {
-                "horizontal": 0,
-                "vertical": 90,
-                "diagonal": 135,
-                "radial": 0  # Radial doesn't use angle
-            }
-            # Use diagonal as default for more visual interest
-            angle = angle_map.get(gradient_direction, 135)
-            if gradient_direction == "horizontal" and not gradients_enabled:
-                # Override horizontal with diagonal for better aesthetics
-                angle = 145  # Slightly steeper diagonal
-            logger.info(f"🎨 [STEP 2/10] Gradient direction '{gradient_direction}' -> angle: {angle}, style: {gradient_style}")
+            # Calculate angle - prioritize AI Director's decision
+            if hasattr(self, '_ai_gradient_angle') and self._ai_gradient_angle:
+                angle = self._ai_gradient_angle
+                logger.info(f"🎨 [STEP 2/10] Using AI DIRECTOR angle: {angle}°")
+            else:
+                # Fallback to direction-based angle
+                angle_map = {
+                    "horizontal": 0,
+                    "vertical": 90,
+                    "diagonal": 135,
+                    "radial": 0
+                }
+                angle = angle_map.get(gradient_direction, 135)
+                if gradient_direction == "horizontal" and not gradients_enabled:
+                    angle = 145  # Better aesthetics
+            
+            # Check AI's gradient style preference
+            if hasattr(self, '_ai_gradient_style') and self._ai_gradient_style:
+                gradient_style = self._ai_gradient_style if self._ai_gradient_style != 'diagonal' else 'linear'
+                logger.info(f"🎨 [STEP 2/10] Using AI DIRECTOR style: {gradient_style}")
+            
+            logger.info(f"🎨 [STEP 2/10] Final gradient: angle={angle}°, style={gradient_style}")
             
             import numpy as np
             img_array_before_gradient = np.array(image)
@@ -1921,19 +1996,22 @@ class AdaptiveTemplateEngine:
             title = title.capitalize()
         # "mixed" keeps original case
         
-        # CRITICAL FIX: Use ACTUAL RENDERED BACKGROUND for text color, not brand balance
-        actual_bg = self.colors.background
-        actual_bg_luminance = (actual_bg[0] * 299 + actual_bg[1] * 587 + actual_bg[2] * 114) / 255000
-        is_light_bg = actual_bg_luminance > 0.5
-        
-        if is_light_bg:
-            # Dark text on light background - MAXIMUM CONTRAST
-            text_color = (17, 24, 39)  # Near-black for excellent contrast
+        # PRIORITY: Use AI Director's text color decision if available
+        if hasattr(self, '_ai_text_color') and self._ai_text_color:
+            text_color = self._ai_text_color
+            logger.info(f"🎨 Headline text color: AI DIRECTOR chose {text_color}")
         else:
-            # White text on dark background
-            text_color = (255, 255, 255)
-        
-        logger.info(f"🎨 Headline text color: bg={actual_bg}, luminance={actual_bg_luminance:.2f}, text_color={text_color}")
+            # Fallback: Use ACTUAL RENDERED BACKGROUND for text color
+            actual_bg = self.colors.background
+            actual_bg_luminance = (actual_bg[0] * 299 + actual_bg[1] * 587 + actual_bg[2] * 114) / 255000
+            is_light_bg = actual_bg_luminance > 0.5
+            
+            if is_light_bg:
+                text_color = (17, 24, 39)  # Dark on light
+            else:
+                text_color = (255, 255, 255)  # White on dark
+            
+            logger.info(f"🎨 Headline text color: calculated from bg={actual_bg}, text_color={text_color}")
         
         # Get shadow params based on design style and visual effects
         visual_effects = getattr(self.dna, 'visual_effects', None)
@@ -2211,10 +2289,10 @@ class AdaptiveTemplateEngine:
     
     def _get_color_for_element(self, element_type: str) -> Tuple[int, int, int]:
         """
-        Get color for element based on ACTUAL RENDERED BACKGROUND for proper contrast.
+        Get color for element - PRIORITIZES AI Director's decisions.
         
-        CRITICAL FIX: Uses the actual background color being rendered,
-        NOT the extracted brand colors, to ensure readable text contrast.
+        Uses AI's creative direction if available, otherwise falls back
+        to calculated colors based on actual rendered background.
         
         Args:
             element_type: Type of element (headline, subtitle, description, accent_bar, etc.)
@@ -2222,12 +2300,23 @@ class AdaptiveTemplateEngine:
         Returns:
             RGB color tuple with guaranteed contrast against background
         """
+        # PRIORITY: Check if AI Director made text color decision
+        if hasattr(self, '_ai_text_color') and self._ai_text_color and element_type in ['headline', 'subtitle', 'proof']:
+            ai_text = self._ai_text_color
+            if element_type == 'subtitle':
+                # Slightly muted version of AI's text color
+                return tuple(max(0, min(255, int(c * 0.85 + 30))) for c in ai_text)
+            elif element_type == 'proof':
+                return tuple(max(0, min(255, int(c * 0.9 + 20))) for c in ai_text)
+            logger.info(f"🎨 Using AI DIRECTOR text color for {element_type}: {ai_text}")
+            return ai_text
+        
         color_usage_pattern = getattr(self.dna.color_psychology, 'color_usage_pattern', '')
         accent_usage = getattr(self.dna.color_psychology, 'accent_usage', '')
         saturation_character = getattr(self.dna.color_psychology, 'saturation_character', 'balanced')
         
-        # CRITICAL: Calculate luminance from ACTUAL RENDERED BACKGROUND, not brand balance
-        actual_bg = self.colors.background  # This is what's actually being rendered
+        # Calculate luminance from ACTUAL RENDERED BACKGROUND
+        actual_bg = self.colors.background
         actual_bg_luminance = (actual_bg[0] * 299 + actual_bg[1] * 587 + actual_bg[2] * 114) / 255000
         is_light_bg = actual_bg_luminance > 0.5
         
