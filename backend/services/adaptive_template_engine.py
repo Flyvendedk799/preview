@@ -1180,8 +1180,10 @@ class AdaptiveTemplateEngine:
         force_gradient: bool = False
     ) -> Image.Image:
         """Apply background based on design style and visual effects from Design DNA."""
+        logger.info(f"🎨 [ADAPTIVE_TEMPLATE] _apply_background called: {image.size}, force_gradient={force_gradient}")
         style = self.dna.philosophy.primary_style.lower()
         visual_effects = getattr(self.dna, 'visual_effects', None)
+        logger.info(f"🎨 [ADAPTIVE_TEMPLATE] Style: {style}, visual_effects present: {visual_effects is not None}")
         
         # PHASE 2: Check if gradients are enabled in visual effects or forced by composition
         gradients_enabled = force_gradient
@@ -1189,9 +1191,15 @@ class AdaptiveTemplateEngine:
         if visual_effects:
             gradients_enabled = gradients_enabled or getattr(visual_effects, 'gradients', 'none') != 'none'
             gradient_direction = getattr(visual_effects, 'gradient_direction', 'horizontal')
+            logger.info(f"🎨 [ADAPTIVE_TEMPLATE] Visual effects gradients: {getattr(visual_effects, 'gradients', 'none')}, direction: {gradient_direction}")
+        
+        logger.info(f"🎨 [ADAPTIVE_TEMPLATE] Gradient enabled: {gradients_enabled}, gradient_type: {self.colors.gradient_type}")
         
         # Use gradient background (from color config or visual effects)
         if self.colors.gradient_type != "none" or gradients_enabled:
+            logger.info(f"🎨 [ADAPTIVE_TEMPLATE] Applying gradient background...")
+            logger.info(f"🎨 [ADAPTIVE_TEMPLATE] Gradient colors: {self.colors.gradient_colors}")
+            
             # Determine gradient style from visual_effects
             gradient_style = "linear"
             if visual_effects:
@@ -1200,6 +1208,7 @@ class AdaptiveTemplateEngine:
                     gradient_style = "radial"
                 elif gradient_type in ["conic", "diagonal"]:
                     gradient_style = "linear"  # Use linear for diagonal/conic
+                logger.info(f"🎨 [ADAPTIVE_TEMPLATE] Gradient type from visual_effects: {gradient_type} -> style: {gradient_style}")
             
             # Calculate angle from gradient_direction
             angle_map = {
@@ -1209,6 +1218,7 @@ class AdaptiveTemplateEngine:
                 "radial": 0  # Radial doesn't use angle
             }
             angle = angle_map.get(gradient_direction, 135)
+            logger.info(f"🎨 [ADAPTIVE_TEMPLATE] Gradient direction '{gradient_direction}' -> angle: {angle}, style: {gradient_style}")
             
             image = apply_gradient_background(
                 image,
@@ -1216,6 +1226,9 @@ class AdaptiveTemplateEngine:
                 angle=angle,
                 style=gradient_style
             )
+            logger.info(f"🎨 [ADAPTIVE_TEMPLATE] ✅ Gradient background applied")
+        else:
+            logger.info(f"🎨 [ADAPTIVE_TEMPLATE] No gradient background (gradient_type={self.colors.gradient_type}, gradients_enabled={gradients_enabled})")
         
         # Add screenshot as subtle background for certain styles
         if screenshot_bytes and style in ["bold", "playful", "maximalist"]:
@@ -1462,24 +1475,30 @@ class AdaptiveTemplateEngine:
         # Render based on button style
         if button_style == "gradient" and gradients_enabled:
             # Gradient bar
+            logger.warning(f"🎨 [ADAPTIVE_TEMPLATE] ⚠️ Using OLD gradient method in _render_accent_bar - this may cause banding!")
+            logger.info(f"🎨 [ADAPTIVE_TEMPLATE] Accent bar gradient: {w}x{h}, direction={gradient_direction}")
             from backend.services.color_psychology import generate_gradient_colors
             gradient_colors = generate_gradient_colors(
                 self.colors.accent,
                 self.colors.secondary,
                 steps=min(w, 100)  # Limit steps for performance
             )
+            logger.info(f"🎨 [ADAPTIVE_TEMPLATE] Generated {len(gradient_colors)} gradient colors for accent bar")
             
             # Apply gradient based on direction
             if gradient_direction == "horizontal":
+                logger.info(f"🎨 [ADAPTIVE_TEMPLATE] Drawing horizontal gradient bar: {w} steps")
                 for i in range(min(w, len(gradient_colors))):
                     color_idx = int((i / w) * (len(gradient_colors) - 1))
                     draw.rectangle([(x + i, y), (x + i + 1, y + h)], fill=gradient_colors[color_idx])
             elif gradient_direction == "vertical":
+                logger.info(f"🎨 [ADAPTIVE_TEMPLATE] Drawing vertical gradient bar: {h} steps")
                 for i in range(min(h, len(gradient_colors))):
                     color_idx = int((i / h) * (len(gradient_colors) - 1))
                     draw.rectangle([(x, y + i), (x + w, y + i + 1)], fill=gradient_colors[color_idx])
             else:
                 # Default to horizontal
+                logger.info(f"🎨 [ADAPTIVE_TEMPLATE] Drawing default horizontal gradient bar: {w} steps")
                 for i in range(min(w, len(gradient_colors))):
                     color_idx = int((i / w) * (len(gradient_colors) - 1))
                     draw.rectangle([(x + i, y), (x + i + 1, y + h)], fill=gradient_colors[color_idx])
