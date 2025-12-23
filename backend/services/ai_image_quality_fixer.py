@@ -220,27 +220,9 @@ def apply_ai_recommended_fixes(
     applied_fixes = []
     fixed_image = image.copy()
     
-    # Check for banding issues
+    # Check for banding issues - store for later (dithering must be LAST)
     has_banding = analysis.get("has_banding", False)
     banding_severity = analysis.get("banding_severity", "none")
-    
-    if has_banding and banding_severity != "none":
-        # Apply dithering instead of blur - blur masks the problem, dithering fixes it
-        import numpy as np
-        from backend.services.gradient_generator import apply_fast_dithering
-        
-        logger.info(f"🔧 Applying fast dithering to fix banding (severity: {banding_severity})")
-        img_array = np.array(fixed_image)
-        # Increase dithering strength - mild banding needs stronger dithering
-        dithered_array = apply_fast_dithering(img_array, strength={
-            "mild": 5.0,      # Increased from 4.0 for better coverage
-            "moderate": 7.0,  # Increased from 5.0 - moderate needs stronger dithering
-            "severe": 9.0     # Increased from 6.0 - severe needs very strong dithering
-        }.get(banding_severity, 4.0))
-        
-        fixed_image = Image.fromarray(dithered_array, mode='RGB')
-        applied_fixes.append(f"Applied fast dithering (strength={banding_severity}) to fix gradient banding")
-        logger.info(f"🔧 Fixed banding with dithering (strength: {banding_severity})")
     
     # Check for blurry text (we can't fix this post-render, but we log it)
     has_blurry_text = analysis.get("has_blurry_text", False)
@@ -248,24 +230,48 @@ def apply_ai_recommended_fixes(
         applied_fixes.append("Blurry text detected - consider reducing shadow offset in next generation")
         logger.warning("⚠️ Blurry text detected - this should be fixed in rendering phase")
     
-    # Check for color artifacts
+    # Check for color artifacts - SKIP smoothing if banding is detected
+    # SMOOTH_MORE undoes dithering, so we can't use it when fighting banding
     has_color_artifacts = analysis.get("has_color_artifacts", False)
-    if has_color_artifacts:
-        # Apply subtle color smoothing
-        fixed_image = fixed_image.filter(ImageFilter.SMOOTH_MORE)
-        applied_fixes.append("Applied color smoothing to reduce artifacts")
-        logger.info("🔧 Applied color smoothing")
+    if has_color_artifacts and not has_banding:
+        # Only apply smoothing if NO banding - smoothing causes banding
+        fixed_image = fixed_image.filter(ImageFilter.SMOOTH)  # Use SMOOTH not SMOOTH_MORE (less aggressive)
+        applied_fixes.append("Applied light color smoothing to reduce artifacts")
+        logger.info("🔧 Applied light color smoothing (no banding detected)")
+    elif has_color_artifacts:
+        logger.info("🔧 Skipping color smoothing - would undo banding fix")
     
-    # Apply recommended fixes from AI
+    # Apply recommended fixes from AI - but SKIP smoothing to prevent banding
     recommended_fixes = analysis.get("recommended_fixes", [])
     for fix in recommended_fixes:
-        if fix == "smooth_colors" and "smooth_colors" not in applied_fixes:
-            fixed_image = fixed_image.filter(ImageFilter.SMOOTH_MORE)
-            applied_fixes.append("Applied color smoothing")
+        if fix == "smooth_colors":
+            # SKIP - smoothing causes banding
+            logger.info("🔧 Skipping smooth_colors - causes banding artifacts")
         elif fix == "enhance_contrast":
             enhancer = ImageEnhance.Contrast(fixed_image)
             fixed_image = enhancer.enhance(1.1)  # Slight contrast boost
             applied_fixes.append("Enhanced contrast slightly")
+    
+    # CRITICAL: Apply dithering LAST after all other fixes
+    # Dithering must be the final step or other filters will undo it
+    if has_banding and banding_severity != "none":
+        import numpy as np
+        from backend.services.gradient_generator import apply_fast_dithering
+        
+        logger.info(f"🔧 Applying fast dithering LAST to fix banding (severity: {banding_severity})")
+        img_array = np.array(fixed_image)
+        
+        # Strong dithering strengths to definitively eliminate banding
+        dithering_strength = {
+            "mild": 6.0,      # Strong enough to be visible
+            "moderate": 8.0,  # Very strong for moderate banding
+            "severe": 10.0    # Maximum strength for severe cases
+        }.get(banding_severity, 5.0)
+        
+        dithered_array = apply_fast_dithering(img_array, strength=dithering_strength)
+        fixed_image = Image.fromarray(dithered_array, mode='RGB')
+        applied_fixes.append(f"Applied fast dithering (strength={dithering_strength}) to fix banding")
+        logger.info(f"🔧 Fixed banding with dithering (strength: {dithering_strength})")
     
     return fixed_image, applied_fixes
 

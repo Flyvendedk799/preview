@@ -1310,47 +1310,39 @@ class AdaptiveTemplateEngine:
         # Output - save without optimization to preserve dithering
         logger.info(f"🎨 [STEP 10/10] Preparing final save: {image.size}, mode={image.mode}")
         
-        # Check for potential banding sources before saving
+        # ALWAYS apply final dithering as the absolute last step to prevent ANY banding
+        # This is the "banding killer" - runs after all other processing
         img_array = np.array(image)
-        unique_colors = len(np.unique(img_array.reshape(-1, 3), axis=0))
-        color_density = unique_colors / pixel_count
-        logger.info(f"🎨 [STEP 10/10] Final stats before save: unique_colors={unique_colors}, color_density={color_density:.4f}, total_pixels={pixel_count}")
+        unique_colors_before = len(np.unique(img_array.reshape(-1, 3), axis=0))
+        color_density_before = unique_colors_before / pixel_count
+        logger.info(f"🎨 [STEP 10/10] Before final anti-banding: unique_colors={unique_colors_before}, color_density={color_density_before:.4f}")
         
-        if color_density < 0.1:
-            logger.warning(f"🎨 [STEP 10/10] ⚠️ LOW COLOR DENSITY detected! Applying dithering fix...")
-            logger.info(f"🎨 [STEP 10/10] Before dithering fix: unique_colors={unique_colors}, color_density={color_density:.4f}")
-            
-            # Apply fast ordered dithering to increase color diversity and prevent banding
-            # Use stronger dithering since design enhancements may have made banding more visible
-            from backend.services.gradient_generator import apply_fast_dithering
-            logger.info(f"🎨 [STEP 10/10] Applying fast dithering (strength=3.0, increased for better banding prevention)...")
-            dithered_array = apply_fast_dithering(img_array, strength=3.0)
-            image = Image.fromarray(dithered_array, mode='RGB')
-            
-            # Re-check stats after dithering
-            img_array = np.array(image)
-            unique_colors_after = len(np.unique(img_array.reshape(-1, 3), axis=0))
-            color_density_after = unique_colors_after / pixel_count
-            improvement = color_density_after / color_density if color_density > 0 else 1.0
-            logger.info(f"🎨 [STEP 10/10] After dithering: unique_colors={unique_colors_after}, color_density={color_density_after:.4f} (improvement: {improvement:.2f}x)")
-            
-            if improvement < 1.5:
-                logger.warning(f"🎨 [STEP 10/10] ⚠️ Dithering improvement insufficient ({improvement:.2f}x < 1.5x) - applying stronger noise!")
-                # Apply additional random noise if dithering didn't help
-                logger.info(f"🎨 [STEP 10/10] Adding stronger random noise (±4 RGB)...")
-                noise = np.random.randint(-4, 5, img_array.shape, dtype=np.int16)
-                img_array = np.clip(img_array.astype(np.int16) + noise, 0, 255).astype(np.uint8)
-                image = Image.fromarray(img_array, mode='RGB')
-                
-                # Final check
-                unique_colors_final = len(np.unique(img_array.reshape(-1, 3), axis=0))
-                color_density_final = unique_colors_final / pixel_count
-                final_improvement = color_density_final / color_density if color_density > 0 else 1.0
-                logger.info(f"🎨 [STEP 10/10] After noise: unique_colors={unique_colors_final}, color_density={color_density_final:.4f} (total improvement: {final_improvement:.2f}x)")
-            else:
-                logger.info(f"🎨 [STEP 10/10] ✅ Dithering successful - improvement: {improvement:.2f}x")
-        else:
-            logger.info(f"🎨 [STEP 10/10] ✅ Color density acceptable ({color_density:.4f} >= 0.1) - no dithering needed")
+        # ALWAYS apply dithering - use strong value to guarantee no banding
+        from backend.services.gradient_generator import apply_fast_dithering
+        dithering_strength = 5.0  # Strong enough to eliminate any remaining banding
+        logger.info(f"🎨 [STEP 10/10] Applying FINAL anti-banding dithering (strength={dithering_strength})...")
+        dithered_array = apply_fast_dithering(img_array, strength=dithering_strength)
+        
+        # Also add subtle noise to break up any patterns
+        logger.info(f"🎨 [STEP 10/10] Adding subtle noise (±3 RGB) for final banding prevention...")
+        noise = np.random.randint(-3, 4, dithered_array.shape, dtype=np.int16)
+        final_array = np.clip(dithered_array.astype(np.int16) + noise, 0, 255).astype(np.uint8)
+        image = Image.fromarray(final_array, mode='RGB')
+        
+        # Verify improvement
+        unique_colors_after = len(np.unique(final_array.reshape(-1, 3), axis=0))
+        color_density_after = unique_colors_after / pixel_count
+        improvement = color_density_after / color_density_before if color_density_before > 0 else 1.0
+        logger.info(f"🎨 [STEP 10/10] After anti-banding: unique_colors={unique_colors_after}, color_density={color_density_after:.4f} (improvement: {improvement:.2f}x)")
+        
+        if color_density_after < 0.15:
+            # Still low - apply even stronger noise
+            logger.warning(f"🎨 [STEP 10/10] ⚠️ Color density still low ({color_density_after:.4f}) - applying emergency noise!")
+            noise = np.random.randint(-5, 6, final_array.shape, dtype=np.int16)
+            final_array = np.clip(final_array.astype(np.int16) + noise, 0, 255).astype(np.uint8)
+            image = Image.fromarray(final_array, mode='RGB')
+            unique_colors_final = len(np.unique(final_array.reshape(-1, 3), axis=0))
+            logger.info(f"🎨 [STEP 10/10] After emergency noise: unique_colors={unique_colors_final}")
         
         buffer = BytesIO()
         logger.info(f"🎨 [STEP 10/10] Saving PNG (optimize=False to preserve dithering)...")
