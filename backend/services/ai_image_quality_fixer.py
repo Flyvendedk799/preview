@@ -14,19 +14,24 @@ import json
 from io import BytesIO
 from typing import Dict, Any, Optional, Tuple
 from PIL import Image, ImageFilter, ImageEnhance
-from openai import OpenAI
 
 from backend.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Check if OpenAI is available
+# Check if OpenAI is available (conditional import)
 try:
-    OpenAI(api_key=settings.OPENAI_API_KEY)
-    AI_AVAILABLE = True
-except Exception:
+    from openai import OpenAI
+    try:
+        OpenAI(api_key=settings.OPENAI_API_KEY)
+        AI_AVAILABLE = True
+    except Exception:
+        AI_AVAILABLE = False
+        logger.warning("OpenAI not available - AI image quality fixes disabled")
+except ImportError:
     AI_AVAILABLE = False
-    logger.warning("OpenAI not available - AI image quality fixes disabled")
+    OpenAI = None
+    logger.warning("OpenAI package not installed - AI image quality fixes disabled")
 
 
 BANDING_DETECTION_PROMPT = """Analyze this preview image for visual quality issues, specifically:
