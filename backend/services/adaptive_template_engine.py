@@ -1115,21 +1115,22 @@ class AdaptiveTemplateEngine:
         base_array = np.full((self.height, self.width, 3), bg_color, dtype=np.uint8)
         logger.info(f"🎨 [STEP 1/10] Base array created: shape={base_array.shape}, dtype={base_array.dtype}, unique_colors={len(np.unique(base_array.reshape(-1, 3), axis=0))}")
         
-        # Apply fast ordered dithering for smooth appearance (much faster than Floyd-Steinberg)
-        from backend.services.gradient_generator import apply_fast_dithering
-        logger.info(f"🎨 [STEP 1/10] Applying fast ordered dithering (strength=3.0)...")
-        base_array = apply_fast_dithering(base_array, strength=3.0)
-        unique_after_dither = len(np.unique(base_array.reshape(-1, 3), axis=0))
-        logger.info(f"🎨 [STEP 1/10] After dithering: unique_colors={unique_after_dither}")
-        
-        # Add additional subtle random noise for extra color diversity
-        logger.info(f"🎨 [STEP 1/10] Adding random noise (±2 RGB)...")
-        noise = np.random.randint(-2, 3, (self.height, self.width, 3), dtype=np.int16)
+        # For solid colors, ordered dithering doesn't help much - use stronger noise directly
+        # Apply strong random noise first to create color diversity
+        logger.info(f"🎨 [STEP 1/10] Adding strong random noise (±5 RGB) for color diversity...")
+        noise = np.random.randint(-5, 6, (self.height, self.width, 3), dtype=np.int16)
         base_array = np.clip(base_array.astype(np.int16) + noise, 0, 255).astype(np.uint8)
         unique_after_noise = len(np.unique(base_array.reshape(-1, 3), axis=0))
+        logger.info(f"🎨 [STEP 1/10] After noise: unique_colors={unique_after_noise}")
+        
+        # Then apply fast ordered dithering for smooth appearance
+        from backend.services.gradient_generator import apply_fast_dithering
+        logger.info(f"🎨 [STEP 1/10] Applying fast ordered dithering (strength=4.0)...")
+        base_array = apply_fast_dithering(base_array, strength=4.0)
+        unique_after_dither = len(np.unique(base_array.reshape(-1, 3), axis=0))
         pixel_count = self.width * self.height
-        color_density = unique_after_noise / pixel_count
-        logger.info(f"🎨 [STEP 1/10] After noise: unique_colors={unique_after_noise}, color_density={color_density:.4f}")
+        color_density = unique_after_dither / pixel_count
+        logger.info(f"🎨 [STEP 1/10] After dithering: unique_colors={unique_after_dither}, color_density={color_density:.4f}")
         
         image = Image.fromarray(base_array, mode='RGB')
         logger.info(f"🎨 [STEP 1/10] ✅ Base image created: {image.size}, mode={image.mode}")
