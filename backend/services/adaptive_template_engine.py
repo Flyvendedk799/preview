@@ -475,9 +475,9 @@ def apply_gradient_background(
     g_float = g.astype(np.float64)
     b_float = b.astype(np.float64)
     
-    # Add strong per-pixel random noise to break up banding
-    # Using uniform distribution with high variance for dark gradients
-    noise_strength = 8.0  # Strong noise to eliminate visible banding
+    # Add moderate per-pixel random noise to break up banding
+    # Combined with blur filter for smooth gradients
+    noise_strength = 4.0  # Moderate noise - blur will smooth it out
     r_noise = np.random.uniform(-noise_strength, noise_strength, (height, width))
     g_noise = np.random.uniform(-noise_strength, noise_strength, (height, width))
     b_noise = np.random.uniform(-noise_strength, noise_strength, (height, width))
@@ -490,6 +490,11 @@ def apply_gradient_background(
     # Stack into RGB array and create image
     gradient_array = np.stack([r, g, b], axis=2)
     gradient_img = Image.fromarray(gradient_array, mode='RGB')
+    
+    # Apply very subtle Gaussian blur to smooth out any remaining banding
+    # This is more effective than noise dithering for eliminating visible bands
+    gradient_img = gradient_img.filter(ImageFilter.GaussianBlur(radius=0.5))
+    
     image.paste(gradient_img)
     
     return image
