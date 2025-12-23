@@ -1105,8 +1105,21 @@ class AdaptiveTemplateEngine:
         if self._content is None:
             self._content = content
         
-        # Create base image
-        image = Image.new('RGB', (self.width, self.height), self.colors.background)
+        # Create base image with dithering to prevent banding
+        # Even solid colors need dithering to prevent quantization artifacts
+        import numpy as np
+        bg_color = self.colors.background
+        logger.info(f"🎨 [ADAPTIVE_TEMPLATE] Creating base image with background color: {bg_color}")
+        
+        # Create base image array with subtle noise to prevent banding
+        base_array = np.full((self.height, self.width, 3), bg_color, dtype=np.uint8)
+        
+        # Add very subtle random noise (0.5% variation) to prevent banding in solid colors
+        noise = np.random.randint(-2, 3, (self.height, self.width, 3), dtype=np.int16)
+        base_array = np.clip(base_array.astype(np.int16) + noise, 0, 255).astype(np.uint8)
+        
+        image = Image.fromarray(base_array, mode='RGB')
+        logger.info(f"🎨 [ADAPTIVE_TEMPLATE] Base image created with dithering: {image.size}, mode={image.mode}")
         
         # PHASE 2: Check if gradient background is requested by composition decision
         use_gradient = self._feature_flags.get("use_gradient_background", False)
