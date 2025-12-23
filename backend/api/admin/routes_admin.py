@@ -674,8 +674,28 @@ def get_worker_health(
         ).scalar() or 0
         
         # Last successful job (from previews table)
-        last_preview = db.query(Preview).order_by(desc(Preview.created_at)).first()
-        last_successful_job_at = last_preview.created_at.isoformat() if last_preview else None
+        # Handle missing composited_image_url column gracefully
+        try:
+            last_preview = db.query(Preview).order_by(desc(Preview.created_at)).first()
+            last_successful_job_at = last_preview.created_at.isoformat() if last_preview else None
+        except Exception as e:
+            # If column doesn't exist, query without it
+            logger.warning(f"Error querying previews (possibly missing column): {e}")
+            # Try querying with explicit columns
+            from sqlalchemy import select
+            from backend.models.preview import Preview
+            try:
+                # Select only columns that definitely exist
+                result = db.execute(
+                    select(
+                        Preview.id,
+                        Preview.created_at
+                    ).order_by(desc(Preview.created_at)).limit(1)
+                ).first()
+                last_successful_job_at = result.created_at.isoformat() if result else None
+            except Exception as e2:
+                logger.error(f"Failed to query previews: {e2}")
+                last_successful_job_at = None
         
         # Last failure
         last_failure = db.query(PreviewJobFailure).order_by(desc(PreviewJobFailure.created_at)).first()
