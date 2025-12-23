@@ -432,8 +432,8 @@ def apply_gradient_background(
     color1 = colors[0]
     color2 = colors[-1]
     
-    # Generate at 2x resolution for smoother gradients
-    scale_factor = 2
+    # Generate at 3x resolution for much smoother gradients (more color steps = less banding)
+    scale_factor = 3
     high_width = width * scale_factor
     high_height = height * scale_factor
     
@@ -513,8 +513,11 @@ def apply_gradient_background(
     # Downscale using LANCZOS resampling (best quality, smooth interpolation)
     gradient_img = high_res_img.resize((width, height), Image.Resampling.LANCZOS)
     
-    # Apply smooth filter to eliminate any remaining artifacts
+    # Apply multiple smoothing passes to eliminate any remaining banding
     gradient_img = gradient_img.filter(ImageFilter.SMOOTH_MORE)
+    gradient_img = gradient_img.filter(ImageFilter.SMOOTH_MORE)  # Second pass for extra smoothness
+    # Apply gentle Gaussian blur as final smoothing
+    gradient_img = gradient_img.filter(ImageFilter.GaussianBlur(radius=0.8))
     
     image.paste(gradient_img)
     

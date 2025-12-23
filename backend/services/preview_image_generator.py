@@ -357,8 +357,8 @@ def _draw_gradient_background(
     """
     width, height = image.size
     
-    # Generate at 2x resolution for smoother gradients (more color steps)
-    scale_factor = 2
+    # Generate at 3x resolution for much smoother gradients (more color steps = less banding)
+    scale_factor = 3
     high_width = width * scale_factor
     high_height = height * scale_factor
     
@@ -366,16 +366,32 @@ def _draw_gradient_background(
     import numpy as np
     
     if direction == "diagonal":
-        # Create diagonal gradient using numpy arrays (fast)
+        # Create diagonal gradient using numpy arrays with high precision
         y_coords = np.arange(high_height, dtype=np.float64)[:, np.newaxis] / max(high_height - 1, 1)
         x_coords = np.arange(high_width, dtype=np.float64)[np.newaxis, :] / max(high_width - 1, 1)
         # Combine for diagonal effect (70% vertical, 30% horizontal)
         progress = y_coords * 0.7 + x_coords * 0.3
         
-        # Interpolate colors
-        r = (color1[0] * (1 - progress) + color2[0] * progress).astype(np.uint8)
-        g = (color1[1] * (1 - progress) + color2[1] * progress).astype(np.uint8)
-        b = (color1[2] * (1 - progress) + color2[2] * progress).astype(np.uint8)
+        # Interpolate colors in float64 for maximum precision
+        r_float = color1[0] * (1 - progress) + color2[0] * progress
+        g_float = color1[1] * (1 - progress) + color2[1] * progress
+        b_float = color1[2] * (1 - progress) + color2[2] * progress
+        
+        # Apply strong smoothing before quantization to eliminate banding
+        # Use Gaussian blur on the float arrays before converting to uint8
+        from scipy import ndimage
+        try:
+            r_float = ndimage.gaussian_filter(r_float, sigma=1.5)
+            g_float = ndimage.gaussian_filter(g_float, sigma=1.5)
+            b_float = ndimage.gaussian_filter(b_float, sigma=1.5)
+        except ImportError:
+            # Fallback: use numpy-based smoothing
+            pass
+        
+        # Convert to uint8 with proper rounding
+        r = np.clip(np.round(r_float), 0, 255).astype(np.uint8)
+        g = np.clip(np.round(g_float), 0, 255).astype(np.uint8)
+        b = np.clip(np.round(b_float), 0, 255).astype(np.uint8)
         
         # Stack into RGB array
         gradient_array = np.stack([r, g, b], axis=2)
@@ -425,8 +441,11 @@ def _draw_gradient_background(
     # Apply smooth downscaling using LANCZOS resampling (best quality)
     gradient_img = high_res_img.resize((width, height), Image.Resampling.LANCZOS)
     
-    # Apply subtle smoothing filter to eliminate any remaining artifacts
+    # Apply multiple smoothing passes to eliminate any remaining banding
     gradient_img = gradient_img.filter(ImageFilter.SMOOTH_MORE)
+    gradient_img = gradient_img.filter(ImageFilter.SMOOTH_MORE)  # Second pass for extra smoothness
+    # Apply gentle Gaussian blur as final smoothing
+    gradient_img = gradient_img.filter(ImageFilter.GaussianBlur(radius=0.8))
     
     # Paste onto original image
     image.paste(gradient_img)
