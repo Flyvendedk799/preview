@@ -366,26 +366,24 @@ def _draw_gradient_background(
     high_res_img = Image.new('RGB', (high_width, high_height), color1)
     draw = ImageDraw.Draw(high_res_img)
     
-    # Calculate gradient direction
+    # Calculate gradient direction using numpy for speed
+    import numpy as np
+    
     if direction == "diagonal":
-        # Draw diagonal gradient using many strips with diagonal interpolation
-        # Use both vertical and horizontal progress for diagonal effect
-        num_strips = high_height * 2  # More strips = smoother gradient
-        for y in range(high_height):
-            for x in range(high_width):
-                # Calculate diagonal progress (0.0 to 1.0)
-                # Combine vertical (70%) and horizontal (30%) for diagonal effect
-                y_progress = y / max(high_height - 1, 1)
-                x_progress = x / max(high_width - 1, 1)
-                progress = y_progress * 0.7 + x_progress * 0.3
-                
-                # Interpolate color smoothly
-                r = int(color1[0] * (1 - progress) + color2[0] * progress)
-                g = int(color1[1] * (1 - progress) + color2[1] * progress)
-                b = int(color1[2] * (1 - progress) + color2[2] * progress)
-                
-                # Draw pixel
-                draw.point((x, y), fill=(r, g, b))
+        # Create diagonal gradient using numpy arrays (fast)
+        y_coords = np.arange(high_height, dtype=np.float64)[:, np.newaxis] / max(high_height - 1, 1)
+        x_coords = np.arange(high_width, dtype=np.float64)[np.newaxis, :] / max(high_width - 1, 1)
+        # Combine for diagonal effect (70% vertical, 30% horizontal)
+        progress = y_coords * 0.7 + x_coords * 0.3
+        
+        # Interpolate colors
+        r = (color1[0] * (1 - progress) + color2[0] * progress).astype(np.uint8)
+        g = (color1[1] * (1 - progress) + color2[1] * progress).astype(np.uint8)
+        b = (color1[2] * (1 - progress) + color2[2] * progress).astype(np.uint8)
+        
+        # Stack into RGB array
+        gradient_array = np.stack([r, g, b], axis=2)
+        high_res_img = Image.fromarray(gradient_array, mode='RGB')
             
     elif direction == "radial":
         # Radial gradient using concentric circles
