@@ -1835,6 +1835,8 @@ class PreviewEngine:
             
             # CRITICAL FIX: Ensure all data passed to image generator is properly typed
             # This prevents garbled text from non-string values in AI reasoning results
+            self.logger.info(f"🔍 DEBUG: Raw AI result types - title: {type(ai_result.get('title'))}, credibility_items: {[type(item.get('value')) for item in ai_result.get('credibility_items', [])]}")
+            
             safe_ai_result = {
                 "title": str(ai_result.get("title", "Untitled")),
                 "subtitle": str(ai_result.get("subtitle", "")) if ai_result.get("subtitle") else None,
@@ -1864,8 +1866,11 @@ class PreviewEngine:
                         safe_item["type"] = str(item["type"])
                     if "value" in item and item["value"] is not None:
                         safe_item["value"] = str(item["value"])
+                        self.logger.info(f"🔍 DEBUG: Converting credibility value {repr(item['value'])} ({type(item['value'])}) -> {repr(safe_item['value'])}")
                     if safe_item:  # Only add if we have valid data
                         safe_ai_result["credibility_items"].append(safe_item)
+            
+            self.logger.info(f"🔍 DEBUG: Safe AI result - credibility_items: {safe_ai_result['credibility_items']}")
             
             composited_image_url = generate_and_upload_preview_image(
                 screenshot_bytes=screenshot_bytes,

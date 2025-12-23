@@ -157,11 +157,14 @@ def _load_font(size: int, bold: bool = True) -> ImageFont.FreeTypeFont:
             if size < 12:
                 logger.warning(f"Font size {size} too small, using 12")
                 return ImageFont.truetype(path, 12)
+            logger.info(f"🔍 FONT DEBUG: Successfully loaded font {path} at size {size}")
             return font
-        except:
+        except Exception as e:
+            logger.warning(f"🔍 FONT DEBUG: Failed to load font {path}: {e}")
             continue
     
     # Fallback to default with size adjustment
+    logger.warning(f"🔍 FONT DEBUG: All TrueType fonts failed, using default font")
     default_font = ImageFont.load_default()
     if size < 12:
         return default_font
@@ -490,7 +493,10 @@ def generate_designed_preview(
     # Ensure credibility_items have string values
     for item in credibility_items:
         if 'value' in item and item['value'] is not None:
+            logger.info(f"🔍 IMAGE_GEN DEBUG: Converting credibility value {repr(item['value'])} ({type(item['value'])})")
             item['value'] = str(item['value'])
+    
+    logger.info(f"🔍 IMAGE_GEN DEBUG: Final credibility_items: {credibility_items}")
     
     try:
         # Ensure we have valid colors
