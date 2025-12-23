@@ -378,68 +378,6 @@ def _draw_gradient_background(
     logger.debug(f"Generated gradient using LAB color space: {width}x{height}")
     
     return image
-    
-    # OLD METHOD - KEPT FOR REFERENCE BUT NOT USED
-    if False:
-        # Generate at 3x resolution for much smoother gradients (more color steps = less banding)
-        scale_factor = 3
-        high_width = width * scale_factor
-        high_height = height * scale_factor
-        
-        # Calculate gradient direction using numpy for speed
-        import numpy as np
-        
-        if direction == "diagonal":
-        # Create diagonal gradient using PIL's HSV mode for smoother perceptual transitions
-        # This is more reliable than manual HSV conversion
-        import colorsys
-        
-        # Convert RGB to HSV for smoother interpolation
-        h1, s1, v1 = colorsys.rgb_to_hsv(color1[0]/255.0, color1[1]/255.0, color1[2]/255.0)
-        h2, s2, v2 = colorsys.rgb_to_hsv(color2[0]/255.0, color2[1]/255.0, color2[2]/255.0)
-        
-        # Create coordinate arrays
-        y_coords = np.arange(high_height, dtype=np.float64)[:, np.newaxis] / max(high_height - 1, 1)
-        x_coords = np.arange(high_width, dtype=np.float64)[np.newaxis, :] / max(high_width - 1, 1)
-        # Combine for diagonal effect (70% vertical, 30% horizontal)
-        progress = y_coords * 0.7 + x_coords * 0.3
-        
-        # Interpolate in HSV space (smoother perceptual transitions)
-        h = h1 * (1 - progress) + h2 * progress
-        s = s1 * (1 - progress) + s2 * progress
-        v = v1 * (1 - progress) + v2 * progress
-        
-        # Use PIL's HSV mode for accurate conversion with dithering to prevent banding
-        # PIL HSV mode: H=0-255 (represents 0-360°), S=0-255 (represents 0-100%), V=0-255 (represents 0-100%)
-        # Add subtle noise before quantization to break up banding
-        noise_strength = 0.3  # Small noise to prevent quantization artifacts
-        h_noise = np.random.uniform(-noise_strength, noise_strength, h.shape)
-        s_noise = np.random.uniform(-noise_strength, noise_strength, s.shape)
-        v_noise = np.random.uniform(-noise_strength, noise_strength, v.shape)
-        
-        h_scaled = np.clip((h * 255 / 360.0) + h_noise, 0, 255).astype(np.uint8)  # H: 0-360° -> 0-255
-        s_scaled = np.clip((s * 255) + s_noise, 0, 255).astype(np.uint8)  # S: 0-1 -> 0-255
-        v_scaled = np.clip((v * 255) + v_noise, 0, 255).astype(np.uint8)  # V: 0-1 -> 0-255
-        
-        # Create HSV image
-        hsv_array = np.stack([h_scaled, s_scaled, v_scaled], axis=2)
-        hsv_img = Image.fromarray(hsv_array, mode='HSV')
-        
-        # Convert HSV to RGB using PIL (most accurate method)
-        high_res_img = hsv_img.convert('RGB')
-        
-        # Apply strong Gaussian smoothing before quantization
-        try:
-            from scipy import ndimage
-            rgb_array = np.array(high_res_img, dtype=np.float64)
-            rgb_array[:, :, 0] = ndimage.gaussian_filter(rgb_array[:, :, 0], sigma=2.0)
-            rgb_array[:, :, 1] = ndimage.gaussian_filter(rgb_array[:, :, 1], sigma=2.0)
-            rgb_array[:, :, 2] = ndimage.gaussian_filter(rgb_array[:, :, 2], sigma=2.0)
-            high_res_img = Image.fromarray(np.clip(np.round(rgb_array), 0, 255).astype(np.uint8), mode='RGB')
-            logger.debug("Applied scipy Gaussian filter in HSV space")
-        except ImportError:
-            logger.debug("Scipy not available, using downscale smoothing only")
-            pass
 
 
 def _draw_text_with_shadow(
