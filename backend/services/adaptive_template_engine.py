@@ -1203,6 +1203,20 @@ class AdaptiveTemplateEngine:
         # 6. Apply post-effects (style-specific enhancements)
         image = self._apply_post_effects(image)
         
+        # 7. AI-powered quality improvement: detect and fix banding/blur issues
+        try:
+            from backend.services.ai_image_quality_fixer import improve_image_quality_with_ai
+            improved_image, ai_results = improve_image_quality_with_ai(image)
+            
+            if ai_results.get("fixes_applied"):
+                logger.info(f"✅ AI applied {len(ai_results['fixes_applied'])} quality fixes to adaptive preview")
+                image = improved_image
+            elif ai_results.get("analysis"):
+                logger.debug("✅ AI quality check passed for adaptive preview")
+        except Exception as e:
+            logger.debug(f"AI quality improvement skipped (non-critical): {e}")
+            # Continue with original image if AI fix fails
+        
         # Output - save without optimization to preserve dithering
         buffer = BytesIO()
         image.save(buffer, format='PNG', optimize=False)
