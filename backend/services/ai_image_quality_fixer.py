@@ -94,7 +94,7 @@ def detect_quality_issues_with_ai(image: Image.Image) -> Optional[Dict[str, Any]
     Returns:
         Dict with detected issues and recommendations, or None if analysis fails
     """
-    if not AI_AVAILABLE:
+    if not AI_AVAILABLE or OpenAI is None:
         logger.debug("AI not available, skipping quality detection")
         return None
     
