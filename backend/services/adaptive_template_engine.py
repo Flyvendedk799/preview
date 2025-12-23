@@ -1961,7 +1961,9 @@ class AdaptiveTemplateEngine:
         
         x, y, w, h = self.zones["proof"]
         
-        font_size = self.typography.caption_size
+        # MOBILE-FIRST: Ensure proof text is readable on mobile (minimum 22px)
+        base_caption_size = self.typography.caption_size
+        font_size = max(22, base_caption_size)  # Minimum 22px for mobile readability
         font = load_pillow_font(self.typography.pillow_fonts, font_size, bold=True)
         
         # Apply color usage pattern for proof text
