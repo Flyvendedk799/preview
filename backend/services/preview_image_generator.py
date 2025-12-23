@@ -562,10 +562,10 @@ def _generate_hero_template(
     """
     # Create clean, professional gradient (no screenshot texture for cleaner look)
     # Use the brand colors to create a polished, modern gradient
-    dark_primary = _darken_color(primary_color, 0.5)  # Darker for better text contrast
-    darker_secondary = _darken_color(secondary_color, 0.6)
-    img = Image.new('RGB', (OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT), dark_primary)
-    img = _draw_gradient_background(img, dark_primary, darker_secondary, "diagonal")
+    # FIXED: Don't darken colors further - they're already appropriately dark from brand extraction
+    # Only slightly adjust if needed for contrast, but preserve the intended color
+    img = Image.new('RGB', (OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT), primary_color)
+    img = _draw_gradient_background(img, primary_color, secondary_color, "diagonal")
     
     # CLEAN design - no noisy patterns, just the gradient
     draw = ImageDraw.Draw(img)
@@ -682,8 +682,8 @@ def _generate_hero_template(
         # Draw title lines
         for i, line in enumerate(title_lines[:max_lines]):
             y_pos = title_y + (i * title_line_height)
-            # Enhanced shadow for better readability and premium look
-            _draw_text_with_shadow(draw, (padding, y_pos), line, title_font, (255, 255, 255), 5)
+            # Clean, subtle shadow for readability (reduced offset to avoid blurry 3D effect)
+            _draw_text_with_shadow(draw, (padding, y_pos), line, title_font, (255, 255, 255), 2)
         content_y = title_y + actual_lines * title_line_height + spacing_medium
     
     # === SUPPORTING TEXT (subtitle or description) ===
@@ -699,8 +699,8 @@ def _generate_hero_template(
         # Limit to 2 lines to keep clean
         for i, line in enumerate(desc_lines[:2]):
             y_pos = content_y + (i * desc_line_height)
-            # Subtle shadow for readability on gradient background
-            _draw_text_with_shadow(draw, (padding, y_pos), line, desc_font, (240, 240, 245), 3)
+            # Clean, subtle shadow for readability (reduced offset to avoid blurry effect)
+            _draw_text_with_shadow(draw, (padding, y_pos), line, desc_font, (240, 240, 245), 2)
     
     # === BOTTOM ACCENT BAR (brand color stripe) ===
     bar_height = 6
@@ -1506,8 +1506,9 @@ def _generate_fallback_preview(
         secondary_color = _hex_to_rgb(blueprint.get("secondary_color", "#1E293B"))
         
         # Create clean gradient background (no patterns)
+        # FIXED: Use colors directly without excessive darkening
         img = Image.new('RGB', (OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT), primary_color)
-        img = _draw_gradient_background(img, primary_color, _darken_color(secondary_color, 0.7), "diagonal")
+        img = _draw_gradient_background(img, primary_color, secondary_color, "diagonal")
         draw = ImageDraw.Draw(img)
         
         # Center content vertically
