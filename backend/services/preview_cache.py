@@ -328,14 +328,27 @@ def is_demo_cache_disabled() -> bool:
     """
     client = get_redis_client()
     if client is None:
+        logger.debug("Redis not available, cache enabled (fail-safe)")
         return False  # Fail-safe: if Redis unavailable, allow caching
     
     try:
         key = "admin:settings:demo_cache_disabled"
         value = client.get(key)
+        
+        # Log the check for debugging
+        logger.debug(f"Checking demo cache disabled: key={key}, value={value}, type={type(value)}")
+        
         if value is None:
+            logger.debug("Demo cache disabled setting not found, defaulting to enabled")
             return False  # Default: caching enabled
-        return value.lower() == "true"
+        
+        # Handle both string and bytes values
+        if isinstance(value, bytes):
+            value = value.decode('utf-8')
+        
+        disabled = str(value).lower() == "true"
+        logger.info(f"Demo cache disabled check: value='{value}' -> disabled={disabled}")
+        return disabled
     except Exception as e:
-        logger.warning(f"Failed to check demo cache disable setting: {e}")
+        logger.warning(f"Failed to check demo cache disable setting: {e}", exc_info=True)
         return False  # Fail-safe: allow caching if check fails
