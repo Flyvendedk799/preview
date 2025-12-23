@@ -1109,32 +1109,65 @@ class AdaptiveTemplateEngine:
         # Even solid colors need dithering to prevent quantization artifacts
         import numpy as np
         bg_color = self.colors.background
-        logger.info(f"🎨 [ADAPTIVE_TEMPLATE] Creating base image with background color: {bg_color}")
+        logger.info(f"🎨 [STEP 1/10] Creating base image: size={self.width}x{self.height}, bg_color={bg_color}")
         
         # Create base image array with strong dithering to prevent banding
         base_array = np.full((self.height, self.width, 3), bg_color, dtype=np.uint8)
+        logger.info(f"🎨 [STEP 1/10] Base array created: shape={base_array.shape}, dtype={base_array.dtype}, unique_colors={len(np.unique(base_array.reshape(-1, 3), axis=0))}")
         
         # Apply fast ordered dithering for smooth appearance (much faster than Floyd-Steinberg)
         from backend.services.gradient_generator import apply_fast_dithering
+        logger.info(f"🎨 [STEP 1/10] Applying fast ordered dithering (strength=3.0)...")
         base_array = apply_fast_dithering(base_array, strength=3.0)
+        unique_after_dither = len(np.unique(base_array.reshape(-1, 3), axis=0))
+        logger.info(f"🎨 [STEP 1/10] After dithering: unique_colors={unique_after_dither}")
         
         # Add additional subtle random noise for extra color diversity
+        logger.info(f"🎨 [STEP 1/10] Adding random noise (±2 RGB)...")
         noise = np.random.randint(-2, 3, (self.height, self.width, 3), dtype=np.int16)
         base_array = np.clip(base_array.astype(np.int16) + noise, 0, 255).astype(np.uint8)
-        
-        logger.info(f"🎨 [ADAPTIVE_TEMPLATE] Applied fast ordered dithering + noise to base image")
+        unique_after_noise = len(np.unique(base_array.reshape(-1, 3), axis=0))
+        pixel_count = self.width * self.height
+        color_density = unique_after_noise / pixel_count
+        logger.info(f"🎨 [STEP 1/10] After noise: unique_colors={unique_after_noise}, color_density={color_density:.4f}")
         
         image = Image.fromarray(base_array, mode='RGB')
-        logger.info(f"🎨 [ADAPTIVE_TEMPLATE] Base image created with dithering: {image.size}, mode={image.mode}")
+        logger.info(f"🎨 [STEP 1/10] ✅ Base image created: {image.size}, mode={image.mode}")
         
         # PHASE 2: Check if gradient background is requested by composition decision
         use_gradient = self._feature_flags.get("use_gradient_background", False)
         
+        # Log color stats before background application
+        img_array_before_bg = np.array(image)
+        unique_before_bg = len(np.unique(img_array_before_bg.reshape(-1, 3), axis=0))
+        density_before_bg = unique_before_bg / pixel_count
+        logger.info(f"🎨 [STEP 2/10] Before background: unique_colors={unique_before_bg}, color_density={density_before_bg:.4f}")
+        
         # Apply background (with gradients from visual_effects or composition decision)
+        logger.info(f"🎨 [STEP 2/10] Applying background (use_gradient={use_gradient})...")
         image = self._apply_background(image, screenshot_bytes, force_gradient=use_gradient)
         
+        # Log color stats after background application
+        img_array_after_bg = np.array(image)
+        unique_after_bg = len(np.unique(img_array_after_bg.reshape(-1, 3), axis=0))
+        density_after_bg = unique_after_bg / pixel_count
+        logger.info(f"🎨 [STEP 2/10] After background: unique_colors={unique_after_bg}, color_density={density_after_bg:.4f} (change: {unique_after_bg-unique_before_bg:+d})")
+        
+        # Log color stats before card styling
+        img_array_before_card = np.array(image)
+        unique_before_card = len(np.unique(img_array_before_card.reshape(-1, 3), axis=0))
+        density_before_card = unique_before_card / pixel_count
+        logger.info(f"🎨 [STEP 3/10] Before card styling: unique_colors={unique_before_card}, color_density={density_before_card:.4f}")
+        
         # Apply card styling based on ui_components
+        logger.info(f"🎨 [STEP 3/10] Applying card styling...")
         image = self._apply_card_styling(image)
+        
+        # Log color stats after card styling
+        img_array_after_card = np.array(image)
+        unique_after_card = len(np.unique(img_array_after_card.reshape(-1, 3), axis=0))
+        density_after_card = unique_after_card / pixel_count
+        logger.info(f"🎨 [STEP 3/10] After card styling: unique_colors={unique_after_card}, color_density={density_after_card:.4f} (change: {unique_after_card-unique_before_card:+d})")
         
         draw = ImageDraw.Draw(image)
         
@@ -1143,30 +1176,61 @@ class AdaptiveTemplateEngine:
         
         # 1. Accent bar (visual anchor) - check feature flag
         if self._feature_flags.get("show_accent_bar", True):
+            logger.info(f"🎨 [STEP 4/10] Rendering accent bar...")
+            img_array_before_accent = np.array(image)
+            unique_before_accent = len(np.unique(img_array_before_accent.reshape(-1, 3), axis=0))
             self._render_accent_bar(draw)
+            img_array_after_accent = np.array(image)
+            unique_after_accent = len(np.unique(img_array_after_accent.reshape(-1, 3), axis=0))
+            logger.info(f"🎨 [STEP 4/10] After accent bar: unique_colors={unique_after_accent} (change: {unique_after_accent-unique_before_accent:+d})")
         
         # 2. Logo (brand identity) - check feature flag
         if self._feature_flags.get("show_logo", True) and content.logo_base64:
+            logger.info(f"🎨 [STEP 5/10] Rendering logo...")
+            img_array_before_logo = np.array(image)
+            unique_before_logo = len(np.unique(img_array_before_logo.reshape(-1, 3), axis=0))
             self._render_logo(image, content.logo_base64)
-            logger.debug("✅ Logo rendered in preview")
+            img_array_after_logo = np.array(image)
+            unique_after_logo = len(np.unique(img_array_after_logo.reshape(-1, 3), axis=0))
+            logger.info(f"🎨 [STEP 5/10] After logo: unique_colors={unique_after_logo} (change: {unique_after_logo-unique_before_logo:+d})")
         elif content.logo_base64:
-            logger.debug("⚠️ Logo skipped by composition decision")
+            logger.info(f"🎨 [STEP 5/10] Logo skipped by composition decision")
         else:
-            logger.debug("⚠️ No logo provided")
+            logger.info(f"🎨 [STEP 5/10] No logo provided")
         
         # 3. Text content with full typography DNA
+        logger.info(f"🎨 [STEP 6/10] Rendering text content...")
+        img_array_before_text = np.array(image)
+        unique_before_text = len(np.unique(img_array_before_text.reshape(-1, 3), axis=0))
         self._render_headline(draw, content.title)
         self._render_subtitle(draw, content.subtitle)
         self._render_description(draw, content.description)
+        img_array_after_text = np.array(image)
+        unique_after_text = len(np.unique(img_array_after_text.reshape(-1, 3), axis=0))
+        logger.info(f"🎨 [STEP 6/10] After text: unique_colors={unique_after_text} (change: {unique_after_text-unique_before_text:+d})")
         
         # 4. Social proof (builds credibility) - check feature flag
         if self._feature_flags.get("show_proof", True):
+            logger.info(f"🎨 [STEP 7/10] Rendering social proof...")
+            img_array_before_proof = np.array(image)
+            unique_before_proof = len(np.unique(img_array_before_proof.reshape(-1, 3), axis=0))
             self._render_proof(draw, content.proof_text)
+            img_array_after_proof = np.array(image)
+            unique_after_proof = len(np.unique(img_array_after_proof.reshape(-1, 3), axis=0))
+            logger.info(f"🎨 [STEP 7/10] After proof: unique_colors={unique_after_proof} (change: {unique_after_proof-unique_before_proof:+d})")
         
         # 5. Apply comprehensive visual effects from Design DNA
         visual_effects = getattr(self.dna, 'visual_effects', None)
         if visual_effects:
+            logger.info(f"🎨 [STEP 8/10] Applying visual effects...")
+            img_array_before_effects = np.array(image)
+            unique_before_effects = len(np.unique(img_array_before_effects.reshape(-1, 3), axis=0))
             image = apply_dna_visual_effects(image, visual_effects, self.colors)
+            img_array_after_effects = np.array(image)
+            unique_after_effects = len(np.unique(img_array_after_effects.reshape(-1, 3), axis=0))
+            logger.info(f"🎨 [STEP 8/10] After visual effects: unique_colors={unique_after_effects} (change: {unique_after_effects-unique_before_effects:+d})")
+        else:
+            logger.info(f"🎨 [STEP 8/10] No visual effects to apply")
         
         # 6. Apply post-effects (style-specific enhancements)
         image = self._apply_post_effects(image)
@@ -1197,9 +1261,12 @@ class AdaptiveTemplateEngine:
         logger.info(f"🎨 [ADAPTIVE_TEMPLATE] Image stats before save: unique_colors={unique_colors}, color_density={color_density:.4f}")
         
         if color_density < 0.1:
-            logger.warning(f"🎨 [ADAPTIVE_TEMPLATE] ⚠️ LOW COLOR DENSITY before save - applying fast dithering fix! color_density={color_density:.4f}")
+            logger.warning(f"🎨 [STEP 10/10] ⚠️ LOW COLOR DENSITY detected! Applying dithering fix...")
+            logger.info(f"🎨 [STEP 10/10] Before dithering fix: unique_colors={unique_colors}, color_density={color_density:.4f}")
+            
             # Apply fast ordered dithering to increase color diversity and prevent banding
             from backend.services.gradient_generator import apply_fast_dithering
+            logger.info(f"🎨 [STEP 10/10] Applying fast dithering (strength=2.0)...")
             dithered_array = apply_fast_dithering(img_array, strength=2.0)
             image = Image.fromarray(dithered_array, mode='RGB')
             
@@ -1208,11 +1275,12 @@ class AdaptiveTemplateEngine:
             unique_colors_after = len(np.unique(img_array.reshape(-1, 3), axis=0))
             color_density_after = unique_colors_after / pixel_count
             improvement = color_density_after / color_density if color_density > 0 else 1.0
-            logger.info(f"🎨 [ADAPTIVE_TEMPLATE] After dithering: unique_colors={unique_colors_after}, color_density={color_density_after:.4f} (improvement: {improvement:.2f}x)")
+            logger.info(f"🎨 [STEP 10/10] After dithering: unique_colors={unique_colors_after}, color_density={color_density_after:.4f} (improvement: {improvement:.2f}x)")
             
             if improvement < 1.5:
-                logger.warning(f"🎨 [ADAPTIVE_TEMPLATE] ⚠️ Dithering didn't help enough - applying stronger noise!")
+                logger.warning(f"🎨 [STEP 10/10] ⚠️ Dithering improvement insufficient ({improvement:.2f}x < 1.5x) - applying stronger noise!")
                 # Apply additional random noise if dithering didn't help
+                logger.info(f"🎨 [STEP 10/10] Adding stronger random noise (±4 RGB)...")
                 noise = np.random.randint(-4, 5, img_array.shape, dtype=np.int16)
                 img_array = np.clip(img_array.astype(np.int16) + noise, 0, 255).astype(np.uint8)
                 image = Image.fromarray(img_array, mode='RGB')
@@ -1220,12 +1288,24 @@ class AdaptiveTemplateEngine:
                 # Final check
                 unique_colors_final = len(np.unique(img_array.reshape(-1, 3), axis=0))
                 color_density_final = unique_colors_final / pixel_count
-                logger.info(f"🎨 [ADAPTIVE_TEMPLATE] After noise: unique_colors={unique_colors_final}, color_density={color_density_final:.4f}")
+                final_improvement = color_density_final / color_density if color_density > 0 else 1.0
+                logger.info(f"🎨 [STEP 10/10] After noise: unique_colors={unique_colors_final}, color_density={color_density_final:.4f} (total improvement: {final_improvement:.2f}x)")
+            else:
+                logger.info(f"🎨 [STEP 10/10] ✅ Dithering successful - improvement: {improvement:.2f}x")
+        else:
+            logger.info(f"🎨 [STEP 10/10] ✅ Color density acceptable ({color_density:.4f} >= 0.1) - no dithering needed")
         
         buffer = BytesIO()
+        logger.info(f"🎨 [STEP 10/10] Saving PNG (optimize=False to preserve dithering)...")
         image.save(buffer, format='PNG', optimize=False)
+        file_size = len(buffer.getvalue())
         
-        logger.info(f"🎨 [ADAPTIVE_TEMPLATE] ✅ Preview saved: {len(buffer.getvalue())} bytes")
+        # Final verification
+        final_img_array = np.array(image)
+        final_unique_colors = len(np.unique(final_img_array.reshape(-1, 3), axis=0))
+        final_color_density = final_unique_colors / pixel_count
+        logger.info(f"🎨 [STEP 10/10] ✅ Preview saved: {file_size} bytes, final_unique_colors={final_unique_colors}, final_color_density={final_color_density:.4f}")
+        
         return buffer.getvalue()
     
     def _apply_background(
@@ -1252,8 +1332,8 @@ class AdaptiveTemplateEngine:
         
         # Use gradient background (from color config or visual effects)
         if self.colors.gradient_type != "none" or gradients_enabled:
-            logger.info(f"🎨 [ADAPTIVE_TEMPLATE] Applying gradient background...")
-            logger.info(f"🎨 [ADAPTIVE_TEMPLATE] Gradient colors: {self.colors.gradient_colors}")
+            logger.info(f"🎨 [STEP 2/10] Applying gradient background...")
+            logger.info(f"🎨 [STEP 2/10] Gradient colors: {self.colors.gradient_colors}")
             
             # Determine gradient style from visual_effects
             gradient_style = "linear"
@@ -1263,7 +1343,7 @@ class AdaptiveTemplateEngine:
                     gradient_style = "radial"
                 elif gradient_type in ["conic", "diagonal"]:
                     gradient_style = "linear"  # Use linear for diagonal/conic
-                logger.info(f"🎨 [ADAPTIVE_TEMPLATE] Gradient type from visual_effects: {gradient_type} -> style: {gradient_style}")
+                logger.info(f"🎨 [STEP 2/10] Gradient type from visual_effects: {gradient_type} -> style: {gradient_style}")
             
             # Calculate angle from gradient_direction
             angle_map = {
@@ -1273,7 +1353,11 @@ class AdaptiveTemplateEngine:
                 "radial": 0  # Radial doesn't use angle
             }
             angle = angle_map.get(gradient_direction, 135)
-            logger.info(f"🎨 [ADAPTIVE_TEMPLATE] Gradient direction '{gradient_direction}' -> angle: {angle}, style: {gradient_style}")
+            logger.info(f"🎨 [STEP 2/10] Gradient direction '{gradient_direction}' -> angle: {angle}, style: {gradient_style}")
+            
+            import numpy as np
+            img_array_before_gradient = np.array(image)
+            unique_before_gradient = len(np.unique(img_array_before_gradient.reshape(-1, 3), axis=0))
             
             image = apply_gradient_background(
                 image,
@@ -1281,9 +1365,12 @@ class AdaptiveTemplateEngine:
                 angle=angle,
                 style=gradient_style
             )
-            logger.info(f"🎨 [ADAPTIVE_TEMPLATE] ✅ Gradient background applied")
+            
+            img_array_after_gradient = np.array(image)
+            unique_after_gradient = len(np.unique(img_array_after_gradient.reshape(-1, 3), axis=0))
+            logger.info(f"🎨 [STEP 2/10] ✅ Gradient applied: unique_colors={unique_after_gradient} (change: {unique_after_gradient-unique_before_gradient:+d})")
         else:
-            logger.info(f"🎨 [ADAPTIVE_TEMPLATE] No gradient background (gradient_type={self.colors.gradient_type}, gradients_enabled={gradients_enabled})")
+            logger.info(f"🎨 [STEP 2/10] No gradient background (gradient_type={self.colors.gradient_type}, gradients_enabled={gradients_enabled})")
         
         # Add screenshot as subtle background for certain styles
         if screenshot_bytes and style in ["bold", "playful", "maximalist"]:
