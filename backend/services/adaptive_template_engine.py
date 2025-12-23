@@ -1321,9 +1321,10 @@ class AdaptiveTemplateEngine:
             logger.info(f"🎨 [STEP 10/10] Before dithering fix: unique_colors={unique_colors}, color_density={color_density:.4f}")
             
             # Apply fast ordered dithering to increase color diversity and prevent banding
+            # Use stronger dithering since design enhancements may have made banding more visible
             from backend.services.gradient_generator import apply_fast_dithering
-            logger.info(f"🎨 [STEP 10/10] Applying fast dithering (strength=2.0)...")
-            dithered_array = apply_fast_dithering(img_array, strength=2.0)
+            logger.info(f"🎨 [STEP 10/10] Applying fast dithering (strength=3.0, increased for better banding prevention)...")
+            dithered_array = apply_fast_dithering(img_array, strength=3.0)
             image = Image.fromarray(dithered_array, mode='RGB')
             
             # Re-check stats after dithering
