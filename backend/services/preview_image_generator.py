@@ -412,8 +412,10 @@ def _draw_gradient_background(
     
     # Apply stronger Gaussian blur to eliminate visible banding
     # Increased radius for dark gradients which are more prone to banding
-    blur_radius = 1.5 if (color1[0] + color1[1] + color1[2] + color2[0] + color2[1] + color2[2]) < 600 else 1.0
+    total_brightness = color1[0] + color1[1] + color1[2] + color2[0] + color2[1] + color2[2]
+    blur_radius = 1.5 if total_brightness < 600 else 1.0
     gradient_img = gradient_img.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+    logger.debug(f"Applied gradient blur: radius={blur_radius}, brightness={total_brightness}, noise_strength={noise_strength}")
     
     image.paste(gradient_img)
     
