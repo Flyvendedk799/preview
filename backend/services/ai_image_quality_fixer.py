@@ -233,10 +233,10 @@ def apply_ai_recommended_fixes(
         img_array = np.array(fixed_image)
         # Increase dithering strength - mild banding needs stronger dithering
         dithered_array = apply_fast_dithering(img_array, strength={
-            "mild": 4.0,      # Increased from 2.0
-            "moderate": 5.0,  # Increased from 3.0
-            "severe": 6.0     # Increased from 4.0
-        }.get(banding_severity, 4.5))
+            "mild": 5.0,      # Increased from 4.0 for better coverage
+            "moderate": 7.0,  # Increased from 5.0 - moderate needs stronger dithering
+            "severe": 9.0     # Increased from 6.0 - severe needs very strong dithering
+        }.get(banding_severity, 4.0))
         
         fixed_image = Image.fromarray(dithered_array, mode='RGB')
         applied_fixes.append(f"Applied fast dithering (strength={banding_severity}) to fix gradient banding")
