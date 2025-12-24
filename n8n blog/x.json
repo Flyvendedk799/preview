@@ -1,0 +1,1145 @@
+{
+  "name": "x",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Gaming News Generator",
+        "formDescription": "Select a game to generate a Danish news article",
+        "formFields": {
+          "values": [
+            {
+              "fieldName": "gameName",
+              "fieldLabel": "Game Name",
+              "placeholder": "Enter the name of the game you want to create news about"
+            }
+          ]
+        },
+        "options": {
+          "appendAttribution": false,
+          "buttonLabel": "Generate Article"
+        }
+      },
+      "id": "5e2c3beb-09bb-4fbf-8276-71cae524261a",
+      "name": "Game Selection Form",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.4,
+      "position": [
+        -976,
+        912
+      ],
+      "webhookId": "8aabae99-dcb7-461c-b0a1-510c217d823d"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "id-1",
+              "name": "gameName",
+              "value": "={{ $json.gameName }}",
+              "type": "string"
+            },
+            {
+              "id": "id-2",
+              "name": "maxArticleLength",
+              "value": 1500,
+              "type": "number"
+            },
+            {
+              "id": "id-3",
+              "name": "seoMinScore",
+              "value": 75,
+              "type": "number"
+            },
+            {
+              "id": "id-4",
+              "name": "maxRevisions",
+              "value": 3,
+              "type": "number"
+            },
+            {
+              "id": "id-5",
+              "name": "currentRevision",
+              "value": 0,
+              "type": "number"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "a40f6122-7b0f-4a96-98c8-99d02b3d04df",
+      "name": "Workflow Configuration",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -752,
+        912
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a gaming news researcher.\n\nUse the **Google Search Tool** to find **recent, real news (last 30 days)** about the game: {{ $json.gameName }}.\nFocus on this angle: **{{ $json.angle }}**.\n\nIMPORTANT: If a search returns no results, try different search terms. Be flexible and persistent.\n\nRules:\n- Prefer official sources (developer/publisher) and reputable gaming/esports sites\n- Try multiple search variations if needed (game name + news, game name + update, etc.)\n- Find 3–5 candidates, then pick the **single best** story for a Danish news article\n- If after trying several searches you cannot find reliable recent news, set headline to **NO_RECENT_NEWS_FOUND** and explain what you tried\n\nReturn structured data:\n- headline (string) - use NO_RECENT_NEWS_FOUND if no news found\n- source (string, include site name) - use \"N/A\" if no news found\n- url (string) - use \"\" if no news found\n- publishDate (string, YYYY-MM-DD if possible) - use \"\" if no news found\n- summary (2–4 sentences) - explain search attempts if no news found\n- keyPoints (5–8 bullet points as array of strings) - describe what was searched for if no news found",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are a gaming news research assistant. Your task is to search for the most recent and relevant news about the specified game.\n\nSearch for:\n1. Recent announcements, updates, or patches\n2. Gaming news from reputable sources\n3. Community reactions and trending topics\n4. Release dates, DLC, or expansion news\n\nReturn your findings in a structured format with:\n- headline: The main news headline\n- source: Where the news came from\n- summary: A brief summary of the news (2-3 sentences)\n- publishDate: When the news was published\n- keyPoints: Array of key points from the article"
+        }
+      },
+      "id": "3b4c3f20-9c69-49f3-ba57-be1cbbbbb537",
+      "name": "Research Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -256,
+        912
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "builtInTools": {},
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "id": "bb4666fc-2a89-4c7f-b903-69d826549c80",
+      "name": "OpenAI Model - Research",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -304,
+        1136
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "5HFbmVROuozdyQ0Q",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "7211c40d-bbb2-4066-b590-d1a15e346515",
+      "name": "Google Search Tool",
+      "type": "@n8n/n8n-nodes-langchain.toolSerpApi",
+      "typeVersion": 1,
+      "position": [
+        -176,
+        1136
+      ],
+      "credentials": {
+        "serpApi": {
+          "id": "72jc39q47o4kOZla",
+          "name": "SerpAPI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n\t\"type\": \"object\",\n\t\"properties\": {\n\t\t\"headline\": {\n\t\t\t\"type\": \"string\",\n\t\t\t\"description\": \"Main news headline\"\n\t\t},\n\t\t\"source\": {\n\t\t\t\"type\": \"string\",\n\t\t\t\"description\": \"News source\"\n\t\t},\n\t\t\"summary\": {\n\t\t\t\"type\": \"string\",\n\t\t\t\"description\": \"Brief summary of the news\"\n\t\t},\n\t\t\"publishDate\": {\n\t\t\t\"type\": \"string\",\n\t\t\t\"description\": \"Publication date\"\n\t\t},\n\t\t\"keyPoints\": {\n\t\t\t\"type\": \"array\",\n\t\t\t\"items\": {\n\t\t\t\t\"type\": \"string\"\n\t\t\t},\n\t\t\t\"description\": \"Key points from the article\"\n\t\t},\n\t\t\"url\": {\n\t\t\t\"type\": \"string\",\n\t\t\t\"description\": \"Direct link to the news source\"\n\t\t}\n\t}\n}"
+      },
+      "id": "90a22376-657f-4329-bb5e-97f6926e2233",
+      "name": "Research Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        -48,
+        1136
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=The game name is: {{ $json.gameName }}\nAngle: {{ $json.angle }}\nNews headline: {{ $json.headline ?? $json.output.headline }}\nSource: {{ $json.source ?? $json.output.source }}\nURL: {{ $json.url ?? $json.output.url }}\nPublish date: {{ $json.publishDate ?? $json.output.publishDate }}\nSummary: {{ $json.summary ?? $json.output.summary }}\nKey points: {{ $json.keyPoints ?? $json.output.keyPoints }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are a professional Danish gaming journalist. Your task is to write engaging, informative news articles in Danish for a gaming audience.\n\nCRITICAL INSTRUCTION: You MUST use the EXACT game name provided in the user message. NEVER replace it with placeholders like ****, [GAME NAME], or similar. Always write the actual game name throughout the article.\n\nGuidelines:\n1. Write in fluent, natural Danish\n2. Use the EXACT game name from the input - mention it early and naturally throughout the article\n3. Use an engaging, conversational tone suitable for gamers\n4. Include all key information from the research\n5. Create a compelling headline in Danish that includes the game name\n6. Structure the article with clear paragraphs and subheadings for better readability\n7. Add relevant context for Danish readers\n8. Target the specified word count from input (aim for comprehensive coverage)\n9. If headline is NO_RECENT_NEWS_FOUND, write a longer status post explaining no major news in last 30 days, what players can expect, and provide context about the game\n10. Expand on key points with details, examples, and context\n11. Include background information where relevant\n12. Add quotes or community reactions if mentioned in research\n\nReturn the article with:\n- danishHeadline: Catchy Danish headline with the actual game name\n- danishArticle: Full article text in Danish with the actual game name used throughout (aim for target word count)\n- metaDescription: SEO meta description in Danish (150-160 characters) with game name\n- tags: Array of relevant tags in Danish including the game name"
+        }
+      },
+      "id": "1c41282c-0c6a-437d-ab1d-97db994bc88b",
+      "name": "Danish Article Writer",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        160,
+        912
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "builtInTools": {},
+        "options": {
+          "temperature": 0.8
+        }
+      },
+      "id": "6d10d123-cbdc-495e-887b-6d4cad7069eb",
+      "name": "OpenAI Model - Writer",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        160,
+        1136
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "5HFbmVROuozdyQ0Q",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n\t\"type\": \"object\",\n\t\"properties\": {\n\t\t\"danishHeadline\": {\n\t\t\t\"type\": \"string\",\n\t\t\t\"description\": \"Article headline in Danish\"\n\t\t},\n\t\t\"danishArticle\": {\n\t\t\t\"type\": \"string\",\n\t\t\t\"description\": \"Full article text in Danish\"\n\t\t},\n\t\t\"metaDescription\": {\n\t\t\t\"type\": \"string\",\n\t\t\t\"description\": \"SEO meta description in Danish\"\n\t\t},\n\t\t\"tags\": {\n\t\t\t\"type\": \"array\",\n\t\t\t\"items\": {\n\t\t\t\t\"type\": \"string\"\n\t\t\t},\n\t\t\t\"description\": \"Relevant tags in Danish\"\n\t\t}\n\t}\n}"
+      },
+      "id": "93dc0e3f-2fc6-4a21-b0d3-3ff763035261",
+      "name": "Article Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        288,
+        1136
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Analyze the SEO quality of this Danish gaming article:\n\nHeadline: {{ $json.output.danishHeadline ?? $json.danishHeadline }}\nArticle: {{ $json.output.danishArticle ?? $json.danishArticle }}\nMeta Description: {{ $json.output.metaDescription ?? $json.metaDescription }}\nTags: {{ $json.output.tags ?? $json.tags }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are an SEO expert specializing in Danish content and gaming websites.\n\nAnalyze the article for:\n1. Keyword optimization and density\n2. Headline effectiveness (length, keywords, engagement)\n3. Meta description quality (length, keywords, call-to-action)\n4. Content structure and readability\n5. Tag relevance and coverage\n6. Overall SEO score (0-100)\n\nProvide:\n- seoScore: Overall SEO score (0-100)\n- strengths: Array of SEO strengths\n- improvements: Array of suggested improvements\n- optimizedHeadline: Improved headline if needed\n- optimizedMetaDescription: Improved meta description if needed"
+        }
+      },
+      "id": "f8ad5a0d-80b6-4738-8c6e-79a0943d16c5",
+      "name": "SEO Checker",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        512,
+        912
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "builtInTools": {},
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "id": "0976320c-7daf-483f-8072-daca56502cce",
+      "name": "OpenAI Model - SEO",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        512,
+        1136
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "5HFbmVROuozdyQ0Q",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n\t\"type\": \"object\",\n\t\"properties\": {\n\t\t\"seoScore\": {\n\t\t\t\"type\": \"number\",\n\t\t\t\"description\": \"Overall SEO score from 0 to 100\"\n\t\t},\n\t\t\"strengths\": {\n\t\t\t\"type\": \"array\",\n\t\t\t\"items\": {\n\t\t\t\t\"type\": \"string\"\n\t\t\t},\n\t\t\t\"description\": \"SEO strengths identified\"\n\t\t},\n\t\t\"improvements\": {\n\t\t\t\"type\": \"array\",\n\t\t\t\"items\": {\n\t\t\t\t\"type\": \"string\"\n\t\t\t},\n\t\t\t\"description\": \"Suggested SEO improvements\"\n\t\t},\n\t\t\"optimizedHeadline\": {\n\t\t\t\"type\": \"string\",\n\t\t\t\"description\": \"Improved headline if needed\"\n\t\t},\n\t\t\"optimizedMetaDescription\": {\n\t\t\t\"type\": \"string\",\n\t\t\t\"description\": \"Improved meta description if needed\"\n\t\t}\n\t}\n}"
+      },
+      "id": "03cba842-412b-431a-b991-fae67511af1b",
+      "name": "SEO Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        640,
+        1136
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Review this Danish gaming article for quality approval:\n\nHeadline: {{ $json.output.danishHeadline ?? $json.danishHeadline }}\nArticle: {{ $json.output.danishArticle ?? $json.danishArticle }}\nSEO Score: {{ $json.output.seoScore ?? $json.seoScore }}\nSEO Improvements: {{ $json.output.improvements ?? $json.improvements }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are a senior editor for a Danish gaming news website. Your task is to review articles and determine if they meet publication standards.\n\nEvaluation criteria:\n1. Content quality and accuracy\n2. Danish language quality (grammar, style, tone)\n3. Engagement and readability\n4. SEO optimization (minimum score: 75)\n5. Completeness and structure\n6. Image appropriateness\n\nDecision rules:\n- Approve if SEO score >= 75 AND content quality is high\n- Reject if improvements are needed\n\nProvide:\n- approved: Boolean (true/false)\n- qualityScore: Overall quality score (0-100)\n- feedback: Detailed feedback on the article\n- requiredChanges: Array of specific changes needed if not approved"
+        }
+      },
+      "id": "3bc81085-915c-470f-bcfc-53290f93d859",
+      "name": "Quality Control Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1088,
+        784
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "builtInTools": {},
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "id": "5f094263-922e-43b7-868e-6f53654a3fac",
+      "name": "OpenAI Model - QC",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        1104,
+        1008
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "5HFbmVROuozdyQ0Q",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n\t\"type\": \"object\",\n\t\"properties\": {\n\t\t\"approved\": {\n\t\t\t\"type\": \"boolean\",\n\t\t\t\"description\": \"Whether the article is approved for publication\"\n\t\t},\n\t\t\"qualityScore\": {\n\t\t\t\"type\": \"number\",\n\t\t\t\"description\": \"Overall quality score from 0 to 100\"\n\t\t},\n\t\t\"feedback\": {\n\t\t\t\"type\": \"string\",\n\t\t\t\"description\": \"Detailed feedback on the article\"\n\t\t},\n\t\t\"requiredChanges\": {\n\t\t\t\"type\": \"array\",\n\t\t\t\"items\": {\n\t\t\t\t\"type\": \"string\"\n\t\t\t},\n\t\t\t\"description\": \"Specific changes needed if not approved\"\n\t\t}\n\t}\n}"
+      },
+      "id": "5e7677b4-b1a5-4e32-a901-e275c7fd4b3b",
+      "name": "QC Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1232,
+        1008
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "id-1",
+              "leftValue": "={{ $json.output?.approved ?? $json.approved }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "id-2",
+              "leftValue": "={{ $json.currentRevision }}",
+              "rightValue": "={{ $json.maxRevisions }}",
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "650597f8-30a5-4a8c-bbb3-11b737434655",
+      "name": "Check Quality Approval",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1664,
+        784
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Game name: {{ $json.gameName }}\nOriginal Headline: {{ $json.output.danishHeadline ?? $json.danishHeadline }}\nOriginal Article: {{ $json.output.danishArticle ?? $json.danishArticle }}\nFeedback: {{ $json.output.feedback ?? $json.feedback }}\nRequired Changes: {{ $json.output.requiredChanges ?? $json.requiredChanges }}\nSEO Improvements: {{ $json.output.improvements ?? $json.improvements }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are a professional Danish gaming journalist tasked with improving articles based on editorial feedback.\n\nCRITICAL INSTRUCTION: You MUST use the EXACT game name provided in the user message. NEVER replace it with placeholders like ****, [GAME NAME], or similar. Always write the actual game name throughout the article.\n\nYour task:\n1. Address all required changes from the feedback\n2. Implement SEO improvements\n3. Maintain the core message and facts\n4. Improve Danish language quality\n5. Enhance engagement and readability\n6. Use the actual game name throughout - never use placeholders\n\nReturn the improved article with:\n- danishHeadline: Improved headline in Danish with actual game name\n- danishArticle: Improved article text in Danish with actual game name used throughout\n- metaDescription: Improved meta description in Danish with game name\n- tags: Updated relevant tags in Danish including game name\n- changesApplied: Array describing what was changed"
+        }
+      },
+      "id": "06aaf165-d143-405e-bc38-bc2b4755cb0c",
+      "name": "Article Fixer",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1888,
+        656
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "builtInTools": {},
+        "options": {
+          "temperature": 0.3
+        }
+      },
+      "id": "9c192a07-6f96-4c1c-b902-b42f8224c058",
+      "name": "OpenAI Model - Fixer",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        1904,
+        880
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "5HFbmVROuozdyQ0Q",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n\t\"type\": \"object\",\n\t\"properties\": {\n\t\t\"danishHeadline\": {\n\t\t\t\"type\": \"string\",\n\t\t\t\"description\": \"Improved headline in Danish\"\n\t\t},\n\t\t\"danishArticle\": {\n\t\t\t\"type\": \"string\",\n\t\t\t\"description\": \"Improved article text in Danish\"\n\t\t},\n\t\t\"metaDescription\": {\n\t\t\t\"type\": \"string\",\n\t\t\t\"description\": \"Improved meta description in Danish\"\n\t\t},\n\t\t\"tags\": {\n\t\t\t\"type\": \"array\",\n\t\t\t\"items\": {\n\t\t\t\t\"type\": \"string\"\n\t\t\t},\n\t\t\t\"description\": \"Updated relevant tags\"\n\t\t},\n\t\t\"changesApplied\": {\n\t\t\t\"type\": \"array\",\n\t\t\t\"items\": {\n\t\t\t\t\"type\": \"string\"\n\t\t\t},\n\t\t\t\"description\": \"Description of changes made\"\n\t\t}\n\t}\n}"
+      },
+      "id": "67726e40-0a7d-47fa-9e96-5c2d0653d9ae",
+      "name": "Fixer Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        2032,
+        880
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "id-1",
+              "name": "status",
+              "value": "Approved",
+              "type": "string"
+            },
+            {
+              "id": "id-2",
+              "name": "finalHeadline",
+              "value": "={{ (() => {\n  const cur = $json.danishHeadline ?? $json.output?.danishHeadline;\n  if (cur) return cur;\n\n  try {\n    const j = $node[\"Article Fixer\"].json;\n    const v = j.danishHeadline ?? j.output?.danishHeadline;\n    if (v) return v;\n  } catch (e) {}\n\n  try {\n    const j = $node[\"Danish Article Writer\"].json;\n    const v = j.danishHeadline ?? j.output?.danishHeadline;\n    if (v) return v;\n  } catch (e) {}\n\n  return \"\";\n})() }}",
+              "type": "string"
+            },
+            {
+              "id": "id-3",
+              "name": "finalArticle",
+              "value": "={{ (() => {\n  const cur = $json.danishArticle ?? $json.output?.danishArticle;\n  if (cur) return cur;\n\n  try {\n    const j = $node[\"Article Fixer\"].json;\n    const v = j.danishArticle ?? j.output?.danishArticle;\n    if (v) return v;\n  } catch (e) {}\n\n  try {\n    const j = $node[\"Danish Article Writer\"].json;\n    const v = j.danishArticle ?? j.output?.danishArticle;\n    if (v) return v;\n  } catch (e) {}\n\n  return \"\";\n})() }}",
+              "type": "string"
+            },
+            {
+              "id": "id-4",
+              "name": "finalMetaDescription",
+              "value": "={{ (() => {\n  const cur = $json.metaDescription ?? $json.output?.metaDescription;\n  if (cur) return cur;\n\n  try {\n    const j = $node[\"Article Fixer\"].json;\n    const v = j.metaDescription ?? j.output?.metaDescription;\n    if (v) return v;\n  } catch (e) {}\n\n  try {\n    const j = $node[\"Danish Article Writer\"].json;\n    const v = j.metaDescription ?? j.output?.metaDescription;\n    if (v) return v;\n  } catch (e) {}\n\n  return \"\";\n})() }}",
+              "type": "string"
+            },
+            {
+              "id": "id-5",
+              "name": "finalTags",
+              "value": "={{ (() => {\n  let t = $json.tags ?? $json.output?.tags;\n\n  if (t == null) {\n    try {\n      const j = $node[\"Article Fixer\"].json;\n      t = j.tags ?? j.output?.tags;\n    } catch (e) {}\n  }\n\n  if (t == null) {\n    try {\n      const j = $node[\"Danish Article Writer\"].json;\n      t = j.tags ?? j.output?.tags;\n    } catch (e) {}\n  }\n\n  if (Array.isArray(t)) return t.map(s => String(s).trim()).filter(Boolean);\n\n  if (typeof t === 'string') return t.split(',').map(s => s.trim()).filter(Boolean);\n\n  return [];\n})() }}",
+              "type": "array"
+            },
+            {
+              "id": "id-7",
+              "name": "seoScore",
+              "value": "={{ (() => {\n  const cur = $json.seoScore ?? $json.output?.seoScore;\n  if (cur !== undefined && cur !== null) return cur;\n  try { return $node[\"Preserve Fields After SEO\"].json.seoScore ?? $node[\"Preserve Fields After SEO\"].json.output?.seoScore ?? null; } catch (e) {}\n  return null;\n})() }}",
+              "type": "number"
+            },
+            {
+              "id": "id-8",
+              "name": "qualityScore",
+              "value": "={{ (() => {\n  const cur = $json.qualityScore ?? $json.output?.qualityScore;\n  if (cur !== undefined && cur !== null) return cur;\n  try { return $node[\"Preserve Fields After QC\"].json.qualityScore ?? $node[\"Preserve Fields After QC\"].json.output?.qualityScore ?? null; } catch (e) {}\n  return null;\n})() }}",
+              "type": "number"
+            },
+            {
+              "id": "id-blogTitle",
+              "name": "blogTitle",
+              "type": "string",
+              "value": "={{ $json.finalHeadline ?? $json.danishHeadline ?? $json.output?.danishHeadline ?? '' }}"
+            },
+            {
+              "id": "id-blogSlug",
+              "name": "blogSlug",
+              "type": "string",
+              "value": "={{ (() => {\n  const headline = $json.finalHeadline ?? $json.danishHeadline ?? $json.output?.danishHeadline ?? '';\n  return headline.toLowerCase().replace(/[æ]/g, 'ae').replace(/[ø]/g, 'oe').replace(/[å]/g, 'aa').replace(/[^\\w\\s-]/g, '').replace(/[\\s_-]+/g, '-').replace(/^-+|-+$/g, '').substring(0, 80);\n})() }}"
+            },
+            {
+              "id": "id-blogExcerpt",
+              "name": "blogExcerpt",
+              "type": "string",
+              "value": "={{ (() => {\n  const article = $json.finalArticle ?? $json.danishArticle ?? $json.output?.danishArticle ?? '';\n  const clean = article.replace(/[#*_\\[\\]()]/g, '').replace(/\\n+/g, ' ').trim();\n  if (clean.length <= 180) return clean;\n  return clean.substring(0, 180).replace(/\\s+\\S*$/, '') + '...';\n})() }}"
+            },
+            {
+              "id": "id-blogContent",
+              "name": "blogContent",
+              "type": "string",
+              "value": "={{ $json.finalArticle ?? $json.danishArticle ?? $json.output?.danishArticle ?? '' }}"
+            },
+            {
+              "id": "id-blogTags",
+              "name": "blogTags",
+              "type": "string",
+              "value": "={{ (() => {\n  const t = $json.finalTags ?? $json.tags ?? $json.output?.tags ?? [];\n  if (Array.isArray(t)) return t.join(', ');\n  return String(t);\n})() }}"
+            },
+            {
+              "id": "id-blogMetaDesc",
+              "name": "blogMetaDescription",
+              "type": "string",
+              "value": "={{ (() => {\n  const meta = $json.finalMetaDescription ?? $json.metaDescription ?? $json.output?.metaDescription ?? '';\n  return meta.substring(0, 160);\n})() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "544b0a6a-de5c-41d0-a5f4-0fe75c2a36c8",
+      "name": "Final Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2688,
+        784
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "id-1",
+              "name": "currentRevision",
+              "value": "={{ ($json.currentRevision ?? 0) + 1 }}",
+              "type": "number"
+            },
+            {
+              "id": "id-2",
+              "name": "danishHeadline",
+              "value": "={{ $json.output?.danishHeadline ?? $json.danishHeadline }}",
+              "type": "string"
+            },
+            {
+              "id": "id-3",
+              "name": "danishArticle",
+              "value": "={{ $json.output?.danishArticle ?? $json.danishArticle }}",
+              "type": "string"
+            },
+            {
+              "id": "id-4",
+              "name": "metaDescription",
+              "value": "={{ $json.output?.metaDescription ?? $json.metaDescription }}",
+              "type": "string"
+            },
+            {
+              "id": "id-5",
+              "name": "tags",
+              "value": "={{ (() => { const t = $json.tags ?? $json.output?.tags; if (Array.isArray(t)) return t; if (typeof t === 'string') return t.split(',').map(s => s.trim()).filter(Boolean); return []; })() }}",
+              "type": "array"
+            },
+            {
+              "id": "id-6",
+              "name": "maxRevisions",
+              "value": "={{ $('Workflow Configuration').first().json.maxRevisions }}",
+              "type": "number"
+            },
+            {
+              "id": "id-7",
+              "name": "gameName",
+              "value": "={{ $json.gameName ?? $('Workflow Configuration').first().json.gameName }}",
+              "type": "string"
+            },
+            {
+              "id": "id-8",
+              "name": "maxArticleLength",
+              "value": "={{ $json.maxArticleLength ?? $('Workflow Configuration').first().json.maxArticleLength }}",
+              "type": "number"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "8a0f19c2-491b-42cb-a467-0a310b0ee69f",
+      "name": "Increment Revision Counter",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2240,
+        656
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "id-1",
+              "leftValue": "={{ $json.currentRevision }}",
+              "rightValue": "={{ $json.maxRevisions }}",
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "2665aa1a-a1e7-4307-a89a-530b872721a2",
+      "name": "Check Revision Limit",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2464,
+        656
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "id-1",
+              "name": "seoScore",
+              "value": "={{ $json.seoScore ?? $json.output?.seoScore }}",
+              "type": "number"
+            },
+            {
+              "id": "id-2",
+              "name": "improvements",
+              "value": "={{ $json.improvements ?? $json.output?.improvements }}",
+              "type": "array"
+            },
+            {
+              "id": "id-3",
+              "name": "strengths",
+              "value": "={{ $json.strengths ?? $json.output?.strengths }}",
+              "type": "array"
+            },
+            {
+              "id": "id-4",
+              "name": "danishHeadline",
+              "value": "={{ (() => {\n  const cur = $json.danishHeadline ?? $json.output?.danishHeadline;\n  if (cur) return cur;\n\n  try {\n    const j = $node[\"Article Fixer\"].json;\n    const v = j.danishHeadline ?? j.output?.danishHeadline;\n    if (v) return v;\n  } catch (e) {}\n\n  try {\n    const j = $node[\"Danish Article Writer\"].json;\n    const v = j.danishHeadline ?? j.output?.danishHeadline;\n    if (v) return v;\n  } catch (e) {}\n\n  return \"\";\n})() }}",
+              "type": "string"
+            },
+            {
+              "id": "id-5",
+              "name": "danishArticle",
+              "value": "={{ (() => {\n  const cur = $json.danishArticle ?? $json.output?.danishArticle;\n  if (cur) return cur;\n\n  try {\n    const j = $node[\"Article Fixer\"].json;\n    const v = j.danishArticle ?? j.output?.danishArticle;\n    if (v) return v;\n  } catch (e) {}\n\n  try {\n    const j = $node[\"Danish Article Writer\"].json;\n    const v = j.danishArticle ?? j.output?.danishArticle;\n    if (v) return v;\n  } catch (e) {}\n\n  return \"\";\n})() }}",
+              "type": "string"
+            },
+            {
+              "id": "id-6",
+              "name": "metaDescription",
+              "value": "={{ (() => {\n  const cur = $json.metaDescription ?? $json.output?.metaDescription;\n  if (cur) return cur;\n\n  try {\n    const j = $node[\"Article Fixer\"].json;\n    const v = j.metaDescription ?? j.output?.metaDescription;\n    if (v) return v;\n  } catch (e) {}\n\n  try {\n    const j = $node[\"Danish Article Writer\"].json;\n    const v = j.metaDescription ?? j.output?.metaDescription;\n    if (v) return v;\n  } catch (e) {}\n\n  return \"\";\n})() }}",
+              "type": "string"
+            },
+            {
+              "id": "id-7",
+              "name": "tags",
+              "value": "={{ (() => {\n  let t = $json.tags ?? $json.output?.tags;\n\n  if (t == null) {\n    try {\n      const j = $node[\"Article Fixer\"].json;\n      t = j.tags ?? j.output?.tags;\n    } catch (e) {}\n  }\n\n  if (t == null) {\n    try {\n      const j = $node[\"Danish Article Writer\"].json;\n      t = j.tags ?? j.output?.tags;\n    } catch (e) {}\n  }\n\n  if (Array.isArray(t)) return t.map(s => String(s).trim()).filter(Boolean);\n\n  if (typeof t === 'string') return t.split(',').map(s => s.trim()).filter(Boolean);\n\n  return [];\n})() }}",
+              "type": "array"
+            },
+            {
+              "id": "id-8",
+              "name": "currentRevision",
+              "value": "={{ $json.currentRevision ?? 0 }}",
+              "type": "number"
+            },
+            {
+              "id": "id-9",
+              "name": "maxRevisions",
+              "value": "={{ $json.maxRevisions }}",
+              "type": "number"
+            },
+            {
+              "id": "id-10",
+              "name": "gameName",
+              "value": "={{ $json.gameName }}",
+              "type": "string"
+            },
+            {
+              "id": "id-11",
+              "name": "maxArticleLength",
+              "value": "={{ $json.maxArticleLength }}",
+              "type": "number"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "efad07bd-d9b0-489e-a16c-79399e8df56e",
+      "name": "Preserve Fields After SEO",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        864,
+        784
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "id-1",
+              "name": "approved",
+              "value": "={{ $json.approved ?? $json.output?.approved }}",
+              "type": "boolean"
+            },
+            {
+              "id": "id-2",
+              "name": "qualityScore",
+              "value": "={{ $json.qualityScore ?? $json.output?.qualityScore }}",
+              "type": "number"
+            },
+            {
+              "id": "id-3",
+              "name": "feedback",
+              "value": "={{ $json.feedback ?? $json.output?.feedback }}",
+              "type": "string"
+            },
+            {
+              "id": "id-4",
+              "name": "requiredChanges",
+              "value": "={{ $json.requiredChanges ?? $json.output?.requiredChanges }}",
+              "type": "array"
+            },
+            {
+              "id": "id-5",
+              "name": "seoScore",
+              "value": "={{ $json.seoScore }}",
+              "type": "number"
+            },
+            {
+              "id": "id-6",
+              "name": "improvements",
+              "value": "={{ $json.improvements }}",
+              "type": "array"
+            },
+            {
+              "id": "id-7",
+              "name": "danishHeadline",
+              "value": "={{ (() => {\n  const cur = $json.danishHeadline ?? $json.output?.danishHeadline;\n  if (cur) return cur;\n\n  try {\n    const j = $node[\"Article Fixer\"].json;\n    const v = j.danishHeadline ?? j.output?.danishHeadline;\n    if (v) return v;\n  } catch (e) {}\n\n  try {\n    const j = $node[\"Danish Article Writer\"].json;\n    const v = j.danishHeadline ?? j.output?.danishHeadline;\n    if (v) return v;\n  } catch (e) {}\n\n  return \"\";\n})() }}",
+              "type": "string"
+            },
+            {
+              "id": "id-8",
+              "name": "danishArticle",
+              "value": "={{ (() => {\n  const cur = $json.danishArticle ?? $json.output?.danishArticle;\n  if (cur) return cur;\n\n  try {\n    const j = $node[\"Article Fixer\"].json;\n    const v = j.danishArticle ?? j.output?.danishArticle;\n    if (v) return v;\n  } catch (e) {}\n\n  try {\n    const j = $node[\"Danish Article Writer\"].json;\n    const v = j.danishArticle ?? j.output?.danishArticle;\n    if (v) return v;\n  } catch (e) {}\n\n  return \"\";\n})() }}",
+              "type": "string"
+            },
+            {
+              "id": "id-9",
+              "name": "metaDescription",
+              "value": "={{ (() => {\n  const cur = $json.metaDescription ?? $json.output?.metaDescription;\n  if (cur) return cur;\n\n  try {\n    const j = $node[\"Article Fixer\"].json;\n    const v = j.metaDescription ?? j.output?.metaDescription;\n    if (v) return v;\n  } catch (e) {}\n\n  try {\n    const j = $node[\"Danish Article Writer\"].json;\n    const v = j.metaDescription ?? j.output?.metaDescription;\n    if (v) return v;\n  } catch (e) {}\n\n  return \"\";\n})() }}",
+              "type": "string"
+            },
+            {
+              "id": "id-10",
+              "name": "tags",
+              "value": "={{ (() => {\n  let t = $json.tags ?? $json.output?.tags;\n\n  if (t == null) {\n    try {\n      const j = $node[\"Article Fixer\"].json;\n      t = j.tags ?? j.output?.tags;\n    } catch (e) {}\n  }\n\n  if (t == null) {\n    try {\n      const j = $node[\"Danish Article Writer\"].json;\n      t = j.tags ?? j.output?.tags;\n    } catch (e) {}\n  }\n\n  if (Array.isArray(t)) return t.map(s => String(s).trim()).filter(Boolean);\n\n  if (typeof t === 'string') return t.split(',').map(s => s.trim()).filter(Boolean);\n\n  return [];\n})() }}",
+              "type": "array"
+            },
+            {
+              "id": "id-11",
+              "name": "currentRevision",
+              "value": "={{ $json.currentRevision ?? 0 }}",
+              "type": "number"
+            },
+            {
+              "id": "id-12",
+              "name": "maxRevisions",
+              "value": "={{ $json.maxRevisions }}",
+              "type": "number"
+            },
+            {
+              "id": "id-13",
+              "name": "gameName",
+              "value": "={{ $json.gameName }}",
+              "type": "string"
+            },
+            {
+              "id": "id-14",
+              "name": "maxArticleLength",
+              "value": "={{ $json.maxArticleLength }}",
+              "type": "number"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "b4e9500a-5249-459f-a65b-394dfea4da71",
+      "name": "Preserve Fields After QC",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1440,
+        784
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "id-1",
+              "name": "angle",
+              "type": "string",
+              "value": "={{ (() => { const angles = ['patch notes / opdatering','esport/turnering','event/collab','community/creative','rygter/læk','meta/balancing']; return angles[Math.floor(Math.random()*angles.length)]; })() }}"
+            },
+            {
+              "id": "id-2",
+              "name": "runId",
+              "type": "string",
+              "value": "={{ String(Date.now()) + '-' + Math.floor(Math.random()*1e6) }}"
+            },
+            {
+              "id": "id-3",
+              "name": "today",
+              "type": "string",
+              "value": "={{ $now.toISODate() }}"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "54f8861b-3067-451c-a99f-522a94b91fb9",
+      "name": "Pick Random Angle",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -528,
+        912
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Game Selection Form": {
+      "main": [
+        [
+          {
+            "node": "Workflow Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow Configuration": {
+      "main": [
+        [
+          {
+            "node": "Pick Random Angle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Model - Research": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Research Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Search Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Research Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Research Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Research Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Research Agent": {
+      "main": [
+        [
+          {
+            "node": "Danish Article Writer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Model - Writer": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Danish Article Writer",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Article Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Danish Article Writer",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Model - SEO": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "SEO Checker",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SEO Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "SEO Checker",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Model - QC": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Quality Control Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "QC Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Quality Control Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Quality Approval": {
+      "main": [
+        [
+          {
+            "node": "Final Result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Article Fixer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Model - Fixer": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Article Fixer",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fixer Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Article Fixer",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Article Fixer": {
+      "main": [
+        [
+          {
+            "node": "Increment Revision Counter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Danish Article Writer": {
+      "main": [
+        [
+          {
+            "node": "SEO Checker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Increment Revision Counter": {
+      "main": [
+        [
+          {
+            "node": "Check Revision Limit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Revision Limit": {
+      "main": [
+        [
+          {
+            "node": "Final Result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "SEO Checker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SEO Checker": {
+      "main": [
+        [
+          {
+            "node": "Preserve Fields After SEO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preserve Fields After SEO": {
+      "main": [
+        [
+          {
+            "node": "Quality Control Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Quality Control Agent": {
+      "main": [
+        [
+          {
+            "node": "Preserve Fields After QC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preserve Fields After QC": {
+      "main": [
+        [
+          {
+            "node": "Check Quality Approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick Random Angle": {
+      "main": [
+        [
+          {
+            "node": "Research Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "ff4cd900-da91-49fb-b7bb-ff70cb9d4392",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ec980270f9962c83a2c6200d0a8ddfc6adffb52117c90083529e0094cbf89053"
+  },
+  "id": "IFmUP8L9OKWpMih6",
+  "tags": []
+}

@@ -390,6 +390,15 @@ export default function AdminBlogEditor() {
               type="text"
               value={formData.title}
               onChange={(e) => updateFormData('title', e.target.value)}
+              onPaste={(e) => {
+                const plainText = e.clipboardData.getData('text/plain')
+                if (plainText && plainText.includes('\\n')) {
+                  e.preventDefault()
+                  // Strip literal \n from title
+                  const converted = plainText.replace(/\\n/g, ' ').replace(/\s+/g, ' ').trim()
+                  updateFormData('title', converted)
+                }
+              }}
               placeholder="Post title..."
               className="w-full text-3xl font-bold text-gray-900 placeholder-gray-400 border-none outline-none"
             />
@@ -444,6 +453,15 @@ export default function AdminBlogEditor() {
                     <textarea
                       value={formData.excerpt}
                       onChange={(e) => updateFormData('excerpt', e.target.value)}
+                      onPaste={(e) => {
+                        const plainText = e.clipboardData.getData('text/plain')
+                        if (plainText && plainText.includes('\\n')) {
+                          e.preventDefault()
+                          // Convert literal \n to spaces for excerpt (single paragraph)
+                          const converted = plainText.replace(/\\n/g, ' ').replace(/\s+/g, ' ').trim()
+                          updateFormData('excerpt', converted)
+                        }
+                      }}
                       placeholder="Brief summary of the post (shown in listings)..."
                       rows={2}
                       className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 resize-none"
@@ -574,7 +592,23 @@ export default function AdminBlogEditor() {
                       onChange={(e) => updateFormData('content', e.target.value)}
                       onPaste={(e) => {
                         const html = e.clipboardData.getData('text/html')
-                        if (html) {
+                        const plainText = e.clipboardData.getData('text/plain')
+                        
+                        // Check if plain text contains literal \n sequences (from n8n)
+                        if (plainText && plainText.includes('\\n')) {
+                          e.preventDefault()
+                          // Convert literal \n to actual newlines
+                          const converted = plainText
+                            .replace(/\\n\\n/g, '\n\n')  // Double newlines first
+                            .replace(/\\n/g, '\n')       // Then single newlines
+                            .replace(/\\t/g, '\t')       // Tabs too
+                          const textarea = e.target as HTMLTextAreaElement
+                          const start = textarea.selectionStart
+                          const end = textarea.selectionEnd
+                          const text = formData.content
+                          const newText = text.substring(0, start) + converted + text.substring(end)
+                          updateFormData('content', newText)
+                        } else if (html) {
                           e.preventDefault()
                           const markdown = htmlToMarkdown(html)
                           const textarea = e.target as HTMLTextAreaElement
@@ -713,6 +747,15 @@ More content here..."
                   type="text"
                   value={formData.tags}
                   onChange={(e) => updateFormData('tags', e.target.value)}
+                  onPaste={(e) => {
+                    const plainText = e.clipboardData.getData('text/plain')
+                    if (plainText && plainText.includes('\\n')) {
+                      e.preventDefault()
+                      // Strip literal \n from tags
+                      const converted = plainText.replace(/\\n/g, ', ').replace(/,\s*,/g, ',').replace(/\s+/g, ' ').trim()
+                      updateFormData('tags', converted)
+                    }
+                  }}
                   placeholder="seo, marketing, tips"
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 text-sm"
                 />
@@ -843,6 +886,15 @@ More content here..."
                   <textarea
                     value={formData.meta_description}
                     onChange={(e) => updateFormData('meta_description', e.target.value)}
+                    onPaste={(e) => {
+                      const plainText = e.clipboardData.getData('text/plain')
+                      if (plainText && plainText.includes('\\n')) {
+                        e.preventDefault()
+                        // Convert literal \n to spaces for meta description (single line)
+                        const converted = plainText.replace(/\\n/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 160)
+                        updateFormData('meta_description', converted)
+                      }
+                    }}
                     placeholder="Brief description for search results..."
                     rows={3}
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 text-sm resize-none"
