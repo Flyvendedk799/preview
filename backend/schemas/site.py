@@ -502,3 +502,9 @@ class SiteSettings(SiteSettingsBase):
     class Config:
         from_attributes = True
 
+
+# Rebuild PublishedSite to resolve forward reference to Domain
+# Import Domain at runtime and rebuild the model
+from backend.schemas.domain import Domain  # noqa: E402
+PublishedSite.model_rebuild()
+
