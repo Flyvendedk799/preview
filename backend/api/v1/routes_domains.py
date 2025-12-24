@@ -38,7 +38,14 @@ def create_domain(
     current_org: Organization = Depends(get_current_org),
     current_role: OrganizationRole = Depends(role_required([OrganizationRole.OWNER, OrganizationRole.ADMIN, OrganizationRole.EDITOR]))
 ):
-    """Create a new domain for the current organization (owner/admin/editor only)."""
+    """
+    Create a new domain for the current organization (owner/admin/editor only).
+    
+    Optionally adds domain to Railway via API if RAILWAY_API_TOKEN is configured.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     # Check if domain with same name already exists for this organization
     existing_domain = db.query(DomainModel).filter(
         DomainModel.name == domain.name,
@@ -63,6 +70,29 @@ def create_domain(
     db.add(db_domain)
     db.commit()
     db.refresh(db_domain)
+    
+    # Optionally add domain to Railway via API
+    # This allows automatic Railway domain configuration
+    railway_api_enabled = os.getenv("RAILWAY_API_TOKEN") and os.getenv("RAILWAY_SERVICE_ID")
+    if railway_api_enabled:
+        try:
+            from backend.services.railway_domain_service import (
+                add_domain_to_railway,
+                check_domain_exists_in_railway
+            )
+            
+            # Check if domain already exists in Railway
+            if not check_domain_exists_in_railway(domain.name):
+                logger.info(f"Adding domain {domain.name} to Railway via API")
+                railway_domain = add_domain_to_railway(domain.name)
+                logger.info(f"Successfully added {domain.name} to Railway: {railway_domain}")
+            else:
+                logger.info(f"Domain {domain.name} already exists in Railway")
+        except Exception as e:
+            # Log error but don't fail domain creation
+            # Domain is still created in database, just not added to Railway
+            logger.warning(f"Failed to add domain to Railway via API: {e}")
+            logger.info("Domain created in database. You can add it manually in Railway dashboard.")
     
     # Invalidate cache (domain was just created, but invalidate to be safe)
     invalidate_domain(current_org.id, db_domain.name)

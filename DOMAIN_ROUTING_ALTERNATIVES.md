@@ -116,34 +116,84 @@ def get_site_from_subdomain(request: Request, db: Session):
 
 ---
 
-### Option 3: Railway API (If Available)
+### Option 3: Railway API + Wildcard Domain (RECOMMENDED FOR RAILWAY) ⭐
 
-**Check if Railway has API:**
-- Railway might have API to add domains programmatically
-- Check: https://docs.railway.app/reference/api
+**Railway supports:**
+- ✅ **Wildcard domains** (`*.yourdomain.com`)
+- ✅ **GraphQL API** for programmatic domain management
+- ✅ **Automatic SSL** provisioning
 
-**If available:**
+**Setup:**
+
+1. **Add Wildcard Domain in Railway:**
+   ```
+   Railway Dashboard → Backend Service → Settings → Networking
+   Add Custom Domain: *.yourplatform.com
+   ```
+
+2. **Configure DNS:**
+   ```
+   Type: CNAME
+   Name: *
+   Value: your-railway-backend.railway.app
+   ```
+
+3. **Use Railway API for Custom Domains:**
+   - When user adds their own domain, call Railway API
+   - Railway automatically provisions SSL
+   - No manual Railway dashboard steps needed
+
+**Implementation:**
+
 ```python
-import requests
-
+# backend/services/railway_domain_service.py
 def add_domain_to_railway(domain: str):
-    """Add custom domain to Railway via API."""
+    """Add custom domain to Railway via GraphQL API."""
     response = requests.post(
-        "https://api.railway.app/v1/services/{service_id}/domains",
-        headers={"Authorization": f"Bearer {RAILWAY_API_TOKEN}"},
-        json={"domain": domain}
+        "https://backboard.railway.app/graphql/v2",
+        headers={
+            "Authorization": f"Bearer {RAILWAY_API_TOKEN}",
+            "Content-Type": "application/json"
+        },
+        json={
+            "query": """
+                mutation customDomainCreate($input: CustomDomainCreateInput!) {
+                    customDomainCreate(input: $input) {
+                        id domain status
+                    }
+                }
+            """,
+            "variables": {
+                "input": {
+                    "domain": domain,
+                    "serviceId": RAILWAY_SERVICE_ID
+                }
+            }
+        }
     )
     return response.json()
 ```
 
+**Environment Variables Needed:**
+```
+RAILWAY_API_TOKEN=your_railway_api_token
+RAILWAY_SERVICE_ID=your_backend_service_id
+RAILWAY_ENVIRONMENT_ID=your_environment_id (optional)
+```
+
 **Pros:**
 - ✅ Automated domain addition
-- ✅ Stays on Railway
+- ✅ Stays on Railway (no external services)
+- ✅ Automatic SSL provisioning
+- ✅ Wildcard support for subdomains
+- ✅ Free SSL certificates
 
 **Cons:**
-- ❌ May have rate limits
-- ❌ May require Railway Pro plan
-- ❌ Still need DNS configuration per domain
+- ⚠️ Requires Railway API token
+- ⚠️ Users still need to configure DNS
+- ⚠️ API rate limits may apply
+
+**This is now implemented!** See `backend/services/railway_domain_service.py`
 
 ---
 
