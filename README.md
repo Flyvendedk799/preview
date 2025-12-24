@@ -2,6 +2,8 @@
 
 A modern, premium SaaS dashboard for automatically generating branded URL previews for websites.
 
+> Database migrations applied - columns fixed and up to date.
+
 ## Tech Stack
 
 - **React** + **Vite** - Fast development and build tooling

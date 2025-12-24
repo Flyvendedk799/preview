@@ -53,16 +53,26 @@ def on_startup():
     logger = logging.getLogger(__name__)
     
     # Run database migrations automatically on startup (production)
+    # Migrations are idempotent and safe to run multiple times
     if os.getenv("ENV", "development").lower() == "production":
         try:
             logger.info("Running database migrations...")
             alembic_cfg = Config("alembic.ini")
-            command.upgrade(alembic_cfg, "head")
-            logger.info("Database migrations completed successfully")
+            # Change to project root to ensure alembic.ini is found
+            import os as os_module
+            original_cwd = os_module.getcwd()
+            try:
+                project_root = os_module.path.dirname(os_module.path.dirname(os_module.path.abspath(__file__)))
+                os_module.chdir(project_root)
+                command.upgrade(alembic_cfg, "head")
+                logger.info("Database migrations completed successfully")
+            finally:
+                os_module.chdir(original_cwd)
         except Exception as e:
             logger.error(f"Failed to run database migrations: {e}", exc_info=True)
-            # Don't crash the app if migrations fail - log and continue
-            # This allows the app to start even if there are migration issues
+            # In production, migrations are critical - log error but don't crash
+            # Admin should check logs and run migrations manually if needed
+            logger.warning("Application starting without migrations. Please run migrations manually.")
     
     logger.info("=" * 60)
     logger.info("Starting Preview SaaS API")
@@ -71,20 +81,6 @@ def on_startup():
     logger.info(f"Debug Mode: {settings.DEBUG if hasattr(settings, 'DEBUG') else False}")
     logger.info(f"CORS Origins: {settings.CORS_ALLOWED_ORIGINS if settings.CORS_ALLOWED_ORIGINS else 'All origins (dev mode)'}")
     logger.info("=" * 60)
-    
-    # Run database migrations automatically on startup (production)
-    if os.getenv("ENV", "development").lower() == "production":
-        try:
-            logger.info("Running database migrations...")
-            from alembic.config import Config
-            from alembic import command
-            alembic_cfg = Config("alembic.ini")
-            command.upgrade(alembic_cfg, "head")
-            logger.info("Database migrations completed successfully")
-        except Exception as e:
-            logger.error(f"Failed to run database migrations: {e}", exc_info=True)
-            # Don't crash the app if migrations fail - log and continue
-            # This allows the app to start even if there are migration issues
     
     try:
         create_tables()
