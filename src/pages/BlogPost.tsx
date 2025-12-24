@@ -818,6 +818,11 @@ export default function BlogPost() {
                 src={post.featured_image}
                 alt={post.featured_image_alt || post.title}
                 className="w-full h-auto rounded-2xl shadow-xl"
+                onError={(e) => {
+                  // Hide broken images
+                  const target = e.target as HTMLImageElement
+                  target.style.display = 'none'
+                }}
               />
             </div>
           </div>
@@ -846,7 +851,10 @@ export default function BlogPost() {
               </div>
             )}
             
-            <div className="article-body" ref={articleRef}>
+            <div className="article-body prose prose-lg prose-orange max-w-none" ref={articleRef} style={{
+              fontSize: '1.125rem',
+              lineHeight: '1.75rem',
+            }}>
               {renderContent(post.content)}
             </div>
             

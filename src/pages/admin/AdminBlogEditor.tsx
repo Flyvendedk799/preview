@@ -712,6 +712,12 @@ More content here..."
               placeholder="https://example.com/image.jpg"
               className="w-full mt-3 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20"
             />
+            {formData.featured_image && !/\.(jpg|jpeg|png|webp|gif)(\?|$)/i.test(formData.featured_image) && (
+              <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                <span>⚠️</span>
+                <span>Warning: URL doesn't look like a direct image link. Use URLs ending in .jpg, .png, .webp</span>
+              </p>
+            )}
             <input
               type="text"
               value={formData.featured_image_alt}
