@@ -11,6 +11,8 @@ import {
   ChevronRightIcon,
   SparklesIcon,
   LinkIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
 } from '@heroicons/react/24/outline'
 import {
   fetchBlogPostBySlug,
@@ -200,6 +202,21 @@ function renderContent(content: string, featuredImageUrl?: string): JSX.Element 
   }
 
   let paragraphCount = 0
+  let h2Count = 0
+  
+  // Insert images after h2 headings if we have a featured image and it makes sense
+  const shouldInsertImageAfterH2 = (index: number, blocks: typeof blocks): boolean => {
+    // Only insert after first or second h2, and only if we have a featured image
+    if (!featuredImageUrl || !isValidImageUrl(featuredImageUrl)) return false
+    if (h2Count >= 2) return false // Max 2 images inserted
+    
+    // Check if there's already an image nearby (within next 3 blocks)
+    for (let i = index + 1; i < Math.min(index + 4, blocks.length); i++) {
+      if (blocks[i].type === 'image') return false
+    }
+    
+    return true
+  }
 
   const elements = blocks.map((block, index) => {
     switch (block.type) {
@@ -221,11 +238,29 @@ function renderContent(content: string, featuredImageUrl?: string): JSX.Element 
         )
 
       case 'h2': {
+        h2Count++
         const id = block.content.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-')
+        const shouldInsertImage = shouldInsertImageAfterH2(index, blocks)
+        
         return (
-          <h2 key={index} id={id} className="text-2xl sm:text-3xl font-bold text-gray-900 mt-12 mb-4 leading-tight">
-            {block.content}
-          </h2>
+          <>
+            <h2 key={index} id={id} className="text-2xl sm:text-3xl font-bold text-gray-900 mt-12 mb-4 leading-tight">
+              {block.content}
+            </h2>
+            {shouldInsertImage && featuredImageUrl && isValidImageUrl(featuredImageUrl) && (
+              <div key={`${index}-img`} className="my-8">
+                <img
+                  src={featuredImageUrl}
+                  alt={block.content}
+                  className="w-full h-auto rounded-xl shadow-lg"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement
+                    target.style.display = 'none'
+                  }}
+                />
+              </div>
+            )}
+          </>
         )
       }
 
@@ -253,6 +288,10 @@ function renderContent(content: string, featuredImageUrl?: string): JSX.Element 
         )
 
       case 'image':
+        // Only render if it's a valid image URL
+        if (!isValidImageUrl(block.content)) {
+          return null
+        }
         return (
           <div key={index} className="my-10">
             <img
@@ -327,16 +366,6 @@ function renderContent(content: string, featuredImageUrl?: string): JSX.Element 
       default:
         paragraphCount++
         
-        if (paragraphCount === 1) {
-          return (
-            <p 
-              key={index} 
-              className="text-lg sm:text-xl text-gray-700 leading-relaxed mb-6 first-letter:text-5xl first-letter:font-bold first-letter:text-orange-500 first-letter:float-left first-letter:mr-3 first-letter:mt-1"
-              dangerouslySetInnerHTML={{ __html: processInline(block.content) }}
-            />
-          )
-        }
-        
         return (
           <p 
             key={index} 
@@ -354,6 +383,78 @@ interface TocItem {
   id: string
   title: string
   level: number
+}
+
+// Compact, collapsible Table of Contents component
+function TocSidebar({ toc, scrollToHeading }: { toc: TocItem[], scrollToHeading: (id: string) => void }) {
+  const [isExpanded, setIsExpanded] = useState(false)
+  
+  return (
+    <div className="mb-8 border border-gray-200 rounded-lg overflow-hidden">
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="w-full px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors flex items-center justify-between text-left"
+      >
+        <span className="text-sm font-semibold text-gray-900">Table of Contents</span>
+        {isExpanded ? (
+          <ChevronUpIcon className="w-4 h-4 text-gray-500" />
+        ) : (
+          <ChevronDownIcon className="w-4 h-4 text-gray-500" />
+        )}
+      </button>
+      {isExpanded && (
+        <nav className="px-4 py-3 bg-white space-y-1.5 max-h-96 overflow-y-auto">
+          {toc.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => {
+                scrollToHeading(item.id)
+                setIsExpanded(false)
+              }}
+              className={`block w-full text-left text-xs hover:text-orange-600 transition-colors py-1 ${
+                item.level === 3 ? 'pl-4 text-gray-600' : 'font-medium text-gray-700'
+              }`}
+            >
+              {item.title}
+            </button>
+          ))}
+        </nav>
+      )}
+    </div>
+  )
+}
+
+// Validate image URL - check if it's a direct image link
+function isValidImageUrl(url: string): boolean {
+  if (!url) return false
+  
+  // Check if it ends with image extension
+  const hasImageExtension = /\.(jpg|jpeg|png|webp|gif|svg)(\?|$)/i.test(url)
+  
+  // Check if it's from a trusted CDN or domain
+  const trustedDomains = [
+    'cdn2.unrealengine.com',
+    'steamcdn-a.akamaihd.net',
+    'images.unsplash.com',
+    'cdn.cloudflare.com',
+    'i.imgur.com',
+    'i.redd.it',
+  ]
+  
+  const isFromTrustedDomain = trustedDomains.some(domain => url.includes(domain))
+  
+  // Reject common non-image URLs
+  const rejectedPatterns = [
+    /serpapi\.com/i,
+    /googleusercontent\.com\/imgres/i,
+    /\.html/i,
+    /\/page\//i,
+  ]
+  
+  const isRejected = rejectedPatterns.some(pattern => pattern.test(url))
+  
+  // Must have image extension OR be from trusted domain, and not be rejected
+  return (hasImageExtension || isFromTrustedDomain) && !isRejected
 }
 
 export default function BlogPost() {
@@ -845,7 +946,7 @@ export default function BlogPost() {
         </header>
 
         {/* Featured Image */}
-        {post.featured_image && (
+        {post.featured_image && isValidImageUrl(post.featured_image) && (
           <div className="px-4 sm:px-6 mb-12">
             <div className="max-w-5xl mx-auto">
               <img
@@ -867,22 +968,7 @@ export default function BlogPost() {
           <div className="max-w-3xl mx-auto">
             {/* Table of Contents */}
             {toc.length > 0 && (
-              <div className="mb-12 p-6 bg-gray-50 rounded-xl border border-gray-200">
-                <h2 className="text-lg font-bold text-gray-900 mb-4">Table of Contents</h2>
-                <nav className="space-y-2">
-                  {toc.map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => scrollToHeading(item.id)}
-                      className={`block w-full text-left text-sm hover:text-orange-600 transition-colors ${
-                        item.level === 3 ? 'pl-4 text-gray-600' : 'font-medium text-gray-700'
-                      }`}
-                    >
-                      {item.title}
-                    </button>
-                  ))}
-                </nav>
-              </div>
+              <TocSidebar toc={toc} scrollToHeading={scrollToHeading} />
             )}
             
             <div className="article-body prose prose-lg prose-orange max-w-none" ref={articleRef} style={{

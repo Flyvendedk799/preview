@@ -782,12 +782,44 @@ More content here..."
               placeholder="https://example.com/image.jpg"
               className="w-full mt-3 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20"
             />
-            {formData.featured_image && !/\.(jpg|jpeg|png|webp|gif)(\?|$)/i.test(formData.featured_image) && (
-              <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
-                <span>⚠️</span>
-                <span>Warning: URL doesn't look like a direct image link. Use URLs ending in .jpg, .png, .webp</span>
-              </p>
-            )}
+            {formData.featured_image && (() => {
+              const url = formData.featured_image
+              const hasImageExtension = /\.(jpg|jpeg|png|webp|gif|svg)(\?|$)/i.test(url)
+              const trustedDomains = [
+                'cdn2.unrealengine.com',
+                'steamcdn-a.akamaihd.net',
+                'images.unsplash.com',
+                'cdn.cloudflare.com',
+                'i.imgur.com',
+                'i.redd.it',
+              ]
+              const isFromTrustedDomain = trustedDomains.some(domain => url.includes(domain))
+              const rejectedPatterns = [
+                /serpapi\.com/i,
+                /googleusercontent\.com\/imgres/i,
+                /\.html/i,
+                /\/page\//i,
+              ]
+              const isRejected = rejectedPatterns.some(pattern => pattern.test(url))
+              
+              if (!hasImageExtension && !isFromTrustedDomain) {
+                return (
+                  <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                    <span>⚠️</span>
+                    <span>Warning: This doesn't appear to be a direct image link. Use URLs ending in .jpg, .png, .webp, etc.</span>
+                  </p>
+                )
+              }
+              if (isRejected) {
+                return (
+                  <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                    <span>❌</span>
+                    <span>Error: This URL type is not supported. Please use a direct image link.</span>
+                  </p>
+                )
+              }
+              return null
+            })()}
             <input
               type="text"
               value={formData.featured_image_alt}
