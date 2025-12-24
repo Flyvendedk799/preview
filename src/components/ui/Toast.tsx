@@ -1,26 +1,33 @@
 import { useState, useEffect, createContext, useContext, useCallback, ReactNode } from 'react'
-import { CheckCircleIcon, XCircleIcon, ExclamationTriangleIcon, InformationCircleIcon, XMarkIcon } from '@heroicons/react/24/outline'
+import { 
+  CheckCircleIcon, 
+  ExclamationCircleIcon, 
+  InformationCircleIcon, 
+  XCircleIcon,
+  XMarkIcon 
+} from '@heroicons/react/24/outline'
 
 type ToastType = 'success' | 'error' | 'warning' | 'info'
 
 interface Toast {
   id: string
   type: ToastType
-  message: string
+  title: string
+  message?: string
   duration?: number
 }
 
-interface ToastContextType {
+interface ToastContextValue {
   toasts: Toast[]
-  addToast: (type: ToastType, message: string, duration?: number) => void
+  addToast: (toast: Omit<Toast, 'id'>) => void
   removeToast: (id: string) => void
-  success: (message: string) => void
-  error: (message: string) => void
-  warning: (message: string) => void
-  info: (message: string) => void
+  success: (title: string, message?: string) => void
+  error: (title: string, message?: string) => void
+  warning: (title: string, message?: string) => void
+  info: (title: string, message?: string) => void
 }
 
-const ToastContext = createContext<ToastContextType | null>(null)
+const ToastContext = createContext<ToastContextValue | null>(null)
 
 export function useToast() {
   const context = useContext(ToastContext)
@@ -30,32 +37,37 @@ export function useToast() {
   return context
 }
 
-export function ToastProvider({ children }: { children: ReactNode }) {
+interface ToastProviderProps {
+  children: ReactNode
+}
+
+export function ToastProvider({ children }: ToastProviderProps) {
   const [toasts, setToasts] = useState<Toast[]>([])
 
-  const removeToast = useCallback((id: string) => {
-    setToasts((prev) => prev.filter((toast) => toast.id !== id))
+  const addToast = useCallback((toast: Omit<Toast, 'id'>) => {
+    const id = Math.random().toString(36).substring(2, 9)
+    setToasts(prev => [...prev, { ...toast, id }])
   }, [])
 
-  const addToast = useCallback((type: ToastType, message: string, duration = 5000) => {
-    const id = Math.random().toString(36).substring(2, 9)
-    const toast: Toast = { id, type, message, duration }
-    
-    setToasts((prev) => [...prev, toast])
+  const removeToast = useCallback((id: string) => {
+    setToasts(prev => prev.filter(toast => toast.id !== id))
+  }, [])
 
-    if (duration > 0) {
-      setTimeout(() => {
-        removeToast(id)
-      }, duration)
-    }
+  const success = useCallback((title: string, message?: string) => {
+    addToast({ type: 'success', title, message, duration: 4000 })
+  }, [addToast])
 
-    return id
-  }, [removeToast])
+  const error = useCallback((title: string, message?: string) => {
+    addToast({ type: 'error', title, message, duration: 6000 })
+  }, [addToast])
 
-  const success = useCallback((message: string) => addToast('success', message), [addToast])
-  const error = useCallback((message: string) => addToast('error', message), [addToast])
-  const warning = useCallback((message: string) => addToast('warning', message), [addToast])
-  const info = useCallback((message: string) => addToast('info', message), [addToast])
+  const warning = useCallback((title: string, message?: string) => {
+    addToast({ type: 'warning', title, message, duration: 5000 })
+  }, [addToast])
+
+  const info = useCallback((title: string, message?: string) => {
+    addToast({ type: 'info', title, message, duration: 4000 })
+  }, [addToast])
 
   return (
     <ToastContext.Provider value={{ toasts, addToast, removeToast, success, error, warning, info }}>
@@ -65,68 +77,104 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   )
 }
 
-function ToastContainer({ toasts, removeToast }: { toasts: Toast[]; removeToast: (id: string) => void }) {
-  if (toasts.length === 0) return null
+interface ToastContainerProps {
+  toasts: Toast[]
+  removeToast: (id: string) => void
+}
 
+function ToastContainer({ toasts, removeToast }: ToastContainerProps) {
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none">
-      {toasts.map((toast) => (
-        <ToastItem key={toast.id} toast={toast} onRemove={() => removeToast(toast.id)} />
+    <div 
+      className="fixed bottom-4 right-4 z-[100] flex flex-col gap-3 max-w-md w-full pointer-events-none"
+      aria-live="polite"
+    >
+      {toasts.map(toast => (
+        <ToastItem key={toast.id} toast={toast} onClose={() => removeToast(toast.id)} />
       ))}
     </div>
   )
 }
 
-function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: () => void }) {
-  const [isVisible, setIsVisible] = useState(false)
+interface ToastItemProps {
+  toast: Toast
+  onClose: () => void
+}
+
+function ToastItem({ toast, onClose }: ToastItemProps) {
+  const [isExiting, setIsExiting] = useState(false)
 
   useEffect(() => {
-    setIsVisible(true)
-  }, [])
+    const timer = setTimeout(() => {
+      setIsExiting(true)
+      setTimeout(onClose, 200)
+    }, toast.duration || 4000)
 
-  const icons: Record<ToastType, React.ReactNode> = {
-    success: <CheckCircleIcon className="w-5 h-5 text-green-500" />,
-    error: <XCircleIcon className="w-5 h-5 text-red-500" />,
-    warning: <ExclamationTriangleIcon className="w-5 h-5 text-yellow-500" />,
-    info: <InformationCircleIcon className="w-5 h-5 text-blue-500" />,
+    return () => clearTimeout(timer)
+  }, [toast.duration, onClose])
+
+  const handleClose = () => {
+    setIsExiting(true)
+    setTimeout(onClose, 200)
   }
 
-  const bgColors: Record<ToastType, string> = {
-    success: 'bg-green-50 border-green-200',
-    error: 'bg-red-50 border-red-200',
-    warning: 'bg-yellow-50 border-yellow-200',
-    info: 'bg-blue-50 border-blue-200',
+  const icons = {
+    success: <CheckCircleIcon className="w-5 h-5 text-success-500" />,
+    error: <XCircleIcon className="w-5 h-5 text-error-500" />,
+    warning: <ExclamationCircleIcon className="w-5 h-5 text-warning-500" />,
+    info: <InformationCircleIcon className="w-5 h-5 text-primary-500" />,
   }
 
-  const textColors: Record<ToastType, string> = {
-    success: 'text-green-800',
-    error: 'text-red-800',
-    warning: 'text-yellow-800',
-    info: 'text-blue-800',
+  const borderColors = {
+    success: 'border-l-success-500',
+    error: 'border-l-error-500',
+    warning: 'border-l-warning-500',
+    info: 'border-l-primary-500',
   }
 
   return (
-    <div
+    <div 
       className={`
-        pointer-events-auto flex items-start gap-3 p-4 rounded-lg border shadow-lg
-        transition-all duration-300 transform
-        ${bgColors[toast.type]}
-        ${isVisible ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'}
+        pointer-events-auto flex items-start gap-3 p-4 bg-white rounded-xl 
+        shadow-soft-xl border border-secondary-100 border-l-4
+        ${borderColors[toast.type]}
+        ${isExiting ? 'animate-fade-out' : 'animate-slide-in-right'}
       `}
+      role="alert"
     >
-      <div className="flex-shrink-0">{icons[toast.type]}</div>
-      <p className={`flex-1 text-sm font-medium ${textColors[toast.type]}`}>
-        {toast.message}
-      </p>
+      <div className="flex-shrink-0 mt-0.5">
+        {icons[toast.type]}
+      </div>
+      
+      <div className="flex-1 min-w-0">
+        <p className="font-semibold text-secondary-900 text-sm">
+          {toast.title}
+        </p>
+        {toast.message && (
+          <p className="mt-1 text-sm text-secondary-500">
+            {toast.message}
+          </p>
+        )}
+      </div>
+      
       <button
-        onClick={onRemove}
-        className="flex-shrink-0 p-1 hover:bg-white/50 rounded transition-colors"
+        onClick={handleClose}
+        className="flex-shrink-0 p-1 -m-1 text-secondary-400 hover:text-secondary-600 rounded-lg transition-colors"
       >
-        <XMarkIcon className={`w-4 h-4 ${textColors[toast.type]}`} />
+        <XMarkIcon className="w-4 h-4" />
       </button>
     </div>
   )
 }
 
-export default ToastProvider
-
+// Add fadeOut animation to CSS
+const style = document.createElement('style')
+style.textContent = `
+  @keyframes fadeOut {
+    from { opacity: 1; transform: translateX(0); }
+    to { opacity: 0; transform: translateX(100%); }
+  }
+  .animate-fade-out {
+    animation: fadeOut 0.2s ease-in forwards;
+  }
+`
+document.head.appendChild(style)

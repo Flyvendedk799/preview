@@ -14,10 +14,14 @@ import {
   PaintBrushIcon,
   GlobeAltIcon,
   ClockIcon,
+  ArrowUpRightIcon,
+  SparklesIcon,
 } from '@heroicons/react/24/outline'
-import Card from '../../components/ui/Card'
+import Card, { CardHeader, CardTitle } from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
-import { SkeletonList } from '../../components/ui/Skeleton'
+import PageHeader from '../../components/ui/PageHeader'
+import { StatusBadge } from '../../components/ui/Badge'
+import { SkeletonStats, SkeletonList } from '../../components/ui/Skeleton'
 import {
   fetchSiteById,
   fetchSiteStats,
@@ -75,18 +79,29 @@ export default function SiteDashboard() {
 
   if (loading) {
     return (
-      <Card>
-        <SkeletonList count={4} />
-      </Card>
+      <div className="space-y-6">
+        <div className="h-24 skeleton rounded-xl" />
+        <SkeletonStats count={4} />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <SkeletonList count={4} className="card" />
+          </div>
+          <div className="space-y-6">
+            <div className="h-48 skeleton rounded-xl" />
+            <div className="h-48 skeleton rounded-xl" />
+          </div>
+        </div>
+      </div>
     )
   }
 
   if (error || !site) {
     return (
-      <Card>
-        <div className="text-center py-8">
-          <p className="text-red-600">{error || 'Site not found'}</p>
-        </div>
+      <Card className="text-center py-12">
+        <p className="text-error-600 mb-4">{error || 'Site not found'}</p>
+        <Button variant="secondary" onClick={() => navigate('/app/sites')}>
+          Back to Sites
+        </Button>
       </Card>
     )
   }
@@ -96,100 +111,147 @@ export default function SiteDashboard() {
       name: 'Total Posts',
       value: stats?.total_posts || 0,
       icon: DocumentTextIcon,
-      color: 'text-blue-500',
-      bgColor: 'bg-blue-50',
+      color: 'text-primary-500',
+      bgColor: 'bg-primary-50',
+      trend: '+12%',
+      trendUp: true,
       action: () => navigate(`/app/sites/${siteId}/posts`),
     },
     {
       name: 'Published',
       value: stats?.published_posts || 0,
       icon: DocumentIcon,
-      color: 'text-green-500',
-      bgColor: 'bg-green-50',
+      color: 'text-success-500',
+      bgColor: 'bg-success-50',
       action: () => navigate(`/app/sites/${siteId}/posts?status=published`),
     },
     {
       name: 'Categories',
       value: stats?.categories || 0,
       icon: FolderIcon,
-      color: 'text-purple-500',
-      bgColor: 'bg-purple-50',
+      color: 'text-accent-500',
+      bgColor: 'bg-accent-50',
       action: () => navigate(`/app/sites/${siteId}/categories`),
     },
     {
       name: 'Total Views',
       value: stats?.total_views || 0,
       icon: EyeIcon,
-      color: 'text-orange-500',
-      bgColor: 'bg-orange-50',
+      color: 'text-warning-500',
+      bgColor: 'bg-warning-50',
+      trend: '+8%',
+      trendUp: true,
+    },
+  ]
+
+  const quickActions = [
+    { 
+      name: 'New Post', 
+      description: 'Create a new blog post',
+      icon: PlusIcon, 
+      color: 'text-primary-500 bg-primary-50',
+      path: 'posts/new' 
+    },
+    { 
+      name: 'New Page', 
+      description: 'Add a static page',
+      icon: DocumentIcon, 
+      color: 'text-success-500 bg-success-50',
+      path: 'pages/new' 
+    },
+    { 
+      name: 'Upload Media', 
+      description: 'Add images to your library',
+      icon: PhotoIcon, 
+      color: 'text-accent-500 bg-accent-50',
+      path: 'media' 
     },
   ]
 
   const quickLinks = [
-    { name: 'Posts', icon: DocumentTextIcon, path: 'posts', color: 'text-blue-500' },
-    { name: 'Pages', icon: DocumentIcon, path: 'pages', color: 'text-green-500' },
-    { name: 'Categories', icon: FolderIcon, path: 'categories', color: 'text-purple-500' },
-    { name: 'Media', icon: PhotoIcon, path: 'media', color: 'text-pink-500' },
-    { name: 'Menus', icon: Bars3Icon, path: 'menus', color: 'text-indigo-500' },
-    { name: 'Branding', icon: PaintBrushIcon, path: 'branding', color: 'text-orange-500' },
-    { name: 'Settings', icon: Cog6ToothIcon, path: 'settings', color: 'text-gray-500' },
+    { name: 'Posts', icon: DocumentTextIcon, path: 'posts', color: 'text-primary-500' },
+    { name: 'Pages', icon: DocumentIcon, path: 'pages', color: 'text-success-500' },
+    { name: 'Categories', icon: FolderIcon, path: 'categories', color: 'text-accent-500' },
+    { name: 'Media', icon: PhotoIcon, path: 'media', color: 'text-warning-500' },
+    { name: 'Menus', icon: Bars3Icon, path: 'menus', color: 'text-error-500' },
+    { name: 'Branding', icon: PaintBrushIcon, path: 'branding', color: 'text-secondary-500' },
   ]
 
   return (
-    <div>
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-secondary mb-1">{site.name}</h1>
-          <div className="flex items-center gap-3 text-muted">
-            <span className="flex items-center gap-1">
-              <GlobeAltIcon className="w-4 h-4" />
-              {site.domain?.name || 'No domain'}
-            </span>
-            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-              site.status === 'published' ? 'bg-green-100 text-green-800' :
-              site.status === 'draft' ? 'bg-gray-100 text-gray-800' :
-              'bg-yellow-100 text-yellow-800'
-            }`}>
-              {site.status}
-            </span>
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary-500 via-primary-600 to-accent-500 p-6 md:p-8 text-white">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-32 -mt-32 blur-3xl" />
+        <div className="absolute bottom-0 left-0 w-48 h-48 bg-accent-400/20 rounded-full -ml-24 -mb-24 blur-2xl" />
+        
+        <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              <h1 className="text-2xl md:text-3xl font-bold">{site.name}</h1>
+              <StatusBadge status={site.status as any} />
+            </div>
+            <div className="flex items-center gap-4 text-white/80 text-sm">
+              <span className="flex items-center gap-1.5">
+                <GlobeAltIcon className="w-4 h-4" />
+                {site.domain?.name || 'No domain connected'}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <ClockIcon className="w-4 h-4" />
+                Updated {formatDate(site.updated_at)}
+              </span>
+            </div>
           </div>
-        </div>
-        <div className="flex items-center gap-3">
-          {site.status === 'published' && site.domain?.name && (
-            <a
-              href={`https://${site.domain.name}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-4 py-2 border border-gray-300 rounded-lg font-medium hover:bg-gray-50 transition-colors flex items-center gap-2"
+          
+          <div className="flex items-center gap-3">
+            {site.status === 'published' && site.domain?.name && (
+              <a
+                href={`https://${site.domain.name}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2.5 bg-white/20 hover:bg-white/30 rounded-xl font-medium transition-colors backdrop-blur-sm"
+              >
+                <EyeIcon className="w-4 h-4" />
+                View Site
+                <ArrowUpRightIcon className="w-3 h-3" />
+              </a>
+            )}
+            <Button 
+              onClick={() => navigate(`/app/sites/${siteId}/posts/new`)}
+              className="bg-white text-primary-600 hover:bg-white/90"
             >
-              <EyeIcon className="w-4 h-4" />
-              View Site
-            </a>
-          )}
-          <Button onClick={() => navigate(`/app/sites/${siteId}/posts/new`)}>
-            <PlusIcon className="w-5 h-5 mr-2" />
-            New Post
-          </Button>
+              <PlusIcon className="w-5 h-5" />
+              New Post
+            </Button>
+          </div>
         </div>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {statCards.map((stat) => {
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-stagger">
+        {statCards.map((stat, index) => {
           const Icon = stat.icon
           return (
             <Card
               key={stat.name}
-              className={`hover:shadow-lg transition-shadow ${stat.action ? 'cursor-pointer' : ''}`}
+              variant="hover"
+              className={`relative overflow-hidden ${stat.action ? 'cursor-pointer' : ''}`}
               onClick={stat.action}
+              style={{ animationDelay: `${index * 50}ms` }}
             >
-              <div className="flex items-start justify-between">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-primary-500/5 to-accent-500/5 rounded-full -mr-8 -mt-8" />
+              
+              <div className="flex items-start justify-between relative">
                 <div>
-                  <p className="text-sm font-medium text-gray-600 mb-1">{stat.name}</p>
-                  <p className="text-3xl font-bold text-secondary">
+                  <p className="text-sm font-medium text-secondary-500 mb-1">{stat.name}</p>
+                  <p className="text-3xl font-bold text-secondary-900 tabular-nums">
                     {typeof stat.value === 'number' ? stat.value.toLocaleString() : stat.value}
                   </p>
+                  {stat.trend && (
+                    <p className={`text-xs font-semibold mt-1 flex items-center gap-1 ${stat.trendUp ? 'text-success-600' : 'text-error-600'}`}>
+                      <ArrowTrendingUpIcon className={`w-3 h-3 ${stat.trendUp ? '' : 'rotate-180'}`} />
+                      {stat.trend}
+                    </p>
+                  )}
                 </div>
                 <div className={`p-3 rounded-xl ${stat.bgColor}`}>
                   <Icon className={`w-6 h-6 ${stat.color}`} />
@@ -203,19 +265,28 @@ export default function SiteDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Recent Posts */}
         <Card className="lg:col-span-2">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-secondary">Recent Posts</h3>
-            <Link
-              to={`/app/sites/${siteId}/posts`}
-              className="text-sm text-primary hover:underline"
-            >
-              View all
-            </Link>
-          </div>
+          <CardHeader 
+            action={
+              <Link
+                to={`/app/sites/${siteId}/posts`}
+                className="text-sm font-medium text-primary-600 hover:text-primary-700 transition-colors"
+              >
+                View all →
+              </Link>
+            }
+          >
+            <CardTitle subtitle={`${recentPosts.length} recent posts`}>
+              Recent Posts
+            </CardTitle>
+          </CardHeader>
+          
           {recentPosts.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <DocumentTextIcon className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-              <p className="font-medium mb-2">No posts yet</p>
+            <div className="text-center py-12">
+              <div className="w-16 h-16 rounded-2xl bg-secondary-100 flex items-center justify-center mx-auto mb-4">
+                <DocumentTextIcon className="w-8 h-8 text-secondary-400" />
+              </div>
+              <p className="font-medium text-secondary-700 mb-2">No posts yet</p>
+              <p className="text-sm text-secondary-500 mb-4">Create your first post to get started</p>
               <Button
                 variant="secondary"
                 onClick={() => navigate(`/app/sites/${siteId}/posts/new`)}
@@ -224,44 +295,44 @@ export default function SiteDashboard() {
               </Button>
             </div>
           ) : (
-            <div className="divide-y">
-              {recentPosts.map((post) => (
+            <div className="divide-y divide-secondary-100">
+              {recentPosts.map((post, index) => (
                 <div
                   key={post.id}
-                  className="py-3 flex items-center justify-between hover:bg-gray-50 -mx-4 px-4 transition-colors"
+                  className="py-4 first:pt-0 last:pb-0 flex items-center justify-between hover:bg-secondary-50 -mx-6 px-6 transition-colors group"
+                  style={{ animationDelay: `${index * 50}ms` }}
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-4 min-w-0">
                     {post.featured_image ? (
                       <img
                         src={post.featured_image}
                         alt=""
-                        className="w-12 h-12 object-cover rounded-lg"
+                        className="w-14 h-14 object-cover rounded-xl flex-shrink-0"
                       />
                     ) : (
-                      <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
-                        <DocumentTextIcon className="w-6 h-6 text-gray-400" />
+                      <div className="w-14 h-14 bg-gradient-to-br from-secondary-100 to-secondary-50 rounded-xl flex items-center justify-center flex-shrink-0">
+                        <DocumentTextIcon className="w-6 h-6 text-secondary-400" />
                       </div>
                     )}
-                    <div>
-                      <h4 className="font-medium text-gray-900 line-clamp-1">{post.title}</h4>
-                      <div className="flex items-center gap-2 text-sm text-gray-500">
-                        <span className={`px-1.5 py-0.5 rounded text-xs ${
-                          post.status === 'published' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
-                        }`}>
-                          {post.status}
-                        </span>
-                        <span className="flex items-center gap-1">
+                    <div className="min-w-0">
+                      <h4 className="font-semibold text-secondary-900 truncate group-hover:text-primary-600 transition-colors">
+                        {post.title}
+                      </h4>
+                      <div className="flex items-center gap-3 mt-1">
+                        <StatusBadge status={post.status as any} size="sm" />
+                        <span className="text-xs text-secondary-500 flex items-center gap-1">
                           <ClockIcon className="w-3 h-3" />
                           {formatDate(post.created_at)}
                         </span>
                       </div>
                     </div>
                   </div>
+                  
                   <button
                     onClick={() => navigate(`/app/sites/${siteId}/posts/${post.id}`)}
-                    className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+                    className="p-2 text-secondary-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
                   >
-                    <PencilSquareIcon className="w-4 h-4 text-gray-600" />
+                    <PencilSquareIcon className="w-5 h-5" />
                   </button>
                 </div>
               ))}
@@ -269,52 +340,40 @@ export default function SiteDashboard() {
           )}
         </Card>
 
-        {/* Quick Links & Actions */}
+        {/* Right sidebar */}
         <div className="space-y-6">
+          {/* Quick Actions */}
           <Card>
-            <h3 className="text-lg font-semibold text-secondary mb-4">Quick Actions</h3>
+            <CardTitle className="mb-4">Quick Actions</CardTitle>
             <div className="space-y-2">
-              <button
-                onClick={() => navigate(`/app/sites/${siteId}/posts/new`)}
-                className="w-full text-left px-4 py-3 rounded-lg border border-gray-200 hover:border-primary hover:bg-primary/5 transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <PlusIcon className="w-5 h-5 text-primary" />
-                  <div>
-                    <p className="font-medium text-gray-900">New Post</p>
-                    <p className="text-xs text-gray-500">Create a new blog post</p>
-                  </div>
-                </div>
-              </button>
-              <button
-                onClick={() => navigate(`/app/sites/${siteId}/pages/new`)}
-                className="w-full text-left px-4 py-3 rounded-lg border border-gray-200 hover:border-primary hover:bg-primary/5 transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <DocumentIcon className="w-5 h-5 text-green-500" />
-                  <div>
-                    <p className="font-medium text-gray-900">New Page</p>
-                    <p className="text-xs text-gray-500">Add a static page</p>
-                  </div>
-                </div>
-              </button>
-              <button
-                onClick={() => navigate(`/app/sites/${siteId}/media`)}
-                className="w-full text-left px-4 py-3 rounded-lg border border-gray-200 hover:border-primary hover:bg-primary/5 transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <PhotoIcon className="w-5 h-5 text-pink-500" />
-                  <div>
-                    <p className="font-medium text-gray-900">Upload Media</p>
-                    <p className="text-xs text-gray-500">Add images to your library</p>
-                  </div>
-                </div>
-              </button>
+              {quickActions.map((action) => {
+                const Icon = action.icon
+                return (
+                  <button
+                    key={action.name}
+                    onClick={() => navigate(`/app/sites/${siteId}/${action.path}`)}
+                    className="w-full text-left px-4 py-3 rounded-xl border border-secondary-100 hover:border-primary-200 hover:bg-primary-50/50 transition-all group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 rounded-lg ${action.color}`}>
+                        <Icon className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-secondary-900 group-hover:text-primary-600 transition-colors">
+                          {action.name}
+                        </p>
+                        <p className="text-xs text-secondary-500">{action.description}</p>
+                      </div>
+                    </div>
+                  </button>
+                )
+              })}
             </div>
           </Card>
 
+          {/* Quick Links */}
           <Card>
-            <h3 className="text-lg font-semibold text-secondary mb-4">Quick Links</h3>
+            <CardTitle className="mb-4">Quick Links</CardTitle>
             <div className="grid grid-cols-3 gap-2">
               {quickLinks.map((link) => {
                 const Icon = link.icon
@@ -322,32 +381,36 @@ export default function SiteDashboard() {
                   <button
                     key={link.name}
                     onClick={() => navigate(`/app/sites/${siteId}/${link.path}`)}
-                    className="flex flex-col items-center gap-1 p-3 rounded-lg hover:bg-gray-50 transition-colors"
+                    className="flex flex-col items-center gap-2 p-3 rounded-xl hover:bg-secondary-50 transition-colors group"
                   >
-                    <Icon className={`w-5 h-5 ${link.color}`} />
-                    <span className="text-xs text-gray-600">{link.name}</span>
+                    <Icon className={`w-5 h-5 ${link.color} group-hover:scale-110 transition-transform`} />
+                    <span className="text-xs font-medium text-secondary-600">{link.name}</span>
                   </button>
                 )
               })}
             </div>
           </Card>
 
+          {/* Site Info */}
           <Card>
-            <h3 className="text-lg font-semibold text-secondary mb-4">Site Info</h3>
+            <CardTitle className="mb-4">Site Info</CardTitle>
             <div className="space-y-3 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-500">Template:</span>
-                <span className="font-medium">{site.template_id || 'default'}</span>
+              <div className="flex justify-between items-center py-2 border-b border-secondary-100">
+                <span className="text-secondary-500">Template</span>
+                <span className="font-medium text-secondary-900 flex items-center gap-1.5">
+                  <SparklesIcon className="w-4 h-4 text-accent-500" />
+                  {site.template_id || 'Modern Blog'}
+                </span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Created:</span>
-                <span className="font-medium">
+              <div className="flex justify-between items-center py-2 border-b border-secondary-100">
+                <span className="text-secondary-500">Created</span>
+                <span className="font-medium text-secondary-900">
                   {new Date(site.created_at).toLocaleDateString()}
                 </span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Last Updated:</span>
-                <span className="font-medium">
+              <div className="flex justify-between items-center py-2">
+                <span className="text-secondary-500">Last Updated</span>
+                <span className="font-medium text-secondary-900">
                   {new Date(site.updated_at).toLocaleDateString()}
                 </span>
               </div>

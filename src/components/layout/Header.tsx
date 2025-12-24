@@ -1,154 +1,205 @@
-import { useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
-import { Bars3Icon, ArrowRightOnRectangleIcon, ChevronDownIcon, BuildingOfficeIcon, PlusIcon } from '@heroicons/react/24/outline'
+import { useState, useRef, useEffect } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import {
+  Bars3Icon,
+  BellIcon,
+  MagnifyingGlassIcon,
+  PlusIcon,
+  ChevronDownIcon,
+  ArrowRightOnRectangleIcon,
+  UserCircleIcon,
+  Cog6ToothIcon,
+} from '@heroicons/react/24/outline'
 import { useAuth } from '../../hooks/useAuth'
-import { useOrganization } from '../../hooks/useOrganization'
-import Button from '../ui/Button'
+import { CountBadge } from '../ui/Badge'
 
 interface HeaderProps {
   onMenuClick: () => void
 }
 
-const pageTitles: Record<string, string> = {
-  '/app': 'Dashboard',
-  '/app/domains': 'Domains',
-  '/app/brand': 'Brand Settings',
-  '/app/previews': 'Preview Gallery',
-  '/app/analytics': 'Analytics',
-  '/app/billing': 'Billing',
-}
-
 export default function Header({ onMenuClick }: HeaderProps) {
-  const location = useLocation()
   const navigate = useNavigate()
   const { user, logout } = useAuth()
-  const { currentOrg, organizations, setCurrentOrg, loading: orgLoading } = useOrganization()
-  const [showMenu, setShowMenu] = useState(false)
-  const [showOrgMenu, setShowOrgMenu] = useState(false)
-  const pageTitle = pageTitles[location.pathname] || 'Dashboard'
+  const [showUserMenu, setShowUserMenu] = useState(false)
+  const [showSearch, setShowSearch] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const userMenuRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  
+  // Close menu when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setShowUserMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+  
+  // Focus search input when opened
+  useEffect(() => {
+    if (showSearch && searchInputRef.current) {
+      searchInputRef.current.focus()
+    }
+  }, [showSearch])
+  
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (searchQuery.trim()) {
+      // Navigate to search results
+      navigate(`/app/search?q=${encodeURIComponent(searchQuery)}`)
+      setShowSearch(false)
+      setSearchQuery('')
+    }
+  }
+  
+  const handleLogout = async () => {
+    await logout()
+    navigate('/login')
+  }
 
   return (
-    <header className="sticky top-0 z-30 bg-white border-b border-gray-200">
-      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={onMenuClick}
-              className="lg:hidden text-gray-500 hover:text-gray-700 p-2 rounded-lg hover:bg-gray-50"
-            >
-              <Bars3Icon className="w-6 h-6" />
-            </button>
-            <h1 className="text-2xl font-semibold text-secondary">{pageTitle}</h1>
+    <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-secondary-100">
+      <div className="flex items-center justify-between h-16 px-4 sm:px-6 lg:px-8">
+        {/* Left side */}
+        <div className="flex items-center gap-4">
+          <button
+            onClick={onMenuClick}
+            className="lg:hidden p-2 -ml-2 text-secondary-500 hover:text-secondary-700 hover:bg-secondary-100 rounded-lg transition-colors"
+            aria-label="Open menu"
+          >
+            <Bars3Icon className="w-6 h-6" />
+          </button>
+          
+          {/* Search bar - desktop */}
+          <div className="hidden md:block relative">
+            <form onSubmit={handleSearch}>
+              <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-secondary-400" />
+              <input
+                type="search"
+                placeholder="Search..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-64 lg:w-80 pl-10 pr-4 py-2 text-sm bg-secondary-50 border border-transparent rounded-xl 
+                         placeholder-secondary-400 text-secondary-900
+                         focus:bg-white focus:border-primary-300 focus:ring-2 focus:ring-primary-100 focus:outline-none
+                         transition-all duration-200"
+              />
+            </form>
           </div>
-          <div className="flex items-center space-x-4">
-            {/* Organization Switcher */}
-            {currentOrg && !orgLoading && (
-              <div className="relative hidden sm:block">
-                <button
-                  onClick={() => setShowOrgMenu(!showOrgMenu)}
-                  className="flex items-center space-x-2 px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors border border-gray-200"
-                >
-                  <BuildingOfficeIcon className="w-5 h-5 text-gray-600" />
-                  <span className="text-sm font-medium text-gray-700 max-w-[150px] truncate">
-                    {currentOrg.name}
-                  </span>
-                  <ChevronDownIcon className="w-4 h-4 text-gray-500" />
-                </button>
-                {showOrgMenu && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-40"
-                      onClick={() => setShowOrgMenu(false)}
-                    />
-                    <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
-                      <div className="px-4 py-2 border-b border-gray-200">
-                        <p className="text-xs font-semibold text-gray-500 uppercase">Organizations</p>
-                      </div>
-                      <div className="max-h-64 overflow-y-auto">
-                        {organizations.map((org) => (
-                          <button
-                            key={org.id}
-                            onClick={() => {
-                              setCurrentOrg(org)
-                              setShowOrgMenu(false)
-                              // Reload page to refresh org context
-                              window.location.reload()
-                            }}
-                            className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center justify-between ${
-                              currentOrg.id === org.id ? 'bg-primary/5 text-primary font-medium' : 'text-gray-700'
-                            }`}
-                          >
-                            <span>{org.name}</span>
-                            {currentOrg.id === org.id && (
-                              <span className="text-xs text-primary">Current</span>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                      <div className="border-t border-gray-200 px-4 py-2">
-                        <button
-                          onClick={() => {
-                            setShowOrgMenu(false)
-                            navigate('/app/organizations')
-                          }}
-                          className="w-full text-left px-3 py-2 text-sm text-primary hover:bg-primary/5 rounded-lg flex items-center space-x-2"
-                        >
-                          <PlusIcon className="w-4 h-4" />
-                          <span>Create Organization</span>
-                        </button>
-                      </div>
-                    </div>
-                  </>
-                )}
+        </div>
+        
+        {/* Right side */}
+        <div className="flex items-center gap-2">
+          {/* Search button - mobile */}
+          <button
+            onClick={() => setShowSearch(!showSearch)}
+            className="md:hidden p-2 text-secondary-500 hover:text-secondary-700 hover:bg-secondary-100 rounded-lg transition-colors"
+          >
+            <MagnifyingGlassIcon className="w-5 h-5" />
+          </button>
+          
+          {/* Quick create button */}
+          <button
+            onClick={() => navigate('/app/sites/new')}
+            className="hidden sm:flex items-center gap-2 px-3 py-2 text-sm font-medium text-primary-600 
+                     hover:bg-primary-50 rounded-xl transition-colors"
+          >
+            <PlusIcon className="w-5 h-5" />
+            <span>New Site</span>
+          </button>
+          
+          {/* Notifications */}
+          <button className="relative p-2 text-secondary-500 hover:text-secondary-700 hover:bg-secondary-100 rounded-lg transition-colors">
+            <BellIcon className="w-5 h-5" />
+            <CountBadge count={3} className="absolute -top-0.5 -right-0.5" />
+          </button>
+          
+          {/* Divider */}
+          <div className="w-px h-8 bg-secondary-200 mx-2 hidden sm:block" />
+          
+          {/* User menu */}
+          <div className="relative" ref={userMenuRef}>
+            <button
+              onClick={() => setShowUserMenu(!showUserMenu)}
+              className="flex items-center gap-2 p-1.5 pr-3 hover:bg-secondary-100 rounded-xl transition-colors"
+            >
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-400 to-accent-400 flex items-center justify-center text-white font-semibold text-sm">
+                {user?.email?.charAt(0).toUpperCase() || 'U'}
+              </div>
+              <span className="hidden sm:block text-sm font-medium text-secondary-700 max-w-[120px] truncate">
+                {user?.email?.split('@')[0] || 'User'}
+              </span>
+              <ChevronDownIcon className={`hidden sm:block w-4 h-4 text-secondary-400 transition-transform duration-200 ${showUserMenu ? 'rotate-180' : ''}`} />
+            </button>
+            
+            {/* Dropdown menu */}
+            {showUserMenu && (
+              <div className="dropdown absolute right-0 w-56">
+                <div className="px-4 py-3 border-b border-secondary-100">
+                  <p className="text-sm font-medium text-secondary-900 truncate">{user?.email}</p>
+                  <p className="text-xs text-secondary-500 mt-0.5">
+                    {user?.is_admin ? 'Administrator' : 'Member'}
+                  </p>
+                </div>
+                
+                <div className="py-2">
+                  <Link
+                    to="/app/account"
+                    onClick={() => setShowUserMenu(false)}
+                    className="dropdown-item"
+                  >
+                    <UserCircleIcon className="w-5 h-5 text-secondary-400" />
+                    Your Profile
+                  </Link>
+                  <Link
+                    to="/app/organizations"
+                    onClick={() => setShowUserMenu(false)}
+                    className="dropdown-item"
+                  >
+                    <Cog6ToothIcon className="w-5 h-5 text-secondary-400" />
+                    Settings
+                  </Link>
+                </div>
+                
+                <div className="dropdown-divider" />
+                
+                <div className="py-2">
+                  <button
+                    onClick={handleLogout}
+                    className="dropdown-item w-full text-error-600 hover:bg-error-50"
+                  >
+                    <ArrowRightOnRectangleIcon className="w-5 h-5" />
+                    Sign out
+                  </button>
+                </div>
               </div>
             )}
-            <div className="relative">
-              <button
-                onClick={() => setShowMenu(!showMenu)}
-                className="hidden sm:flex items-center space-x-2 px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                  <span className="text-primary font-medium text-sm">
-                    {user?.email.charAt(0).toUpperCase()}
-                  </span>
-                </div>
-                <span className="text-sm font-medium text-gray-700">{user?.email}</span>
-              </button>
-              {showMenu && (
-                <>
-                  <div
-                    className="fixed inset-0 z-40"
-                    onClick={() => setShowMenu(false)}
-                  />
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
-                    <div className="px-4 py-2 border-b border-gray-200">
-                      <p className="text-sm font-medium text-gray-900">{user?.email}</p>
-                    </div>
-                    <button
-                      onClick={() => {
-                        logout()
-                        setShowMenu(false)
-                      }}
-                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center space-x-2"
-                    >
-                      <ArrowRightOnRectangleIcon className="w-4 h-4" />
-                      <span>Logout</span>
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-            <Button
-              variant="secondary"
-              onClick={logout}
-              className="sm:hidden"
-            >
-              <ArrowRightOnRectangleIcon className="w-5 h-5" />
-            </Button>
           </div>
         </div>
       </div>
+      
+      {/* Mobile search bar */}
+      {showSearch && (
+        <div className="md:hidden px-4 pb-4 animate-fade-in-down">
+          <form onSubmit={handleSearch}>
+            <div className="relative">
+              <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-secondary-400" />
+              <input
+                ref={searchInputRef}
+                type="search"
+                placeholder="Search..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 text-sm bg-secondary-50 border border-secondary-200 rounded-xl 
+                         placeholder-secondary-400 text-secondary-900
+                         focus:bg-white focus:border-primary-300 focus:ring-2 focus:ring-primary-100 focus:outline-none"
+              />
+            </div>
+          </form>
+        </div>
+      )}
     </header>
   )
 }
-
