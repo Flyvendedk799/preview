@@ -31,7 +31,7 @@ class PublishedSite(Base):
     published_at = Column(DateTime, nullable=True)
     
     # Relationships
-    domain = relationship("Domain", backref="published_site")
+    domain = relationship("Domain", foreign_keys=[domain_id], backref="published_site")
     organization = relationship("Organization", backref="published_sites")
     posts = relationship("SitePost", back_populates="site", cascade="all, delete-orphan")
     categories = relationship("SiteCategory", back_populates="site", cascade="all, delete-orphan")
