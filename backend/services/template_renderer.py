@@ -4,13 +4,10 @@ from typing import Dict, Any, Optional
 from datetime import datetime
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markdown import markdown as md_convert
-from backend.models.published_site import PublishedSite
-from backend.models.site_branding import SiteBranding
-from backend.models.site_settings import SiteSettings
-from backend.models.site_menu import SiteMenu
-from backend.models.site_post import SitePost
-from backend.models.site_category import SiteCategory
-from backend.models.site_page import SitePage
+from backend.models.published_site import (
+    PublishedSite, SiteBranding, SiteSettings, SiteMenu, SiteMenuItem,
+    SitePost, SiteCategory, SitePage
+)
 from backend.db.session import SessionLocal
 
 
@@ -77,15 +74,12 @@ def render_template(site: PublishedSite, template_name: str, context: Dict[str, 
     try:
         # Load site relationships if not already loaded
         if not hasattr(site, 'branding') or site.branding is None:
-            from backend.models.site_branding import SiteBranding
             site.branding = db.query(SiteBranding).filter(SiteBranding.site_id == site.id).first()
         
         if not hasattr(site, 'settings') or site.settings is None:
-            from backend.models.site_settings import SiteSettings
             site.settings = db.query(SiteSettings).filter(SiteSettings.site_id == site.id).first()
         
         if not hasattr(site, 'menus') or site.menus is None:
-            from backend.models.site_menu import SiteMenu
             site.menus = db.query(SiteMenu).filter(
                 SiteMenu.site_id == site.id,
                 SiteMenu.is_active == True
@@ -93,7 +87,6 @@ def render_template(site: PublishedSite, template_name: str, context: Dict[str, 
             # Load menu items
             for menu in site.menus:
                 if not hasattr(menu, 'items') or menu.items is None:
-                    from backend.models.site_menu import SiteMenuItem
                     menu.items = db.query(SiteMenuItem).filter(
                         SiteMenuItem.menu_id == menu.id,
                         SiteMenuItem.is_active == True

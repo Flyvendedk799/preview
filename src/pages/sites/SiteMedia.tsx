@@ -128,7 +128,7 @@ export default function SiteMedia() {
                 className="group relative aspect-square rounded-lg overflow-hidden bg-gray-100 border border-gray-200 hover:border-primary transition-colors"
               >
                 <img
-                  src={item.url}
+                  src={item.file_path}
                   alt={item.alt_text || item.filename}
                   className="w-full h-full object-cover"
                 />
@@ -144,7 +144,7 @@ export default function SiteMedia() {
                       <EyeIcon className="w-4 h-4 text-gray-700" />
                     </button>
                     <button
-                      onClick={() => copyUrl(item.url, item.id)}
+                      onClick={() => copyUrl(item.file_path, item.id)}
                       className="p-2 bg-white rounded-lg hover:bg-gray-100 transition-colors"
                       title="Copy URL"
                     >
@@ -175,7 +175,7 @@ export default function SiteMedia() {
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden">
             <div className="aspect-video bg-gray-100 flex items-center justify-center">
               <img
-                src={selectedMedia.url}
+                src={selectedMedia.file_path}
                 alt={selectedMedia.alt_text || selectedMedia.filename}
                 className="max-w-full max-h-full object-contain"
               />
@@ -185,7 +185,7 @@ export default function SiteMedia() {
               <div className="grid grid-cols-2 gap-4 text-sm mb-4">
                 <div>
                   <span className="text-gray-500">Size:</span>
-                  <span className="ml-2 font-medium">{formatFileSize(selectedMedia.size)}</span>
+                  <span className="ml-2 font-medium">{formatFileSize(selectedMedia.file_size)}</span>
                 </div>
                 {selectedMedia.width && selectedMedia.height && (
                   <div>
@@ -209,12 +209,12 @@ export default function SiteMedia() {
                 <div className="flex gap-2">
                   <input
                     type="text"
-                    value={selectedMedia.url}
+                    value={selectedMedia.file_path}
                     readOnly
                     className="flex-1 px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-sm font-mono"
                   />
                   <button
-                    onClick={() => copyUrl(selectedMedia.url, selectedMedia.id)}
+                    onClick={() => copyUrl(selectedMedia.file_path, selectedMedia.id)}
                     className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
                   >
                     {copiedId === selectedMedia.id ? 'Copied!' : 'Copy'}

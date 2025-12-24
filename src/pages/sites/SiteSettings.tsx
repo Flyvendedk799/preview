@@ -68,20 +68,22 @@ export default function SiteSettings() {
       // Populate form
       setSiteName(siteData.name || '')
       setSiteDescription(settingsData.site_description || '')
-      setMetaTitle(settingsData.meta_title || '')
-      setMetaDescription(settingsData.meta_description || '')
-      setMetaKeywords(settingsData.meta_keywords || '')
-      setSocialImage(settingsData.social_image || '')
-      setTwitterHandle(settingsData.twitter_handle || '')
+      // Meta fields come from site, not settings
+      setMetaTitle(siteData.meta_title || '')
+      setMetaDescription(siteData.meta_description || '')
+      setMetaKeywords(siteData.meta_keywords || '')
+      // Social fields from social_links
+      setSocialImage(settingsData.social_links?.og_image || '')
+      setTwitterHandle(settingsData.social_links?.twitter || '')
       setGoogleAnalyticsId(settingsData.google_analytics_id || '')
       setGoogleTagManagerId(settingsData.google_tag_manager_id || '')
       setFacebookPixelId(settingsData.facebook_pixel_id || '')
-      setCustomHeaderCode(settingsData.custom_header_code || '')
-      setCustomFooterCode(settingsData.custom_footer_code || '')
-      setCustomJs(settingsData.custom_js || '')
-      setEnableSitemap(settingsData.enable_sitemap !== false)
-      setEnableRss(settingsData.enable_rss !== false)
-      setNoIndex(settingsData.no_index || false)
+      setCustomHeaderCode(settingsData.header_code || '')
+      setCustomFooterCode(settingsData.footer_code || '')
+      setCustomJs('') // Not supported in backend
+      setEnableSitemap(settingsData.sitemap_enabled !== false)
+      setEnableRss(true) // Not supported in backend, default to true
+      setNoIndex(false) // Site-wide noindex not supported, use per-page
       setLanguage(settingsData.language || 'en')
       setTimezone(settingsData.timezone || 'UTC')
     } catch (err) {
@@ -96,30 +98,31 @@ export default function SiteSettings() {
     try {
       setSaving(true)
 
-      // Update site name if changed
-      if (site && siteName !== site.name) {
-        await updateSite(parseInt(siteId), { name: siteName })
+      // Update site (name and meta fields)
+      if (site) {
+        await updateSite(parseInt(siteId), {
+          name: siteName,
+          meta_title: metaTitle || null,
+          meta_description: metaDescription || null,
+          meta_keywords: metaKeywords || null,
+        })
       }
 
-      // Update settings
+      // Update settings with correct field names
       await updateSiteSettings(parseInt(siteId), {
         site_description: siteDescription || undefined,
-        meta_title: metaTitle || undefined,
-        meta_description: metaDescription || undefined,
-        meta_keywords: metaKeywords || undefined,
-        social_image: socialImage || undefined,
-        twitter_handle: twitterHandle || undefined,
         google_analytics_id: googleAnalyticsId || undefined,
         google_tag_manager_id: googleTagManagerId || undefined,
         facebook_pixel_id: facebookPixelId || undefined,
-        custom_header_code: customHeaderCode || undefined,
-        custom_footer_code: customFooterCode || undefined,
-        custom_js: customJs || undefined,
-        enable_sitemap: enableSitemap,
-        enable_rss: enableRss,
-        no_index: noIndex,
+        header_code: customHeaderCode || undefined,
+        footer_code: customFooterCode || undefined,
+        sitemap_enabled: enableSitemap,
         language: language,
         timezone: timezone,
+        social_links: {
+          twitter: twitterHandle || undefined,
+          og_image: socialImage || undefined,
+        },
       } as SiteSettingsUpdate)
 
       setSaved(true)
@@ -132,7 +135,7 @@ export default function SiteSettings() {
   }
 
   function handleSocialImageSelect(media: SiteMedia) {
-    setSocialImage(media.url)
+    setSocialImage(media.file_path)
     setShowSocialImageModal(false)
   }
 

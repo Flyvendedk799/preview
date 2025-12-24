@@ -275,6 +275,7 @@ class SiteMenuItemBase(BaseModel):
     css_class: Optional[str] = Field(None, max_length=200)
     sort_order: int = 0
     is_active: bool = True
+    open_in_new_tab: bool = False
 
 
 class SiteMenuItemCreate(SiteMenuItemBase):
@@ -293,6 +294,7 @@ class SiteMenuItemUpdate(BaseModel):
     css_class: Optional[str] = Field(None, max_length=200)
     sort_order: Optional[int] = None
     is_active: Optional[bool] = None
+    open_in_new_tab: Optional[bool] = None
 
 
 class SiteMenuItem(SiteMenuItemBase):

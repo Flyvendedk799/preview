@@ -10,6 +10,7 @@ export interface Domain {
   verified_at?: string | null
   created_at: string // ISO datetime
   monthly_clicks: number
+  site_id?: number | null // ID of the published site using this domain
 }
 
 export interface DomainCreate {
@@ -564,6 +565,7 @@ export interface SiteMenuItem {
   css_class?: string | null
   sort_order: number
   is_active: boolean
+  open_in_new_tab?: boolean
   created_at: string
   updated_at: string
   children?: SiteMenuItem[]
@@ -579,6 +581,7 @@ export interface SiteMenuItemCreate {
   css_class?: string | null
   sort_order?: number
   is_active?: boolean
+  open_in_new_tab?: boolean
 }
 
 export interface SiteMenuItemUpdate {
@@ -591,6 +594,7 @@ export interface SiteMenuItemUpdate {
   css_class?: string | null
   sort_order?: number
   is_active?: boolean
+  open_in_new_tab?: boolean
 }
 
 export interface SiteMenuCreate {

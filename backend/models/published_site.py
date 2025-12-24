@@ -226,6 +226,7 @@ class SiteMenuItem(Base):
     css_class = Column(String(200), nullable=True)
     sort_order = Column(Integer, default=0, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
+    open_in_new_tab = Column(Boolean, default=False, nullable=False)
     
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

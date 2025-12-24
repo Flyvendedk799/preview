@@ -169,7 +169,7 @@ export default function SitePostEditor() {
   }
 
   function handleMediaSelect(media: SiteMedia) {
-    setFeaturedImage(media.url)
+    setFeaturedImage(media.file_path)
     setFeaturedImageAlt(media.alt_text || '')
     setShowMediaPicker(false)
   }

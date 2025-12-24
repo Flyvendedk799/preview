@@ -88,12 +88,12 @@ export default function SiteBranding() {
   }
 
   function handleLogoSelect(media: SiteMedia) {
-    updateBranding({ logo_url: media.url })
+    updateBranding({ logo_url: media.file_path })
     setShowLogoModal(false)
   }
 
   function handleFaviconSelect(media: SiteMedia) {
-    updateBranding({ favicon_url: media.url })
+    updateBranding({ favicon_url: media.file_path })
     setShowFaviconModal(false)
   }
 

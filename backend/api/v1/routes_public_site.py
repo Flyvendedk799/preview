@@ -5,11 +5,9 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, FileResponse
 from sqlalchemy.orm import Session, joinedload
 from typing import Optional
 from backend.db.session import get_db
-from backend.models.published_site import PublishedSite
-from backend.models.site_post import SitePost
-from backend.models.site_page import SitePage
-from backend.models.site_category import SiteCategory
-from backend.models.site_settings import SiteSettings
+from backend.models.published_site import (
+    PublishedSite, SitePost, SitePage, SiteCategory, SiteSettings
+)
 from backend.models.domain import Domain
 from backend.services.site_service import get_site_by_domain
 from backend.services.template_renderer import render_template

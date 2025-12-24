@@ -231,7 +231,7 @@ export default function SiteMenus() {
   function startEditItem(item: SiteMenuItem) {
     setEditingItem(item)
     setItemLabel(item.label)
-    setItemUrl(item.url)
+    setItemUrl(item.url || '')
     setItemNewTab(item.open_in_new_tab || false)
   }
 

@@ -5,14 +5,12 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from fastapi import HTTPException, status
-from backend.models.published_site import PublishedSite
+from backend.models.published_site import (
+    PublishedSite, SitePost, SiteCategory, SitePage,
+    SiteBranding, SiteSettings
+)
 from backend.models.domain import Domain
 from backend.models.organization import Organization
-from backend.models.site_post import SitePost
-from backend.models.site_category import SiteCategory
-from backend.models.site_page import SitePage
-from backend.models.site_branding import SiteBranding
-from backend.models.site_settings import SiteSettings
 
 
 def get_site_limit_for_plan(subscription_plan: Optional[str]) -> int:

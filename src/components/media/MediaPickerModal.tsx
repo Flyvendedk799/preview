@@ -158,7 +158,7 @@ export default function MediaPickerModal({
                         }`}
                       >
                         <img
-                          src={item.url}
+                          src={item.file_path}
                           alt={item.alt_text || item.filename}
                           className="w-full h-full object-cover"
                         />
@@ -185,7 +185,7 @@ export default function MediaPickerModal({
           {selectedMedia ? (
             <div className="flex items-center gap-3">
               <img
-                src={selectedMedia.url}
+                src={selectedMedia.file_path}
                 alt=""
                 className="w-10 h-10 object-cover rounded"
               />
