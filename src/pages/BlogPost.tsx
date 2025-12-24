@@ -23,7 +23,7 @@ import {
 import Toast from '../components/Toast'
 
 // Clean markdown renderer - requires proper markdown syntax
-function renderContent(content: string): JSX.Element {
+function renderContent(content: string, featuredImageUrl?: string): JSX.Element {
   const processInline = (text: string): string => {
     return text
       .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-gray-900">$1</strong>')
@@ -38,6 +38,8 @@ function renderContent(content: string): JSX.Element {
     .replace(/\*{3}/g, '**') // Convert *** to **
     .replace(/\*\*\s*\*\*/g, '') // Remove empty bold markers
     .replace(/^\s*[-•]\s*$/gm, '') // Remove standalone bullets on their own line
+    // Remove image markdown if it matches featured_image (already displayed)
+    .replace(new RegExp(`!\\[.*?\\]\\(${featuredImageUrl?.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') || ''}\\)`, 'g'), '')
     // Recover structure: add newlines before markdown patterns that are inline
     .replace(/([.!?])\s*(#{2,3}\s)/g, '$1\n\n$2') // Add newline before ## or ### after sentence
     .replace(/([.!?])\s*(\d+\.\s+[A-Z])/g, '$1\n\n$2') // Add newline before "1. Title" after sentence
@@ -69,6 +71,23 @@ function renderContent(content: string): JSX.Element {
       blocks.push({ type: 'code', content: codeLines.join('\n'), lines: [lang] })
       i++
       continue
+    }
+
+    // Markdown images: ![](url) or ![alt](url)
+    if (/^!\[.*?\]\(.+\)$/.test(trimmed)) {
+      const match = trimmed.match(/^!\[(.*?)\]\((.+)\)$/)
+      if (match) {
+        const alt = match[1]
+        const url = match[2]
+        // Skip if it's the same as featured_image (already displayed)
+        if (featuredImageUrl && url === featuredImageUrl) {
+          i++
+          continue
+        }
+        blocks.push({ type: 'image', content: url, lines: [alt] })
+        i++
+        continue
+      }
     }
 
     // Headings
@@ -230,6 +249,21 @@ function renderContent(content: string): JSX.Element {
             <h3 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight pt-0.5">
               {cleanTitle}
             </h3>
+          </div>
+        )
+
+      case 'image':
+        return (
+          <div key={index} className="my-10">
+            <img
+              src={block.content}
+              alt={block.lines?.[0] || ''}
+              className="w-full h-auto rounded-xl shadow-lg"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement
+                target.style.display = 'none'
+              }}
+            />
           </div>
         )
 
@@ -855,7 +889,7 @@ export default function BlogPost() {
               fontSize: '1.125rem',
               lineHeight: '1.75rem',
             }}>
-              {renderContent(post.content)}
+              {renderContent(post.content, post.featured_image)}
             </div>
             
             {/* Tags */}
