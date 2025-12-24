@@ -205,14 +205,14 @@ function renderContent(content: string, featuredImageUrl?: string): JSX.Element 
   let h2Count = 0
   
   // Insert images after h2 headings if we have a featured image and it makes sense
-  const shouldInsertImageAfterH2 = (index: number, blocks: typeof blocks): boolean => {
+  const shouldInsertImageAfterH2 = (index: number, blocksArray: BlockType[]): boolean => {
     // Only insert after first or second h2, and only if we have a featured image
     if (!featuredImageUrl || !isValidImageUrl(featuredImageUrl)) return false
     if (h2Count >= 2) return false // Max 2 images inserted
     
     // Check if there's already an image nearby (within next 3 blocks)
-    for (let i = index + 1; i < Math.min(index + 4, blocks.length); i++) {
-      if (blocks[i].type === 'image') return false
+    for (let i = index + 1; i < Math.min(index + 4, blocksArray.length); i++) {
+      if (blocksArray[i].type === 'image') return false
     }
     
     return true
