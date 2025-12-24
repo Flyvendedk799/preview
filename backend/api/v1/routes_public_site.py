@@ -22,6 +22,9 @@ def get_site_from_host(request: Request, db: Session) -> Optional[PublishedSite]
     """
     Get site from request host header.
     
+    Supports both direct Railway connections and Cloudflare proxy.
+    Cloudflare passes original domain in X-Forwarded-Host header.
+    
     Args:
         request: FastAPI request
         db: Database session
@@ -29,12 +32,19 @@ def get_site_from_host(request: Request, db: Session) -> Optional[PublishedSite]
     Returns:
         PublishedSite or None
     """
-    host = request.headers.get("host", "")
+    # Check Cloudflare headers first (if using Cloudflare proxy)
+    # X-Forwarded-Host contains the original domain when proxied through Cloudflare
+    host = (
+        request.headers.get("X-Forwarded-Host") or  # Cloudflare proxy
+        request.headers.get("Host") or              # Direct connection
+        ""
+    )
+    
     if not host:
         return None
     
     # Remove port if present
-    domain_name = host.split(":")[0]
+    domain_name = host.split(":")[0].lower().strip()
     
     # Skip Railway domains and localhost - these should be handled by API routes
     railway_domains = [".railway.app", ".up.railway.app", "localhost", "127.0.0.1", "0.0.0.0"]
