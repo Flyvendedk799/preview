@@ -816,7 +816,7 @@ More content here..."
               }}
               onBlur={async () => {
                 // Check image accessibility when user leaves the field
-                const url = formData.featured_image.trim()
+                const url = formData.featured_image?.trim()
                 if (url && /^https?:\/\//i.test(url)) {
                   setImageCheckStatus({ checking: true, accessible: null, error: null })
                   try {
