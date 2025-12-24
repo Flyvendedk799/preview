@@ -25,7 +25,7 @@ import {
 import Toast from '../components/Toast'
 
 // Clean markdown renderer - requires proper markdown syntax
-function renderContent(content: string, featuredImageUrl?: string): JSX.Element {
+function renderContent(content: string, featuredImageUrl?: string, contentImageUrl?: string): JSX.Element {
   const processInline = (text: string): string => {
     return text
       .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-gray-900">$1</strong>')
@@ -204,19 +204,51 @@ function renderContent(content: string, featuredImageUrl?: string): JSX.Element 
 
   let paragraphCount = 0
   let h2Count = 0
+  const maxContentImages = 2 // Max images to insert in content
+  const insertedImageIndices: number[] = [] // Track where we've inserted images
   
-  // Insert images after h2 headings if we have a featured image and it makes sense
-  const shouldInsertImageAfterH2 = (index: number, blocksArray: BlockType[]): boolean => {
-    // Only insert after first or second h2, and only if we have a featured image
-    if (!featuredImageUrl || !isValidImageUrl(featuredImageUrl)) return false
-    if (h2Count >= 2) return false // Max 2 images inserted
+  // Smart image placement - determine best place to insert content image
+  const shouldInsertContentImage = (index: number, blocksArray: BlockType[]): boolean => {
+    // Must have a content image (different from featured image)
+    if (!contentImageUrl || !isValidImageUrl(contentImageUrl)) return false
+    if (insertedImageIndices.length >= maxContentImages) return false
     
-    // Check if there's already an image nearby (within next 3 blocks)
-    for (let i = index + 1; i < Math.min(index + 4, blocksArray.length); i++) {
+    // Don't insert at the very start (featured image is there)
+    if (index < 3) return false
+    
+    // Check if there's already an image nearby (within next 4 blocks)
+    for (let i = index + 1; i < Math.min(index + 5, blocksArray.length); i++) {
       if (blocksArray[i].type === 'image') return false
     }
     
-    return true
+    // Check previous blocks - don't insert right after another image
+    for (let i = Math.max(0, index - 2); i < index; i++) {
+      if (blocksArray[i].type === 'image') return false
+    }
+    
+    const currentBlock = blocksArray[index]
+    
+    // Good placement opportunities:
+    // 1. After H2 heading (but not the first one - that's too early)
+    if (currentBlock.type === 'h2' && h2Count >= 1 && h2Count <= 3) {
+      return true
+    }
+    
+    // 2. After a substantial paragraph (3+ sentences worth of content)
+    if (currentBlock.type === 'paragraph') {
+      const wordCount = currentBlock.content.split(/\s+/).length
+      // Insert after paragraphs with 30+ words (substantial content)
+      if (wordCount >= 30 && paragraphCount >= 2) {
+        return true
+      }
+    }
+    
+    // 3. After H3 if we're deeper in the article
+    if (currentBlock.type === 'h3' && h2Count >= 2) {
+      return true
+    }
+    
+    return false
   }
 
   const elements = blocks.map((block, index) => {
@@ -241,36 +273,59 @@ function renderContent(content: string, featuredImageUrl?: string): JSX.Element 
       case 'h2': {
         h2Count++
         const id = block.content.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-')
-        const shouldInsertImage = shouldInsertImageAfterH2(index, blocks)
+        const shouldInsertImage = shouldInsertContentImage(index, blocks)
         
         return (
           <>
             <h2 key={index} id={id} className="text-2xl sm:text-3xl font-bold text-gray-900 mt-12 mb-4 leading-tight">
               {block.content}
             </h2>
-            {shouldInsertImage && featuredImageUrl && isValidImageUrl(featuredImageUrl) && (
-              <div key={`${index}-img`} className="my-8">
-                <img
-                  src={featuredImageUrl}
-                  alt={block.content}
-                  className="w-full h-auto rounded-xl shadow-lg"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement
-                    target.style.display = 'none'
-                  }}
-                />
-              </div>
-            )}
+            {shouldInsertImage && contentImageUrl && isValidImageUrl(contentImageUrl) && !insertedImageIndices.includes(index) && (() => {
+              insertedImageIndices.push(index)
+              return (
+                <div key={`${index}-img`} className="my-8">
+                  <img
+                    src={contentImageUrl}
+                    alt={block.content}
+                    className="w-full h-auto rounded-xl shadow-lg"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement
+                      target.style.display = 'none'
+                    }}
+                  />
+                </div>
+              )
+            })()}
           </>
         )
       }
 
       case 'h3': {
         const id = block.content.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-')
+        const shouldInsertImage = shouldInsertContentImage(index, blocks)
+        
         return (
-          <h3 key={index} id={id} className="text-xl sm:text-2xl font-bold text-gray-900 mt-10 mb-3 leading-tight">
-            {block.content}
-          </h3>
+          <>
+            <h3 key={index} id={id} className="text-xl sm:text-2xl font-bold text-gray-900 mt-10 mb-3 leading-tight">
+              {block.content}
+            </h3>
+            {shouldInsertImage && contentImageUrl && isValidImageUrl(contentImageUrl) && !insertedImageIndices.includes(index) && (() => {
+              insertedImageIndices.push(index)
+              return (
+                <div key={`${index}-img`} className="my-8">
+                  <img
+                    src={contentImageUrl}
+                    alt={block.content}
+                    className="w-full h-auto rounded-xl shadow-lg"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement
+                      target.style.display = 'none'
+                    }}
+                  />
+                </div>
+              )
+            })()}
+          </>
         )
       }
 
@@ -366,13 +421,32 @@ function renderContent(content: string, featuredImageUrl?: string): JSX.Element 
       case 'paragraph':
       default:
         paragraphCount++
+        const shouldInsertImagePara = shouldInsertContentImage(index, blocks)
         
         return (
-          <p 
-            key={index} 
-            className="text-lg text-gray-700 leading-relaxed mb-6"
-            dangerouslySetInnerHTML={{ __html: processInline(block.content) }}
-          />
+          <>
+            <p 
+              key={index} 
+              className="text-lg text-gray-700 leading-relaxed mb-6"
+              dangerouslySetInnerHTML={{ __html: processInline(block.content) }}
+            />
+            {shouldInsertImagePara && contentImageUrl && isValidImageUrl(contentImageUrl) && !insertedImageIndices.includes(index) && (() => {
+              insertedImageIndices.push(index)
+              return (
+                <div key={`${index}-img`} className="my-8">
+                  <img
+                    src={contentImageUrl}
+                    alt=""
+                    className="w-full h-auto rounded-xl shadow-lg"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement
+                      target.style.display = 'none'
+                    }}
+                  />
+                </div>
+              )
+            })()}
+          </>
         )
     }
   })
@@ -976,7 +1050,7 @@ export default function BlogPost() {
               fontSize: '1.125rem',
               lineHeight: '1.75rem',
             }}>
-              {renderContent(post.content, post.featured_image)}
+              {renderContent(post.content, post.featured_image, (post as any).contentImageUrl || (post as any).blogContentImage)}
             </div>
             
             {/* Tags */}
