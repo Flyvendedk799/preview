@@ -49,7 +49,8 @@ function renderContent(content: string, featuredImageUrl?: string): JSX.Element 
     .replace(/\n{3,}/g, '\n\n') // Max 2 consecutive newlines
 
   const lines = cleanedContent.split('\n')
-  const blocks: { type: string; content: string; lines?: string[] }[] = []
+  type BlockType = { type: string; content: string; lines?: string[] }
+  const blocks: BlockType[] = []
   let i = 0
 
   while (i < lines.length) {
