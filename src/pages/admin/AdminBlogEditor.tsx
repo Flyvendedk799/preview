@@ -281,6 +281,60 @@ export default function AdminBlogEditor() {
         return
       }
 
+      // Validate field length limits
+      const validationErrors: string[] = []
+      if (formData.title && formData.title.length > 200) {
+        validationErrors.push('Title must be at most 200 characters')
+      }
+      if (formData.slug && formData.slug.length > 250) {
+        validationErrors.push('Slug must be at most 250 characters')
+      }
+      if (formData.meta_title && formData.meta_title.length > 70) {
+        validationErrors.push('Meta title must be at most 70 characters')
+      }
+      if (formData.meta_description && formData.meta_description.length > 160) {
+        validationErrors.push('Meta description must be at most 160 characters')
+      }
+      if (formData.meta_keywords && formData.meta_keywords.length > 300) {
+        validationErrors.push('Meta keywords must be at most 300 characters')
+      }
+      if (formData.featured_image && formData.featured_image.length > 500) {
+        validationErrors.push('Featured image URL must be at most 500 characters')
+      }
+      if (formData.featured_image_alt && formData.featured_image_alt.length > 200) {
+        validationErrors.push('Featured image alt text must be at most 200 characters')
+      }
+      if (formData.og_image && formData.og_image.length > 500) {
+        validationErrors.push('OG image URL must be at most 500 characters')
+      }
+      if (formData.author_name && formData.author_name.length > 100) {
+        validationErrors.push('Author name must be at most 100 characters')
+      }
+      if (formData.author_avatar && formData.author_avatar.length > 500) {
+        validationErrors.push('Author avatar URL must be at most 500 characters')
+      }
+      if (formData.canonical_url && formData.canonical_url.length > 500) {
+        validationErrors.push('Canonical URL must be at most 500 characters')
+      }
+      if (formData.twitter_title && formData.twitter_title.length > 70) {
+        validationErrors.push('Twitter title must be at most 70 characters')
+      }
+      if (formData.twitter_description && formData.twitter_description.length > 200) {
+        validationErrors.push('Twitter description must be at most 200 characters')
+      }
+      if (formData.twitter_image && formData.twitter_image.length > 500) {
+        validationErrors.push('Twitter image URL must be at most 500 characters')
+      }
+      if (formData.schema_type && formData.schema_type.length > 50) {
+        validationErrors.push('Schema type must be at most 50 characters')
+      }
+      
+      if (validationErrors.length > 0) {
+        alert(`Validation errors:\n${validationErrors.join('\n')}`)
+        setSaving(false)
+        return
+      }
+
       const dataToSave = {
         ...formData,
         status: status as 'draft' | 'published' | 'scheduled' | 'archived',
@@ -1133,9 +1187,12 @@ More content here..."
                 <div>
                   <label className="block text-sm text-gray-600 mb-1">
                     Meta Title
-                    <span className={`ml-2 ${(formData.meta_title?.length || 0) > 60 ? 'text-red-500' : 'text-gray-400'}`}>
-                      ({formData.meta_title?.length || 0}/60)
+                    <span className={`ml-2 ${(formData.meta_title?.length || 0) > 70 ? 'text-red-500' : (formData.meta_title?.length || 0) > 60 ? 'text-amber-500' : 'text-gray-400'}`}>
+                      ({formData.meta_title?.length || 0}/70)
                     </span>
+                    {(formData.meta_title?.length || 0) > 70 && (
+                      <span className="ml-2 text-xs text-red-600">⚠️ Exceeds limit</span>
+                    )}
                   </label>
                   <input
                     type="text"
