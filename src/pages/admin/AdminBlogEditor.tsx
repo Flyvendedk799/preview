@@ -194,6 +194,11 @@ export default function AdminBlogEditor() {
   
   const [autoSlug, setAutoSlug] = useState(true)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
+  const [imageCheckStatus, setImageCheckStatus] = useState<{
+    checking: boolean
+    accessible: boolean | null
+    error: string | null
+  }>({ checking: false, accessible: null, error: null })
 
   useEffect(() => {
     loadCategories()
@@ -260,9 +265,25 @@ export default function AdminBlogEditor() {
   async function handleSave(publish: boolean = false) {
     setSaving(true)
     try {
+      // Validate required fields
+      if (!formData.title || !formData.content) {
+        alert('Title and content are required fields.')
+        setSaving(false)
+        return
+      }
+
+      // Ensure status is valid
+      const validStatuses = ['draft', 'published', 'scheduled', 'archived']
+      const status = publish ? 'published' : (formData.status || 'draft')
+      if (!validStatuses.includes(status)) {
+        alert(`Invalid status. Must be one of: ${validStatuses.join(', ')}`)
+        setSaving(false)
+        return
+      }
+
       const dataToSave = {
         ...formData,
-        status: publish ? 'published' : formData.status,
+        status: status as 'draft' | 'published' | 'scheduled' | 'archived',
       }
       
       if (isEditing) {
@@ -278,9 +299,19 @@ export default function AdminBlogEditor() {
         // Navigate back to list after publishing
         navigate('/app/admin/blog')
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to save post:', error)
-      alert('Failed to save post. Please try again.')
+      
+      // Extract detailed error message
+      let errorMessage = 'Failed to save post. Please try again.'
+      if (error?.message) {
+        errorMessage = error.message
+        // FastAPI validation errors are already formatted by fetchApi
+        // Just use the message directly
+      }
+      
+      // Show error in alert (for now - could be improved with a modal)
+      alert(`Error: ${errorMessage}`)
     } finally {
       setSaving(false)
     }
@@ -778,7 +809,48 @@ More content here..."
             <input
               type="text"
               value={formData.featured_image}
-              onChange={(e) => updateFormData('featured_image', e.target.value)}
+              onChange={(e) => {
+                updateFormData('featured_image', e.target.value)
+                // Reset image check status when URL changes
+                setImageCheckStatus({ checking: false, accessible: null, error: null })
+              }}
+              onBlur={async () => {
+                // Check image accessibility when user leaves the field
+                const url = formData.featured_image.trim()
+                if (url && /^https?:\/\//i.test(url)) {
+                  setImageCheckStatus({ checking: true, accessible: null, error: null })
+                  try {
+                    // Use HEAD request to check if image is accessible
+                    const response = await fetch(url, {
+                      method: 'HEAD',
+                      mode: 'no-cors', // Use no-cors to avoid CORS issues, but we can't read response
+                    })
+                    // Since we can't read response in no-cors mode, try loading image instead
+                    const img = new Image()
+                    img.crossOrigin = 'anonymous'
+                    await new Promise((resolve, reject) => {
+                      img.onload = () => {
+                        setImageCheckStatus({ checking: false, accessible: true, error: null })
+                        resolve(true)
+                      }
+                      img.onerror = () => {
+                        setImageCheckStatus({ checking: false, accessible: false, error: 'Image is not accessible. Please check the URL.' })
+                        reject(new Error('Image load failed'))
+                      }
+                      img.src = url
+                      // Timeout after 5 seconds
+                      setTimeout(() => {
+                        if (!img.complete) {
+                          setImageCheckStatus({ checking: false, accessible: false, error: 'Image check timed out. URL may not be accessible.' })
+                          reject(new Error('Timeout'))
+                        }
+                      }, 5000)
+                    })
+                  } catch (error) {
+                    // Error already handled in onerror
+                  }
+                }
+              }}
               placeholder="https://example.com/image.jpg"
               className="w-full mt-3 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20"
             />
@@ -875,10 +947,38 @@ More content here..."
                   )
                 }
                 
+                // Show accessibility check result if available
+                if (imageCheckStatus.checking) {
+                  return (
+                    <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                      <span>⏳</span>
+                      <span>Checking image accessibility...</span>
+                    </p>
+                  )
+                }
+                
+                if (imageCheckStatus.accessible === false && imageCheckStatus.error) {
+                  return (
+                    <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                      <span>❌</span>
+                      <span>{imageCheckStatus.error}</span>
+                    </p>
+                  )
+                }
+                
+                if (imageCheckStatus.accessible === true) {
+                  return (
+                    <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                      <span>✅</span>
+                      <span>Valid image URL and accessible</span>
+                    </p>
+                  )
+                }
+                
                 return (
                   <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
                     <span>✅</span>
-                    <span>Valid image URL</span>
+                    <span>Valid image URL format (click outside field to check accessibility)</span>
                   </p>
                 )
               } catch (e) {

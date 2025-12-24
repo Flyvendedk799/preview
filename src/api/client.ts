@@ -174,9 +174,26 @@ export async function fetchApi<T>(
       try {
         const errorData = await response.json().catch(() => null)
         if (errorData?.detail) {
-          errorMessage = errorData.detail
+          // FastAPI validation errors can be:
+          // 1. A string: { detail: "Error message" }
+          // 2. An array: { detail: [{ loc: [...], msg: "...", type: "..." }] }
+          if (Array.isArray(errorData.detail)) {
+            // Format validation errors nicely
+            const errors = errorData.detail.map((err: any) => {
+              const field = err.loc?.slice(1).join('.') || 'unknown'
+              return `${field}: ${err.msg || 'Invalid value'}`
+            })
+            errorMessage = `Validation errors:\n${errors.join('\n')}`
+          } else if (typeof errorData.detail === 'string') {
+            errorMessage = errorData.detail
+          } else {
+            errorMessage = JSON.stringify(errorData.detail)
+          }
         } else if (typeof errorData === 'string') {
           errorMessage = errorData
+        } else if (errorData && typeof errorData === 'object') {
+          // Try to extract message from common error formats
+          errorMessage = errorData.message || errorData.error || JSON.stringify(errorData)
         } else {
           const errorText = await response.text().catch(() => 'Unknown error')
           errorMessage = errorText || `Server error (${response.status})`
