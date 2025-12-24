@@ -36,6 +36,13 @@ def get_site_from_host(request: Request, db: Session) -> Optional[PublishedSite]
     # Remove port if present
     domain_name = host.split(":")[0]
     
+    # Skip Railway domains and localhost - these should be handled by API routes
+    railway_domains = [".railway.app", ".up.railway.app", "localhost", "127.0.0.1", "0.0.0.0"]
+    is_railway_domain = any(railway_domain in domain_name for railway_domain in railway_domains)
+    
+    if is_railway_domain:
+        return None  # Let API routes handle Railway domains
+    
     return get_site_by_domain(db, domain_name)
 
 
