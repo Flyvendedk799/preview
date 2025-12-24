@@ -32,6 +32,18 @@ import AccountSettings from '../pages/AccountSettings'
 import Blog from '../pages/Blog'
 import BlogPost from '../pages/BlogPost'
 import Demo from '../pages/Demo'
+import SitesList from '../pages/sites/SitesList'
+import CreateSite from '../pages/sites/CreateSite'
+import SiteDashboard from '../pages/sites/SiteDashboard'
+import SitePosts from '../pages/sites/SitePosts'
+import SitePostEditor from '../pages/sites/SitePostEditor'
+import SiteCategories from '../pages/sites/SiteCategories'
+import SitePages from '../pages/sites/SitePages'
+import SitePageEditor from '../pages/sites/SitePageEditor'
+import SiteMenus from '../pages/sites/SiteMenus'
+import SiteMedia from '../pages/sites/SiteMedia'
+import SiteBranding from '../pages/sites/SiteBranding'
+import SiteSettings from '../pages/sites/SiteSettings'
 
 export default function Router() {
   return (
@@ -276,6 +288,120 @@ export default function Router() {
             <AdminRoute>
               <AdminNewsletter />
             </AdminRoute>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Site Management Routes */}
+      <Route
+        path="/app/sites"
+        element={
+          <ProtectedRoute>
+            <SitesList />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/app/sites/new"
+        element={
+          <ProtectedRoute>
+            <CreateSite />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/app/sites/:siteId"
+        element={
+          <ProtectedRoute>
+            <SiteDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/app/sites/:siteId/posts"
+        element={
+          <ProtectedRoute>
+            <SitePosts />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/app/sites/:siteId/posts/new"
+        element={
+          <ProtectedRoute>
+            <SitePostEditor />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/app/sites/:siteId/posts/:postId"
+        element={
+          <ProtectedRoute>
+            <SitePostEditor />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/app/sites/:siteId/categories"
+        element={
+          <ProtectedRoute>
+            <SiteCategories />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/app/sites/:siteId/pages"
+        element={
+          <ProtectedRoute>
+            <SitePages />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/app/sites/:siteId/pages/new"
+        element={
+          <ProtectedRoute>
+            <SitePageEditor />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/app/sites/:siteId/pages/:pageId"
+        element={
+          <ProtectedRoute>
+            <SitePageEditor />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/app/sites/:siteId/menus"
+        element={
+          <ProtectedRoute>
+            <SiteMenus />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/app/sites/:siteId/media"
+        element={
+          <ProtectedRoute>
+            <SiteMedia />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/app/sites/:siteId/branding"
+        element={
+          <ProtectedRoute>
+            <SiteBranding />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/app/sites/:siteId/settings"
+        element={
+          <ProtectedRoute>
+            <SiteSettings />
           </ProtectedRoute>
         }
       />

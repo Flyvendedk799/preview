@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}{{ category.meta_title or category.name }} - {{ site.name }}{% endblock %}
+{% block description %}{{ category.meta_description or category.description or site.meta_description }}{% endblock %}
+
+{% block content %}
+<div class="container" style="padding-top: 2rem; padding-bottom: 4rem;">
+    <header style="margin-bottom: 3rem; text-align: center;">
+        <span class="category-badge" style="background-color: {{ category.color }}; font-size: 1rem; padding: 0.5rem 1.5rem;">
+            {{ category.name }}
+        </span>
+        {% if category.description %}
+        <p style="margin-top: 1.5rem; font-size: 1.125rem; color: var(--text-muted); max-width: 600px; margin-left: auto; margin-right: auto;">
+            {{ category.description }}
+        </p>
+        {% endif %}
+    </header>
+    
+    {% if posts and posts|length > 0 %}
+    <div class="posts-grid">
+        {% for post in posts %}
+        <article class="post-card">
+            {% if post.featured_image %}
+            <img src="{{ post.featured_image }}" alt="{{ post.featured_image_alt or post.title }}" class="post-card-image" loading="lazy">
+            {% endif %}
+            <div class="post-card-content">
+                <h3 class="post-card-title">
+                    <a href="/posts/{{ post.slug }}">{{ post.title }}</a>
+                </h3>
+                {% if post.excerpt %}
+                <p class="post-card-excerpt">{{ post.excerpt }}</p>
+                {% endif %}
+                <div class="post-card-footer">
+                    <div class="post-card-meta">
+                        {% if post.published_at %}
+                        <time datetime="{{ post.published_at }}">{{ post.published_at|date("%B %d, %Y") }}</time>
+                        {% endif %}
+                        {% if post.read_time_minutes %}
+                        <span class="read-time">⏱ {{ post.read_time_minutes }} min read</span>
+                        {% endif %}
+                    </div>
+                    {% if post.views_count %}
+                    <span>{{ post.views_count }} views</span>
+                    {% endif %}
+                </div>
+            </div>
+        </article>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="error-page">
+        <p>No posts in this category yet.</p>
+        <a href="/" style="display: inline-block; margin-top: 1rem; padding: 0.75rem 1.5rem; background: var(--primary-color); color: white; border-radius: 8px;">Back to Home</a>
+    </div>
+    {% endif %}
+</div>
+
+{% if category and not category.no_index %}
+<!-- Structured Data for Category -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "CollectionPage",
+  "name": "{{ category.name }}",
+  "description": "{{ category.description or category.meta_description }}",
+  "url": "https://{{ site.domain.name if site.domain else 'example.com' }}/category/{{ category.slug }}"
+}
+</script>
+{% endif %}
+{% endblock %}
+

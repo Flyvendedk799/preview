@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page.meta_title or page.title }} - {{ site.name }}{% endblock %}
+{% block description %}{{ page.meta_description or site.meta_description }}{% endblock %}
+
+{% block content %}
+<div class="content-container" style="padding-top: 2rem; padding-bottom: 4rem;">
+    {% if not page.no_index %}
+    <!-- Structured Data for WebPage -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebPage",
+      "name": "{{ page.title }}",
+      "description": "{{ page.meta_description }}",
+      "url": "https://{{ site.domain.name if site.domain else 'example.com' }}/page/{{ page.slug }}"
+    }
+    </script>
+    {% endif %}
+    
+    <header class="post-header">
+        <h1 class="post-title">{{ page.title }}</h1>
+    </header>
+    
+    <div class="post-content">
+        {{ page.content|safe }}
+    </div>
+</div>
+{% endblock %}
+

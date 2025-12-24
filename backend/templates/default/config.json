@@ -1,0 +1,27 @@
+{
+  "name": "Modern Blog",
+  "version": "1.0.0",
+  "description": "A clean, modern, and responsive blog template perfect for news sites and personal blogs",
+  "author": "MetaView",
+  "preview_image": "preview.jpg",
+  "features": [
+    "responsive",
+    "seo-optimized",
+    "fast-loading",
+    "accessible",
+    "custom-fonts",
+    "social-sharing"
+  ],
+  "required_variables": [
+    "site.name",
+    "site.branding.primary_color"
+  ],
+  "fonts": [
+    {
+      "name": "Inter",
+      "weights": [400, 500, 600, 700],
+      "source": "google"
+    }
+  ]
+}
+

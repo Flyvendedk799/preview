@@ -17,6 +17,16 @@ from backend.models.preview_variant import PreviewVariant  # noqa: F401
 from backend.models.preview_job_failure import PreviewJobFailure  # noqa: F401
 from backend.models.blog_post import BlogPost, BlogCategory  # noqa: F401
 from backend.models.newsletter_subscriber import NewsletterSubscriber  # noqa: F401
+from backend.models.published_site import (  # noqa: F401
+    PublishedSite, SitePost, SiteCategory, SitePage, SiteMenu, SiteMenuItem,
+    SiteMedia, SiteBranding, SiteSettings
+)
 
-__all__ = ["Base", "User", "Domain", "BrandSettings", "Preview", "Error", "ActivityLog", "AnalyticsEvent", "AnalyticsDailyAggregate", "Organization", "OrganizationMember", "OrganizationRole", "PreviewVariant", "PreviewJobFailure", "BlogPost", "BlogCategory", "NewsletterSubscriber"]
+__all__ = [
+    "Base", "User", "Domain", "BrandSettings", "Preview", "Error", "ActivityLog",
+    "AnalyticsEvent", "AnalyticsDailyAggregate", "Organization", "OrganizationMember",
+    "OrganizationRole", "PreviewVariant", "PreviewJobFailure", "BlogPost", "BlogCategory",
+    "NewsletterSubscriber", "PublishedSite", "SitePost", "SiteCategory", "SitePage",
+    "SiteMenu", "SiteMenuItem", "SiteMedia", "SiteBranding", "SiteSettings"
+]
 

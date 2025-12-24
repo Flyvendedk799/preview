@@ -31,6 +31,36 @@ import type {
   AdminUserDetail,
   AdminDomain,
   AdminPreview,
+  PublishedSite,
+  PublishedSiteCreate,
+  PublishedSiteUpdate,
+  SitePost,
+  SitePostCreate,
+  SitePostUpdate,
+  SitePostListItem,
+  PaginatedSitePosts,
+  SiteCategory,
+  SiteCategoryCreate,
+  SiteCategoryUpdate,
+  SitePage,
+  SitePageCreate,
+  SitePageUpdate,
+  SiteMenu,
+  SiteMenuCreate,
+  SiteMenuUpdate,
+  SiteMenuItem,
+  SiteMenuItemCreate,
+  SiteMenuItemUpdate,
+  SiteMedia,
+  SiteMediaCreate,
+  SiteMediaUpdate,
+  SiteBranding,
+  SiteBrandingCreate,
+  SiteBrandingUpdate,
+  SiteSettings,
+  SiteSettingsCreate,
+  SiteSettingsUpdate,
+  SiteStats,
 } from './types'
 
 // Re-export types for use in other files
@@ -1154,5 +1184,274 @@ export async function getDemoJobStatus(jobId: string): Promise<DemoJobStatusResp
     method: 'GET',
     timeout: 10000, // 10 seconds for status check
   }, false) // No auth required
+}
+
+// Sites Management
+export async function fetchSites(): Promise<PublishedSite[]> {
+  return fetchApi<PublishedSite[]>('/api/v1/sites', {
+    method: 'GET',
+  })
+}
+
+export async function createSite(payload: PublishedSiteCreate): Promise<PublishedSite> {
+  return fetchApi<PublishedSite>('/api/v1/sites', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function fetchSiteById(siteId: number): Promise<PublishedSite> {
+  return fetchApi<PublishedSite>(`/api/v1/sites/${siteId}`, {
+    method: 'GET',
+  })
+}
+
+export async function updateSite(siteId: number, payload: PublishedSiteUpdate): Promise<PublishedSite> {
+  return fetchApi<PublishedSite>(`/api/v1/sites/${siteId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function deleteSite(siteId: number): Promise<void> {
+  return fetchApi<void>(`/api/v1/sites/${siteId}`, {
+    method: 'DELETE',
+  })
+}
+
+export async function publishSite(siteId: number): Promise<PublishedSite> {
+  return fetchApi<PublishedSite>(`/api/v1/sites/${siteId}/publish`, {
+    method: 'POST',
+  })
+}
+
+export async function unpublishSite(siteId: number): Promise<PublishedSite> {
+  return fetchApi<PublishedSite>(`/api/v1/sites/${siteId}/unpublish`, {
+    method: 'POST',
+  })
+}
+
+export async function fetchSiteStats(siteId: number): Promise<SiteStats> {
+  return fetchApi<SiteStats>(`/api/v1/sites/${siteId}/stats`, {
+    method: 'GET',
+  })
+}
+
+// Site Posts
+export async function fetchSitePosts(
+  siteId: number,
+  params?: { page?: number; per_page?: number; status?: string; category_id?: number; search?: string }
+): Promise<PaginatedSitePosts> {
+  const queryParams = new URLSearchParams()
+  if (params?.page) queryParams.append('page', params.page.toString())
+  if (params?.per_page) queryParams.append('per_page', params.per_page.toString())
+  if (params?.status) queryParams.append('status', params.status)
+  if (params?.category_id) queryParams.append('category_id', params.category_id.toString())
+  if (params?.search) queryParams.append('search', params.search)
+  
+  const query = queryParams.toString()
+  return fetchApi<PaginatedSitePosts>(`/api/v1/sites/${siteId}/posts${query ? `?${query}` : ''}`, {
+    method: 'GET',
+  })
+}
+
+export async function createSitePost(siteId: number, payload: SitePostCreate): Promise<SitePost> {
+  return fetchApi<SitePost>(`/api/v1/sites/${siteId}/posts`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function fetchSitePost(siteId: number, postId: number): Promise<SitePost> {
+  return fetchApi<SitePost>(`/api/v1/sites/${siteId}/posts/${postId}`, {
+    method: 'GET',
+  })
+}
+
+export async function updateSitePost(siteId: number, postId: number, payload: SitePostUpdate): Promise<SitePost> {
+  return fetchApi<SitePost>(`/api/v1/sites/${siteId}/posts/${postId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function deleteSitePost(siteId: number, postId: number): Promise<void> {
+  return fetchApi<void>(`/api/v1/sites/${siteId}/posts/${postId}`, {
+    method: 'DELETE',
+  })
+}
+
+// Site Categories
+export async function fetchSiteCategories(siteId: number): Promise<SiteCategory[]> {
+  return fetchApi<SiteCategory[]>(`/api/v1/sites/${siteId}/categories`, {
+    method: 'GET',
+  })
+}
+
+export async function createSiteCategory(siteId: number, payload: SiteCategoryCreate): Promise<SiteCategory> {
+  return fetchApi<SiteCategory>(`/api/v1/sites/${siteId}/categories`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function updateSiteCategory(siteId: number, categoryId: number, payload: SiteCategoryUpdate): Promise<SiteCategory> {
+  return fetchApi<SiteCategory>(`/api/v1/sites/${siteId}/categories/${categoryId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function deleteSiteCategory(siteId: number, categoryId: number): Promise<void> {
+  return fetchApi<void>(`/api/v1/sites/${siteId}/categories/${categoryId}`, {
+    method: 'DELETE',
+  })
+}
+
+// Site Pages
+export async function fetchSitePages(siteId: number): Promise<SitePage[]> {
+  return fetchApi<SitePage[]>(`/api/v1/sites/${siteId}/pages`, {
+    method: 'GET',
+  })
+}
+
+export async function createSitePage(siteId: number, payload: SitePageCreate): Promise<SitePage> {
+  return fetchApi<SitePage>(`/api/v1/sites/${siteId}/pages`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function fetchSitePage(siteId: number, pageId: number): Promise<SitePage> {
+  return fetchApi<SitePage>(`/api/v1/sites/${siteId}/pages/${pageId}`, {
+    method: 'GET',
+  })
+}
+
+export async function updateSitePage(siteId: number, pageId: number, payload: SitePageUpdate): Promise<SitePage> {
+  return fetchApi<SitePage>(`/api/v1/sites/${siteId}/pages/${pageId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function deleteSitePage(siteId: number, pageId: number): Promise<void> {
+  return fetchApi<void>(`/api/v1/sites/${siteId}/pages/${pageId}`, {
+    method: 'DELETE',
+  })
+}
+
+// Site Menus
+export async function fetchSiteMenus(siteId: number): Promise<SiteMenu[]> {
+  return fetchApi<SiteMenu[]>(`/api/v1/sites/${siteId}/menus`, {
+    method: 'GET',
+  })
+}
+
+export async function createSiteMenu(siteId: number, payload: SiteMenuCreate): Promise<SiteMenu> {
+  return fetchApi<SiteMenu>(`/api/v1/sites/${siteId}/menus`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function fetchSiteMenu(siteId: number, menuId: number): Promise<SiteMenu> {
+  return fetchApi<SiteMenu>(`/api/v1/sites/${siteId}/menus/${menuId}`, {
+    method: 'GET',
+  })
+}
+
+export async function updateSiteMenu(siteId: number, menuId: number, payload: SiteMenuUpdate): Promise<SiteMenu> {
+  return fetchApi<SiteMenu>(`/api/v1/sites/${siteId}/menus/${menuId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function deleteSiteMenu(siteId: number, menuId: number): Promise<void> {
+  return fetchApi<void>(`/api/v1/sites/${siteId}/menus/${menuId}`, {
+    method: 'DELETE',
+  })
+}
+
+// Site Menu Items
+export async function createSiteMenuItem(siteId: number, menuId: number, payload: SiteMenuItemCreate): Promise<SiteMenuItem> {
+  return fetchApi<SiteMenuItem>(`/api/v1/sites/${siteId}/menus/${menuId}/items`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function updateSiteMenuItem(siteId: number, menuId: number, itemId: number, payload: SiteMenuItemUpdate): Promise<SiteMenuItem> {
+  return fetchApi<SiteMenuItem>(`/api/v1/sites/${siteId}/menus/${menuId}/items/${itemId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function deleteSiteMenuItem(siteId: number, menuId: number, itemId: number): Promise<void> {
+  return fetchApi<void>(`/api/v1/sites/${siteId}/menus/${menuId}/items/${itemId}`, {
+    method: 'DELETE',
+  })
+}
+
+// Site Media
+export async function fetchSiteMedia(siteId: number, params?: { page?: number; per_page?: number }): Promise<SiteMedia[]> {
+  const queryParams = new URLSearchParams()
+  if (params?.page) queryParams.append('page', params.page.toString())
+  if (params?.per_page) queryParams.append('per_page', params.per_page.toString())
+  
+  const query = queryParams.toString()
+  return fetchApi<SiteMedia[]>(`/api/v1/sites/${siteId}/media${query ? `?${query}` : ''}`, {
+    method: 'GET',
+  })
+}
+
+export async function createSiteMedia(siteId: number, payload: SiteMediaCreate): Promise<SiteMedia> {
+  return fetchApi<SiteMedia>(`/api/v1/sites/${siteId}/media`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function updateSiteMedia(siteId: number, mediaId: number, payload: SiteMediaUpdate): Promise<SiteMedia> {
+  return fetchApi<SiteMedia>(`/api/v1/sites/${siteId}/media/${mediaId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function deleteSiteMedia(siteId: number, mediaId: number): Promise<void> {
+  return fetchApi<void>(`/api/v1/sites/${siteId}/media/${mediaId}`, {
+    method: 'DELETE',
+  })
+}
+
+// Site Branding
+export async function fetchSiteBranding(siteId: number): Promise<SiteBranding> {
+  return fetchApi<SiteBranding>(`/api/v1/sites/${siteId}/branding`, {
+    method: 'GET',
+  })
+}
+
+export async function updateSiteBranding(siteId: number, payload: SiteBrandingUpdate): Promise<SiteBranding> {
+  return fetchApi<SiteBranding>(`/api/v1/sites/${siteId}/branding`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+// Site Settings
+export async function fetchSiteSettings(siteId: number): Promise<SiteSettings> {
+  return fetchApi<SiteSettings>(`/api/v1/sites/${siteId}/settings`, {
+    method: 'GET',
+  })
+}
+
+export async function updateSiteSettings(siteId: number, payload: SiteSettingsUpdate): Promise<SiteSettings> {
+  return fetchApi<SiteSettings>(`/api/v1/sites/${siteId}/settings`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
 }
 

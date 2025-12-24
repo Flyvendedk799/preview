@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="{{ site.settings.language if site.settings else 'en' }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{{ site.meta_title or site.name }}{% endblock %}</title>
+    <meta name="description" content="{% block description %}{{ site.meta_description or '' }}{% endblock %}">
+    {% if site.meta_keywords %}
+    <meta name="keywords" content="{{ site.meta_keywords }}">
+    {% endif %}
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="{% block og_type %}website{% endblock %}">
+    <meta property="og:url" content="https://{{ site.domain.name if site.domain else 'example.com' }}{{ request.path if request else '' }}">
+    <meta property="og:title" content="{% block og_title %}{{ site.meta_title or site.name }}{% endblock %}">
+    <meta property="og:description" content="{% block og_description %}{{ site.meta_description or '' }}{% endblock %}">
+    {% block og_image %}
+    {% if site.branding and site.branding.logo_url %}
+    <meta property="og:image" content="{{ site.branding.logo_url }}">
+    {% endif %}
+    {% endblock %}
+    
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="https://{{ site.domain.name if site.domain else 'example.com' }}{{ request.path if request else '' }}">
+    <meta name="twitter:title" content="{% block twitter_title %}{{ site.meta_title or site.name }}{% endblock %}">
+    <meta name="twitter:description" content="{% block twitter_description %}{{ site.meta_description or '' }}{% endblock %}">
+    {% block twitter_image %}
+    {% if site.branding and site.branding.logo_url %}
+    <meta name="twitter:image" content="{{ site.branding.logo_url }}">
+    {% endif %}
+    {% endblock %}
+    
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://{{ site.domain.name if site.domain else 'example.com' }}{{ request.path if request else '' }}">
+    
+    <!-- Favicon -->
+    {% if site.branding and site.branding.favicon_url %}
+    <link rel="icon" href="{{ site.branding.favicon_url }}">
+    {% endif %}
+    
+    <!-- Fonts -->
+    {% if site.branding and site.branding.font_family %}
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    {% endif %}
+    
+    <!-- Styles -->
+    <style>
+        :root {
+            --primary-color: {{ site.branding.primary_color if site.branding else '#f97316' }};
+            --secondary-color: {{ site.branding.secondary_color if site.branding else '#64748b' }};
+            --accent-color: {{ site.branding.accent_color if site.branding else '#f59e0b' }};
+            --background-color: {{ site.branding.background_color if site.branding else '#ffffff' }};
+            --text-color: {{ site.branding.text_color if site.branding else '#1f2937' }};
+            --font-family: {{ site.branding.font_family if site.branding else "'Inter', sans-serif" }};
+            --heading-font: {{ site.branding.heading_font if site.branding else "'Inter', sans-serif" }};
+            --body-font: {{ site.branding.body_font if site.branding else "'Inter', sans-serif" }};
+        }
+    </style>
+    <link rel="stylesheet" href="/templates/default/assets/css/style.css">
+    {% if site.settings and site.settings.custom_css %}
+    <style>
+        {{ site.settings.custom_css }}
+    </style>
+    {% endif %}
+    {% if site.branding and site.branding.custom_css %}
+    <style>
+        {{ site.branding.custom_css }}
+    </style>
+    {% endif %}
+    
+    <!-- Header Code -->
+    {% if site.settings and site.settings.header_code %}
+    {{ site.settings.header_code|safe }}
+    {% endif %}
+    
+    <!-- Analytics -->
+    {% if site.settings and site.settings.google_analytics_id %}
+    <!-- Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id={{ site.settings.google_analytics_id }}"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', '{{ site.settings.google_analytics_id }}');
+    </script>
+    {% endif %}
+    
+    {% if site.settings and site.settings.google_tag_manager_id %}
+    <!-- Google Tag Manager -->
+    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','{{ site.settings.google_tag_manager_id }}');</script>
+    {% endif %}
+    
+    {% if site.settings and site.settings.facebook_pixel_id %}
+    <!-- Facebook Pixel -->
+    <script>
+        !function(f,b,e,v,n,t,s)
+        {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+        n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+        if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+        n.queue=[];t=b.createElement(e);t.async=!0;
+        t.src=v;s=b.getElementsByTagName(e)[0];
+        s.parentNode.insertBefore(t,s)}(window, document,'script',
+        'https://connect.facebook.net/en_US/fbevents.js');
+        fbq('init', '{{ site.settings.facebook_pixel_id }}');
+        fbq('track', 'PageView');
+    </script>
+    {% endif %}
+</head>
+<body>
+    {% if site.settings and site.settings.google_tag_manager_id %}
+    <!-- Google Tag Manager (noscript) -->
+    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id={{ site.settings.google_tag_manager_id }}"
+    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+    {% endif %}
+    
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+    
+    <header class="site-header">
+        <div class="container">
+            <div class="header-content">
+                <a href="/" class="site-logo" style="text-decoration: none; color: inherit;">
+                    {% if site.branding and site.branding.logo_url %}
+                    <img src="{{ site.branding.logo_url }}" alt="{{ site.branding.logo_alt or site.name }}">
+                    {% else %}
+                    <span>{{ site.name }}</span>
+                    {% endif %}
+                </a>
+                <button class="mobile-menu-toggle" aria-label="Toggle menu">☰</button>
+                <nav class="main-nav" role="navigation" aria-label="Main navigation">
+                    <ul>
+                        {% if site.menus %}
+                        {% for menu in site.menus %}
+                        {% if menu.location == 'header' %}
+                        {% for item in menu.items %}
+                        {% if item.is_active %}
+                        <li>
+                            <a href="{{ item.url or '#' }}" {% if item.css_class %}class="{{ item.css_class }}"{% endif %}>
+                                {% if item.icon %}<span>{{ item.icon }}</span> {% endif %}{{ item.label }}
+                            </a>
+                        </li>
+                        {% endif %}
+                        {% endfor %}
+                        {% endif %}
+                        {% endfor %}
+                        {% else %}
+                        <li><a href="/">Home</a></li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </header>
+    
+    <main id="main-content">
+        {% block content %}{% endblock %}
+    </main>
+    
+    <footer class="site-footer">
+        <div class="container">
+            <div class="footer-content">
+                {% if site.menus %}
+                {% for menu in site.menus %}
+                {% if menu.location == 'footer' %}
+                <div class="footer-section">
+                    <h3>{{ menu.name }}</h3>
+                    <ul>
+                        {% for item in menu.items %}
+                        {% if item.is_active %}
+                        <li><a href="{{ item.url or '#' }}">{{ item.label }}</a></li>
+                        {% endif %}
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+                {% endfor %}
+                {% endif %}
+                
+                {% if site.settings and site.settings.social_links %}
+                <div class="footer-section">
+                    <h3>Follow Us</h3>
+                    <ul>
+                        {% for platform, url in site.settings.social_links.items() %}
+                        <li><a href="{{ url }}" target="_blank" rel="noopener noreferrer">{{ platform|title }}</a></li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; {{ "now"|date("%Y") }} {{ site.name }}. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+    
+    <script src="/templates/default/assets/js/main.js"></script>
+    {% if site.settings and site.settings.custom_js %}
+    <script>
+        {{ site.settings.custom_js|safe }}
+    </script>
+    {% endif %}
+    
+    <!-- Footer Code -->
+    {% if site.settings and site.settings.footer_code %}
+    {{ site.settings.footer_code|safe }}
+    {% endif %}
+</body>
+</html>
+

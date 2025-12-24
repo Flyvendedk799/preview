@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+
+{% block title %}{{ post.meta_title or post.title }} - {{ site.name }}{% endblock %}
+{% block description %}{{ post.meta_description or post.excerpt or site.meta_description }}{% endblock %}
+
+{% block og_type %}article{% endblock %}
+{% block og_title %}{{ post.meta_title or post.title }}{% endblock %}
+{% block og_description %}{{ post.meta_description or post.excerpt }}{% endblock %}
+{% block og_image %}
+{% if post.og_image %}
+<meta property="og:image" content="{{ post.og_image }}">
+{% elif post.featured_image %}
+<meta property="og:image" content="{{ post.featured_image }}">
+{% endif %}
+{% endblock %}
+
+{% block twitter_title %}{{ post.twitter_title or post.meta_title or post.title }}{% endblock %}
+{% block twitter_description %}{{ post.twitter_description or post.meta_description or post.excerpt }}{% endblock %}
+{% block twitter_image %}
+{% if post.twitter_image %}
+<meta name="twitter:image" content="{{ post.twitter_image }}">
+{% elif post.featured_image %}
+<meta name="twitter:image" content="{{ post.featured_image }}">
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<article class="content-container" style="padding-top: 2rem; padding-bottom: 4rem;">
+    {% if not post.no_index %}
+    <!-- Structured Data for Article -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "{{ post.schema_type }}",
+      "headline": "{{ post.title }}",
+      "description": "{{ post.meta_description or post.excerpt }}",
+      "image": "{{ post.featured_image or post.og_image or '' }}",
+      "datePublished": "{{ post.published_at }}",
+      "dateModified": "{{ post.updated_at }}",
+      "author": {
+        "@type": "Person",
+        "name": "{{ post.author_name or 'Author' }}"
+        {% if post.author_avatar %},
+        "image": "{{ post.author_avatar }}"
+        {% endif %}
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "{{ site.name }}"
+        {% if site.branding and site.branding.logo_url %},
+        "logo": {
+          "@type": "ImageObject",
+          "url": "{{ site.branding.logo_url }}"
+        }
+        {% endif %}
+      }
+      {% if post.category %},
+      "articleSection": "{{ post.category.name }}"
+      {% endif %}
+    }
+    </script>
+    {% endif %}
+    
+    <header class="post-header">
+        {% if post.category %}
+        <a href="/category/{{ post.category.slug }}" class="category-badge" style="background-color: {{ post.category.color }}; margin-bottom: 1rem; display: inline-block;">
+            {{ post.category.name }}
+        </a>
+        {% endif %}
+        
+        <h1 class="post-title">{{ post.title }}</h1>
+        
+        <div class="post-meta">
+            {% if post.author_avatar %}
+            <img src="{{ post.author_avatar }}" alt="{{ post.author_name or 'Author' }}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
+            {% endif %}
+            <div>
+                {% if post.author_name %}
+                <strong>{{ post.author_name }}</strong>
+                {% endif %}
+                {% if post.published_at %}
+                <time datetime="{{ post.published_at }}">{{ post.published_at|date("%B %d, %Y") }}</time>
+                {% endif %}
+            </div>
+            {% if post.read_time_minutes %}
+            <span class="read-time">⏱ {{ post.read_time_minutes }} min read</span>
+            {% endif %}
+            {% if post.views_count %}
+            <span>👁 {{ post.views_count }} views</span>
+            {% endif %}
+        </div>
+    </header>
+    
+    {% if post.featured_image %}
+    <img src="{{ post.featured_image }}" alt="{{ post.featured_image_alt or post.title }}" class="post-featured-image">
+    {% endif %}
+    
+    <div class="post-content">
+        {{ post.content|safe }}
+    </div>
+    
+    {% if post.tags %}
+    <div style="margin: 2rem 0; padding-top: 2rem; border-top: 1px solid var(--border-color);">
+        <strong>Tags:</strong>
+        {% for tag in post.tags.split(',') %}
+        <span style="display: inline-block; padding: 0.25rem 0.75rem; margin: 0.25rem; background: var(--border-color); border-radius: 20px; font-size: 0.875rem;">{{ tag.strip() }}</span>
+        {% endfor %}
+    </div>
+    {% endif %}
+    
+    {% if post.author_name or post.author_bio %}
+    <div class="author-box">
+        {% if post.author_avatar %}
+        <img src="{{ post.author_avatar }}" alt="{{ post.author_name or 'Author' }}" class="author-avatar">
+        {% endif %}
+        <div class="author-info">
+            {% if post.author_name %}
+            <h3>{{ post.author_name }}</h3>
+            {% endif %}
+            {% if post.author_bio %}
+            <p class="author-bio">{{ post.author_bio }}</p>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+    
+    <div class="social-sharing">
+        <a href="https://twitter.com/intent/tweet?url=https://{{ site.domain.name if site.domain else 'example.com' }}/posts/{{ post.slug }}&text={{ post.title|urlencode }}" 
+           target="_blank" 
+           rel="noopener noreferrer" 
+           class="share-button share-twitter">
+            🐦 Share on Twitter
+        </a>
+        <a href="https://www.facebook.com/sharer/sharer.php?u=https://{{ site.domain.name if site.domain else 'example.com' }}/posts/{{ post.slug }}" 
+           target="_blank" 
+           rel="noopener noreferrer" 
+           class="share-button share-facebook">
+            📘 Share on Facebook
+        </a>
+        <a href="https://www.linkedin.com/sharing/share-offsite/?url=https://{{ site.domain.name if site.domain else 'example.com' }}/posts/{{ post.slug }}" 
+           target="_blank" 
+           rel="noopener noreferrer" 
+           class="share-button share-linkedin">
+            💼 Share on LinkedIn
+        </a>
+        <button class="share-button share-copy">📋 Copy Link</button>
+    </div>
+    
+    {% if related_posts and related_posts|length > 0 %}
+    <section class="related-posts">
+        <h2>Related Posts</h2>
+        <div class="posts-grid">
+            {% for related_post in related_posts[:3] %}
+            <article class="post-card">
+                {% if related_post.featured_image %}
+                <img src="{{ related_post.featured_image }}" alt="{{ related_post.title }}" class="post-card-image" loading="lazy">
+                {% endif %}
+                <div class="post-card-content">
+                    <h3 class="post-card-title">
+                        <a href="/posts/{{ related_post.slug }}">{{ related_post.title }}</a>
+                    </h3>
+                    {% if related_post.excerpt %}
+                    <p class="post-card-excerpt">{{ related_post.excerpt }}</p>
+                    {% endif %}
+                </div>
+            </article>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+</article>
+{% endblock %}
+

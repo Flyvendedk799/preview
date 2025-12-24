@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+
+{% block title %}{{ site.meta_title or site.name }}{% endblock %}
+{% block description %}{{ site.meta_description or '' }}{% endblock %}
+
+{% block content %}
+{% if posts and posts|length > 0 %}
+    {% set featured_posts = posts|selectattr('is_featured')|list %}
+    {% if featured_posts|length > 0 %}
+    <section class="hero-section">
+        <div class="container">
+            <h1>{{ site.name }}</h1>
+            {% if site.settings and site.settings.site_description %}
+            <p>{{ site.settings.site_description }}</p>
+            {% endif %}
+        </div>
+    </section>
+    {% endif %}
+    
+    <div class="container">
+        {% if featured_posts|length > 0 %}
+        <section class="featured-posts" style="margin: 3rem 0;">
+            <h2 style="margin-bottom: 2rem;">Featured Posts</h2>
+            <div class="posts-grid">
+                {% for post in featured_posts[:3] %}
+                <article class="post-card">
+                    {% if post.featured_image %}
+                    <img src="{{ post.featured_image }}" alt="{{ post.featured_image_alt or post.title }}" class="post-card-image" loading="lazy">
+                    {% endif %}
+                    <div class="post-card-content">
+                        {% if post.category %}
+                        <span class="category-badge" style="background-color: {{ post.category.color }};">
+                            {{ post.category.name }}
+                        </span>
+                        {% endif %}
+                        <h3 class="post-card-title">
+                            <a href="/posts/{{ post.slug }}">{{ post.title }}</a>
+                        </h3>
+                        {% if post.excerpt %}
+                        <p class="post-card-excerpt">{{ post.excerpt }}</p>
+                        {% endif %}
+                        <div class="post-card-footer">
+                            <div class="post-card-meta">
+                                {% if post.published_at %}
+                                <time datetime="{{ post.published_at }}">{{ post.published_at|date("%B %d, %Y") }}</time>
+                                {% endif %}
+                                {% if post.read_time_minutes %}
+                                <span class="read-time">⏱ {{ post.read_time_minutes }} min read</span>
+                                {% endif %}
+                            </div>
+                            {% if post.views_count %}
+                            <span>{{ post.views_count }} views</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </article>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
+        
+        <section class="all-posts">
+            <h2 style="margin-bottom: 2rem;">Latest Posts</h2>
+            <div class="posts-grid">
+                {% for post in posts %}
+                {% if not post.is_featured or featured_posts|length == 0 %}
+                <article class="post-card">
+                    {% if post.featured_image %}
+                    <img src="{{ post.featured_image }}" alt="{{ post.featured_image_alt or post.title }}" class="post-card-image" loading="lazy">
+                    {% endif %}
+                    <div class="post-card-content">
+                        {% if post.category %}
+                        <span class="category-badge" style="background-color: {{ post.category.color }};">
+                            {{ post.category.name }}
+                        </span>
+                        {% endif %}
+                        <h3 class="post-card-title">
+                            <a href="/posts/{{ post.slug }}">{{ post.title }}</a>
+                        </h3>
+                        {% if post.excerpt %}
+                        <p class="post-card-excerpt">{{ post.excerpt }}</p>
+                        {% endif %}
+                        <div class="post-card-footer">
+                            <div class="post-card-meta">
+                                {% if post.published_at %}
+                                <time datetime="{{ post.published_at }}">{{ post.published_at|date("%B %d, %Y") }}</time>
+                                {% endif %}
+                                {% if post.read_time_minutes %}
+                                <span class="read-time">⏱ {{ post.read_time_minutes }} min read</span>
+                                {% endif %}
+                            </div>
+                            {% if post.views_count %}
+                            <span>{{ post.views_count }} views</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </article>
+                {% endif %}
+                {% endfor %}
+            </div>
+        </section>
+        
+        {% if pagination and pagination.total_pages > 1 %}
+        <nav class="pagination" aria-label="Pagination">
+            {% if pagination.has_prev %}
+            <a href="?page={{ pagination.page - 1 }}" aria-label="Previous page">« Previous</a>
+            {% else %}
+            <span class="disabled">« Previous</span>
+            {% endif %}
+            
+            {% for page_num in range(1, pagination.total_pages + 1) %}
+            {% if page_num == pagination.page %}
+            <span class="current" aria-current="page">{{ page_num }}</span>
+            {% elif page_num == 1 or page_num == pagination.total_pages or (page_num >= pagination.page - 2 and page_num <= pagination.page + 2) %}
+            <a href="?page={{ page_num }}">{{ page_num }}</a>
+            {% elif page_num == pagination.page - 3 or page_num == pagination.page + 3 %}
+            <span>...</span>
+            {% endif %}
+            {% endfor %}
+            
+            {% if pagination.has_next %}
+            <a href="?page={{ pagination.page + 1 }}" aria-label="Next page">Next »</a>
+            {% else %}
+            <span class="disabled">Next »</span>
+            {% endif %}
+        </nav>
+        {% endif %}
+    </div>
+{% else %}
+    <div class="container">
+        <div class="error-page">
+            <h1>Welcome</h1>
+            <h2>{{ site.name }}</h2>
+            {% if site.settings and site.settings.site_description %}
+            <p>{{ site.settings.site_description }}</p>
+            {% else %}
+            <p>No posts yet. Check back soon!</p>
+            {% endif %}
+        </div>
+    </div>
+{% endif %}
+
+{% if site.settings and site.settings.sitemap_enabled %}
+<!-- Structured Data for Site -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": "{{ site.name }}",
+  "url": "https://{{ site.domain.name if site.domain else 'example.com' }}",
+  {% if site.settings and site.settings.site_description %}
+  "description": "{{ site.settings.site_description }}",
+  {% endif %}
+  "publisher": {
+    "@type": "Organization",
+    "name": "{{ site.name }}"
+  }
+}
+</script>
+{% endif %}
+{% endblock %}
+

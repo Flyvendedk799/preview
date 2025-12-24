@@ -20,6 +20,7 @@ class Domain(Base):
     monthly_clicks = Column(Integer, default=0, nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), index=True, nullable=True)
     organization_id = Column(Integer, ForeignKey("organizations.id"), index=True, nullable=True)
+    site_id = Column(Integer, ForeignKey("published_sites.id"), nullable=True, index=True)
 
     # Relationships
     user = relationship("User", back_populates="domains")
