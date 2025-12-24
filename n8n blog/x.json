@@ -533,8 +533,8 @@
             },
             {
               "id": "id-2",
-              "leftValue": "={{ $json.currentRevision }}",
-              "rightValue": "={{ $json.maxRevisions }}",
+              "leftValue": "={{ $json.currentRevision ?? 0 }}",
+              "rightValue": "={{ $json.maxRevisions ?? 2 }}",
               "operator": {
                 "type": "number",
                 "operation": "gte"
@@ -774,7 +774,7 @@
             {
               "id": "id-1",
               "name": "currentRevision",
-              "value": "={{ ($json.currentRevision ?? 0) + 1 }}",
+              "value": "={{ (() => {\n  const current = $json.currentRevision ?? 0;\n  const max = $json.maxRevisions ?? $('Workflow Configuration').first().json.maxRevisions ?? 2;\n  // Safety: never increment beyond 2x max revisions\n  if (current >= max * 2) {\n    return max * 2; // Cap at safety limit\n  }\n  return current + 1;\n})() }}",
               "type": "number"
             },
             {
@@ -835,6 +835,19 @@
     },
     {
       "parameters": {
+        "jsCode": "// Hard stop check - prevent infinite loops\nconst data = $input.item.json;\nconst currentRevision = data.currentRevision ?? 0;\nconst maxRevisions = data.maxRevisions ?? 2;\n\n// Hard stop: if we've exceeded max revisions, force exit\nif (currentRevision >= maxRevisions) {\n  return {\n    ...data,\n    forceExit: true,\n    exitReason: 'max_revisions_reached',\n    revisionCount: currentRevision\n  };\n}\n\n// Safety check: if revision count is suspiciously high (more than 2x max), force exit\nif (currentRevision > maxRevisions * 2) {\n  return {\n    ...data,\n    forceExit: true,\n    exitReason: 'safety_limit_exceeded',\n    revisionCount: currentRevision\n  };\n}\n\n// Continue with revision\nreturn {\n  ...data,\n  forceExit: false,\n  revisionCount: currentRevision\n};"
+      },
+      "id": "2665aa1a-a1e7-4307-a89a-530b872721a2",
+      "name": "Check Revision Limit",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2464,
+        656
+      ]
+    },
+    {
+      "parameters": {
         "conditions": {
           "options": {
             "caseSensitive": false,
@@ -844,11 +857,11 @@
           "conditions": [
             {
               "id": "id-1",
-              "leftValue": "={{ $json.currentRevision }}",
-              "rightValue": "={{ $json.maxRevisions }}",
+              "leftValue": "={{ $json.forceExit }}",
+              "rightValue": true,
               "operator": {
-                "type": "number",
-                "operation": "gte"
+                "type": "boolean",
+                "operation": "equals"
               }
             }
           ],
@@ -856,12 +869,12 @@
         },
         "options": {}
       },
-      "id": "2665aa1a-a1e7-4307-a89a-530b872721a2",
-      "name": "Check Revision Limit",
+      "id": "revision-limit-check-if",
+      "name": "Check Force Exit",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        2464,
+        2688,
         656
       ]
     },
@@ -1425,6 +1438,17 @@
       ]
     },
     "Check Revision Limit": {
+      "main": [
+        [
+          {
+            "node": "Check Force Exit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Force Exit": {
       "main": [
         [
           {
