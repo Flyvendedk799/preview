@@ -101,6 +101,12 @@ def create_site(
     domain.site_id = db_site.id
     db.commit()
     
+    # If site is published, set published_at timestamp
+    if db_site.status == 'published' and not db_site.published_at:
+        db_site.published_at = datetime.utcnow()
+        db.commit()
+        db.refresh(db_site)
+    
     # Create default branding and settings
     create_default_branding(db, db_site.id)
     create_default_settings(db, db_site.id)

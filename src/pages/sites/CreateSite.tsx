@@ -49,6 +49,7 @@ export default function CreateSite() {
   const [siteDescription, setSiteDescription] = useState('')
   const [templateId, setTemplateId] = useState('default')
   const [selectedPreset, setSelectedPreset] = useState(COLOR_PRESETS[0])
+  const [publishImmediately, setPublishImmediately] = useState(true) // Default to publishing immediately
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
@@ -83,11 +84,13 @@ export default function CreateSite() {
         name: siteName.trim(),
         domain_id: selectedDomainId,
         template_id: templateId,
-        status: 'draft',
+        status: publishImmediately ? 'published' : 'draft',
         is_active: true,
       }
       
       const site = await createSite(siteData)
+      
+      // If publishing immediately, the site will be accessible via the domain right away
       setCurrentStep('complete')
       
       // Redirect after 2 seconds
@@ -420,23 +423,55 @@ export default function CreateSite() {
                 </div>
                 <div>
                   <span className="text-gray-500">Status:</span>
-                  <span className="ml-2 font-medium">Draft (unpublished)</span>
+                  <span className="ml-2 font-medium">
+                    {publishImmediately ? 'Published (live)' : 'Draft (unpublished)'}
+                  </span>
                 </div>
               </div>
             </div>
 
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-              <div className="flex items-start gap-3">
-                <SparklesIcon className="w-5 h-5 text-blue-600 mt-0.5" />
-                <div>
-                  <p className="text-blue-900 font-medium">What happens next?</p>
-                  <p className="text-sm text-blue-700 mt-1">
-                    Your site will be created as a draft. You can add posts, pages, and customize
-                    everything before publishing it live.
+            {/* Publish immediately option */}
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={publishImmediately}
+                  onChange={(e) => setPublishImmediately(e.target.checked)}
+                  className="mt-1 w-5 h-5 text-primary border-gray-300 rounded focus:ring-primary"
+                />
+                <div className="flex-1">
+                  <p className="font-medium text-secondary">Publish immediately</p>
+                  <p className="text-sm text-muted mt-1">
+                    {publishImmediately ? (
+                      <>
+                        Your site will be live at <span className="font-mono font-semibold text-primary">{selectedDomain?.name}</span> as soon as it's created.
+                        You can still edit it after publishing.
+                      </>
+                    ) : (
+                      <>
+                        Your site will be created as a draft. You can add posts, pages, and customize
+                        everything before publishing it live.
+                      </>
+                    )}
                   </p>
                 </div>
-              </div>
+              </label>
             </div>
+
+            {publishImmediately && (
+              <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+                <div className="flex items-start gap-3">
+                  <SparklesIcon className="w-5 h-5 text-green-600 mt-0.5" />
+                  <div>
+                    <p className="text-green-900 font-medium">Site will be live immediately!</p>
+                    <p className="text-sm text-green-700 mt-1">
+                      Once created, visitors to <span className="font-mono font-semibold">{selectedDomain?.name}</span> will see your site.
+                      Make sure your domain DNS is pointing to our servers.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="flex justify-between pt-6 border-t">
               <Button variant="secondary" onClick={() => setCurrentStep('branding')}>
@@ -466,7 +501,19 @@ export default function CreateSite() {
               <CheckCircleIcon className="w-12 h-12 text-green-600" />
             </div>
             <h2 className="text-3xl font-bold text-secondary mb-2">Site Created!</h2>
-            <p className="text-lg text-muted mb-6">Your new site is ready to customize</p>
+            {publishImmediately ? (
+              <>
+                <p className="text-lg text-muted mb-2">Your site is now live!</p>
+                <p className="text-sm text-primary font-mono mb-6">{selectedDomain?.name}</p>
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6 max-w-md mx-auto">
+                  <p className="text-sm text-green-800">
+                    Visitors can now access your site at this domain. Make sure your DNS is configured correctly.
+                  </p>
+                </div>
+              </>
+            ) : (
+              <p className="text-lg text-muted mb-6">Your new site is ready to customize</p>
+            )}
             <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
             <p className="text-sm text-gray-500 mt-4">Redirecting to your dashboard...</p>
           </div>
