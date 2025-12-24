@@ -72,8 +72,8 @@ def signup(user_in: UserCreate, request: Request, db: Session = Depends(get_db))
 
 @router.post("/login", response_model=Token)
 def login(
-    form_data: OAuth2PasswordRequestForm = Depends(),
     request: Request,
+    form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
 ):
     """Login and get access token."""
