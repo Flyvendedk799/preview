@@ -86,9 +86,9 @@ async def error_handler_middleware(request: Request, call_next):
             if db:
                 db.close()
         
-        # Log to application logger
+        # Log to application logger (this will appear in Railway logs)
         logger.error(
-            f"Unhandled exception: {str(e)}",
+            f"Unhandled exception on {request.method} {request.url.path}: {str(e)}",
             exc_info=True,
             extra={
                 "path": request.url.path,
@@ -97,6 +97,10 @@ async def error_handler_middleware(request: Request, call_next):
                 "org_id": org_id,
             }
         )
+        # Also print to stderr for Railway logs visibility
+        import sys
+        print(f"[ERROR] {request.method} {request.url.path}: {type(e).__name__}: {str(e)}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
         
         # Get origin from request headers
         origin = request.headers.get("origin")
