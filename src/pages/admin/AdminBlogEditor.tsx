@@ -17,6 +17,7 @@ import {
   UserIcon,
   CalendarIcon,
   PencilIcon,
+  ArrowDownTrayIcon,
 } from '@heroicons/react/24/outline'
 import {
   adminFetchBlogPost,
@@ -317,6 +318,63 @@ export default function AdminBlogEditor() {
     setFormData(prev => ({ ...prev, meta_description: text.substring(0, 160) }))
   }
 
+  // Import JSON file
+  function handleImportJSON(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const jsonData = JSON.parse(e.target?.result as string) as BlogPostCreate
+        
+        // Validate required fields
+        if (!jsonData.title || !jsonData.content) {
+          alert('Invalid JSON file: Missing title or content')
+          return
+        }
+
+        // Populate form with imported data
+        setFormData({
+          title: jsonData.title || '',
+          slug: jsonData.slug || generateSlug(jsonData.title),
+          excerpt: jsonData.excerpt || '',
+          content: jsonData.content || '',
+          featured_image: jsonData.featured_image || '',
+          featured_image_alt: jsonData.featured_image_alt || '',
+          og_image: jsonData.og_image || jsonData.featured_image || '',
+          author_name: jsonData.author_name || '',
+          author_bio: jsonData.author_bio || '',
+          author_avatar: jsonData.author_avatar || '',
+          category_id: jsonData.category_id,
+          tags: jsonData.tags || '',
+          status: jsonData.status || 'draft',
+          is_featured: jsonData.is_featured || false,
+          is_pinned: jsonData.is_pinned || false,
+          meta_title: jsonData.meta_title || jsonData.title || '',
+          meta_description: jsonData.meta_description || '',
+          meta_keywords: jsonData.meta_keywords || '',
+          canonical_url: jsonData.canonical_url || '',
+          no_index: jsonData.no_index || false,
+          schema_type: jsonData.schema_type || 'Article',
+          twitter_title: jsonData.twitter_title || jsonData.title?.substring(0, 70) || '',
+          twitter_description: jsonData.twitter_description || jsonData.meta_description || '',
+          twitter_image: jsonData.twitter_image || jsonData.featured_image || '',
+        })
+
+        setAutoSlug(false) // Don't auto-generate slug if imported
+        alert('✅ Blog post imported successfully!')
+      } catch (error) {
+        console.error('Failed to import JSON:', error)
+        alert('Failed to import JSON file. Please check the file format.')
+      }
+    }
+    reader.readAsText(file)
+    
+    // Reset file input
+    event.target.value = ''
+  }
+
   const readTime = calculateReadTime(formData.content)
   const effectiveMetaTitle = formData.meta_title || formData.title
   const effectiveMetaDesc = formData.meta_description || formData.excerpt || generateExcerpt(formData.content)
@@ -354,6 +412,18 @@ export default function AdminBlogEditor() {
           </div>
           
           <div className="flex items-center gap-3">
+            {!isEditing && (
+              <label className="px-4 py-2 border border-gray-200 rounded-lg font-medium hover:bg-gray-50 transition-colors cursor-pointer flex items-center gap-2">
+                <ArrowDownTrayIcon className="w-5 h-5 text-gray-600" />
+                <span className="text-gray-700">Import JSON</span>
+                <input
+                  type="file"
+                  accept=".json,application/json"
+                  onChange={handleImportJSON}
+                  className="hidden"
+                />
+              </label>
+            )}
             <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-lg">
               <span className={`w-2 h-2 rounded-full ${
                 formData.status === 'published' ? 'bg-green-500' :
