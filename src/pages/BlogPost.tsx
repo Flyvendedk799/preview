@@ -434,7 +434,6 @@ function isValidImageUrl(url: string): boolean {
   
   // Check if it's from a trusted CDN or domain
   const trustedDomains = [
-    'cdn2.unrealengine.com',
     'steamcdn-a.akamaihd.net',
     'images.unsplash.com',
     'cdn.cloudflare.com',
@@ -444,12 +443,13 @@ function isValidImageUrl(url: string): boolean {
   
   const isFromTrustedDomain = trustedDomains.some(domain => url.includes(domain))
   
-  // Reject common non-image URLs
+  // Reject common non-image URLs and inaccessible domains
   const rejectedPatterns = [
     /serpapi\.com/i,
     /googleusercontent\.com\/imgres/i,
     /\.html/i,
     /\/page\//i,
+    /cdn2\.unrealengine\.com/i, // These URLs return Access Denied
   ]
   
   const isRejected = rejectedPatterns.some(pattern => pattern.test(url))

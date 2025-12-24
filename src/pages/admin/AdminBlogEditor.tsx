@@ -786,7 +786,6 @@ More content here..."
               const url = formData.featured_image
               const hasImageExtension = /\.(jpg|jpeg|png|webp|gif|svg)(\?|$)/i.test(url)
               const trustedDomains = [
-                'cdn2.unrealengine.com',
                 'steamcdn-a.akamaihd.net',
                 'images.unsplash.com',
                 'cdn.cloudflare.com',
@@ -799,6 +798,7 @@ More content here..."
                 /googleusercontent\.com\/imgres/i,
                 /\.html/i,
                 /\/page\//i,
+                /cdn2\.unrealengine\.com/i, // These URLs return Access Denied
               ]
               const isRejected = rejectedPatterns.some(pattern => pattern.test(url))
               
