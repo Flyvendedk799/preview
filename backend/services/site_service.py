@@ -154,11 +154,51 @@ def get_site_by_domain(db: Session, domain_name: str) -> Optional[PublishedSite]
     Returns:
         Site instance or None
     """
-    return db.query(PublishedSite).join(Domain).filter(
+    from sqlalchemy.orm import joinedload
+    
+    # Normalize domain name (remove www. prefix for matching, handle case)
+    normalized_domain = domain_name.lower().strip()
+    if normalized_domain.startswith('www.'):
+        normalized_domain = normalized_domain[4:]
+    
+    # Try exact match first
+    site = db.query(PublishedSite).join(
+        Domain, PublishedSite.domain_id == Domain.id
+    ).filter(
         Domain.name == domain_name,
         PublishedSite.status == 'published',
         PublishedSite.is_active == True
+    ).options(
+        joinedload(PublishedSite.domain)
     ).first()
+    
+    # If not found, try without www prefix
+    if not site and domain_name.startswith('www.'):
+        domain_without_www = domain_name[4:]
+        site = db.query(PublishedSite).join(
+            Domain, PublishedSite.domain_id == Domain.id
+        ).filter(
+            Domain.name == domain_without_www,
+            PublishedSite.status == 'published',
+            PublishedSite.is_active == True
+        ).options(
+            joinedload(PublishedSite.domain)
+        ).first()
+    
+    # If still not found, try with www prefix
+    if not site and not domain_name.startswith('www.'):
+        domain_with_www = f'www.{domain_name}'
+        site = db.query(PublishedSite).join(
+            Domain, PublishedSite.domain_id == Domain.id
+        ).filter(
+            Domain.name == domain_with_www,
+            PublishedSite.status == 'published',
+            PublishedSite.is_active == True
+        ).options(
+            joinedload(PublishedSite.domain)
+        ).first()
+    
+    return site
 
 
 def create_default_branding(db: Session, site_id: int) -> SiteBranding:
