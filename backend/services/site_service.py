@@ -134,7 +134,10 @@ def get_site_by_id(db: Session, site_id: int, org_id: int) -> Optional[Published
     Returns:
         Site instance or None
     """
-    return db.query(PublishedSite).filter(
+    from sqlalchemy.orm import joinedload
+    return db.query(PublishedSite).options(
+        joinedload(PublishedSite.domain)
+    ).filter(
         PublishedSite.id == site_id,
         PublishedSite.organization_id == org_id
     ).first()

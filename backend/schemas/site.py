@@ -1,7 +1,10 @@
 """Pydantic schemas for Published Sites and related content."""
 from datetime import datetime
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, TYPE_CHECKING
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    from backend.schemas.domain import Domain
 
 
 # ============================================================================
@@ -45,6 +48,7 @@ class PublishedSite(PublishedSiteBase):
     created_at: datetime
     updated_at: datetime
     published_at: Optional[datetime] = None
+    domain: Optional["Domain"] = None  # Domain relationship
     
     class Config:
         from_attributes = True

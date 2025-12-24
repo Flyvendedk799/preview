@@ -15,7 +15,7 @@ from backend.models.published_site import (
     SiteMenu, SiteMenuItem, SiteMedia, SiteBranding, SiteSettings
 )
 from backend.schemas.site import (
-    SitePostCreate, SitePostUpdate, SitePost, SitePostListItem, PaginatedSitePosts,
+    SitePostCreate, SitePostUpdate, SitePost as SitePostSchema, SitePostListItem, PaginatedSitePosts,
     SiteCategoryCreate, SiteCategoryUpdate, SiteCategory,
     SitePageCreate, SitePageUpdate, SitePage,
     SiteMenuCreate, SiteMenuUpdate, SiteMenu, SiteMenuItemCreate, SiteMenuItemUpdate, SiteMenuItem,
@@ -167,7 +167,7 @@ def list_posts(
     )
 
 
-@router.post("/posts", response_model=SitePost, status_code=status.HTTP_201_CREATED)
+@router.post("/posts", response_model=SitePostSchema, status_code=status.HTTP_201_CREATED)
 def create_post(
     site_id: int,
     post_in: SitePostCreate,
@@ -210,7 +210,7 @@ def create_post(
     return post
 
 
-@router.get("/posts/{post_id}", response_model=SitePost)
+@router.get("/posts/{post_id}", response_model=SitePostSchema)
 def get_post(
     site_id: int,
     post_id: int,
@@ -231,7 +231,7 @@ def get_post(
     return post
 
 
-@router.put("/posts/{post_id}", response_model=SitePost)
+@router.put("/posts/{post_id}", response_model=SitePostSchema)
 def update_post(
     site_id: int,
     post_id: int,

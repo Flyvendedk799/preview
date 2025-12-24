@@ -27,7 +27,10 @@ def list_sites(
     current_org: Organization = Depends(get_current_org)
 ):
     """Get all sites for the current organization."""
-    sites = db.query(PublishedSiteModel).filter(
+    from sqlalchemy.orm import joinedload
+    sites = db.query(PublishedSiteModel).options(
+        joinedload(PublishedSiteModel.domain)
+    ).filter(
         PublishedSiteModel.organization_id == current_org.id
     ).order_by(PublishedSiteModel.created_at.desc()).all()
     return sites
@@ -111,6 +114,12 @@ def create_site(
     create_default_branding(db, db_site.id)
     create_default_settings(db, db_site.id)
     
+    # Eager load domain relationship before returning
+    from sqlalchemy.orm import joinedload
+    db_site = db.query(PublishedSiteModel).options(
+        joinedload(PublishedSiteModel.domain)
+    ).filter(PublishedSiteModel.id == db_site.id).first()
+    
     # Log site creation
     log_activity(
         db,
@@ -131,7 +140,13 @@ def get_site(
     current_org: Organization = Depends(get_current_org)
 ):
     """Get a site by ID for the current organization."""
-    site = get_site_by_id(db, site_id, current_org.id)
+    from sqlalchemy.orm import joinedload
+    site = db.query(PublishedSiteModel).options(
+        joinedload(PublishedSiteModel.domain)
+    ).filter(
+        PublishedSiteModel.id == site_id,
+        PublishedSiteModel.organization_id == current_org.id
+    ).first()
     
     if not site:
         raise HTTPException(
