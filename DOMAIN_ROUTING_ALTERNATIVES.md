@@ -2,7 +2,19 @@
 
 ## The Problem
 
-Railway doesn't support wildcard domains, meaning you'd need to manually add each user's domain in Railway. This is **not scalable** for a SaaS platform.
+While Railway supports wildcard domains for subdomains (`*.yourdomain.com`), adding individual custom domains for each user requires either:
+1. Manual addition in Railway dashboard (not scalable)
+2. Using Railway API to add domains programmatically ✅ (now implemented!)
+3. Using a proxy service like Cloudflare
+
+## ✅ Good News!
+
+Railway **DOES support**:
+- ✅ Wildcard domains (`*.yourdomain.com`)
+- ✅ GraphQL API for programmatic domain management
+- ✅ Automatic SSL provisioning
+
+This means you have multiple scalable options!
 
 ## ✅ Solution Options
 
