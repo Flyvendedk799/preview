@@ -16,6 +16,7 @@ import {
   UserCircleIcon,
   DocumentTextIcon,
   EnvelopeIcon,
+  NewspaperIcon,
 } from '@heroicons/react/24/outline'
 import { useAuth } from '../../hooks/useAuth'
 
@@ -26,6 +27,7 @@ interface SidebarProps {
 
 const navigation = [
   { name: 'Dashboard', href: '/app', icon: HomeIcon },
+  { name: 'My Sites', href: '/app/sites', icon: NewspaperIcon },
   { name: 'Domains', href: '/app/domains', icon: GlobeAltIcon },
   { name: 'Brand Settings', href: '/app/brand', icon: PaintBrushIcon },
   { name: 'Preview Gallery', href: '/app/previews', icon: PhotoIcon },

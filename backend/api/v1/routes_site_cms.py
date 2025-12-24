@@ -2,7 +2,7 @@
 import re
 from datetime import datetime
 from typing import Optional, List
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, File, Form, UploadFile
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, asc, or_, func
 from backend.db.session import get_db
@@ -918,18 +918,77 @@ def list_media(
     site_id: int,
     page: int = Query(1, ge=1),
     per_page: int = Query(50, ge=1, le=100),
+    search: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     current_org: Organization = Depends(get_current_org),
     site: PublishedSite = Depends(get_site_dependency)
 ):
     """List media for a site."""
+    query = db.query(SiteMedia).filter(SiteMedia.site_id == site_id)
+    
+    if search:
+        search_term = f"%{search}%"
+        query = query.filter(
+            or_(
+                SiteMedia.filename.ilike(search_term),
+                SiteMedia.alt_text.ilike(search_term)
+            )
+        )
+    
+    total = query.count()
     offset = (page - 1) * per_page
-    media_items = db.query(SiteMedia).filter(
-        SiteMedia.site_id == site_id
-    ).order_by(desc(SiteMedia.uploaded_at)).offset(offset).limit(per_page).all()
+    media_items = query.order_by(desc(SiteMedia.uploaded_at)).offset(offset).limit(per_page).all()
     
     return media_items
+
+
+@router.post("/media/upload", response_model=SiteMedia, status_code=status.HTTP_201_CREATED)
+async def upload_media(
+    site_id: int,
+    request: Request,
+    file: UploadFile = File(...),
+    alt_text: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    current_org: Organization = Depends(get_current_org),
+    current_role: OrganizationRole = Depends(role_required([OrganizationRole.OWNER, OrganizationRole.ADMIN, OrganizationRole.EDITOR])),
+    site: PublishedSite = Depends(get_site_dependency)
+):
+    """Upload a media file."""
+    from backend.services.media_upload import upload_to_r2
+    
+    # Upload file
+    file_info = await upload_to_r2(file, site_id)
+    
+    # Create media entry
+    media = SiteMedia(
+        site_id=site_id,
+        filename=file_info['filename'],
+        original_filename=file_info['original_filename'],
+        url=file_info['url'],
+        mime_type=file_info['mime_type'],
+        size=file_info['size'],
+        width=file_info.get('width'),
+        height=file_info.get('height'),
+        alt_text=alt_text,
+        uploaded_by_id=current_user.id,
+        uploaded_at=datetime.utcnow()
+    )
+    
+    db.add(media)
+    db.commit()
+    db.refresh(media)
+    
+    log_activity(
+        db,
+        user_id=current_user.id,
+        action="site.media.uploaded",
+        metadata={"site_id": site_id, "media_id": media.id, "filename": media.filename},
+        request=request
+    )
+    
+    return media
 
 
 @router.post("/media", response_model=SiteMedia, status_code=status.HTTP_201_CREATED)

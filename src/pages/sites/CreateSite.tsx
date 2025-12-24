@@ -7,12 +7,34 @@ import {
   GlobeAltIcon,
   PaintBrushIcon,
   Cog6ToothIcon,
+  SparklesIcon,
+  DocumentTextIcon,
 } from '@heroicons/react/24/outline'
 import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
 import { fetchDomains, createSite, type Domain, type PublishedSiteCreate } from '../../api/client'
 
 type Step = 'domain' | 'template' | 'branding' | 'settings' | 'complete'
+
+const TEMPLATES = [
+  {
+    id: 'default',
+    name: 'Modern Blog',
+    description: 'Clean and modern blog layout with responsive design, social sharing, and SEO optimization.',
+    features: ['Responsive', 'SEO Ready', 'Social Sharing', 'Dark/Light Mode'],
+    preview: '/templates/default-preview.png',
+    category: 'Blog',
+  },
+]
+
+const COLOR_PRESETS = [
+  { name: 'Sunset', primary: '#f97316', secondary: '#1f2937', accent: '#fbbf24' },
+  { name: 'Ocean', primary: '#0ea5e9', secondary: '#0f172a', accent: '#14b8a6' },
+  { name: 'Forest', primary: '#22c55e', secondary: '#14532d', accent: '#a3e635' },
+  { name: 'Berry', primary: '#8b5cf6', secondary: '#1e1b4b', accent: '#f472b6' },
+  { name: 'Coral', primary: '#f43f5e', secondary: '#1f2937', accent: '#fb923c' },
+  { name: 'Midnight', primary: '#6366f1', secondary: '#0f172a', accent: '#38bdf8' },
+]
 
 export default function CreateSite() {
   const navigate = useNavigate()
@@ -24,8 +46,9 @@ export default function CreateSite() {
   // Form data
   const [selectedDomainId, setSelectedDomainId] = useState<number | null>(null)
   const [siteName, setSiteName] = useState('')
+  const [siteDescription, setSiteDescription] = useState('')
   const [templateId, setTemplateId] = useState('default')
-  const [primaryColor, setPrimaryColor] = useState('#f97316')
+  const [selectedPreset, setSelectedPreset] = useState(COLOR_PRESETS[0])
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
@@ -36,8 +59,8 @@ export default function CreateSite() {
     try {
       setLoading(true)
       const data = await fetchDomains()
-      // Filter to only verified domains
-      const verified = data.filter(d => d.status === 'verified')
+      // Filter to only verified domains that aren't already in use
+      const verified = data.filter(d => d.status === 'verified' && !d.site_id)
       setDomains(verified)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load domains')
@@ -57,7 +80,7 @@ export default function CreateSite() {
       setError('')
       
       const siteData: PublishedSiteCreate = {
-        name: siteName,
+        name: siteName.trim(),
         domain_id: selectedDomainId,
         template_id: templateId,
         status: 'draft',
@@ -80,18 +103,20 @@ export default function CreateSite() {
 
   const steps = [
     { id: 'domain', name: 'Domain', icon: GlobeAltIcon },
-    { id: 'template', name: 'Template', icon: PaintBrushIcon },
+    { id: 'template', name: 'Template', icon: DocumentTextIcon },
     { id: 'branding', name: 'Branding', icon: PaintBrushIcon },
-    { id: 'settings', name: 'Settings', icon: Cog6ToothIcon },
+    { id: 'settings', name: 'Confirm', icon: Cog6ToothIcon },
   ]
 
   const stepIndex = steps.findIndex(s => s.id === currentStep)
+
+  const selectedDomain = domains.find(d => d.id === selectedDomainId)
 
   return (
     <div className="max-w-4xl mx-auto">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-secondary mb-2">Create New Site</h1>
-        <p className="text-muted">Set up your white-label blog or news site</p>
+        <p className="text-muted">Set up your white-label blog in minutes</p>
       </div>
 
       {/* Step Indicator */}
@@ -105,23 +130,29 @@ export default function CreateSite() {
             return (
               <div key={step.id} className="flex items-center flex-1">
                 <div className="flex flex-col items-center flex-1">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
                     isCompleted ? 'bg-green-500 text-white' :
-                    isActive ? 'bg-primary text-white' :
-                    'bg-gray-200 text-gray-600'
+                    isActive ? 'bg-primary text-white shadow-lg shadow-primary/30' :
+                    'bg-gray-100 text-gray-400'
                   }`}>
                     {isCompleted ? (
                       <CheckCircleIcon className="w-6 h-6" />
                     ) : (
-                      <StepIcon className="w-5 h-5" />
+                      <StepIcon className="w-6 h-6" />
                     )}
                   </div>
-                  <span className={`text-xs mt-2 ${isActive ? 'font-medium text-primary' : 'text-gray-500'}`}>
+                  <span className={`text-sm mt-2 ${
+                    isActive ? 'font-semibold text-primary' : 
+                    isCompleted ? 'font-medium text-green-600' :
+                    'text-gray-400'
+                  }`}>
                     {step.name}
                   </span>
                 </div>
                 {index < steps.length - 1 && (
-                  <div className={`h-0.5 flex-1 mx-2 ${isCompleted ? 'bg-green-500' : 'bg-gray-200'}`} />
+                  <div className={`h-1 flex-1 mx-4 rounded-full ${
+                    isCompleted ? 'bg-green-500' : 'bg-gray-200'
+                  }`} />
                 )}
               </div>
             )
@@ -136,45 +167,53 @@ export default function CreateSite() {
       )}
 
       {/* Step Content */}
-      <Card>
+      <Card className="min-h-[400px]">
         {currentStep === 'domain' && (
           <div className="space-y-6">
             <div>
-              <h2 className="text-xl font-semibold text-secondary mb-2">Select Domain</h2>
-              <p className="text-muted mb-4">Choose a verified domain for your site</p>
+              <h2 className="text-2xl font-bold text-secondary mb-2">Select Your Domain</h2>
+              <p className="text-muted">Choose a verified domain to host your site</p>
             </div>
 
             {loading ? (
-              <div className="text-center py-8">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              <div className="flex items-center justify-center py-16">
+                <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
               </div>
             ) : domains.length === 0 ? (
-              <div className="text-center py-8">
-                <GlobeAltIcon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-600 mb-4">No verified domains available</p>
+              <div className="text-center py-12">
+                <GlobeAltIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">No Domains Available</h3>
+                <p className="text-gray-500 mb-6">You need a verified domain to create a site</p>
                 <Button onClick={() => navigate('/app/domains')}>
-                  Add Domain
+                  Add & Verify Domain
                 </Button>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="grid grid-cols-1 gap-3">
                 {domains.map((domain) => (
                   <button
                     key={domain.id}
                     onClick={() => setSelectedDomainId(domain.id)}
-                    className={`w-full text-left p-4 border-2 rounded-lg transition-all ${
+                    className={`text-left p-4 border-2 rounded-xl transition-all ${
                       selectedDomainId === domain.id
-                        ? 'border-primary bg-primary/5'
-                        : 'border-gray-200 hover:border-primary/50'
+                        ? 'border-primary bg-primary/5 shadow-lg shadow-primary/10'
+                        : 'border-gray-200 hover:border-primary/50 hover:bg-gray-50'
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium text-secondary">{domain.name}</p>
-                        <p className="text-sm text-muted">Verified domain</p>
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                          selectedDomainId === domain.id ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600'
+                        }`}>
+                          <GlobeAltIcon className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-secondary">{domain.name}</p>
+                          <p className="text-sm text-muted">Verified and ready to use</p>
+                        </div>
                       </div>
                       {selectedDomainId === domain.id && (
-                        <CheckCircleIcon className="w-5 h-5 text-primary" />
+                        <CheckCircleIcon className="w-6 h-6 text-primary" />
                       )}
                     </div>
                   </button>
@@ -182,12 +221,12 @@ export default function CreateSite() {
               </div>
             )}
 
-            <div className="flex justify-end pt-4 border-t">
+            <div className="flex justify-end pt-6 border-t">
               <Button
                 onClick={() => setCurrentStep('template')}
                 disabled={!selectedDomainId}
               >
-                Next: Choose Template
+                Continue
                 <ArrowRightIcon className="w-4 h-4 ml-2" />
               </Button>
             </div>
@@ -197,31 +236,58 @@ export default function CreateSite() {
         {currentStep === 'template' && (
           <div className="space-y-6">
             <div>
-              <h2 className="text-xl font-semibold text-secondary mb-2">Choose Template</h2>
-              <p className="text-muted mb-4">Select a template for your site</p>
+              <h2 className="text-2xl font-bold text-secondary mb-2">Choose a Template</h2>
+              <p className="text-muted">Select the design that best fits your content</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <button
-                onClick={() => setTemplateId('default')}
-                className={`p-6 border-2 rounded-lg text-left transition-all ${
-                  templateId === 'default'
-                    ? 'border-primary bg-primary/5'
-                    : 'border-gray-200 hover:border-primary/50'
-                }`}
-              >
-                <h3 className="font-semibold mb-2">Default Template</h3>
-                <p className="text-sm text-muted">Clean and modern blog template</p>
-              </button>
+            <div className="grid grid-cols-1 gap-4">
+              {TEMPLATES.map((template) => (
+                <button
+                  key={template.id}
+                  onClick={() => setTemplateId(template.id)}
+                  className={`text-left border-2 rounded-xl overflow-hidden transition-all ${
+                    templateId === template.id
+                      ? 'border-primary shadow-lg shadow-primary/10'
+                      : 'border-gray-200 hover:border-primary/50'
+                  }`}
+                >
+                  <div className="flex flex-col md:flex-row">
+                    <div className="w-full md:w-48 h-32 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+                      <DocumentTextIcon className="w-12 h-12 text-gray-400" />
+                    </div>
+                    <div className="flex-1 p-4">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h3 className="font-semibold text-lg text-secondary">{template.name}</h3>
+                          <p className="text-sm text-muted mt-1">{template.description}</p>
+                        </div>
+                        {templateId === template.id && (
+                          <CheckCircleIcon className="w-6 h-6 text-primary flex-shrink-0" />
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-2 mt-3">
+                        {template.features.map((feature) => (
+                          <span
+                            key={feature}
+                            className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full"
+                          >
+                            {feature}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              ))}
             </div>
 
-            <div className="flex justify-between pt-4 border-t">
+            <div className="flex justify-between pt-6 border-t">
               <Button variant="secondary" onClick={() => setCurrentStep('domain')}>
                 <ArrowLeftIcon className="w-4 h-4 mr-2" />
                 Back
               </Button>
               <Button onClick={() => setCurrentStep('branding')}>
-                Next: Branding
+                Continue
                 <ArrowRightIcon className="w-4 h-4 ml-2" />
               </Button>
             </div>
@@ -231,51 +297,85 @@ export default function CreateSite() {
         {currentStep === 'branding' && (
           <div className="space-y-6">
             <div>
-              <h2 className="text-xl font-semibold text-secondary mb-2">Site Branding</h2>
-              <p className="text-muted mb-4">Configure your site's appearance</p>
+              <h2 className="text-2xl font-bold text-secondary mb-2">Configure Your Brand</h2>
+              <p className="text-muted">Give your site a name and choose your colors</p>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Site Name *
-              </label>
-              <input
-                type="text"
-                value={siteName}
-                onChange={(e) => setSiteName(e.target.value)}
-                placeholder="My Awesome Blog"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Primary Color
-              </label>
-              <div className="flex items-center space-x-3">
-                <input
-                  type="color"
-                  value={primaryColor}
-                  onChange={(e) => setPrimaryColor(e.target.value)}
-                  className="w-16 h-10 border border-gray-300 rounded"
-                />
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Site Name *
+                </label>
                 <input
                   type="text"
-                  value={primaryColor}
-                  onChange={(e) => setPrimaryColor(e.target.value)}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg font-mono"
+                  value={siteName}
+                  onChange={(e) => setSiteName(e.target.value)}
+                  placeholder="My Awesome Blog"
+                  className="w-full px-4 py-3 text-lg border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Description
+                </label>
+                <textarea
+                  value={siteDescription}
+                  onChange={(e) => setSiteDescription(e.target.value)}
+                  placeholder="A brief description of your site..."
+                  rows={2}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Color Scheme
+                </label>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {COLOR_PRESETS.map((preset) => (
+                    <button
+                      key={preset.name}
+                      onClick={() => setSelectedPreset(preset)}
+                      className={`p-4 border-2 rounded-xl transition-all ${
+                        selectedPreset.name === preset.name
+                          ? 'border-primary shadow-lg'
+                          : 'border-gray-200 hover:border-primary/50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="flex gap-1">
+                          <div
+                            className="w-6 h-6 rounded-full"
+                            style={{ backgroundColor: preset.primary }}
+                          />
+                          <div
+                            className="w-6 h-6 rounded-full"
+                            style={{ backgroundColor: preset.secondary }}
+                          />
+                          <div
+                            className="w-6 h-6 rounded-full"
+                            style={{ backgroundColor: preset.accent }}
+                          />
+                        </div>
+                        {selectedPreset.name === preset.name && (
+                          <CheckCircleIcon className="w-5 h-5 text-primary ml-auto" />
+                        )}
+                      </div>
+                      <p className="text-sm font-medium text-gray-900">{preset.name}</p>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
-            <div className="flex justify-between pt-4 border-t">
+            <div className="flex justify-between pt-6 border-t">
               <Button variant="secondary" onClick={() => setCurrentStep('template')}>
                 <ArrowLeftIcon className="w-4 h-4 mr-2" />
                 Back
               </Button>
-              <Button onClick={() => setCurrentStep('settings')}>
-                Next: Settings
+              <Button onClick={() => setCurrentStep('settings')} disabled={!siteName.trim()}>
+                Continue
                 <ArrowRightIcon className="w-4 h-4 ml-2" />
               </Button>
             </div>
@@ -285,46 +385,93 @@ export default function CreateSite() {
         {currentStep === 'settings' && (
           <div className="space-y-6">
             <div>
-              <h2 className="text-xl font-semibold text-secondary mb-2">Final Settings</h2>
-              <p className="text-muted mb-4">Review and create your site</p>
+              <h2 className="text-2xl font-bold text-secondary mb-2">Review & Create</h2>
+              <p className="text-muted">Everything looks good? Let's launch your site!</p>
             </div>
 
-            <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Domain:</span>
-                <span className="font-medium">{domains.find(d => d.id === selectedDomainId)?.name}</span>
+            <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-6 space-y-4">
+              <div className="flex items-center gap-4 pb-4 border-b border-gray-200">
+                <div
+                  className="w-12 h-12 rounded-xl flex items-center justify-center text-white text-xl font-bold"
+                  style={{ backgroundColor: selectedPreset.primary }}
+                >
+                  {siteName.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-secondary">{siteName || 'Your Site'}</h3>
+                  <p className="text-sm text-muted">{selectedDomain?.name}</p>
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Site Name:</span>
-                <span className="font-medium">{siteName || 'Not set'}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Template:</span>
-                <span className="font-medium">{templateId}</span>
+
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="text-gray-500">Domain:</span>
+                  <span className="ml-2 font-medium">{selectedDomain?.name}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500">Template:</span>
+                  <span className="ml-2 font-medium">
+                    {TEMPLATES.find(t => t.id === templateId)?.name}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-gray-500">Color Scheme:</span>
+                  <span className="ml-2 font-medium">{selectedPreset.name}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500">Status:</span>
+                  <span className="ml-2 font-medium">Draft (unpublished)</span>
+                </div>
               </div>
             </div>
 
-            <div className="flex justify-between pt-4 border-t">
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+              <div className="flex items-start gap-3">
+                <SparklesIcon className="w-5 h-5 text-blue-600 mt-0.5" />
+                <div>
+                  <p className="text-blue-900 font-medium">What happens next?</p>
+                  <p className="text-sm text-blue-700 mt-1">
+                    Your site will be created as a draft. You can add posts, pages, and customize
+                    everything before publishing it live.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-between pt-6 border-t">
               <Button variant="secondary" onClick={() => setCurrentStep('branding')}>
                 <ArrowLeftIcon className="w-4 h-4 mr-2" />
                 Back
               </Button>
-              <Button onClick={handleSubmit} disabled={isSubmitting || !siteName.trim()}>
-                {isSubmitting ? 'Creating...' : 'Create Site'}
+              <Button onClick={handleSubmit} disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <SparklesIcon className="w-4 h-4 mr-2" />
+                    Create Site
+                  </>
+                )}
               </Button>
             </div>
           </div>
         )}
 
         {currentStep === 'complete' && (
-          <div className="text-center py-8">
-            <CheckCircleIcon className="w-16 h-16 text-green-500 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-secondary mb-2">Site Created!</h2>
-            <p className="text-muted">Redirecting to your site dashboard...</p>
+          <div className="text-center py-12">
+            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <CheckCircleIcon className="w-12 h-12 text-green-600" />
+            </div>
+            <h2 className="text-3xl font-bold text-secondary mb-2">Site Created!</h2>
+            <p className="text-lg text-muted mb-6">Your new site is ready to customize</p>
+            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+            <p className="text-sm text-gray-500 mt-4">Redirecting to your dashboard...</p>
           </div>
         )}
       </Card>
     </div>
   )
 }
-

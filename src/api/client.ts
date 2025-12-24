@@ -1396,15 +1396,38 @@ export async function deleteSiteMenuItem(siteId: number, menuId: number, itemId:
 }
 
 // Site Media
-export async function fetchSiteMedia(siteId: number, params?: { page?: number; per_page?: number }): Promise<SiteMedia[]> {
+export async function fetchSiteMedia(siteId: number, params?: { page?: number; per_page?: number; search?: string }): Promise<SiteMedia[]> {
   const queryParams = new URLSearchParams()
   if (params?.page) queryParams.append('page', params.page.toString())
   if (params?.per_page) queryParams.append('per_page', params.per_page.toString())
+  if (params?.search) queryParams.append('search', params.search)
   
   const query = queryParams.toString()
   return fetchApi<SiteMedia[]>(`/api/v1/sites/${siteId}/media${query ? `?${query}` : ''}`, {
     method: 'GET',
   })
+}
+
+export async function uploadSiteMedia(siteId: number, file: File, altText?: string): Promise<SiteMedia> {
+  const formData = new FormData()
+  formData.append('file', file)
+  if (altText) formData.append('alt_text', altText)
+  
+  const token = localStorage.getItem('token')
+  const response = await fetch(`/api/v1/sites/${siteId}/media/upload`, {
+    method: 'POST',
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: formData,
+  })
+  
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: 'Upload failed' }))
+    throw new Error(error.detail || 'Upload failed')
+  }
+  
+  return response.json()
 }
 
 export async function createSiteMedia(siteId: number, payload: SiteMediaCreate): Promise<SiteMedia> {

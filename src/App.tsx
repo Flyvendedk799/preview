@@ -3,6 +3,7 @@ import Layout from './components/layout/Layout'
 import Router from './router/Router'
 import { AuthProvider } from './hooks/useAuth'
 import { OrganizationProvider } from './hooks/useOrganization'
+import { ToastProvider } from './components/ui/Toast'
 
 function AppContent() {
   const location = useLocation()
@@ -24,7 +25,9 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <OrganizationProvider>
-          <AppContent />
+          <ToastProvider>
+            <AppContent />
+          </ToastProvider>
         </OrganizationProvider>
       </AuthProvider>
     </BrowserRouter>
