@@ -499,37 +499,94 @@ function TocSidebar({ toc, scrollToHeading }: { toc: TocItem[], scrollToHeading:
   )
 }
 
-// Validate image URL - check if it's a direct image link
+// Validate image URL - comprehensive validation for direct image links
 function isValidImageUrl(url: string): boolean {
-  if (!url) return false
+  if (!url || typeof url !== 'string') return false
   
-  // Check if it ends with image extension
-  const hasImageExtension = /\.(jpg|jpeg|png|webp|gif|svg)(\?|$)/i.test(url)
+  // Trim and check minimum length
+  const trimmed = url.trim()
+  if (trimmed.length < 10 || trimmed.length > 2048) return false
   
-  // Check if it's from a trusted CDN or domain
-  const trustedDomains = [
-    'steamcdn-a.akamaihd.net',
-    'images.unsplash.com',
-    'cdn.cloudflare.com',
-    'i.imgur.com',
-    'i.redd.it',
-  ]
+  // Must start with http:// or https://
+  if (!/^https?:\/\//i.test(trimmed)) return false
   
-  const isFromTrustedDomain = trustedDomains.some(domain => url.includes(domain))
+  // Check for invalid characters (spaces, newlines, etc.)
+  if (/[\s\n\r\x00]/.test(trimmed)) return false
   
-  // Reject common non-image URLs and inaccessible domains
-  const rejectedPatterns = [
-    /serpapi\.com/i,
-    /googleusercontent\.com\/imgres/i,
-    /\.html/i,
-    /\/page\//i,
-    /cdn2\.unrealengine\.com/i, // These URLs return Access Denied
-  ]
-  
-  const isRejected = rejectedPatterns.some(pattern => pattern.test(url))
-  
-  // Must have image extension OR be from trusted domain, and not be rejected
-  return (hasImageExtension || isFromTrustedDomain) && !isRejected
+  // Try to parse as URL to validate structure
+  try {
+    const urlObj = new URL(trimmed)
+    
+    // Must have valid hostname
+    if (!urlObj.hostname || urlObj.hostname.length < 3) return false
+    
+    // Reject localhost and private IPs
+    if (/^(localhost|127\.|192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.)/i.test(urlObj.hostname)) return false
+    
+    // Check path - must look like an image path
+    const path = urlObj.pathname.toLowerCase()
+    
+    // Must have image extension in path (before query params)
+    const hasImageExtension = /\.(jpg|jpeg|png|webp|gif|svg)(\?|$|#)/i.test(path)
+    
+    // Check if it's from a trusted CDN or domain
+    const trustedDomains = [
+      'steamcdn-a.akamaihd.net',
+      'images.unsplash.com',
+      'cdn.cloudflare.com',
+      'i.imgur.com',
+      'i.redd.it',
+      'media.steampowered.com',
+      'cdn.akamai.steamstatic.com',
+    ]
+    
+    const isFromTrustedDomain = trustedDomains.some(domain => urlObj.hostname.includes(domain))
+    
+    // Reject common non-image URLs and inaccessible domains
+    const rejectedPatterns = [
+      /serpapi\.com/i,
+      /googleusercontent\.com\/imgres/i,
+      /\.html/i,
+      /\.php/i,
+      /\.aspx/i,
+      /\/page\//i,
+      /\/article\//i,
+      /\/news\//i,
+      /cdn2\.unrealengine\.com/i, // These URLs return Access Denied
+      /epicgames\.com\/[^/]*\.(html|php|aspx)/i, // Epic Games pages, not images
+      /\/thumb\//i, // Thumbnail pages
+      /\/preview\//i, // Preview pages
+      /\?.*format=/i, // Query params suggesting it's a page
+    ]
+    
+    const isRejected = rejectedPatterns.some(pattern => pattern.test(trimmed))
+    
+    // Check for suspicious patterns in path
+    const suspiciousPathPatterns = [
+      /\/api\//i,
+      /\/embed\//i,
+      /\/redirect\//i,
+      /\/proxy\//i,
+    ]
+    
+    const hasSuspiciousPath = suspiciousPathPatterns.some(pattern => pattern.test(path))
+    
+    // Path should contain image-like segments (not just / or /page)
+    const hasImageLikePath = path.length > 1 && !/^\/(page|article|news|home|index)/i.test(path)
+    
+    // Final validation:
+    // 1. Must have image extension OR be from trusted domain
+    // 2. Must not be rejected
+    // 3. Must not have suspicious path
+    // 4. Must have image-like path structure
+    return (hasImageExtension || isFromTrustedDomain) && 
+           !isRejected && 
+           !hasSuspiciousPath && 
+           hasImageLikePath
+  } catch (e) {
+    // URL parsing failed - invalid URL
+    return false
+  }
 }
 
 export default function BlogPost() {

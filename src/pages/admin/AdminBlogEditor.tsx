@@ -783,42 +783,112 @@ More content here..."
               className="w-full mt-3 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20"
             />
             {formData.featured_image && (() => {
-              const url = formData.featured_image
-              const hasImageExtension = /\.(jpg|jpeg|png|webp|gif|svg)(\?|$)/i.test(url)
-              const trustedDomains = [
-                'steamcdn-a.akamaihd.net',
-                'images.unsplash.com',
-                'cdn.cloudflare.com',
-                'i.imgur.com',
-                'i.redd.it',
-              ]
-              const isFromTrustedDomain = trustedDomains.some(domain => url.includes(domain))
-              const rejectedPatterns = [
-                /serpapi\.com/i,
-                /googleusercontent\.com\/imgres/i,
-                /\.html/i,
-                /\/page\//i,
-                /cdn2\.unrealengine\.com/i, // These URLs return Access Denied
-              ]
-              const isRejected = rejectedPatterns.some(pattern => pattern.test(url))
+              const url = formData.featured_image.trim()
               
-              if (!hasImageExtension && !isFromTrustedDomain) {
-                return (
-                  <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
-                    <span>⚠️</span>
-                    <span>Warning: This doesn't appear to be a direct image link. Use URLs ending in .jpg, .png, .webp, etc.</span>
-                  </p>
-                )
-              }
-              if (isRejected) {
+              // Comprehensive validation
+              if (!url || url.length < 10 || url.length > 2048) {
                 return (
                   <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
                     <span>❌</span>
-                    <span>Error: This URL type is not supported. Please use a direct image link.</span>
+                    <span>Error: Invalid URL length</span>
                   </p>
                 )
               }
-              return null
+              
+              if (!/^https?:\/\//i.test(url)) {
+                return (
+                  <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                    <span>❌</span>
+                    <span>Error: URL must start with http:// or https://</span>
+                  </p>
+                )
+              }
+              
+              if (/[\s\n\r]/.test(url)) {
+                return (
+                  <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                    <span>❌</span>
+                    <span>Error: URL contains invalid characters (spaces, newlines)</span>
+                  </p>
+                )
+              }
+              
+              try {
+                const urlObj = new URL(url)
+                const path = urlObj.pathname.toLowerCase()
+                
+                const hasImageExtension = /\.(jpg|jpeg|png|webp|gif|svg)(\?|$|#)/i.test(path)
+                const trustedDomains = [
+                  'steamcdn-a.akamaihd.net',
+                  'images.unsplash.com',
+                  'cdn.cloudflare.com',
+                  'i.imgur.com',
+                  'i.redd.it',
+                  'media.steampowered.com',
+                  'cdn.akamai.steamstatic.com',
+                ]
+                const isFromTrustedDomain = trustedDomains.some(domain => urlObj.hostname.includes(domain))
+                const rejectedPatterns = [
+                  /serpapi\.com/i,
+                  /googleusercontent\.com\/imgres/i,
+                  /\.html/i,
+                  /\.php/i,
+                  /\.aspx/i,
+                  /\/page\//i,
+                  /\/article\//i,
+                  /\/news\//i,
+                  /cdn2\.unrealengine\.com/i,
+                  /epicgames\.com\/[^/]*\.(html|php|aspx)/i,
+                  /\/thumb\//i,
+                  /\/preview\//i,
+                  /\?.*format=/i,
+                ]
+                const isRejected = rejectedPatterns.some(pattern => pattern.test(url))
+                const suspiciousPathPatterns = [/\/api\//i, /\/embed\//i, /\/redirect\//i, /\/proxy\//i]
+                const hasSuspiciousPath = suspiciousPathPatterns.some(pattern => pattern.test(path))
+                const hasImageLikePath = path.length > 1 && !/^\/(page|article|news|home|index)/i.test(path)
+                
+                if (!hasImageExtension && !isFromTrustedDomain) {
+                  return (
+                    <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                      <span>⚠️</span>
+                      <span>Warning: This doesn't appear to be a direct image link. Use URLs ending in .jpg, .png, .webp, etc.</span>
+                    </p>
+                  )
+                }
+                
+                if (isRejected) {
+                  return (
+                    <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                      <span>❌</span>
+                      <span>Error: This URL type is not supported. Please use a direct image link.</span>
+                    </p>
+                  )
+                }
+                
+                if (hasSuspiciousPath || !hasImageLikePath) {
+                  return (
+                    <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                      <span>❌</span>
+                      <span>Error: URL path looks suspicious or doesn't appear to be an image</span>
+                    </p>
+                  )
+                }
+                
+                return (
+                  <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                    <span>✅</span>
+                    <span>Valid image URL</span>
+                  </p>
+                )
+              } catch (e) {
+                return (
+                  <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                    <span>❌</span>
+                    <span>Error: Invalid URL format</span>
+                  </p>
+                )
+              }
             })()}
             <input
               type="text"
