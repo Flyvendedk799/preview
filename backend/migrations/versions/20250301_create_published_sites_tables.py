@@ -264,10 +264,16 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_site_settings_site_id'), 'site_settings', ['site_id'], unique=True)
     
-    # Add site_id column to domains table
-    op.add_column('domains', sa.Column('site_id', sa.Integer(), nullable=True))
-    op.create_foreign_key('fk_domains_site', 'domains', 'published_sites', ['site_id'], ['id'])
-    op.create_index(op.f('ix_domains_site_id'), 'domains', ['site_id'], unique=False)
+    # Add site_id column to domains table (idempotent - check if exists first)
+    from sqlalchemy import inspect
+    conn = op.get_bind()
+    inspector = inspect(conn)
+    domains_columns = [col['name'] for col in inspector.get_columns('domains')]
+    
+    if 'site_id' not in domains_columns:
+        op.add_column('domains', sa.Column('site_id', sa.Integer(), nullable=True))
+        op.create_foreign_key('fk_domains_site', 'domains', 'published_sites', ['site_id'], ['id'])
+        op.create_index(op.f('ix_domains_site_id'), 'domains', ['site_id'], unique=False)
 
 
 def downgrade() -> None:
