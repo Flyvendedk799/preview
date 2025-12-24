@@ -119,6 +119,9 @@ app.add_middleware(RequestIDMiddleware)
 # Add request logging middleware (after request ID, before security headers)
 app.add_middleware(RequestLoggingMiddleware)
 
+# Add domain routing middleware (before security headers to allow domain checks)
+app.add_middleware(DomainRoutingMiddleware)
+
 # Add security headers middleware
 app.add_middleware(SecurityHeadersMiddleware)
 
@@ -129,6 +132,12 @@ async def error_middleware(request: Request, call_next):
 
 # Mount static files for snippet.js
 app.mount("/static", StaticFiles(directory="backend/static"), name="static")
+
+# Include public site router FIRST (before API routes)
+# This ensures domain-based routing works correctly
+app.include_router(
+    routes_public_site.router,
+)
 
 # Include routers
 app.include_router(
@@ -237,9 +246,7 @@ app.include_router(
     routes_site_cms.router,
     prefix=settings.API_V1_PREFIX,
 )
-app.include_router(
-    routes_public_site.router,
-)
+# Note: routes_public_site is included at the top, before API routes
 
 # DEV ONLY: Testing endpoints
 if os.getenv("ENV", "development").lower() != "production":
@@ -259,11 +266,26 @@ def health_check():
 
 
 @app.get("/")
-def root():
-    """Root endpoint."""
-    return {
-        "message": "Preview SaaS API",
-        "version": settings.APP_VERSION,
-        "docs": "/docs",
-    }
+def root(request: Request):
+    """
+    Root endpoint - returns API info for Railway domain.
+    Custom domain requests are handled by routes_public_site router.
+    """
+    # Check if this is a Railway domain (not a custom domain)
+    host = request.headers.get("host", "")
+    railway_domains = [".railway.app", ".up.railway.app", "localhost", "127.0.0.1", "0.0.0.0"]
+    is_railway_domain = any(railway_domain in host for railway_domain in railway_domains) if host else True
+    
+    # Only return API info for Railway domains
+    # Custom domains are handled by routes_public_site router (mounted first)
+    if is_railway_domain:
+        return {
+            "message": "Preview SaaS API",
+            "version": settings.APP_VERSION,
+            "docs": "/docs",
+        }
+    else:
+        # This should be handled by public site router, but if it reaches here, return 404
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Site not found")
 
