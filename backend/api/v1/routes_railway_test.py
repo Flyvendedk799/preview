@@ -73,7 +73,7 @@ def test_railway_api_credentials():
     # Test API connection
     try:
         # First try a simple query to test authentication
-        # Try different authentication methods that Railway might use
+        # Railway's GraphQL API might require account tokens, not project tokens
         simple_query = """
         query {
             me {
@@ -83,62 +83,33 @@ def test_railway_api_credentials():
         }
         """
         
-        # Try with Bearer token (standard)
-        headers_bearer = {
+        # Try with Bearer token (standard GraphQL API format)
+        headers = {
             "Authorization": f"Bearer {api_token}",
             "Content-Type": "application/json",
         }
         
-        # Try with Railway-Token header (some APIs use this)
-        headers_token = {
-            "Railway-Token": api_token,
-            "Content-Type": "application/json",
-        }
+        # Log token info (first/last few chars for debugging, not full token)
+        token_preview = f"{api_token[:8]}...{api_token[-8:]}" if len(api_token) > 16 else "***"
+        logger.info(f"Testing Railway API with token: {token_preview}")
+        logger.info(f"Service ID: {service_id}")
         
-        # Try with X-Railway-Token header
-        headers_x_token = {
-            "X-Railway-Token": api_token,
-            "Content-Type": "application/json",
-        }
-        
-        # Try standard Bearer first
         response = requests.post(
             RAILWAY_API_URL,
-            headers=headers_bearer,
+            headers=headers,
             json={
                 "query": simple_query,
             },
             timeout=10,
         )
         
-        # Log response for debugging
+        # Log full response for debugging
         logger.info(f"Railway API response status: {response.status_code}")
         logger.info(f"Railway API response headers: {dict(response.headers)}")
-        
-        # If Bearer fails, try alternative auth methods
-        if response.status_code == 401 or response.status_code == 403:
-            logger.info("Bearer auth failed, trying Railway-Token header...")
-            response = requests.post(
-                RAILWAY_API_URL,
-                headers=headers_token,
-                json={
-                    "query": simple_query,
-                },
-                timeout=10,
-            )
-            logger.info(f"Railway-Token header response: {response.status_code}")
-        
-        if response.status_code == 401 or response.status_code == 403:
-            logger.info("Railway-Token failed, trying X-Railway-Token header...")
-            response = requests.post(
-                RAILWAY_API_URL,
-                headers=headers_x_token,
-                json={
-                    "query": simple_query,
-                },
-                timeout=10,
-            )
-            logger.info(f"X-Railway-Token header response: {response.status_code}")
+        try:
+            logger.info(f"Railway API response body: {response.text[:500]}")
+        except:
+            pass
         
         if response.status_code != 200:
             # Try to get error details
@@ -147,8 +118,24 @@ def test_railway_api_credentials():
                 result["error"] = f"Railway API returned {response.status_code}: {error_data}"
             except:
                 result["error"] = f"Railway API returned {response.status_code}: {response.text[:500]}"
+            
+            # Provide specific guidance based on status code
+            if response.status_code == 401 or response.status_code == 403:
+                result["error"] += (
+                    "\n\nIMPORTANT: Railway's GraphQL API requires an ACCOUNT TOKEN, not a PROJECT TOKEN.\n"
+                    "Your current token (727141c1-4827-475d-b4ef-fca188ef459c) appears to be a Project Token.\n\n"
+                    "To fix:\n"
+                    "1. Go to Railway Dashboard -> Account Settings -> API Tokens\n"
+                    "2. Create an ACCOUNT TOKEN (not Project Token)\n"
+                    "3. Account tokens have access to all projects\n"
+                    "4. Set it as RAILWAY_API_TOKEN\n"
+                    "5. Redeploy\n\n"
+                    "OR use manual domain addition (recommended):\n"
+                    "Railway Dashboard -> Backend Service -> Settings -> Networking -> Add Custom Domain"
+                )
+            
             raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE if response.status_code != 401 else status.HTTP_401_UNAUTHORIZED,
                 detail=result["error"]
             )
         
@@ -163,24 +150,16 @@ def test_railway_api_credentials():
             if "not authorized" in error_text.lower() or "unauthorized" in error_text.lower():
                 result["error"] = (
                     f"Authentication failed: {error_text}\n\n"
-                    "This usually means:\n"
-                    "1. Your API token is invalid or expired\n"
-                    "2. The token doesn't have the required permissions\n"
-                    "3. You need to create a new token\n\n"
-                    "To fix:\n"
-                    "1. Go to Railway Dashboard -> Settings -> API Tokens\n"
-                    "2. Delete the old token (if exists)\n"
-                    "3. Create a NEW Account Token (not Project Token)\n"
-                    "   - Account Token has access to all projects\n"
-                    "   - Project Token only works for one project\n"
-                    "4. Copy it immediately (you won't see it again)\n"
-                    "5. Set RAILWAY_TOKEN in Railway environment variables\n"
-                    "   (Railway uses RAILWAY_TOKEN for Project Tokens,\n"
-                    "    but Account Tokens might need RAILWAY_API_TOKEN)\n"
-                    "6. Try BOTH: Set RAILWAY_TOKEN AND RAILWAY_API_TOKEN\n"
-                    "7. Redeploy your service\n\n"
-                    "NOTE: Railway's GraphQL API might not be publicly accessible.\n"
-                    "If this continues to fail, use manual domain addition in Railway dashboard."
+                    "Your token (727141c1-4827-475d-b4ef-fca188ef459c) is a PROJECT TOKEN.\n"
+                    "Railway's GraphQL API requires an ACCOUNT TOKEN for domain management.\n\n"
+                    "Solution 1: Create Account Token\n"
+                    "1. Railway Dashboard -> Account Settings -> API Tokens\n"
+                    "2. Create ACCOUNT TOKEN (not Project Token)\n"
+                    "3. Set as RAILWAY_API_TOKEN\n"
+                    "4. Redeploy\n\n"
+                    "Solution 2: Use Manual Domain Addition (Recommended)\n"
+                    "Railway's GraphQL API may not support domain management publicly.\n"
+                    "Use: Railway Dashboard -> Backend Service -> Settings -> Networking"
                 )
             else:
                 result["error"] = f"Authentication test failed: {error_text}"
