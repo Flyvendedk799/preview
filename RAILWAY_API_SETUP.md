@@ -20,10 +20,22 @@ Railway provides a GraphQL API that allows you to programmatically add custom do
 
 ### Step 1: Get Railway API Token
 
+**IMPORTANT**: Railway API tokens must be created with proper permissions.
+
 1. Go to Railway Dashboard: https://railway.app
-2. Click on your profile → **Settings** → **API Tokens**
+2. Click on your profile (top right) → **Settings** → **API Tokens**
 3. Click **"Create Token"**
-4. Copy the token (you won't see it again!)
+4. **Give it a descriptive name** (e.g., "Domain Management Token")
+5. **Make sure it has full access** to your project
+6. Click **"Create"**
+7. **Copy the token immediately** - you won't see it again!
+8. Store it securely
+
+**Troubleshooting "Not Authorized" errors:**
+- Delete the old token and create a new one
+- Make sure the token has access to your project
+- Verify the token is copied correctly (no extra spaces)
+- Check that the token hasn't expired
 
 ### Step 2: Get Service ID
 
