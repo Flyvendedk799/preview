@@ -73,6 +73,7 @@ def test_railway_api_credentials():
     # Test API connection
     try:
         # First try a simple query to test authentication
+        # Try different authentication methods that Railway might use
         simple_query = """
         query {
             me {
@@ -82,13 +83,28 @@ def test_railway_api_credentials():
         }
         """
         
-        # Try simple query first
+        # Try with Bearer token (standard)
+        headers_bearer = {
+            "Authorization": f"Bearer {api_token}",
+            "Content-Type": "application/json",
+        }
+        
+        # Try with Railway-Token header (some APIs use this)
+        headers_token = {
+            "Railway-Token": api_token,
+            "Content-Type": "application/json",
+        }
+        
+        # Try with X-Railway-Token header
+        headers_x_token = {
+            "X-Railway-Token": api_token,
+            "Content-Type": "application/json",
+        }
+        
+        # Try standard Bearer first
         response = requests.post(
             RAILWAY_API_URL,
-            headers={
-                "Authorization": f"Bearer {api_token}",
-                "Content-Type": "application/json",
-            },
+            headers=headers_bearer,
             json={
                 "query": simple_query,
             },
@@ -98,6 +114,31 @@ def test_railway_api_credentials():
         # Log response for debugging
         logger.info(f"Railway API response status: {response.status_code}")
         logger.info(f"Railway API response headers: {dict(response.headers)}")
+        
+        # If Bearer fails, try alternative auth methods
+        if response.status_code == 401 or response.status_code == 403:
+            logger.info("Bearer auth failed, trying Railway-Token header...")
+            response = requests.post(
+                RAILWAY_API_URL,
+                headers=headers_token,
+                json={
+                    "query": simple_query,
+                },
+                timeout=10,
+            )
+            logger.info(f"Railway-Token header response: {response.status_code}")
+        
+        if response.status_code == 401 or response.status_code == 403:
+            logger.info("Railway-Token failed, trying X-Railway-Token header...")
+            response = requests.post(
+                RAILWAY_API_URL,
+                headers=headers_x_token,
+                json={
+                    "query": simple_query,
+                },
+                timeout=10,
+            )
+            logger.info(f"X-Railway-Token header response: {response.status_code}")
         
         if response.status_code != 200:
             # Try to get error details
