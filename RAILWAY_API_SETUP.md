@@ -27,10 +27,33 @@ Railway provides a GraphQL API that allows you to programmatically add custom do
 
 ### Step 2: Get Service ID
 
+**Method 1: From Railway Dashboard (Easiest)**
+
+1. Go to Railway Dashboard: https://railway.app
+2. Select your **Backend** service (the one running your FastAPI app)
+3. Click on the service name to open it
+4. Look at the URL in your browser - it will be something like:
+   ```
+   https://railway.app/project/[PROJECT_ID]/service/[SERVICE_ID]
+   ```
+   The **SERVICE_ID** is the UUID after `/service/`
+
+**Method 2: From Service Settings**
+
 1. Go to Railway Dashboard
 2. Select your **Backend** service
-3. Go to **Settings** → **General**
-4. Copy the **Service ID** (UUID format)
+3. Click **Settings** (gear icon) in the top right
+4. Scroll down to **Service Details**
+5. The **Service ID** is shown there (UUID format, e.g., `a1b2c3d4-e5f6-7890-abcd-ef1234567890`)
+
+**Method 3: From Railway CLI**
+
+If you have Railway CLI installed:
+```bash
+railway service
+```
+
+This will show your service ID.
 
 ### Step 3: Get Environment ID (Optional)
 
