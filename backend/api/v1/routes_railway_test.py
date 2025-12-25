@@ -72,6 +72,58 @@ def test_railway_api_credentials():
     
     # Test API connection
     try:
+        # First try a simple query to test authentication
+        simple_query = """
+        query {
+            me {
+                id
+                email
+            }
+        }
+        """
+        
+        # Try simple query first
+        response = requests.post(
+            RAILWAY_API_URL,
+            headers={
+                "Authorization": f"Bearer {api_token}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "query": simple_query,
+            },
+            timeout=10,
+        )
+        
+        # Log response for debugging
+        logger.info(f"Railway API response status: {response.status_code}")
+        logger.info(f"Railway API response headers: {dict(response.headers)}")
+        
+        if response.status_code != 200:
+            # Try to get error details
+            try:
+                error_data = response.json()
+                result["error"] = f"Railway API returned {response.status_code}: {error_data}"
+            except:
+                result["error"] = f"Railway API returned {response.status_code}: {response.text[:500]}"
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=result["error"]
+            )
+        
+        api_result = response.json()
+        
+        # Check for GraphQL errors in simple query
+        if "errors" in api_result:
+            errors = api_result["errors"]
+            error_messages = [err.get("message", "Unknown error") for err in errors]
+            result["error"] = f"Authentication test failed: {'; '.join(error_messages)}"
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=result["error"]
+            )
+        
+        # If simple query works, try the service query
         response = requests.post(
             RAILWAY_API_URL,
             headers={
@@ -84,6 +136,19 @@ def test_railway_api_credentials():
             },
             timeout=10,
         )
+        
+        logger.info(f"Service query response status: {response.status_code}")
+        
+        if response.status_code != 200:
+            try:
+                error_data = response.json()
+                result["error"] = f"Service query failed ({response.status_code}): {error_data}"
+            except:
+                result["error"] = f"Service query failed ({response.status_code}): {response.text[:500]}"
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=result["error"]
+            )
         
         response.raise_for_status()
         api_result = response.json()
