@@ -73,6 +73,8 @@ def create_domain(
     
     # Optionally add domain to Railway via API
     # This allows automatic Railway domain configuration
+    # NOTE: Railway's GraphQL API may not be publicly accessible.
+    # If this fails, you'll need to add domains manually in Railway dashboard.
     railway_api_enabled = os.getenv("RAILWAY_API_TOKEN") and os.getenv("RAILWAY_SERVICE_ID")
     if railway_api_enabled:
         try:
@@ -93,6 +95,7 @@ def create_domain(
             # Domain is still created in database, just not added to Railway
             logger.warning(f"Failed to add domain to Railway via API: {e}")
             logger.info("Domain created in database. You can add it manually in Railway dashboard.")
+            logger.info("To add domain manually: Railway Dashboard -> Backend Service -> Settings -> Networking -> Add Custom Domain")
     
     # Invalidate cache (domain was just created, but invalidate to be safe)
     invalidate_domain(current_org.id, db_domain.name)
