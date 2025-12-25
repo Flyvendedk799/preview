@@ -117,7 +117,26 @@ def test_railway_api_credentials():
         if "errors" in api_result:
             errors = api_result["errors"]
             error_messages = [err.get("message", "Unknown error") for err in errors]
-            result["error"] = f"Authentication test failed: {'; '.join(error_messages)}"
+            error_text = "; ".join(error_messages)
+            
+            if "not authorized" in error_text.lower() or "unauthorized" in error_text.lower():
+                result["error"] = (
+                    f"Authentication failed: {error_text}\n\n"
+                    "This usually means:\n"
+                    "1. Your API token is invalid or expired\n"
+                    "2. The token doesn't have the required permissions\n"
+                    "3. You need to create a new token\n\n"
+                    "To fix:\n"
+                    "1. Go to Railway Dashboard -> Settings -> API Tokens\n"
+                    "2. Delete the old token (if exists)\n"
+                    "3. Create a new token\n"
+                    "4. Copy it immediately (you won't see it again)\n"
+                    "5. Update RAILWAY_API_TOKEN in Railway environment variables\n"
+                    "6. Redeploy your service"
+                )
+            else:
+                result["error"] = f"Authentication test failed: {error_text}"
+            
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail=result["error"]
