@@ -236,6 +236,10 @@ app.include_router(
     prefix=settings.API_V1_PREFIX,
 )
 app.include_router(
+    routes_railway_test.router,
+    prefix=settings.API_V1_PREFIX,
+)
+app.include_router(
     routes_preview_enhancements.router,
     prefix=settings.API_V1_PREFIX,
 )
