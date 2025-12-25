@@ -54,6 +54,10 @@ def add_domain_to_railway(domain: str, service_id: Optional[str] = None) -> Dict
     """
     Add a custom domain to Railway via API.
     
+    NOTE: Railway's public GraphQL API does NOT support domain management.
+    The `customDomainCreate` mutation is not available in their public API schema.
+    This function will fail - use manual domain addition in Railway Dashboard instead.
+    
     Args:
         domain: Domain name to add (e.g., "example.com")
         service_id: Railway service ID (optional, uses env var if not provided)

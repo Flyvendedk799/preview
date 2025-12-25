@@ -151,16 +151,17 @@ def test_railway_api_credentials():
             if "not authorized" in error_text.lower() or "unauthorized" in error_text.lower():
                 result["error"] = (
                     f"Authentication failed: {error_text}\n\n"
-                    "Your token (727141c1-4827-475d-b4ef-fca188ef459c) is a PROJECT TOKEN.\n"
-                    "Railway's GraphQL API requires an ACCOUNT TOKEN for domain management.\n\n"
-                    "Solution 1: Create Account Token\n"
-                    "1. Railway Dashboard -> Account Settings -> API Tokens\n"
-                    "2. Create ACCOUNT TOKEN (not Project Token)\n"
-                    "3. Set as RAILWAY_API_TOKEN\n"
-                    "4. Redeploy\n\n"
-                    "Solution 2: Use Manual Domain Addition (Recommended)\n"
-                    "Railway's GraphQL API may not support domain management publicly.\n"
-                    "Use: Railway Dashboard -> Backend Service -> Settings -> Networking"
+                    "IMPORTANT FINDING:\n"
+                    "Railway's public GraphQL API does NOT support domain management.\n"
+                    "The `customDomainCreate` mutation is not available in their public API.\n\n"
+                    "Even with a valid Account Token, domain management via API is not possible.\n\n"
+                    "RECOMMENDED SOLUTION: Manual Domain Addition\n"
+                    "1. User creates domain in your platform ✅\n"
+                    "2. Add domain manually:\n"
+                    "   Railway Dashboard -> Backend Service -> Settings -> Networking\n"
+                    "   -> Add Custom Domain\n"
+                    "3. Railway provisions SSL automatically ✅\n\n"
+                    "This is the only reliable way to add custom domains to Railway."
                 )
             else:
                 result["error"] = f"Authentication test failed: {error_text}"
