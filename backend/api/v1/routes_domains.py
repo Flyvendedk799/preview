@@ -41,7 +41,7 @@ def create_domain(
     """
     Create a new domain for the current organization (owner/admin/editor only).
     
-    Optionally adds domain to Railway via API if RAILWAY_API_TOKEN is configured.
+    Optionally adds domain to Railway via API if RAILWAY_TOKEN (or RAILWAY_API_TOKEN) is configured.
     """
     import logging
     logger = logging.getLogger(__name__)
@@ -75,7 +75,9 @@ def create_domain(
     # This allows automatic Railway domain configuration
     # NOTE: Railway's GraphQL API may not be publicly accessible.
     # If this fails, you'll need to add domains manually in Railway dashboard.
-    railway_api_enabled = os.getenv("RAILWAY_API_TOKEN") and os.getenv("RAILWAY_SERVICE_ID")
+    # Railway uses RAILWAY_TOKEN as the standard name, but we also check RAILWAY_API_TOKEN for compatibility
+    railway_token = os.getenv("RAILWAY_TOKEN") or os.getenv("RAILWAY_API_TOKEN")
+    railway_api_enabled = railway_token and os.getenv("RAILWAY_SERVICE_ID")
     if railway_api_enabled:
         try:
             from backend.services.railway_domain_service import (

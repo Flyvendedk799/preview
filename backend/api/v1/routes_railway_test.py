@@ -34,14 +34,14 @@ def test_railway_api_credentials():
     """
     Test Railway API credentials.
     
-    This endpoint verifies that RAILWAY_API_TOKEN and RAILWAY_SERVICE_ID
+    This endpoint verifies that RAILWAY_TOKEN (or RAILWAY_API_TOKEN) and RAILWAY_SERVICE_ID
     are correctly configured and can access the Railway API.
     
     Returns:
         Dict with test results and service information
     """
-    # Get credentials
-    api_token = os.getenv("RAILWAY_API_TOKEN")
+    # Get credentials - Railway uses RAILWAY_TOKEN, but we also check RAILWAY_API_TOKEN for compatibility
+    api_token = os.getenv("RAILWAY_TOKEN") or os.getenv("RAILWAY_API_TOKEN")
     service_id = os.getenv("RAILWAY_SERVICE_ID")
     
     result = {
@@ -55,7 +55,7 @@ def test_railway_api_credentials():
     
     # Check if credentials are set
     if not api_token:
-        result["error"] = "RAILWAY_API_TOKEN not found in environment variables"
+        result["error"] = "RAILWAY_TOKEN or RAILWAY_API_TOKEN not found in environment variables"
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=result["error"]
@@ -131,7 +131,8 @@ def test_railway_api_credentials():
                     "2. Delete the old token (if exists)\n"
                     "3. Create a new token\n"
                     "4. Copy it immediately (you won't see it again)\n"
-                    "5. Update RAILWAY_API_TOKEN in Railway environment variables\n"
+                    "5. Set RAILWAY_TOKEN in Railway environment variables (Railway's standard name)\n"
+                    "   (or RAILWAY_API_TOKEN for compatibility)\n"
                     "6. Redeploy your service"
                 )
             else:

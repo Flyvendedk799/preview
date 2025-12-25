@@ -35,8 +35,12 @@ query getService($id: String!) {
 
 
 def get_railway_api_token() -> Optional[str]:
-    """Get Railway API token from environment."""
-    return os.getenv("RAILWAY_API_TOKEN")
+    """
+    Get Railway API token from environment.
+    
+    Checks both RAILWAY_TOKEN (Railway's standard) and RAILWAY_API_TOKEN (for compatibility).
+    """
+    return os.getenv("RAILWAY_TOKEN") or os.getenv("RAILWAY_API_TOKEN")
 
 
 def get_railway_service_id() -> Optional[str]:
@@ -61,7 +65,7 @@ def add_domain_to_railway(domain: str, service_id: Optional[str] = None) -> Dict
     """
     api_token = get_railway_api_token()
     if not api_token:
-        raise ValueError("RAILWAY_API_TOKEN environment variable is not set")
+        raise ValueError("RAILWAY_TOKEN or RAILWAY_API_TOKEN environment variable is not set")
     
     service_id = service_id or get_railway_service_id()
     if not service_id:
@@ -124,7 +128,7 @@ def list_railway_domains(service_id: Optional[str] = None) -> list[Dict[str, Any
     """
     api_token = get_railway_api_token()
     if not api_token:
-        raise ValueError("RAILWAY_API_TOKEN environment variable is not set")
+        raise ValueError("RAILWAY_TOKEN or RAILWAY_API_TOKEN environment variable is not set")
     
     service_id = service_id or get_railway_service_id()
     if not service_id:

@@ -78,10 +78,12 @@ This will show your service ID.
 In Railway Dashboard → Backend Service → Variables:
 
 ```
-RAILWAY_API_TOKEN=your_api_token_here
+RAILWAY_TOKEN=your_api_token_here
 RAILWAY_SERVICE_ID=your_service_id_here
 RAILWAY_ENVIRONMENT_ID=your_environment_id (optional)
 ```
+
+**Note**: Railway uses `RAILWAY_TOKEN` as the standard environment variable name. The code also supports `RAILWAY_API_TOKEN` for compatibility.
 
 ### Step 5: Redeploy Backend
 
@@ -215,9 +217,10 @@ If you prefer subdomains instead of custom domains:
 
 ## 🐛 Troubleshooting
 
-### "RAILWAY_API_TOKEN not set"
+### "RAILWAY_TOKEN not set"
 - Check environment variable is set in Railway
-- Verify variable name is exactly `RAILWAY_API_TOKEN`
+- Railway uses `RAILWAY_TOKEN` as the standard name (also supports `RAILWAY_API_TOKEN`)
+- Verify variable name is exactly `RAILWAY_TOKEN` (or `RAILWAY_API_TOKEN`)
 - Redeploy service after adding variable
 
 ### "RAILWAY_SERVICE_ID not set"
