@@ -7,7 +7,9 @@ from typing import Optional, Dict, Any
 logger = logging.getLogger(__name__)
 
 # Railway API endpoint
-RAILWAY_API_URL = "https://backboard.railway.app/graphql/v2"
+# Note: Railway uses backboard.railway.com (not .app) for their GraphQL API
+# However, domain management via API may not be publicly available
+RAILWAY_API_URL = "https://backboard.railway.com/graphql/v2"
 
 # GraphQL mutation for adding custom domain
 ADD_DOMAIN_MUTATION = """

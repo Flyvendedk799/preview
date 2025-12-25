@@ -10,7 +10,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/railway-test", tags=["railway-test"])
 
 # Railway API endpoint
-RAILWAY_API_URL = "https://backboard.railway.app/graphql/v2"
+# Note: Railway uses backboard.railway.com (not .app) for their GraphQL API
+RAILWAY_API_URL = "https://backboard.railway.com/graphql/v2"
 
 # GraphQL query to test API access
 TEST_QUERY = """
