@@ -88,7 +88,52 @@ def generate_demo_preview_job(url: str) -> Dict[str, Any]:
         import time
         time.sleep(0.1)
         
-        # Convert PreviewEngineResult to response dict
+        # Prepare brand elements with fallbacks
+        brand_data = result.brand if result.brand else {}
+        brand_elements = {
+            "brand_name": brand_data.get("brand_name"),
+            "logo_base64": brand_data.get("logo_base64"),
+            "hero_image_base64": brand_data.get("hero_image_base64")
+        }
+
+        # Prepare layout blueprint with fallbacks to avoid validation errors
+        blueprint_data = result.blueprint if result.blueprint else {}
+        layout_blueprint = {
+            "template_type": blueprint_data.get("template_type", "article"),
+            "primary_color": blueprint_data.get("primary_color", "#2563EB"),
+            "secondary_color": blueprint_data.get("secondary_color", "#1E40AF"),
+            "accent_color": blueprint_data.get("accent_color", "#F59E0B"),
+            "coherence_score": blueprint_data.get("coherence_score", 0.0),
+            "balance_score": blueprint_data.get("balance_score", 0.0),
+            "clarity_score": blueprint_data.get("clarity_score", 0.0),
+            "design_fidelity_score": blueprint_data.get("design_fidelity_score"),
+            "overall_quality": blueprint_data.get("overall_quality", 0.0),
+            "layout_reasoning": blueprint_data.get("layout_reasoning", ""),
+            "composition_notes": blueprint_data.get("composition_notes", "")
+        }
+
+        # Prepare design DNA if available
+        design_dna = None
+        if hasattr(result, 'design_dna') and result.design_dna:
+            # Need to convert string to float for formality if it's not already
+            formality = result.design_dna.get("formality", 0.5)
+            try:
+                formality = float(formality)
+            except (ValueError, TypeError):
+                formality = 0.5
+                
+            design_dna = {
+                "style": result.design_dna.get("style", "corporate"),
+                "mood": result.design_dna.get("mood", "balanced"),
+                "formality": formality,
+                "typography_personality": result.design_dna.get("typography_personality", "bold"),
+                "color_emotion": result.design_dna.get("color_emotion", "trust"),
+                "spacing_feel": result.design_dna.get("spacing_feel", "balanced"),
+                "brand_adjectives": result.design_dna.get("brand_adjectives", []),
+                "design_reasoning": result.design_dna.get("design_reasoning", "")
+            }
+
+        # Convert PreviewEngineResult to response dict exactly matching DemoPreviewResponse via Pydantic mapping
         response_data = {
             "url": result.url,
             
@@ -107,13 +152,17 @@ def generate_demo_preview_job(url: str) -> Dict[str, Any]:
             "composited_preview_image_url": result.composited_preview_image_url,
             
             # Brand elements
-            "brand": result.brand,
+            "brand": brand_elements,
             
             # Blueprint
-            "blueprint": result.blueprint,
+            "blueprint": layout_blueprint,
+            
+            # Design DNA
+            "design_dna": design_dna,
             
             # Metrics
             "reasoning_confidence": result.reasoning_confidence,
+            "design_fidelity_score": getattr(result, 'design_fidelity_score', layout_blueprint.get("design_fidelity_score")),
             "processing_time_ms": result.processing_time_ms,
             
             # Metadata
