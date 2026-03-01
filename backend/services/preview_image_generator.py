@@ -582,157 +582,175 @@ def _generate_hero_template(
     primary_image_base64: Optional[str]
 ) -> bytes:
     """
-    PREMIUM Hero template: Bold headline with cinematic gradient.
-    Design philosophy: Big, bold, and impossible to ignore.
+    PREMIUM Hero template: Brand gradient on the left, actual page screenshot on the right.
+
+    Layout (when screenshot is available):
+      LEFT  58% — diagonal brand gradient + logo + headline + social proof
+      RIGHT 42% — page screenshot cropped to above-the-fold, faded in from left edge
+
+    This makes every preview visually unique to the page being shared rather than
+    a generic text-on-gradient card.  Falls back to full-width gradient when no
+    screenshot is available.
     """
-    # Create clean, professional gradient (no screenshot texture for cleaner look)
-    # Use the brand colors to create a polished, modern gradient
-    # FIXED: Don't darken colors further - they're already appropriately dark from brand extraction
-    # Only slightly adjust if needed for contrast, but preserve the intended color
+    # ── BACKGROUND & OPTIONAL SPLIT LAYOUT ────────────────────────────────
     img = Image.new('RGB', (OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT), primary_color)
     img = _draw_gradient_background(img, primary_color, secondary_color, "diagonal")
-    
-    # CLEAN design - no noisy patterns, just the gradient
+
+    split_layout = False
+    text_panel_width = OG_IMAGE_WIDTH  # default: full width
+
+    if screenshot_bytes:
+        try:
+            sc = Image.open(BytesIO(screenshot_bytes)).convert('RGB')
+            # Crop to top 75% — avoids sticky footers and cookie banners near the bottom
+            sc = sc.crop((0, 0, sc.width, int(sc.height * 0.75)))
+
+            right_x = int(OG_IMAGE_WIDTH * 0.58)
+            right_w = OG_IMAGE_WIDTH - right_x
+
+            # Scale screenshot to cover the right panel (cover behaviour)
+            scale = max(right_w / sc.width, OG_IMAGE_HEIGHT / sc.height)
+            sc = sc.resize(
+                (max(right_w, int(sc.width * scale)), max(OG_IMAGE_HEIGHT, int(sc.height * scale))),
+                Image.Resampling.LANCZOS
+            )
+
+            # Crop to exact panel size, bias toward the top of the page
+            crop_x = (sc.width - right_w) // 2
+            crop_y = max(0, (sc.height - OG_IMAGE_HEIGHT) // 4)
+            sc = sc.crop((crop_x, crop_y, crop_x + right_w, crop_y + OG_IMAGE_HEIGHT))
+
+            # Fade mask: transparent on left edge → fully opaque toward the right
+            # This blends the screenshot smoothly into the gradient panel
+            fade_w = 120
+            mask = Image.new('L', (right_w, OG_IMAGE_HEIGHT), 255)
+            mask_draw = ImageDraw.Draw(mask)
+            for x in range(fade_w):
+                mask_draw.line([(x, 0), (x, OG_IMAGE_HEIGHT - 1)], fill=int(255 * x / fade_w))
+
+            img.paste(sc, (right_x, 0), mask)
+            text_panel_width = right_x
+            split_layout = True
+        except Exception as e:
+            logger.warning(f"Hero template: screenshot panel failed — {e}")
+
     draw = ImageDraw.Draw(img)
-    
-    # ENHANCED: Standardized spacing system using 8px grid and golden ratio
-    # Golden ratio: 1.618 (for harmonious proportions)
+
+    # ── LAYOUT CONSTANTS ──────────────────────────────────────────────────
     GOLDEN_RATIO = 1.618
-    
-    # Base padding scales with image size using golden ratio for better proportions
-    base_padding = int(OG_IMAGE_WIDTH / (GOLDEN_RATIO * 2))  # ~370px / 1.618 / 2 ≈ 114px
-    padding = max(80, min(120, base_padding))  # Clamp between 80-120px for better spacing
-    content_width = OG_IMAGE_WIDTH - (padding * 2)
-    
-    # Vertical spacing using golden ratio
-    vertical_unit = int(padding / GOLDEN_RATIO)  # ~70px at 114px padding
-    spacing_small = vertical_unit // 2  # ~35px
-    spacing_medium = vertical_unit  # ~70px
-    spacing_large = int(vertical_unit * GOLDEN_RATIO)  # ~113px
-    
-    # LAYOUT: Logo top-left, Social Proof badge top-right, Big headline center
+    base_padding = int(OG_IMAGE_WIDTH / (GOLDEN_RATIO * 2))
+    padding = max(80, min(120, base_padding))
+    # Text/content is constrained to the left (gradient) panel
+    content_width = text_panel_width - (padding * 2)
     content_y = padding
-    
-    # === TOP BAR: Logo + Social Proof ===
-    # MOBILE-FIRST: Larger logo for mobile visibility
-    logo_size = 96  # Increased from 72 for better mobile visibility
-    
-    # LOGO FIX: Use full logo image (from brand_extractor) instead of cropped screenshot
-    # This ensures we get the actual logo file, properly sized and not cropped incorrectly
+
+    # ── LOGO (top-left of text panel) ─────────────────────────────────────
+    logo_size = 96
     if primary_image_base64:
         try:
             logo_data = base64.b64decode(primary_image_base64)
             logo_img = Image.open(BytesIO(logo_data)).convert('RGBA')
-            
-            # Preserve aspect ratio for logos (don't force square if it's not square)
+
             original_width, original_height = logo_img.size
             aspect_ratio = original_width / original_height if original_height > 0 else 1
-            
-            # Calculate new size maintaining aspect ratio
-            if aspect_ratio > 1:  # Wider than tall
+
+            if aspect_ratio > 1:
                 new_width = logo_size
                 new_height = int(logo_size / aspect_ratio)
-            else:  # Taller than wide or square
+            else:
                 new_height = logo_size
                 new_width = int(logo_size * aspect_ratio)
-            
-            # Resize with high quality
+
             logo_img = logo_img.resize((new_width, new_height), Image.Resampling.LANCZOS)
-            
-            # Rounded white background for logo (larger to accommodate non-square logos)
+
             bg_size = max(new_width, new_height) + 16
             logo_bg = Image.new('RGBA', (bg_size, bg_size), (255, 255, 255, 250))
             img.paste(logo_bg.convert('RGB'), (padding - 8, content_y - 8))
-            
-            # Center logo on background
+
             logo_x = padding + (bg_size - new_width) // 2 - 8
             logo_y = content_y + (bg_size - new_height) // 2 - 8
             img.paste(logo_img, (logo_x, logo_y), logo_img)
         except Exception as e:
             logger.warning(f"Failed to load logo: {e}")
-    
-    # Social proof badge on RIGHT (premium positioning)
+
+    # ── SOCIAL PROOF BADGE (top-right of text panel) ──────────────────────
     if credibility_items:
         proof_text = str(credibility_items[0].get("value", "")).strip()
         if proof_text and len(proof_text) > 2:
-            # MOBILE-FIRST: Social proof badge readable on mobile
-            proof_font = _load_font(32, bold=True)  # Increased from 22 for mobile readability
+            proof_font = _load_font(32, bold=True)
             try:
                 bbox = draw.textbbox((0, 0), proof_text, font=proof_font)
                 badge_width = bbox[2] - bbox[0] + 40
-                badge_height = 56  # Increased from 48 for better mobile visibility
-            except:
+                badge_height = 56
+            except Exception:
                 badge_width = len(proof_text) * 12 + 40
                 badge_height = 48
-            
-            badge_x = OG_IMAGE_WIDTH - padding - int(badge_width)
-            
-            # Accent-colored badge with rounded feel
+
+            # Right-align badge to the TEXT PANEL edge, not the full image edge
+            badge_x = text_panel_width - padding - int(badge_width)
+
             badge_img = Image.new('RGBA', (int(badge_width), badge_height), (*accent_color, 255))
             img.paste(badge_img.convert('RGB'), (badge_x, content_y))
             draw = ImageDraw.Draw(img)
             draw.text((badge_x + 20, content_y + 12), str(proof_text), font=proof_font, fill=(255, 255, 255))
-    
+
     content_y += logo_size + 60
-    
-    # === MAIN HEADLINE - The star of the show ===
-    # ENHANCED: Dynamic typography based on title length
-    # Short titles (< 30 chars) get bigger text, long titles get smaller
+
+    # ── MAIN HEADLINE ─────────────────────────────────────────────────────
     title_length = len(title) if title else 0
-    
+
     if title_length < 25:
-        title_font_size = 96  # Large for short titles
+        title_font_size = 96
     elif title_length < 40:
-        title_font_size = 80  # Medium for medium titles
+        title_font_size = 80
     elif title_length < 60:
-        title_font_size = 64  # Smaller for longer titles
+        title_font_size = 64
     else:
-        title_font_size = 56  # Smallest for very long titles
-    
+        title_font_size = 56
+
+    # Slightly smaller in split mode because the text panel is narrower
+    if split_layout:
+        title_font_size = int(title_font_size * 0.88)
+
     title_font = _load_font(title_font_size, bold=True)
-    
-    # Line height: 1.2x font size for tighter, modern look
     title_line_height = int(title_font_size * 1.2)
-    
+
     if title and title != "Untitled":
         title_lines = _wrap_text(title, title_font, content_width, draw)
-        
-        # Calculate vertical position - center the text block
-        max_lines = 3 if title_length > 50 else 2  # Allow 3 lines for long titles
+
+        max_lines = 3 if title_length > 50 else 2
         actual_lines = min(len(title_lines), max_lines)
         total_title_height = actual_lines * title_line_height
-        remaining_space = OG_IMAGE_HEIGHT - content_y - padding - spacing_medium
+        remaining_space = OG_IMAGE_HEIGHT - content_y - padding - 60
         title_y = content_y + max(0, int((remaining_space - total_title_height) / 3))
-        
-        # Draw title lines
+
         for i, line in enumerate(title_lines[:max_lines]):
             y_pos = title_y + (i * title_line_height)
-            # Clean, subtle shadow for readability (reduced offset to avoid blurry 3D effect)
             _draw_text_with_shadow(draw, (padding, y_pos), line, title_font, (255, 255, 255), 2)
-        content_y = title_y + actual_lines * title_line_height + spacing_medium
-    
-    # === SUPPORTING TEXT (subtitle or description) ===
-    # ENHANCED: Typography hierarchy - readable subtitle/description
+        content_y = title_y + actual_lines * title_line_height + 40
+
+    # ── SUBTITLE / DESCRIPTION ────────────────────────────────────────────
     support_text = subtitle or description
     if support_text and support_text != title and support_text.lower().strip() != title.lower().strip():
-        # Subtitle should be readable but not compete with title
-        desc_font_size = 36  # Fixed readable size
+        desc_font_size = 34 if split_layout else 36
         desc_font = _load_font(desc_font_size, bold=False)
-        desc_line_height = int(desc_font_size * 1.4)  # Tighter line height
-        
+        desc_line_height = int(desc_font_size * 1.4)
+
         desc_lines = _wrap_text(support_text, desc_font, content_width, draw)
-        # Limit to 2 lines to keep clean
         for i, line in enumerate(desc_lines[:2]):
             y_pos = content_y + (i * desc_line_height)
-            # Clean, subtle shadow for readability (reduced offset to avoid blurry effect)
             _draw_text_with_shadow(draw, (padding, y_pos), line, desc_font, (240, 240, 245), 2)
-    
-    # === BOTTOM ACCENT BAR (brand color stripe) ===
+
+    # ── BOTTOM ACCENT BAR ─────────────────────────────────────────────────
+    # Spans the text panel only in split mode; full width otherwise
     bar_height = 6
-    draw.rectangle([(0, OG_IMAGE_HEIGHT - bar_height), (OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT)], fill=accent_color)
-    
+    draw.rectangle(
+        [(0, OG_IMAGE_HEIGHT - bar_height), (text_panel_width, OG_IMAGE_HEIGHT)],
+        fill=accent_color
+    )
+
     buffer = BytesIO()
-    img.save(buffer, format='PNG', optimize=False)  # Disable optimization to preserve dithering
+    img.save(buffer, format='PNG', optimize=False)
     return buffer.getvalue()
 
 

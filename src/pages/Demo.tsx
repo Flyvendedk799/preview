@@ -1649,8 +1649,8 @@ export default function Demo() {
                 <div className="absolute -inset-1 bg-gradient-to-r from-orange-500 via-amber-500 to-yellow-500 rounded-2xl opacity-20 blur-xl group-hover:opacity-30 transition-opacity duration-300" />
                 <div className="relative">
                   <div className="text-center mb-6">
-                    <h3 className="text-2xl font-black text-gray-900 mb-2">AI Reconstructed Preview</h3>
-                    <p className="text-gray-600">Semantically extracted and redesigned from your page</p>
+                    <h3 className="text-2xl font-black text-gray-900 mb-2">Generated Preview</h3>
+                    <p className="text-gray-600">Your og:image — optimised for every social platform</p>
                   </div>
 
                   {/* Brand Elements Showcase */}
@@ -1716,7 +1716,8 @@ export default function Demo() {
                     </div>
                   )}
 
-                  <div className="max-w-md mx-auto">
+                  {/* Preview image — shown at full display width so users can appreciate the quality */}
+                  <div className="w-full">
                     {preview ? (
                       <ReconstructedPreview preview={preview} />
                     ) : (
