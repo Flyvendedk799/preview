@@ -1978,36 +1978,36 @@ export default function Demo() {
                   <h3 className="text-xl sm:text-2xl md:text-3xl font-black text-gray-900 mb-2">See It In Action</h3>
                   <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6">How your preview appears on social media platforms</p>
                   
-                  {/* Platform Selector - Enhanced Discoverability */}
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="relative inline-block">
-                      <label htmlFor="platform-selector" className="block text-xs font-semibold text-gray-600 mb-2 text-center">
-                        Select Platform Preview
-                      </label>
-                      <select
-                        id="platform-selector"
-                        value={selectedPlatform}
-                        onChange={(e) => setSelectedPlatform(e.target.value)}
-                        className="appearance-none bg-white border-2 border-gray-200 rounded-xl px-6 py-3 pr-12 font-semibold text-gray-900 text-sm cursor-pointer transition-all duration-300 hover:border-orange-300 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 min-w-[200px]"
-                        aria-label="Select social media platform to preview"
-                      >
-                        {platforms.map((platform) => (
-                          <option key={platform.id} value={platform.id}>
-                            {platform.icon} {platform.name}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none">
-                        <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </div>
-                    </div>
-                    <p className="text-xs text-gray-500 text-center max-w-md">
-                      Switch between platforms to see how your preview adapts to each platform's design conventions
+                  {/* Platform Selector - Visual Tab Pills */}
+                  <div className="flex flex-col items-center gap-4">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      Select Platform
                     </p>
-                    <p className="text-xs text-gray-400 text-center max-w-md italic">
-                      Try this URL with your own site · See how this looks on LinkedIn
+                    <div
+                      className="flex flex-wrap justify-center gap-2"
+                      role="tablist"
+                      aria-label="Select social media platform to preview"
+                    >
+                      {platforms.map((platform) => (
+                        <button
+                          key={platform.id}
+                          role="tab"
+                          aria-selected={selectedPlatform === platform.id}
+                          onClick={() => setSelectedPlatform(platform.id)}
+                          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 select-none ${
+                            selectedPlatform === platform.id
+                              ? `bg-gradient-to-r ${platform.color} text-white shadow-lg scale-105 ring-2 ring-white ring-offset-1`
+                              : 'bg-white border-2 border-gray-200 text-gray-600 hover:border-gray-300 hover:text-gray-900 hover:shadow-md'
+                          }`}
+                        >
+                          <span aria-hidden="true">{platform.icon}</span>
+                          <span className="hidden sm:inline">{platform.name}</span>
+                          <span className="sm:hidden">{platform.name.split(' ')[0]}</span>
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-400 text-center max-w-xs">
+                      See how your preview adapts to each platform's design
                     </p>
                   </div>
                 </div>

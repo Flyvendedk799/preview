@@ -233,21 +233,35 @@ const PlatformPreviewCard: React.FC<PlatformPreviewCardProps> = memo(({
             loading="lazy"
           />
         ) : (
-          <div 
+          // Fallback: brand-aware gradient using extracted brand elements
+          <div
             className="w-full h-full relative"
-            style={{ 
-              background: `linear-gradient(135deg, ${preview.blueprint.primary_color}, ${preview.blueprint.secondary_color})`
+            style={{
+              background: `linear-gradient(135deg, ${preview.blueprint.primary_color}, ${preview.blueprint.secondary_color})`,
             }}
           >
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="text-center">
-                <div className="w-16 h-16 mx-auto mb-2 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                  <svg className="w-8 h-8 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-4">
+              {preview.brand?.logo_base64 ? (
+                // Show extracted brand logo
+                <div className="w-20 h-20 rounded-2xl bg-white/15 backdrop-blur-sm flex items-center justify-center p-2 shadow-lg">
+                  <img
+                    src={`data:image/png;base64,${preview.brand.logo_base64}`}
+                    alt={preview.brand.brand_name || ''}
+                    className="max-w-full max-h-full object-contain"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                  />
                 </div>
-                <p className="text-xs text-white/80 font-medium">{platformData.title}</p>
-              </div>
+              ) : (
+                // Show initial letter as avatar
+                <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-lg">
+                  <span className="text-2xl font-black text-white">
+                    {(preview.brand?.brand_name || platformData.title || 'M').charAt(0).toUpperCase()}
+                  </span>
+                </div>
+              )}
+              <p className="text-sm text-white/90 font-semibold text-center line-clamp-2 drop-shadow">
+                {preview.brand?.brand_name || platformData.title}
+              </p>
             </div>
           </div>
         )}
