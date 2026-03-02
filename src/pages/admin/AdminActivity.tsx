@@ -15,6 +15,8 @@ export default function AdminActivity() {
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [filterUserId, setFilterUserId] = useState<number | undefined>(undefined)
   const [filterAction, setFilterAction] = useState<string>('')
+  const [filterUrl, setFilterUrl] = useState<string>('')
+  const [showDemoFlowOnly, setShowDemoFlowOnly] = useState(false)
   const limit = 50
 
   useEffect(() => {
@@ -23,7 +25,7 @@ export default function AdminActivity() {
 
   useEffect(() => {
     loadLogs()
-  }, [page, filterUserId, filterAction])
+  }, [page, filterUserId, filterAction, filterUrl])
 
   const loadUsers = async () => {
     try {
@@ -38,7 +40,8 @@ export default function AdminActivity() {
     try {
       setLoading(true)
       setError(null)
-      const data = await fetchAdminActivity(page * limit, limit, filterUserId, filterAction || undefined)
+      const effectiveAction = showDemoFlowOnly ? 'demo.preview.flow_step' : filterAction || undefined
+      const data = await fetchAdminActivity(page * limit, limit, filterUserId, effectiveAction, filterUrl || undefined)
       setLogs(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load activity logs')
@@ -53,6 +56,12 @@ export default function AdminActivity() {
   }
 
   const actionTypes = Array.from(new Set(logs.map((log) => log.action)))
+
+  const getFlowField = (log: AdminActivityLog, key: string): string => {
+    if (log.action !== 'demo.preview.flow_step') return '—'
+    const value = log.metadata?.[key]
+    return value ? String(value) : '—'
+  }
 
   return (
     <div>
@@ -69,7 +78,20 @@ export default function AdminActivity() {
 
       {/* Filters */}
       <Card className="mb-6 p-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <p className="text-sm text-gray-600">Use the URL filter and "Demo flow only" toggle to debug generated designs step-by-step.</p>
+          <button
+            onClick={() => setShowDemoFlowOnly((prev) => !prev)}
+            className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
+              showDemoFlowOnly
+                ? 'bg-primary text-white border-primary'
+                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            {showDemoFlowOnly ? 'Demo flow only: ON' : 'Demo flow only: OFF'}
+          </button>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Filter by User</label>
             <select
@@ -90,6 +112,7 @@ export default function AdminActivity() {
             <select
               value={filterAction}
               onChange={(e) => setFilterAction(e.target.value)}
+              disabled={showDemoFlowOnly}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
             >
               <option value="">All Actions</option>
@@ -99,6 +122,16 @@ export default function AdminActivity() {
                 </option>
               ))}
             </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Filter by URL</label>
+            <input
+              type="text"
+              value={filterUrl}
+              onChange={(e) => setFilterUrl(e.target.value)}
+              placeholder="https://example.com"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+            />
           </div>
         </div>
       </Card>
@@ -124,6 +157,8 @@ export default function AdminActivity() {
                 <thead>
                   <tr className="border-b border-gray-200">
                     <th className="text-left py-3 px-4 font-semibold text-gray-700">Action</th>
+                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Flow Step</th>
+                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Status</th>
                     <th className="text-left py-3 px-4 font-semibold text-gray-700">User</th>
                     <th className="text-left py-3 px-4 font-semibold text-gray-700">Date</th>
                     <th className="text-left py-3 px-4 font-semibold text-gray-700">IP Address</th>
@@ -138,6 +173,8 @@ export default function AdminActivity() {
                         <td className="py-3 px-4">
                           <span className="font-medium">{log.action}</span>
                         </td>
+                        <td className="py-3 px-4 text-sm text-gray-600">{getFlowField(log, 'step')}</td>
+                        <td className="py-3 px-4 text-sm text-gray-600">{getFlowField(log, 'status')}</td>
                         <td className="py-3 px-4 text-sm text-gray-600">
                           {user ? user.email : log.user_id ? `User #${log.user_id}` : 'System'}
                         </td>
@@ -240,4 +277,3 @@ export default function AdminActivity() {
     </div>
   )
 }
-
