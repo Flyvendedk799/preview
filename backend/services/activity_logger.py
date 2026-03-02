@@ -4,6 +4,8 @@ from typing import Optional, Dict, Any
 from fastapi import Request
 from sqlalchemy.orm import Session
 from backend.models.activity_log import ActivityLog
+from backend.models.user import User
+from backend.core.security import decode_access_token
 
 logger = logging.getLogger(__name__)
 
@@ -94,3 +96,27 @@ def log_activity(
         
         return None
 
+
+def get_authenticated_user_id(request: Optional[Request], db: Session) -> Optional[int]:
+    """Best-effort extraction of authenticated user ID from Bearer token."""
+    if not request:
+        return None
+
+    auth_header = request.headers.get("Authorization")
+    if not auth_header:
+        return None
+
+    try:
+        scheme, token = auth_header.split(" ", 1)
+    except ValueError:
+        return None
+
+    if scheme.lower() != "bearer" or not token:
+        return None
+
+    email = decode_access_token(token)
+    if not email:
+        return None
+
+    user = db.query(User).filter(User.email == email, User.is_active.is_(True)).first()
+    return user.id if user else None

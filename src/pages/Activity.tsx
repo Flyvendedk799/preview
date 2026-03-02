@@ -9,6 +9,7 @@ import {
   XCircleIcon,
   ClockIcon,
   ClockIcon as ActivityIcon,
+  SparklesIcon,
 } from '@heroicons/react/24/outline'
 import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
@@ -31,6 +32,7 @@ const ACTION_ICONS: Record<string, any> = {
   'preview.ai_job.queued': ClockIcon,
   'preview.ai_job.completed': CheckCircleIcon,
   'preview.ai_job.failed': ExclamationTriangleIcon,
+  'demo.preview.flow_step': SparklesIcon,
   'billing.subscription.created': CreditCardIcon,
   'billing.subscription.updated': CreditCardIcon,
   'billing.subscription.canceled': CreditCardIcon,
@@ -51,6 +53,7 @@ const ACTION_COLORS: Record<string, string> = {
   'preview.ai_job.queued': 'text-yellow-500',
   'preview.ai_job.completed': 'text-green-500',
   'preview.ai_job.failed': 'text-red-500',
+  'demo.preview.flow_step': 'text-indigo-500',
   'billing.subscription.created': 'text-green-500',
   'billing.subscription.updated': 'text-blue-500',
   'billing.subscription.canceled': 'text-red-500',
@@ -99,6 +102,11 @@ function getActionDescription(action: string, metadata: Record<string, any> | nu
   }
   if (action === 'preview.ai_job.failed') {
     return `AI preview generation failed for "${metadata.url || 'Unknown'}"`
+  }
+  if (action === 'demo.preview.flow_step') {
+    const step = metadata.step ? String(metadata.step).replace(/_/g, ' ') : 'step'
+    const status = metadata.status || 'updated'
+    return `Demo preview flow ${status}: ${step} (${metadata.url || 'Unknown'})`
   }
   if (action.startsWith('billing.subscription')) {
     const plan = metadata.plan ? ` (${metadata.plan})` : ''
