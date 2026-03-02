@@ -618,7 +618,8 @@ export async function fetchAdminActivity(
   skip = 0,
   limit = 50,
   userId?: number,
-  action?: string
+  action?: string,
+  url?: string
 ): Promise<AdminActivityLog[]> {
   const params = new URLSearchParams({
     skip: skip.toString(),
@@ -626,6 +627,7 @@ export async function fetchAdminActivity(
   })
   if (userId !== undefined) params.append('user_id', userId.toString())
   if (action) params.append('action', action)
+  if (url) params.append('url', url)
   return fetchApi<AdminActivityLog[]>(`/api/v1/activity/admin?${params.toString()}`)
 }
 
