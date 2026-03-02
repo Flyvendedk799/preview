@@ -202,7 +202,7 @@ def create_demo_job(
         job = queue.enqueue(
             generate_demo_preview_job,
             url_str,
-            job_timeout='5m'  # 5 minute timeout for AI generation
+            job_timeout='10m'  # 10 minute timeout for slow pages/AI spikes
         )
         
         logger.info(f"✅ Demo job created: {job.id} for URL: {url_str[:50]}...")
