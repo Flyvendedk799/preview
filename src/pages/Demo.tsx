@@ -208,7 +208,7 @@ export default function Demo() {
     if (lowerMessage.includes('timeout') || lowerMessage.includes('timed out')) {
       return {
         message: 'Request timed out',
-        suggestion: 'The preview generation is taking longer than expected. Please try again in a moment.'
+        suggestion: 'The page is still processing in the background for difficult URLs. Wait a bit and retry, or try a simpler public URL.'
       }
     }
 
@@ -418,7 +418,7 @@ export default function Demo() {
       
       // Poll for job status
       const pollInterval = 2000 // Poll every 2 seconds
-      const maxPollTime = 300000 // 5 minutes max
+      const maxPollTime = 600000 // 10 minutes max
       const startPollTime = Date.now()
       
       const pollJobStatus = async (): Promise<DemoPreviewResponseV2> => {
@@ -552,7 +552,7 @@ export default function Demo() {
           }
         }
         
-        throw new Error('Job polling timeout - preview generation took too long')
+        throw new Error('Job polling timeout - preview generation took too long (10 minutes)')
       }
       
       const result = await pollJobStatus()
@@ -2335,4 +2335,3 @@ export default function Demo() {
     </ErrorBoundary>
   )
 }
-

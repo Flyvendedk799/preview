@@ -3,6 +3,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
+from sqlalchemy import cast, String
 from backend.db.session import get_db
 from backend.core.deps import get_current_user, get_admin_user
 from backend.models.user import User
@@ -33,6 +34,7 @@ def get_admin_activity(
     limit: int = Query(50, ge=1, le=100),
     user_id: Optional[int] = Query(None, description="Filter by user ID"),
     action: Optional[str] = Query(None, description="Filter by action type"),
+    url: Optional[str] = Query(None, description="Filter by URL in log metadata"),
     db: Session = Depends(get_db),
     admin_user: User = Depends(get_admin_user)
 ):
@@ -44,8 +46,10 @@ def get_admin_activity(
     
     if action:
         query = query.filter(ActivityLog.action == action)
+
+    if url:
+        query = query.filter(cast(ActivityLog.extra_metadata, String).ilike(f"%{url}%"))
     
     logs = query.order_by(desc(ActivityLog.created_at)).offset(skip).limit(limit).all()
     
     return logs
-
