@@ -26,7 +26,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, HttpUrl
 from backend.db.session import get_db
 from backend.services.rate_limiter import check_rate_limit, get_rate_limit_key_for_ip
-from backend.services.activity_logger import get_client_ip
+from backend.services.activity_logger import get_client_ip, log_activity, get_authenticated_user_id
 from backend.utils.url_sanitizer import validate_url_security
 from backend.services.preview_engine import PreviewEngine, PreviewEngineConfig
 from backend.services.preview_cache import (
@@ -176,25 +176,48 @@ def create_demo_job(
     Rate limited to prevent abuse.
     """
     url_str = str(request_data.url)
-    
+    user_id = get_authenticated_user_id(request, db)
+    flow_id = str(uuid4())
+
+    def log_flow_step(step: str, status: str, **metadata: Any) -> None:
+        log_activity(
+            db,
+            user_id=user_id,
+            action="demo.preview.flow_step",
+            request=request,
+            metadata={
+                "flow_id": flow_id,
+                "url": url_str,
+                "step": step,
+                "status": status,
+                **metadata,
+            },
+        )
+
+    log_flow_step("job_create_initialized", "started")
+
     # Rate limiting
     client_ip = get_client_ip(request)
     rate_limit_key = get_rate_limit_key_for_ip(client_ip, "demo_job_v2")
     if not check_rate_limit(rate_limit_key, limit=10, window_seconds=3600):
+        log_flow_step("rate_limit", "blocked", client_ip=client_ip)
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Rate limit exceeded. Please try again later."
         )
-    
+    log_flow_step("rate_limit", "passed", client_ip=client_ip)
+
     # Validate URL
     try:
         validate_url_security(url_str)
     except ValueError as e:
+        log_flow_step("url_security_validation", "failed", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
-    
+    log_flow_step("url_security_validation", "passed")
+
     # Enqueue job
     try:
         redis_conn = get_rq_redis_connection()
@@ -206,7 +229,8 @@ def create_demo_job(
         )
         
         logger.info(f"✅ Demo job created: {job.id} for URL: {url_str[:50]}...")
-        
+        log_flow_step("job_enqueued", "completed", job_id=job.id)
+
         return DemoJobResponse(
             job_id=job.id,
             status="queued",
@@ -214,6 +238,7 @@ def create_demo_job(
         )
     except Exception as e:
         logger.error(f"❌ Failed to create demo job: {str(e)}", exc_info=True)
+        log_flow_step("job_enqueued", "failed", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create job: {str(e)}"

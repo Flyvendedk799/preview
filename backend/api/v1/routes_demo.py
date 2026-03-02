@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, HttpUrl
 from backend.db.session import get_db
 from backend.services.rate_limiter import check_rate_limit, get_rate_limit_key_for_ip
-from backend.services.activity_logger import get_client_ip, log_activity
+from backend.services.activity_logger import get_client_ip, log_activity, get_authenticated_user_id
 from backend.utils.url_sanitizer import validate_url_security
 from backend.services.preview_engine import PreviewEngine, PreviewEngineConfig
 from backend.services.preview_cache import (
@@ -135,11 +135,13 @@ def generate_demo_preview(
     flow_id = str(uuid4())
     redis_client = None
     cache_key = None
+    user_id = get_authenticated_user_id(request, db)
 
     def log_flow_step(step: str, status: str, **metadata: Any) -> None:
         """Log each demo preview framework step for admin troubleshooting."""
         log_activity(
             db,
+            user_id=user_id,
             action="demo.preview.flow_step",
             request=request,
             metadata={

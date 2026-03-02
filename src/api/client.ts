@@ -1148,10 +1148,12 @@ export interface DemoPreviewResponse {
 }
 
 export async function generateDemoPreview(url: string): Promise<DemoPreviewResponse> {
+  const token = getAuthToken()
   return fetchApi<DemoPreviewResponse>('/api/v1/demo/preview', {
     method: 'POST',
     body: JSON.stringify({ url }),
-  }, false) // No auth required
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  }, false) // Public endpoint; attach auth when available for user-scoped activity logs
 }
 
 // ============================================================================
@@ -1182,11 +1184,13 @@ export interface DemoPreviewResponseV2 extends DemoPreviewResponse {
  * @returns Enhanced preview response with brand elements
  */
 export async function generateDemoPreviewV2(url: string): Promise<DemoPreviewResponseV2> {
+  const token = getAuthToken()
   return fetchApi<DemoPreviewResponseV2>('/api/v1/demo-v2/preview', {
     method: 'POST',
     body: JSON.stringify({ url }),
     timeout: 300000, // 5 minutes for preview generation (can take 30-90s, with buffer for slow pages)
-  }, false) // No auth required
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  }, false) // Public endpoint; attach auth when available for user-scoped activity logs
 }
 
 // Async demo job endpoints (work around Railway's 60-second load balancer timeout)
@@ -1206,18 +1210,22 @@ export interface DemoJobStatusResponse {
 }
 
 export async function createDemoJob(url: string): Promise<DemoJobResponse> {
+  const token = getAuthToken()
   return fetchApi<DemoJobResponse>('/api/v1/demo-v2/jobs', {
     method: 'POST',
     body: JSON.stringify({ url }),
     timeout: 30000, // 30 seconds for job creation (should be instant)
-  }, false) // No auth required
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  }, false) // Public endpoint; attach auth when available for user-scoped activity logs
 }
 
 export async function getDemoJobStatus(jobId: string): Promise<DemoJobStatusResponse> {
+  const token = getAuthToken()
   return fetchApi<DemoJobStatusResponse>(`/api/v1/demo-v2/jobs/${jobId}/status`, {
     method: 'GET',
     timeout: 10000, // 10 seconds for status check
-  }, false) // No auth required
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  }, false) // Public endpoint; attach auth when available for user-scoped activity logs
 }
 
 // Sites Management
