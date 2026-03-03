@@ -92,7 +92,7 @@ def create_preview_job(
             current_org.id,  # Pass organization_id
             sanitized_url,
             request.domain,
-            job_timeout='5m'  # 5 minute timeout for AI generation
+            job_timeout='10m'  # 10 minute timeout for AI generation
         )
         
         # Log job enqueue

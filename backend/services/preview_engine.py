@@ -314,7 +314,7 @@ class PreviewEngineConfig:
     
     # Error handling
     max_retries: int = 2
-    timeout_seconds: int = 300
+    timeout_seconds: int = 600
     
     # Quality thresholds
     min_content_confidence: float = 0.3  # Minimum confidence to proceed
