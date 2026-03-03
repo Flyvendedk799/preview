@@ -136,6 +136,7 @@ class DemoPreviewResponse(BaseModel):
     # ===== DEMO METADATA =====
     is_demo: bool = True
     message: str = "AI-reconstructed preview using multi-stage reasoning with Design DNA."
+    trace_url: Optional[str] = None
 
 
 class DemoJobRequest(BaseModel):
@@ -512,7 +513,8 @@ def generate_demo_preview_optimized(
             
             # Metadata
             is_demo=True,
-            message=engine_result.message
+            message=engine_result.message,
+            trace_url=engine_result.trace_url
         )
 
         # Cache the result (skip if disabled via admin toggle)

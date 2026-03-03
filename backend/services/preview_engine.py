@@ -52,6 +52,7 @@ from backend.services.preview_cache import (
     get_redis_client,
     CacheConfig
 )
+from backend.services.preview_tracer import PreviewTracer
 # Framework-based quality system
 from backend.services.multi_modal_fusion import MultiModalFusionEngine
 
@@ -355,6 +356,7 @@ class PreviewEngineResult:
     processing_time_ms: int = 0
     is_demo: bool = False
     message: str = ""
+    trace_url: Optional[str] = None
     
     # Quality metrics
     quality_scores: Dict[str, float] = field(default_factory=dict)
@@ -520,6 +522,10 @@ class PreviewEngine:
         self.logger.info(f"🚀 [7X] Starting enhanced preview generation for: {url_str}")
         self._update_progress(0.02, "Initializing enhanced engine...")
         
+        # Initialize the Tracer
+        tracer = PreviewTracer(url_str)
+        tracer.add_step("Initialization", "Preview Engine started")
+        
         # 7X PERFORMANCE: Check cache first (only if enabled)
         if self.config.enable_cache:
             cached_result = self._check_cache(url_str, cache_key_prefix)
@@ -538,12 +544,17 @@ class PreviewEngine:
         try:
             # 7X PERFORMANCE: Use triple parallelization when possible
             screenshot_bytes, html_content = self._capture_page(url_str)
+            tracer.add_step("Capture Page", 
+                            details=f"HTML extracted: {len(html_content)} characters", 
+                            image_base64=__import__('base64').b64encode(screenshot_bytes).decode('utf-8'))
             
             # 7X INTELLIGENCE: Classify page type using intelligent multi-signal analysis
             self._update_progress(0.15, "Classifying page type...")
             page_classification = self._classify_page_intelligently(
                 url_str, html_content, screenshot_bytes
             )
+            tracer.add_step("Page Classification", 
+                            json_data={"primary_category": page_classification.primary_category.value, "confidence": page_classification.confidence, "reasoning": page_classification.reasoning})
             self.logger.info(
                 f"🧠 [7X] Page classified as {page_classification.primary_category.value} "
                 f"(confidence: {page_classification.confidence:.2f})"
@@ -600,9 +611,11 @@ class PreviewEngine:
                             self.logger.info(f"✅ [7X] Screenshot uploaded")
                         elif task_name == "brand":
                             brand_elements = future.result()
+                            tracer.add_step("Brand Extraction", json_data=brand_elements)
                             self.logger.info(f"✅ [7X] Brand extraction complete")
                         elif task_name == "ai":
                             ai_result = future.result()
+                            tracer.add_step("AI Extraction & DNA", json_data=ai_result)
                             self.logger.info(f"✅ [7X] AI reasoning complete")
                         elif task_name == "ui_elements":
                             ui_elements = future.result()
@@ -614,6 +627,7 @@ class PreviewEngine:
             composited_image_url = self._generate_composited_image(
                 screenshot_bytes, url_str, ai_result, brand_elements, page_classification
             )
+            tracer.add_step("Composition Pass", details="Generated initial layout", image_url=composited_image_url)
             
             # Step 5: Build result (with classification-aware template and UI elements)
             result = self._build_result(
@@ -680,10 +694,12 @@ class PreviewEngine:
                                 "quality_level": quality_metrics.quality_level.value,
                                 "gate_status": quality_metrics.gate_status.value
                             }
+                            tracer.add_step("Quality Validated", details="Passed Quality Gates", json_data=result.quality_scores)
                             self.logger.info(f"✅ Quality gates passed on attempt {retry_count + 1}")
                             break
                         
                         # Quality failed - check if we should retry
+                        tracer.add_step("Quality Failed", details=f"Failed attempt {retry_count + 1}", error=f"Fidelity score: {quality_metrics.design_fidelity_score:.2f}")
                         self.logger.warning(
                             f"⚠️  Quality gates failed (attempt {retry_count + 1}/{max_retries + 1}): "
                             f"overall={quality_metrics.overall_quality_score:.2f}, "
@@ -860,6 +876,7 @@ class PreviewEngine:
                         if not self.quality_orchestrator.enforce_quality_gates(fallback_quality):
                             self.logger.warning("Fallback preview also failed quality - this should not happen")
                     
+                    tracer.add_step("Fallback Hit", details="Executing graceful degradation UI fallback due to gate failures")
                     result = fallback_result
                     result.warnings.append("Preview generated using fallback due to quality gate failures")
                     result.quality_scores = {
@@ -886,10 +903,17 @@ class PreviewEngine:
             self._update_progress(1.0, "Preview generation complete!")
             self.logger.info(f"🎉 [7X] Preview generated in {result.processing_time_ms}ms")
             
+            # Finalize Tracing Header End
+            trace_url = tracer.upload_trace()
+            result.trace_url = trace_url
+
             return result
             
         except Exception as e:
             error_msg = str(e)
+            tracer.add_step("Fatal Error", error=error_msg)
+            tracer.upload_trace()
+            
             self.logger.error(f"❌ [7X] Preview generation failed: {error_msg}", exc_info=True)
             self._update_progress(0.0, f"Failed: {error_msg}")
             
