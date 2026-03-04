@@ -342,15 +342,15 @@ def apply_design_improvements(
     # Determine sharpening intensity
     if headline_impact == 'very_weak' or readability == 'poor' or typography_score < 0.4:
         logger.info(f"🎨 [AI_DESIGN] Applying STRONG text sharpening")
-        enhanced_image = enhanced_image.filter(ImageFilter.UnsharpMask(radius=2.5, percent=200, threshold=2))
+        enhanced_image = enhanced_image.filter(ImageFilter.UnsharpMask(radius=1.5, percent=100, threshold=3))
         applied_improvements.append("Applied strong text sharpening")
     elif headline_impact == 'weak' or readability == 'fair' or needs_sharpening or typography_score < 0.6:
         logger.info(f"🎨 [AI_DESIGN] Applying medium text sharpening")
-        enhanced_image = enhanced_image.filter(ImageFilter.UnsharpMask(radius=2.0, percent=160, threshold=2))
+        enhanced_image = enhanced_image.filter(ImageFilter.UnsharpMask(radius=1.2, percent=80, threshold=3))
         applied_improvements.append("Applied text sharpening")
     elif typography_score < 0.8:
         logger.info(f"🎨 [AI_DESIGN] Applying light text sharpening")
-        enhanced_image = enhanced_image.filter(ImageFilter.UnsharpMask(radius=1.5, percent=120, threshold=2))
+        enhanced_image = enhanced_image.filter(ImageFilter.UnsharpMask(radius=1.0, percent=60, threshold=3))
         applied_improvements.append("Applied light sharpening")
     
     # ==================== PROCESS AI ENHANCEMENT ACTIONS ====================

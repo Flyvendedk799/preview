@@ -1975,9 +1975,20 @@ class PreviewEngine:
                     if "type" in item and item["type"] is not None:
                         safe_item["type"] = str(item["type"])
                     if "value" in item and item["value"] is not None:
-                        safe_item["value"] = str(item["value"])
-                        self.logger.info(f"🔍 DEBUG: Converting credibility value {repr(item['value'])} ({type(item['value'])}) -> {repr(safe_item['value'])}")
-                    if safe_item:  # Only add if we have valid data
+                        val = item["value"]
+                        if isinstance(val, dict):
+                            self.logger.info(f"🔍 DEBUG: Skipping raw dictionary credibility value: {val}")
+                            continue
+                        
+                        val_str = str(val).strip()
+                        if val_str.startswith("{") and val_str.endswith("}"):
+                            self.logger.info(f"🔍 DEBUG: Skipping stringified dictionary credibility value: {val_str}")
+                            continue
+                            
+                        if val_str and val_str.lower() != "none" and val_str.lower() != "null":
+                            safe_item["value"] = val_str
+                            self.logger.info(f"🔍 DEBUG: Converting credibility value {repr(val)} ({type(val)}) -> {repr(safe_item['value'])}")
+                    if safe_item and "value" in safe_item:  # Only add if we have valid data
                         safe_ai_result["credibility_items"].append(safe_item)
             
             self.logger.info(f"🔍 DEBUG: Safe AI result - credibility_items: {safe_ai_result['credibility_items']}")

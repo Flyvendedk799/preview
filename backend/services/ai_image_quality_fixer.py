@@ -237,11 +237,11 @@ def apply_ai_recommended_fixes(
         logger.info(f"🔧 Applying sharpening for blurry text (severity: {text_blur_severity})")
         # Apply unsharp mask to improve text clarity
         if text_blur_severity == "severe":
-            fixed_image = fixed_image.filter(ImageFilter.UnsharpMask(radius=2.5, percent=200, threshold=2))
+            fixed_image = fixed_image.filter(ImageFilter.UnsharpMask(radius=1.5, percent=100, threshold=3))
         elif text_blur_severity == "moderate":
-            fixed_image = fixed_image.filter(ImageFilter.UnsharpMask(radius=2.0, percent=150, threshold=2))
+            fixed_image = fixed_image.filter(ImageFilter.UnsharpMask(radius=1.2, percent=80, threshold=3))
         else:
-            fixed_image = fixed_image.filter(ImageFilter.UnsharpMask(radius=1.5, percent=120, threshold=2))
+            fixed_image = fixed_image.filter(ImageFilter.UnsharpMask(radius=1.0, percent=60, threshold=3))
         applied_fixes.append(f"Applied text sharpening ({text_blur_severity})")
     
     # Check for color artifacts - SKIP smoothing if banding is detected
@@ -292,7 +292,7 @@ def apply_ai_recommended_fixes(
             fixed_image = enhancer.enhance(1.15)
             applied_fixes.append("Boosted color saturation")
         elif fix == "sharpen_text" and "sharpening" not in str(applied_fixes).lower():
-            fixed_image = fixed_image.filter(ImageFilter.UnsharpMask(radius=1.5, percent=120, threshold=2))
+            fixed_image = fixed_image.filter(ImageFilter.UnsharpMask(radius=1.0, percent=70, threshold=3))
             applied_fixes.append("Sharpened text (AI recommended)")
     
     # CRITICAL: Apply dithering LAST after all other fixes
