@@ -1573,6 +1573,10 @@ class AdaptiveTemplateEngine:
             
             logger.info(f"🎨 [STEP 2/10] Final gradient: angle={angle}°, style={gradient_style}")
             
+            # STORE ACTUAL BACKGROUND COLOR FOR TEXT CONTRAST CALCULATIONS
+            if gradient_colors and len(gradient_colors) > 0:
+                self._actual_rendered_bg_color = gradient_colors[0]
+            
             import numpy as np
             img_array_before_gradient = np.array(image)
             unique_before_gradient = len(np.unique(img_array_before_gradient.reshape(-1, 3), axis=0))
@@ -2002,7 +2006,7 @@ class AdaptiveTemplateEngine:
             logger.info(f"🎨 Headline text color: AI DIRECTOR chose {text_color}")
         else:
             # Fallback: Use ACTUAL RENDERED BACKGROUND for text color
-            actual_bg = self.colors.background
+            actual_bg = getattr(self, '_actual_rendered_bg_color', self.colors.background)
             actual_bg_luminance = (actual_bg[0] * 299 + actual_bg[1] * 587 + actual_bg[2] * 114) / 255000
             is_light_bg = actual_bg_luminance > 0.5
             
@@ -2316,7 +2320,7 @@ class AdaptiveTemplateEngine:
         saturation_character = getattr(self.dna.color_psychology, 'saturation_character', 'balanced')
         
         # Calculate luminance from ACTUAL RENDERED BACKGROUND
-        actual_bg = self.colors.background
+        actual_bg = getattr(self, '_actual_rendered_bg_color', self.colors.background)
         actual_bg_luminance = (actual_bg[0] * 299 + actual_bg[1] * 587 + actual_bg[2] * 114) / 255000
         is_light_bg = actual_bg_luminance > 0.5
         
