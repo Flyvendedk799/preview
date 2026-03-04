@@ -1271,9 +1271,56 @@ class PreviewEngine:
                     dom_data=dom_data
                 )
                 if orchestration_result.success:
-                    result_dict = orchestration_result.fused_result
-                    # Ensure standard keys are present
-                    result_dict["reasoning_confidence"] = orchestration_result.quality_score
+                    fused_data = orchestration_result.fused_result
+                    
+                    # Map the new context_fusion format to the old standard format expected by preview_engine
+                    fused_content = fused_data.get("fused_content", {})
+                    fused_design = fused_data.get("fused_design", {})
+                    fused_layout = fused_data.get("fused_layout", {})
+                    
+                    title = fused_content.get("title") or fused_data.get("title", "Untitled")
+                    description = fused_content.get("description") or fused_data.get("description", "")
+                    
+                    # Social proof handling
+                    credibility_items = []
+                    social_proof = fused_content.get("social_proof")
+                    if social_proof and social_proof not in ["None", "null", "", None]:
+                        credibility_items.append({"type": "metric", "value": str(social_proof)})
+                    
+                    if "social_proof" in fused_data and isinstance(fused_data["social_proof"], list):
+                        for p in fused_data["social_proof"]:
+                            credibility_items.append({"type": "metric", "value": str(p)})
+                    
+                    page_type = str(fused_content.get("page_type") or fused_data.get("page_type") or "landing").lower()
+                    template_type = "landing"
+                    if "saas" in page_type or "tool" in page_type: template_type = "saas"
+                    elif "product" in page_type or "ecommerce" in page_type: template_type = "product"
+                    elif "profile" in page_type or "personal" in page_type: template_type = "profile"
+                    
+                    result_dict = {
+                        "title": title,
+                        "subtitle": None,
+                        "description": description,
+                        "tags": fused_data.get("keywords", []) or fused_data.get("tags", []),
+                        "context_items": [],
+                        "credibility_items": credibility_items,
+                        "cta_text": fused_data.get("primary_cta") or fused_data.get("cta_text"),
+                        "primary_image_base64": fused_data.get("primary_image_base64"),
+                        "blueprint": {
+                            "template_type": template_type,
+                            "primary_color": fused_design.get("primary_color", "#2563EB"),
+                            "secondary_color": fused_design.get("secondary_color", "#1E40AF"),
+                            "accent_color": fused_design.get("accent_color", "#F59E0B"),
+                            "coherence_score": orchestration_result.quality_score,
+                            "balance_score": orchestration_result.quality_score,
+                            "clarity_score": orchestration_result.quality_score,
+                            "overall_quality": self._map_quality_level(orchestration_result.quality_score),
+                            "layout_reasoning": str(fused_layout.get("visual_hierarchy", "")),
+                            "composition_notes": str(fused_design.get("design_philosophy", ""))
+                        },
+                        "reasoning_confidence": orchestration_result.quality_score,
+                        "design_dna": fused_data.get("design_dna", {})
+                    }
                     return result_dict
                 else:
                     self.logger.warning(f"⚠️ Orchestrator failed gracefully: {orchestration_result.errors}")
