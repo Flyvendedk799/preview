@@ -867,6 +867,8 @@ class PreviewEngine:
                             "cta_text": fallback_result.cta_text,
                             "blueprint": fallback_result.blueprint,
                             "reasoning_confidence": 0.8,  # Fallback has high confidence
+                            "analysis_confidence": 0.8,
+                            "the_hook": fallback_result.title
                         }
                         
                         fallback_quality = self.quality_orchestrator.assess_quality(
@@ -1845,6 +1847,7 @@ class PreviewEngine:
                                 "visual_effects": design_dna_obj.visual_effects.to_dict() if hasattr(design_dna_obj, 'visual_effects') else {},
                                 "layout_patterns": design_dna_obj.layout_patterns.to_dict() if hasattr(design_dna_obj, 'layout_patterns') else {}
                             }
+                            ai_result["design_dna"] = design_dna
                             self.logger.info(f"✅ Comprehensive Design DNA extracted: style={design_dna.get('style', 'unknown')}, signature={design_dna.get('unique_visual_signature', 'none')[:50]}")
                         except Exception as e:
                             self.logger.warning(f"Design DNA extraction failed: {e}")
@@ -1934,6 +1937,7 @@ class PreviewEngine:
                         "visual_effects": design_dna_obj.visual_effects.to_dict() if hasattr(design_dna_obj, 'visual_effects') else {},
                         "layout_patterns": design_dna_obj.layout_patterns.to_dict() if hasattr(design_dna_obj, 'layout_patterns') else {}
                     }
+                    ai_result["design_dna"] = design_dna_for_image
                     self.logger.info(f"✅ Comprehensive Design DNA extracted for image: style={design_dna_for_image.get('style', 'unknown')}")
                 except Exception as e:
                     self.logger.warning(f"Design DNA extraction for image failed: {e}")
