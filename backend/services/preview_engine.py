@@ -1741,6 +1741,7 @@ class PreviewEngine:
             return None
         
         self._update_progress(0.80, "Generating final preview image...")
+        composited_image_url = None
         
         try:
             self.logger.info("🎨 Generating brand-aligned preview image")
@@ -1958,10 +1959,34 @@ class PreviewEngine:
         # Fallback: Use screenshot as composited image if all else fails
         if not composited_image_url and screenshot_bytes:
             try:
-                self.logger.warning("⚠️  Using screenshot as fallback composited image")
+                self.logger.warning("⚠️  Using screenshot as fallback composited image, cropping to OG Size")
+                from PIL import Image
+                from io import BytesIO
+                
+                # Crop to standard OG Image dimensions (1200x630) to prevent mobile layout breaking
+                img = Image.open(BytesIO(screenshot_bytes)).convert("RGB")
+                target_ratio = 1200 / 630
+                img_ratio = img.width / img.height
+                
+                if img_ratio > target_ratio:
+                    new_height = 630
+                    new_width = int(new_height * img_ratio)
+                    img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                    left = (new_width - 1200) // 2
+                    img = img.crop((left, 0, left + 1200, 630))
+                else:
+                    new_width = 1200
+                    new_height = int(new_width / img_ratio)
+                    img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                    img = img.crop((0, 0, 1200, 630))
+                    
+                out_buffer = BytesIO()
+                img.save(out_buffer, format="PNG")
+                fallback_bytes = out_buffer.getvalue()
+
                 filename = f"previews/fallback/{uuid4()}.png"
                 composited_image_url = upload_file_to_r2(
-                    screenshot_bytes,
+                    fallback_bytes,
                     filename,
                     "image/png"
                 )
@@ -2239,12 +2264,35 @@ class PreviewEngine:
             except Exception as img_error:
                 self.logger.warning(f"Fallback image generation failed: {img_error}")
         
-        # If still no composited image, use screenshot as last resort
         if not composited_image_url and screenshot_bytes:
             try:
+                from PIL import Image
+                from io import BytesIO
+                
+                # Crop to standard OG Image dimensions (1200x630)
+                img = Image.open(BytesIO(screenshot_bytes)).convert("RGB")
+                target_ratio = 1200 / 630
+                img_ratio = img.width / img.height
+                
+                if img_ratio > target_ratio:
+                    new_height = 630
+                    new_width = int(new_height * img_ratio)
+                    img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                    left = (new_width - 1200) // 2
+                    img = img.crop((left, 0, left + 1200, 630))
+                else:
+                    new_width = 1200
+                    new_height = int(new_width / img_ratio)
+                    img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                    img = img.crop((0, 0, 1200, 630))
+                    
+                out_buffer = BytesIO()
+                img.save(out_buffer, format="PNG")
+                fallback_bytes = out_buffer.getvalue()
+
                 filename = f"previews/fallback/{uuid4()}.png"
                 composited_image_url = upload_file_to_r2(
-                    screenshot_bytes,
+                    fallback_bytes,
                     filename,
                     "image/png"
                 )

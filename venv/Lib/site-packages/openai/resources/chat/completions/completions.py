@@ -301,6 +301,9 @@ class Completions(SyncAPIResource):
         unsupported parameters in reasoning models,
         [refer to the reasoning guide](https://platform.openai.com/docs/guides/reasoning).
 
+        Returns a chat completion object, or a streamed sequence of chat completion
+        chunk objects if the request is streamed.
+
         Args:
           messages: A list of messages comprising the conversation so far. Depending on the
               [model](https://platform.openai.com/docs/models) you use, different message
@@ -411,9 +414,9 @@ class Completions(SyncAPIResource):
 
           reasoning_effort: Constrains effort on reasoning for
               [reasoning models](https://platform.openai.com/docs/guides/reasoning). Currently
-              supported values are `none`, `minimal`, `low`, `medium`, and `high`. Reducing
-              reasoning effort can result in faster responses and fewer tokens used on
-              reasoning in a response.
+              supported values are `none`, `minimal`, `low`, `medium`, `high`, and `xhigh`.
+              Reducing reasoning effort can result in faster responses and fewer tokens used
+              on reasoning in a response.
 
               - `gpt-5.1` defaults to `none`, which does not perform reasoning. The supported
                 reasoning values for `gpt-5.1` are `none`, `low`, `medium`, and `high`. Tool
@@ -421,6 +424,7 @@ class Completions(SyncAPIResource):
               - All models before `gpt-5.1` default to `medium` reasoning effort, and do not
                 support `none`.
               - The `gpt-5-pro` model defaults to (and only supports) `high` reasoning effort.
+              - `xhigh` is supported for all models after `gpt-5.1-codex-max`.
 
           response_format: An object specifying the format that the model must output.
 
@@ -435,8 +439,9 @@ class Completions(SyncAPIResource):
 
           safety_identifier: A stable identifier used to help detect users of your application that may be
               violating OpenAI's usage policies. The IDs should be a string that uniquely
-              identifies each user. We recommend hashing their username or email address, in
-              order to avoid sending us any identifying information.
+              identifies each user, with a maximum length of 64 characters. We recommend
+              hashing their username or email address, in order to avoid sending us any
+              identifying information.
               [Learn more](https://platform.openai.com/docs/guides/safety-best-practices#safety-identifiers).
 
           seed: This feature is in Beta. If specified, our system will make a best effort to
@@ -602,6 +607,9 @@ class Completions(SyncAPIResource):
         unsupported parameters in reasoning models,
         [refer to the reasoning guide](https://platform.openai.com/docs/guides/reasoning).
 
+        Returns a chat completion object, or a streamed sequence of chat completion
+        chunk objects if the request is streamed.
+
         Args:
           messages: A list of messages comprising the conversation so far. Depending on the
               [model](https://platform.openai.com/docs/models) you use, different message
@@ -721,9 +729,9 @@ class Completions(SyncAPIResource):
 
           reasoning_effort: Constrains effort on reasoning for
               [reasoning models](https://platform.openai.com/docs/guides/reasoning). Currently
-              supported values are `none`, `minimal`, `low`, `medium`, and `high`. Reducing
-              reasoning effort can result in faster responses and fewer tokens used on
-              reasoning in a response.
+              supported values are `none`, `minimal`, `low`, `medium`, `high`, and `xhigh`.
+              Reducing reasoning effort can result in faster responses and fewer tokens used
+              on reasoning in a response.
 
               - `gpt-5.1` defaults to `none`, which does not perform reasoning. The supported
                 reasoning values for `gpt-5.1` are `none`, `low`, `medium`, and `high`. Tool
@@ -731,6 +739,7 @@ class Completions(SyncAPIResource):
               - All models before `gpt-5.1` default to `medium` reasoning effort, and do not
                 support `none`.
               - The `gpt-5-pro` model defaults to (and only supports) `high` reasoning effort.
+              - `xhigh` is supported for all models after `gpt-5.1-codex-max`.
 
           response_format: An object specifying the format that the model must output.
 
@@ -745,8 +754,9 @@ class Completions(SyncAPIResource):
 
           safety_identifier: A stable identifier used to help detect users of your application that may be
               violating OpenAI's usage policies. The IDs should be a string that uniquely
-              identifies each user. We recommend hashing their username or email address, in
-              order to avoid sending us any identifying information.
+              identifies each user, with a maximum length of 64 characters. We recommend
+              hashing their username or email address, in order to avoid sending us any
+              identifying information.
               [Learn more](https://platform.openai.com/docs/guides/safety-best-practices#safety-identifiers).
 
           seed: This feature is in Beta. If specified, our system will make a best effort to
@@ -903,6 +913,9 @@ class Completions(SyncAPIResource):
         unsupported parameters in reasoning models,
         [refer to the reasoning guide](https://platform.openai.com/docs/guides/reasoning).
 
+        Returns a chat completion object, or a streamed sequence of chat completion
+        chunk objects if the request is streamed.
+
         Args:
           messages: A list of messages comprising the conversation so far. Depending on the
               [model](https://platform.openai.com/docs/models) you use, different message
@@ -1022,9 +1035,9 @@ class Completions(SyncAPIResource):
 
           reasoning_effort: Constrains effort on reasoning for
               [reasoning models](https://platform.openai.com/docs/guides/reasoning). Currently
-              supported values are `none`, `minimal`, `low`, `medium`, and `high`. Reducing
-              reasoning effort can result in faster responses and fewer tokens used on
-              reasoning in a response.
+              supported values are `none`, `minimal`, `low`, `medium`, `high`, and `xhigh`.
+              Reducing reasoning effort can result in faster responses and fewer tokens used
+              on reasoning in a response.
 
               - `gpt-5.1` defaults to `none`, which does not perform reasoning. The supported
                 reasoning values for `gpt-5.1` are `none`, `low`, `medium`, and `high`. Tool
@@ -1032,6 +1045,7 @@ class Completions(SyncAPIResource):
               - All models before `gpt-5.1` default to `medium` reasoning effort, and do not
                 support `none`.
               - The `gpt-5-pro` model defaults to (and only supports) `high` reasoning effort.
+              - `xhigh` is supported for all models after `gpt-5.1-codex-max`.
 
           response_format: An object specifying the format that the model must output.
 
@@ -1046,8 +1060,9 @@ class Completions(SyncAPIResource):
 
           safety_identifier: A stable identifier used to help detect users of your application that may be
               violating OpenAI's usage policies. The IDs should be a string that uniquely
-              identifies each user. We recommend hashing their username or email address, in
-              order to avoid sending us any identifying information.
+              identifies each user, with a maximum length of 64 characters. We recommend
+              hashing their username or email address, in order to avoid sending us any
+              identifying information.
               [Learn more](https://platform.openai.com/docs/guides/safety-best-practices#safety-identifiers).
 
           seed: This feature is in Beta. If specified, our system will make a best effort to
@@ -1343,12 +1358,10 @@ class Completions(SyncAPIResource):
 
           limit: Number of Chat Completions to retrieve.
 
-          metadata: Set of 16 key-value pairs that can be attached to an object. This can be useful
-              for storing additional information about the object in a structured format, and
-              querying for objects via API or the dashboard.
+          metadata:
+              A list of metadata keys to filter the Chat Completions by. Example:
 
-              Keys are strings with a maximum length of 64 characters. Values are strings with
-              a maximum length of 512 characters.
+              `metadata[key1]=value1&metadata[key2]=value2`
 
           model: The model used to generate the Chat Completions.
 
@@ -1784,6 +1797,9 @@ class AsyncCompletions(AsyncAPIResource):
         unsupported parameters in reasoning models,
         [refer to the reasoning guide](https://platform.openai.com/docs/guides/reasoning).
 
+        Returns a chat completion object, or a streamed sequence of chat completion
+        chunk objects if the request is streamed.
+
         Args:
           messages: A list of messages comprising the conversation so far. Depending on the
               [model](https://platform.openai.com/docs/models) you use, different message
@@ -1894,9 +1910,9 @@ class AsyncCompletions(AsyncAPIResource):
 
           reasoning_effort: Constrains effort on reasoning for
               [reasoning models](https://platform.openai.com/docs/guides/reasoning). Currently
-              supported values are `none`, `minimal`, `low`, `medium`, and `high`. Reducing
-              reasoning effort can result in faster responses and fewer tokens used on
-              reasoning in a response.
+              supported values are `none`, `minimal`, `low`, `medium`, `high`, and `xhigh`.
+              Reducing reasoning effort can result in faster responses and fewer tokens used
+              on reasoning in a response.
 
               - `gpt-5.1` defaults to `none`, which does not perform reasoning. The supported
                 reasoning values for `gpt-5.1` are `none`, `low`, `medium`, and `high`. Tool
@@ -1904,6 +1920,7 @@ class AsyncCompletions(AsyncAPIResource):
               - All models before `gpt-5.1` default to `medium` reasoning effort, and do not
                 support `none`.
               - The `gpt-5-pro` model defaults to (and only supports) `high` reasoning effort.
+              - `xhigh` is supported for all models after `gpt-5.1-codex-max`.
 
           response_format: An object specifying the format that the model must output.
 
@@ -1918,8 +1935,9 @@ class AsyncCompletions(AsyncAPIResource):
 
           safety_identifier: A stable identifier used to help detect users of your application that may be
               violating OpenAI's usage policies. The IDs should be a string that uniquely
-              identifies each user. We recommend hashing their username or email address, in
-              order to avoid sending us any identifying information.
+              identifies each user, with a maximum length of 64 characters. We recommend
+              hashing their username or email address, in order to avoid sending us any
+              identifying information.
               [Learn more](https://platform.openai.com/docs/guides/safety-best-practices#safety-identifiers).
 
           seed: This feature is in Beta. If specified, our system will make a best effort to
@@ -2085,6 +2103,9 @@ class AsyncCompletions(AsyncAPIResource):
         unsupported parameters in reasoning models,
         [refer to the reasoning guide](https://platform.openai.com/docs/guides/reasoning).
 
+        Returns a chat completion object, or a streamed sequence of chat completion
+        chunk objects if the request is streamed.
+
         Args:
           messages: A list of messages comprising the conversation so far. Depending on the
               [model](https://platform.openai.com/docs/models) you use, different message
@@ -2204,9 +2225,9 @@ class AsyncCompletions(AsyncAPIResource):
 
           reasoning_effort: Constrains effort on reasoning for
               [reasoning models](https://platform.openai.com/docs/guides/reasoning). Currently
-              supported values are `none`, `minimal`, `low`, `medium`, and `high`. Reducing
-              reasoning effort can result in faster responses and fewer tokens used on
-              reasoning in a response.
+              supported values are `none`, `minimal`, `low`, `medium`, `high`, and `xhigh`.
+              Reducing reasoning effort can result in faster responses and fewer tokens used
+              on reasoning in a response.
 
               - `gpt-5.1` defaults to `none`, which does not perform reasoning. The supported
                 reasoning values for `gpt-5.1` are `none`, `low`, `medium`, and `high`. Tool
@@ -2214,6 +2235,7 @@ class AsyncCompletions(AsyncAPIResource):
               - All models before `gpt-5.1` default to `medium` reasoning effort, and do not
                 support `none`.
               - The `gpt-5-pro` model defaults to (and only supports) `high` reasoning effort.
+              - `xhigh` is supported for all models after `gpt-5.1-codex-max`.
 
           response_format: An object specifying the format that the model must output.
 
@@ -2228,8 +2250,9 @@ class AsyncCompletions(AsyncAPIResource):
 
           safety_identifier: A stable identifier used to help detect users of your application that may be
               violating OpenAI's usage policies. The IDs should be a string that uniquely
-              identifies each user. We recommend hashing their username or email address, in
-              order to avoid sending us any identifying information.
+              identifies each user, with a maximum length of 64 characters. We recommend
+              hashing their username or email address, in order to avoid sending us any
+              identifying information.
               [Learn more](https://platform.openai.com/docs/guides/safety-best-practices#safety-identifiers).
 
           seed: This feature is in Beta. If specified, our system will make a best effort to
@@ -2386,6 +2409,9 @@ class AsyncCompletions(AsyncAPIResource):
         unsupported parameters in reasoning models,
         [refer to the reasoning guide](https://platform.openai.com/docs/guides/reasoning).
 
+        Returns a chat completion object, or a streamed sequence of chat completion
+        chunk objects if the request is streamed.
+
         Args:
           messages: A list of messages comprising the conversation so far. Depending on the
               [model](https://platform.openai.com/docs/models) you use, different message
@@ -2505,9 +2531,9 @@ class AsyncCompletions(AsyncAPIResource):
 
           reasoning_effort: Constrains effort on reasoning for
               [reasoning models](https://platform.openai.com/docs/guides/reasoning). Currently
-              supported values are `none`, `minimal`, `low`, `medium`, and `high`. Reducing
-              reasoning effort can result in faster responses and fewer tokens used on
-              reasoning in a response.
+              supported values are `none`, `minimal`, `low`, `medium`, `high`, and `xhigh`.
+              Reducing reasoning effort can result in faster responses and fewer tokens used
+              on reasoning in a response.
 
               - `gpt-5.1` defaults to `none`, which does not perform reasoning. The supported
                 reasoning values for `gpt-5.1` are `none`, `low`, `medium`, and `high`. Tool
@@ -2515,6 +2541,7 @@ class AsyncCompletions(AsyncAPIResource):
               - All models before `gpt-5.1` default to `medium` reasoning effort, and do not
                 support `none`.
               - The `gpt-5-pro` model defaults to (and only supports) `high` reasoning effort.
+              - `xhigh` is supported for all models after `gpt-5.1-codex-max`.
 
           response_format: An object specifying the format that the model must output.
 
@@ -2529,8 +2556,9 @@ class AsyncCompletions(AsyncAPIResource):
 
           safety_identifier: A stable identifier used to help detect users of your application that may be
               violating OpenAI's usage policies. The IDs should be a string that uniquely
-              identifies each user. We recommend hashing their username or email address, in
-              order to avoid sending us any identifying information.
+              identifies each user, with a maximum length of 64 characters. We recommend
+              hashing their username or email address, in order to avoid sending us any
+              identifying information.
               [Learn more](https://platform.openai.com/docs/guides/safety-best-practices#safety-identifiers).
 
           seed: This feature is in Beta. If specified, our system will make a best effort to
@@ -2826,12 +2854,10 @@ class AsyncCompletions(AsyncAPIResource):
 
           limit: Number of Chat Completions to retrieve.
 
-          metadata: Set of 16 key-value pairs that can be attached to an object. This can be useful
-              for storing additional information about the object in a structured format, and
-              querying for objects via API or the dashboard.
+          metadata:
+              A list of metadata keys to filter the Chat Completions by. Example:
 
-              Keys are strings with a maximum length of 64 characters. Values are strings with
-              a maximum length of 512 characters.
+              `metadata[key1]=value1&metadata[key2]=value2`
 
           model: The model used to generate the Chat Completions.
 

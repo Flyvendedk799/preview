@@ -169,9 +169,9 @@ class Runs(SyncAPIResource):
 
           reasoning_effort: Constrains effort on reasoning for
               [reasoning models](https://platform.openai.com/docs/guides/reasoning). Currently
-              supported values are `none`, `minimal`, `low`, `medium`, and `high`. Reducing
-              reasoning effort can result in faster responses and fewer tokens used on
-              reasoning in a response.
+              supported values are `none`, `minimal`, `low`, `medium`, `high`, and `xhigh`.
+              Reducing reasoning effort can result in faster responses and fewer tokens used
+              on reasoning in a response.
 
               - `gpt-5.1` defaults to `none`, which does not perform reasoning. The supported
                 reasoning values for `gpt-5.1` are `none`, `low`, `medium`, and `high`. Tool
@@ -179,6 +179,7 @@ class Runs(SyncAPIResource):
               - All models before `gpt-5.1` default to `medium` reasoning effort, and do not
                 support `none`.
               - The `gpt-5-pro` model defaults to (and only supports) `high` reasoning effort.
+              - `xhigh` is supported for all models after `gpt-5.1-codex-max`.
 
           response_format: Specifies the format that the model must output. Compatible with
               [GPT-4o](https://platform.openai.com/docs/models#gpt-4o),
@@ -330,9 +331,9 @@ class Runs(SyncAPIResource):
 
           reasoning_effort: Constrains effort on reasoning for
               [reasoning models](https://platform.openai.com/docs/guides/reasoning). Currently
-              supported values are `none`, `minimal`, `low`, `medium`, and `high`. Reducing
-              reasoning effort can result in faster responses and fewer tokens used on
-              reasoning in a response.
+              supported values are `none`, `minimal`, `low`, `medium`, `high`, and `xhigh`.
+              Reducing reasoning effort can result in faster responses and fewer tokens used
+              on reasoning in a response.
 
               - `gpt-5.1` defaults to `none`, which does not perform reasoning. The supported
                 reasoning values for `gpt-5.1` are `none`, `low`, `medium`, and `high`. Tool
@@ -340,6 +341,7 @@ class Runs(SyncAPIResource):
               - All models before `gpt-5.1` default to `medium` reasoning effort, and do not
                 support `none`.
               - The `gpt-5-pro` model defaults to (and only supports) `high` reasoning effort.
+              - `xhigh` is supported for all models after `gpt-5.1-codex-max`.
 
           response_format: Specifies the format that the model must output. Compatible with
               [GPT-4o](https://platform.openai.com/docs/models#gpt-4o),
@@ -487,9 +489,9 @@ class Runs(SyncAPIResource):
 
           reasoning_effort: Constrains effort on reasoning for
               [reasoning models](https://platform.openai.com/docs/guides/reasoning). Currently
-              supported values are `none`, `minimal`, `low`, `medium`, and `high`. Reducing
-              reasoning effort can result in faster responses and fewer tokens used on
-              reasoning in a response.
+              supported values are `none`, `minimal`, `low`, `medium`, `high`, and `xhigh`.
+              Reducing reasoning effort can result in faster responses and fewer tokens used
+              on reasoning in a response.
 
               - `gpt-5.1` defaults to `none`, which does not perform reasoning. The supported
                 reasoning values for `gpt-5.1` are `none`, `low`, `medium`, and `high`. Tool
@@ -497,6 +499,7 @@ class Runs(SyncAPIResource):
               - All models before `gpt-5.1` default to `medium` reasoning effort, and do not
                 support `none`.
               - The `gpt-5-pro` model defaults to (and only supports) `high` reasoning effort.
+              - `xhigh` is supported for all models after `gpt-5.1-codex-max`.
 
           response_format: Specifies the format that the model must output. Compatible with
               [GPT-4o](https://platform.openai.com/docs/models#gpt-4o),
@@ -617,6 +620,7 @@ class Runs(SyncAPIResource):
                 extra_body=extra_body,
                 timeout=timeout,
                 query=maybe_transform({"include": include}, run_create_params.RunCreateParams),
+                synthesize_event_and_data=True,
             ),
             cast_to=Run,
             stream=stream or False,
@@ -1365,7 +1369,11 @@ class Runs(SyncAPIResource):
                 else run_submit_tool_outputs_params.RunSubmitToolOutputsParamsNonStreaming,
             ),
             options=make_request_options(
-                extra_headers=extra_headers, extra_query=extra_query, extra_body=extra_body, timeout=timeout
+                extra_headers=extra_headers,
+                extra_query=extra_query,
+                extra_body=extra_body,
+                timeout=timeout,
+                synthesize_event_and_data=True,
             ),
             cast_to=Run,
             stream=stream or False,
@@ -1620,9 +1628,9 @@ class AsyncRuns(AsyncAPIResource):
 
           reasoning_effort: Constrains effort on reasoning for
               [reasoning models](https://platform.openai.com/docs/guides/reasoning). Currently
-              supported values are `none`, `minimal`, `low`, `medium`, and `high`. Reducing
-              reasoning effort can result in faster responses and fewer tokens used on
-              reasoning in a response.
+              supported values are `none`, `minimal`, `low`, `medium`, `high`, and `xhigh`.
+              Reducing reasoning effort can result in faster responses and fewer tokens used
+              on reasoning in a response.
 
               - `gpt-5.1` defaults to `none`, which does not perform reasoning. The supported
                 reasoning values for `gpt-5.1` are `none`, `low`, `medium`, and `high`. Tool
@@ -1630,6 +1638,7 @@ class AsyncRuns(AsyncAPIResource):
               - All models before `gpt-5.1` default to `medium` reasoning effort, and do not
                 support `none`.
               - The `gpt-5-pro` model defaults to (and only supports) `high` reasoning effort.
+              - `xhigh` is supported for all models after `gpt-5.1-codex-max`.
 
           response_format: Specifies the format that the model must output. Compatible with
               [GPT-4o](https://platform.openai.com/docs/models#gpt-4o),
@@ -1781,9 +1790,9 @@ class AsyncRuns(AsyncAPIResource):
 
           reasoning_effort: Constrains effort on reasoning for
               [reasoning models](https://platform.openai.com/docs/guides/reasoning). Currently
-              supported values are `none`, `minimal`, `low`, `medium`, and `high`. Reducing
-              reasoning effort can result in faster responses and fewer tokens used on
-              reasoning in a response.
+              supported values are `none`, `minimal`, `low`, `medium`, `high`, and `xhigh`.
+              Reducing reasoning effort can result in faster responses and fewer tokens used
+              on reasoning in a response.
 
               - `gpt-5.1` defaults to `none`, which does not perform reasoning. The supported
                 reasoning values for `gpt-5.1` are `none`, `low`, `medium`, and `high`. Tool
@@ -1791,6 +1800,7 @@ class AsyncRuns(AsyncAPIResource):
               - All models before `gpt-5.1` default to `medium` reasoning effort, and do not
                 support `none`.
               - The `gpt-5-pro` model defaults to (and only supports) `high` reasoning effort.
+              - `xhigh` is supported for all models after `gpt-5.1-codex-max`.
 
           response_format: Specifies the format that the model must output. Compatible with
               [GPT-4o](https://platform.openai.com/docs/models#gpt-4o),
@@ -1938,9 +1948,9 @@ class AsyncRuns(AsyncAPIResource):
 
           reasoning_effort: Constrains effort on reasoning for
               [reasoning models](https://platform.openai.com/docs/guides/reasoning). Currently
-              supported values are `none`, `minimal`, `low`, `medium`, and `high`. Reducing
-              reasoning effort can result in faster responses and fewer tokens used on
-              reasoning in a response.
+              supported values are `none`, `minimal`, `low`, `medium`, `high`, and `xhigh`.
+              Reducing reasoning effort can result in faster responses and fewer tokens used
+              on reasoning in a response.
 
               - `gpt-5.1` defaults to `none`, which does not perform reasoning. The supported
                 reasoning values for `gpt-5.1` are `none`, `low`, `medium`, and `high`. Tool
@@ -1948,6 +1958,7 @@ class AsyncRuns(AsyncAPIResource):
               - All models before `gpt-5.1` default to `medium` reasoning effort, and do not
                 support `none`.
               - The `gpt-5-pro` model defaults to (and only supports) `high` reasoning effort.
+              - `xhigh` is supported for all models after `gpt-5.1-codex-max`.
 
           response_format: Specifies the format that the model must output. Compatible with
               [GPT-4o](https://platform.openai.com/docs/models#gpt-4o),
@@ -2069,6 +2080,7 @@ class AsyncRuns(AsyncAPIResource):
                 extra_body=extra_body,
                 timeout=timeout,
                 query=await async_maybe_transform({"include": include}, run_create_params.RunCreateParams),
+                synthesize_event_and_data=True,
             ),
             cast_to=Run,
             stream=stream or False,
@@ -2816,7 +2828,11 @@ class AsyncRuns(AsyncAPIResource):
                 else run_submit_tool_outputs_params.RunSubmitToolOutputsParamsNonStreaming,
             ),
             options=make_request_options(
-                extra_headers=extra_headers, extra_query=extra_query, extra_body=extra_body, timeout=timeout
+                extra_headers=extra_headers,
+                extra_query=extra_query,
+                extra_body=extra_body,
+                timeout=timeout,
+                synthesize_event_and_data=True,
             ),
             cast_to=Run,
             stream=stream or False,

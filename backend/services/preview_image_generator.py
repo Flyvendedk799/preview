@@ -435,6 +435,7 @@ def generate_designed_preview(
     template_type: str = "default",
     tags: List[str] = None,
     context_items: List[Dict[str, str]] = None,
+    credibility_items: List[Dict[str, str]] = None,
     primary_image_base64: Optional[str] = None,
     product_intelligence: Optional[Dict[str, Any]] = None,
     dom_data: Optional[Dict[str, Any]] = None
@@ -553,7 +554,7 @@ def generate_designed_preview(
                 return _generate_hero_template(
                     screenshot_bytes, title, subtitle, description, 
                     primary_color, secondary_color, accent_color,
-                    credibility_items, tags, primary_image_base64
+                    credibility_items, tags, primary_image_base64, dom_data=dom_data
                 )
             else:
                 # Default to Modern Card (most versatile)
@@ -1859,7 +1860,8 @@ def generate_and_upload_preview_image(
     credibility_items: List[Dict[str, str]] = None,
     primary_image_base64: Optional[str] = None,
     design_dna: Dict[str, Any] = None,
-    product_intelligence: Optional[Dict[str, Any]] = None
+    product_intelligence: Optional[Dict[str, Any]] = None,
+    dom_data: Optional[Dict[str, Any]] = None
 ) -> Optional[str]:
     """
     Generate designed og:image matching React component and upload to R2.
@@ -1958,7 +1960,8 @@ def generate_and_upload_preview_image(
                 context_items=context_items,
                 credibility_items=credibility_items,
                 primary_image_base64=primary_image_base64,
-                product_intelligence=product_intelligence
+                product_intelligence=product_intelligence,
+                dom_data=dom_data
             )
         
         # AI-powered quality improvement: detect and fix banding/blur issues

@@ -10,7 +10,6 @@ import httpx
 from .. import _legacy_response
 from ..types import (
     VideoSize,
-    VideoModel,
     VideoSeconds,
     video_list_params,
     video_remix_params,
@@ -34,8 +33,8 @@ from ..types.video import Video
 from .._base_client import AsyncPaginator, make_request_options
 from .._utils._utils import is_given
 from ..types.video_size import VideoSize
-from ..types.video_model import VideoModel
 from ..types.video_seconds import VideoSeconds
+from ..types.video_model_param import VideoModelParam
 from ..types.video_delete_response import VideoDeleteResponse
 
 __all__ = ["Videos", "AsyncVideos"]
@@ -66,7 +65,7 @@ class Videos(SyncAPIResource):
         *,
         prompt: str,
         input_reference: FileTypes | Omit = omit,
-        model: VideoModel | Omit = omit,
+        model: VideoModelParam | Omit = omit,
         seconds: VideoSeconds | Omit = omit,
         size: VideoSize | Omit = omit,
         # Use the following arguments if you need to pass additional parameters to the API that aren't available via kwargs.
@@ -77,18 +76,20 @@ class Videos(SyncAPIResource):
         timeout: float | httpx.Timeout | None | NotGiven = not_given,
     ) -> Video:
         """
-        Create a video
+        Create a new video generation job from a prompt and optional reference assets.
 
         Args:
           prompt: Text prompt that describes the video to generate.
 
           input_reference: Optional image reference that guides generation.
 
-          model: The video generation model to use. Defaults to `sora-2`.
+          model: The video generation model to use (allowed values: sora-2, sora-2-pro). Defaults
+              to `sora-2`.
 
-          seconds: Clip duration in seconds. Defaults to 4 seconds.
+          seconds: Clip duration in seconds (allowed values: 4, 8, 12). Defaults to 4 seconds.
 
-          size: Output resolution formatted as width x height. Defaults to 720x1280.
+          size: Output resolution formatted as width x height (allowed values: 720x1280,
+              1280x720, 1024x1792, 1792x1024). Defaults to 720x1280.
 
           extra_headers: Send extra headers
 
@@ -128,7 +129,7 @@ class Videos(SyncAPIResource):
         *,
         prompt: str,
         input_reference: FileTypes | Omit = omit,
-        model: VideoModel | Omit = omit,
+        model: VideoModelParam | Omit = omit,
         seconds: VideoSeconds | Omit = omit,
         size: VideoSize | Omit = omit,
         poll_interval_ms: int | Omit = omit,
@@ -208,7 +209,7 @@ class Videos(SyncAPIResource):
         timeout: float | httpx.Timeout | None | NotGiven = not_given,
     ) -> Video:
         """
-        Retrieve a video
+        Fetch the latest metadata for a generated video.
 
         Args:
           extra_headers: Send extra headers
@@ -243,7 +244,7 @@ class Videos(SyncAPIResource):
         timeout: float | httpx.Timeout | None | NotGiven = not_given,
     ) -> SyncConversationCursorPage[Video]:
         """
-        List videos
+        List recently generated videos for the current project.
 
         Args:
           after: Identifier for the last item from the previous pagination request
@@ -293,7 +294,7 @@ class Videos(SyncAPIResource):
         timeout: float | httpx.Timeout | None | NotGiven = not_given,
     ) -> VideoDeleteResponse:
         """
-        Delete a video
+        Permanently delete a completed or failed video and its stored assets.
 
         Args:
           extra_headers: Send extra headers
@@ -326,12 +327,13 @@ class Videos(SyncAPIResource):
         extra_body: Body | None = None,
         timeout: float | httpx.Timeout | None | NotGiven = not_given,
     ) -> _legacy_response.HttpxBinaryResponseContent:
-        """Download video content
+        """
+        Download the generated video bytes or a derived preview asset.
+
+        Streams the rendered video content for the specified video job.
 
         Args:
-          variant: Which downloadable asset to return.
-
-        Defaults to the MP4 video.
+          variant: Which downloadable asset to return. Defaults to the MP4 video.
 
           extra_headers: Send extra headers
 
@@ -369,7 +371,7 @@ class Videos(SyncAPIResource):
         timeout: float | httpx.Timeout | None | NotGiven = not_given,
     ) -> Video:
         """
-        Create a video remix
+        Create a remix of a completed video using a refreshed prompt.
 
         Args:
           prompt: Updated text prompt that directs the remix generation.
@@ -419,7 +421,7 @@ class AsyncVideos(AsyncAPIResource):
         *,
         prompt: str,
         input_reference: FileTypes | Omit = omit,
-        model: VideoModel | Omit = omit,
+        model: VideoModelParam | Omit = omit,
         seconds: VideoSeconds | Omit = omit,
         size: VideoSize | Omit = omit,
         # Use the following arguments if you need to pass additional parameters to the API that aren't available via kwargs.
@@ -430,18 +432,20 @@ class AsyncVideos(AsyncAPIResource):
         timeout: float | httpx.Timeout | None | NotGiven = not_given,
     ) -> Video:
         """
-        Create a video
+        Create a new video generation job from a prompt and optional reference assets.
 
         Args:
           prompt: Text prompt that describes the video to generate.
 
           input_reference: Optional image reference that guides generation.
 
-          model: The video generation model to use. Defaults to `sora-2`.
+          model: The video generation model to use (allowed values: sora-2, sora-2-pro). Defaults
+              to `sora-2`.
 
-          seconds: Clip duration in seconds. Defaults to 4 seconds.
+          seconds: Clip duration in seconds (allowed values: 4, 8, 12). Defaults to 4 seconds.
 
-          size: Output resolution formatted as width x height. Defaults to 720x1280.
+          size: Output resolution formatted as width x height (allowed values: 720x1280,
+              1280x720, 1024x1792, 1792x1024). Defaults to 720x1280.
 
           extra_headers: Send extra headers
 
@@ -481,7 +485,7 @@ class AsyncVideos(AsyncAPIResource):
         *,
         prompt: str,
         input_reference: FileTypes | Omit = omit,
-        model: VideoModel | Omit = omit,
+        model: VideoModelParam | Omit = omit,
         seconds: VideoSeconds | Omit = omit,
         size: VideoSize | Omit = omit,
         poll_interval_ms: int | Omit = omit,
@@ -561,7 +565,7 @@ class AsyncVideos(AsyncAPIResource):
         timeout: float | httpx.Timeout | None | NotGiven = not_given,
     ) -> Video:
         """
-        Retrieve a video
+        Fetch the latest metadata for a generated video.
 
         Args:
           extra_headers: Send extra headers
@@ -596,7 +600,7 @@ class AsyncVideos(AsyncAPIResource):
         timeout: float | httpx.Timeout | None | NotGiven = not_given,
     ) -> AsyncPaginator[Video, AsyncConversationCursorPage[Video]]:
         """
-        List videos
+        List recently generated videos for the current project.
 
         Args:
           after: Identifier for the last item from the previous pagination request
@@ -646,7 +650,7 @@ class AsyncVideos(AsyncAPIResource):
         timeout: float | httpx.Timeout | None | NotGiven = not_given,
     ) -> VideoDeleteResponse:
         """
-        Delete a video
+        Permanently delete a completed or failed video and its stored assets.
 
         Args:
           extra_headers: Send extra headers
@@ -679,12 +683,13 @@ class AsyncVideos(AsyncAPIResource):
         extra_body: Body | None = None,
         timeout: float | httpx.Timeout | None | NotGiven = not_given,
     ) -> _legacy_response.HttpxBinaryResponseContent:
-        """Download video content
+        """
+        Download the generated video bytes or a derived preview asset.
+
+        Streams the rendered video content for the specified video job.
 
         Args:
-          variant: Which downloadable asset to return.
-
-        Defaults to the MP4 video.
+          variant: Which downloadable asset to return. Defaults to the MP4 video.
 
           extra_headers: Send extra headers
 
@@ -724,7 +729,7 @@ class AsyncVideos(AsyncAPIResource):
         timeout: float | httpx.Timeout | None | NotGiven = not_given,
     ) -> Video:
         """
-        Create a video remix
+        Create a remix of a completed video using a refreshed prompt.
 
         Args:
           prompt: Updated text prompt that directs the remix generation.
