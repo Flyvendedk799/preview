@@ -343,6 +343,9 @@ class PreviewEngineResult:
     # UI Elements (extracted visual components from the page)
     ui_elements: Dict[str, Any] = field(default_factory=dict)
     
+    # NEW: Scientific DOM extraction data
+    dom_data: Dict[str, Any] = field(default_factory=dict)
+    
     # Blueprint (design system)
     blueprint: Dict[str, Any] = field(default_factory=dict)
     
@@ -543,9 +546,9 @@ class PreviewEngine:
         
         try:
             # 7X PERFORMANCE: Use triple parallelization when possible
-            screenshot_bytes, html_content = self._capture_page(url_str)
+            screenshot_bytes, html_content, dom_data = self._capture_page(url_str)
             tracer.add_step("Capture Page", 
-                            details=f"HTML extracted: {len(html_content)} characters", 
+                            details=f"HTML extracted: {len(html_content)} characters. DOM Nodes: {len(dom_data.get('raw_top_texts', []))}", 
                             image_base64=__import__('base64').b64encode(screenshot_bytes).decode('utf-8'))
             
             # 7X INTELLIGENCE: Classify page type using intelligent multi-signal analysis
@@ -582,9 +585,10 @@ class PreviewEngine:
                 
                 # Task 3: Run AI reasoning (most time-consuming, starts early)
                 # Pass classification to AI reasoning for context-aware processing
+                # Add reasoning chain for complex requests
                 future_ai = executor.submit(
                     self._run_ai_reasoning_enhanced,
-                    screenshot_bytes, url_str, html_content, page_classification
+                    screenshot_bytes, url_str, html_content, page_classification, dom_data
                 )
                 futures[future_ai] = "ai"
                 
@@ -632,7 +636,7 @@ class PreviewEngine:
             # Step 5: Build result (with classification-aware template and UI elements)
             result = self._build_result(
                 url_str, ai_result, brand_elements, composited_image_url,
-                screenshot_url, start_time, page_classification, ui_elements
+                screenshot_url, start_time, page_classification, ui_elements, dom_data
             )
             
             # 7X QUALITY: Validate and enhance result
@@ -719,7 +723,7 @@ class PreviewEngine:
                             # Re-run AI reasoning with enhanced prompts
                             try:
                                 ai_result = self._run_ai_reasoning_enhanced(
-                                    screenshot_bytes, url_str, html_content, page_classification
+                                    screenshot_bytes, url_str, html_content, page_classification, dom_data
                                 )
                                 
                                 # Regenerate composited image with improved data
@@ -730,7 +734,7 @@ class PreviewEngine:
                                 # Rebuild result with improved data
                                 result = self._build_result(
                                     url_str, ai_result, brand_elements, composited_image_url,
-                                    screenshot_url, start_time, page_classification, ui_elements
+                                    screenshot_url, start_time, page_classification, ui_elements, dom_data
                                 )
                                 
                                 # Re-validate
@@ -992,14 +996,14 @@ class PreviewEngine:
         while retries <= self.config.max_retries:
             try:
                 self.logger.info(f"📸 Capturing screenshot + HTML for: {url}")
-                screenshot_bytes, html_content = capture_screenshot_and_html(url)
+                screenshot_bytes, html_content, dom_data = capture_screenshot_and_html(url)
                 
                 # Validate screenshot quality
                 if len(screenshot_bytes) < 1000:  # Too small
                     raise ValueError("Screenshot too small, likely failed")
                 
                 self.logger.info(f"✅ Screenshot captured ({len(screenshot_bytes)} bytes)")
-                return screenshot_bytes, html_content
+                return screenshot_bytes, html_content, dom_data
                 
             except Exception as e:
                 last_error = e
@@ -1026,7 +1030,7 @@ class PreviewEngine:
             screenshot_bytes = buffered.getvalue()
             
             self.logger.warning("Using HTML-only fallback with placeholder screenshot")
-            return screenshot_bytes, html_content
+            return screenshot_bytes, html_content, {}
             
         except Exception as fallback_error:
             error_msg = f"Failed to capture page: {last_error}. Fallback also failed: {fallback_error}"
@@ -1247,13 +1251,36 @@ class PreviewEngine:
         screenshot_bytes: bytes,
         url: str,
         html_content: str,
-        page_classification
+        page_classification,
+        dom_data: Dict[str, Any] = None
     ) -> Dict[str, Any]:
         """
         Framework-based multi-modal fusion with quality gates.
         
         Uses quality framework to ensure consistent quality across all sources.
         """
+        # If orchestrator is available and multi-agent is enabled, use that route!
+        if getattr(self, "ai_orchestrator", None) and getattr(self.config, "enable_multi_agent", False):
+            self.logger.info(f"🤖 [Agents] Delegating AI reasoning to multi-agent orchestrator")
+            try:
+                orchestration_result = self.ai_orchestrator.orchestrate_preview_generation(
+                    url=url,
+                    screenshot_bytes=screenshot_bytes,
+                    html_content=html_content,
+                    complexity="complex",  # Use complex to trigger reasoning layers
+                    dom_data=dom_data
+                )
+                if orchestration_result.success:
+                    result_dict = orchestration_result.fused_result
+                    # Ensure standard keys are present
+                    result_dict["reasoning_confidence"] = orchestration_result.quality_score
+                    return result_dict
+                else:
+                    self.logger.warning(f"⚠️ Orchestrator failed gracefully: {orchestration_result.errors}")
+            except Exception as e:
+                self.logger.warning(f"⚠️ Orchestration threw error: {e}")
+                
+        # Fallback to the monolithic reasoning
         if not self.config.enable_ai_reasoning:
             return self._extract_from_html_only(html_content, url)
         
@@ -1699,7 +1726,8 @@ class PreviewEngine:
         url: str,
         ai_result: Dict[str, Any],
         brand_elements: Dict[str, Any],
-        page_classification=None
+        page_classification=None,
+        dom_data: Optional[Dict[str, Any]] = None
     ) -> Optional[str]:
         """
         Generate composited preview image with brand alignment and classification-aware strategy.
@@ -1915,7 +1943,8 @@ class PreviewEngine:
                 context_items=safe_ai_result["context_items"],
                 credibility_items=safe_ai_result["credibility_items"],
                 primary_image_base64=primary_image,
-                design_dna=design_dna_for_image  # ENHANCED: Always pass Design DNA
+                design_dna=design_dna_for_image,  # ENHANCED: Always pass Design DNA
+                dom_data=dom_data
             )
             
             if composited_image_url:
@@ -2079,7 +2108,8 @@ class PreviewEngine:
         screenshot_url: Optional[str],
         start_time: float,
         page_classification=None,
-        ui_elements: Optional[Dict[str, Any]] = None
+        ui_elements: Optional[Dict[str, Any]] = None,
+        dom_data: Optional[Dict[str, Any]] = None
     ) -> PreviewEngineResult:
         """Build final PreviewEngineResult with classification-aware template."""
         processing_time_ms = int((time.time() - start_time) * 1000)
@@ -2127,6 +2157,7 @@ class PreviewEngine:
             composited_preview_image_url=composited_image_url,
             brand=brand_dict,
             ui_elements=ui_elements or {},  # Extracted UI components
+            dom_data=dom_data or {},  # Scientific DOM extraction data
             blueprint=blueprint,
             reasoning_confidence=ai_result.get("reasoning_confidence", 0.0),
             processing_time_ms=processing_time_ms,

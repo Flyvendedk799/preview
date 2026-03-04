@@ -285,9 +285,15 @@ Output format: JSON with reasoning steps and final conclusions."""
     
     def _build_visual_analyst_prompt(self, url: str, input_data: Dict[str, Any]) -> str:
         """Build Visual Analyst prompt."""
+        dom_data = input_data.get("dom_data", {})
+        dom_excerpt = json.dumps(dom_data, indent=2)[:5000] if dom_data else "No DOM data available"
+        
         return f"""Analyze this webpage screenshot with pixel-perfect precision.
 
 URL: {url}
+
+=== SCIENTIFIC DOM DATA (EXCERPT) ===
+{dom_excerpt}
 
 === EXTRACTION REQUIREMENTS ===
 
@@ -368,9 +374,15 @@ Be PRECISE with bounding boxes. They should accurately represent element positio
         # Truncate HTML to avoid token limits
         html_excerpt = html_content[:15000] if html_content else "No HTML available"
         
+        dom_data = input_data.get("dom_data", {})
+        dom_excerpt = json.dumps(dom_data, indent=2)[:5000] if dom_data else "No DOM data available"
+        
         return f"""Extract and prioritize content from this webpage.
 
 URL: {url}
+
+=== SCIENTIFIC DOM DATA (EXCERPT) ===
+{dom_excerpt}
 
 === HTML CONTENT (excerpt) ===
 {html_excerpt}

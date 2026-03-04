@@ -1,6 +1,7 @@
 """Playwright-based screenshot service for capturing website screenshots."""
 import logging
-from typing import Tuple, List
+import json
+from typing import Tuple, List, Dict, Any
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError, Error as PlaywrightError, Page
 
 logger = logging.getLogger(__name__)
@@ -233,7 +234,7 @@ def hide_cookie_banners(page: Page) -> int:
         # Also try to remove elements directly for more aggressive hiding
         script = '''
         () => {
-            const selectors = ''' + str(COOKIE_BANNER_HIDE_SELECTORS[:20]) + ''';
+            const selectors = ''' + json.dumps(COOKIE_BANNER_HIDE_SELECTORS[:20]) + ''';
             let count = 0;
             selectors.forEach(selector => {
                 try {
@@ -405,9 +406,139 @@ def capture_screenshot(url: str) -> bytes:
         raise
 
 
-def capture_screenshot_and_html(url: str) -> Tuple[bytes, str]:
+def _extract_scientific_dom(page: Page) -> Dict[str, Any]:
     """
-    Capture both screenshot and HTML content from a webpage.
+    Injects JS to extract the structural truth of the page.
+    Finds the biggest texts, CTAs, and images, returning their exact computed styles and coordinates.
+    """
+    script = """
+    () => {
+        const getComputedStyleData = (el) => {
+            const styles = window.getComputedStyle(el);
+            return {
+                fontSize: styles.fontSize,
+                fontWeight: styles.fontWeight,
+                fontFamily: styles.fontFamily,
+                color: styles.color,
+                backgroundColor: styles.backgroundColor,
+                textAlign: styles.textAlign,
+                lineHeight: styles.lineHeight,
+                borderRadius: styles.borderRadius,
+                display: styles.display
+            };
+        };
+
+        const getRectData = (el) => {
+            const rect = el.getBoundingClientRect();
+            return {
+                x: rect.x + window.scrollX,
+                y: rect.y + window.scrollY,
+                width: rect.width,
+                height: rect.height,
+                visible: rect.width > 0 && rect.height > 0 && window.getComputedStyle(el).opacity !== "0"
+            };
+        };
+
+        // 1. Analyze typography hierarchy
+        const texts = Array.from(document.querySelectorAll('h1, h2, h3, p, span, a'))
+            .filter(el => {
+                const rect = el.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0 && el.textContent.trim().length > 0;
+            })
+            .map(el => {
+                const style = window.getComputedStyle(el);
+                const fontSizePx = parseFloat(style.fontSize);
+                return {
+                    tagName: el.tagName.toLowerCase(),
+                    text: el.textContent.trim(),
+                    fontSizePx: fontSizePx,
+                    isBold: parseInt(style.fontWeight) > 600 || style.fontWeight === 'bold',
+                    rect: getRectData(el),
+                    styles: getComputedStyleData(el)
+                };
+            })
+            // Sort by size (biggest first)
+            .sort((a, b) => b.fontSizePx - a.fontSizePx);
+
+        // 2. Identify potential CTAs/Buttons
+        const buttons = Array.from(document.querySelectorAll('button, a, input[type="submit"], [role="button"]'))
+            .filter(el => {
+                const rect = el.getBoundingClientRect();
+                const style = window.getComputedStyle(el);
+                // Buttons generally have background colors different from transparent, and some padding
+                return rect.width > 20 && rect.height > 10 && 
+                       el.textContent.trim().length > 0 &&
+                       style.display !== 'none' &&
+                       style.opacity !== '0';
+            })
+            .map(el => {
+                const text = el.textContent.trim() || el.value || '';
+                return {
+                    tagName: el.tagName.toLowerCase(),
+                    text: text,
+                    rect: getRectData(el),
+                    styles: getComputedStyleData(el),
+                    href: el.href || null
+                };
+            });
+
+        // 3. Identify main images
+        const images = Array.from(document.querySelectorAll('img, svg'))
+            .filter(el => {
+                const rect = el.getBoundingClientRect();
+                return rect.width > 50 && rect.height > 50; // Ignore tiny icons initially
+            })
+            .map(el => {
+                return {
+                    tagName: el.tagName.toLowerCase(),
+                    src: el.src || null,
+                    alt: el.alt || null,
+                    rect: getRectData(el),
+                    area: getRectData(el).width * getRectData(el).height
+                };
+            })
+            .sort((a, b) => b.area - a.area); // Largest first
+
+        // Helper: Is element in the hero section? (Top 800px)
+        const inHero = (rect) => rect.y < 800 && rect.visible;
+
+        return {
+            pageWidth: document.documentElement.scrollWidth,
+            pageHeight: document.documentElement.scrollHeight,
+            viewportWidth: window.innerWidth,
+            viewportHeight: window.innerHeight,
+            hierarchy: {
+                primary_headline: texts.find(t => inHero(t.rect) && t.tagName.match(/h1|h2/i)) || texts[0],
+                secondary_headlines: texts.filter(t => inHero(t.rect) && t.fontSizePx > 18).slice(1, 4),
+            },
+            interaction: {
+                ctas: buttons.filter(b => inHero(b.rect)).slice(0, 5)
+            },
+            media: {
+                hero_images: images.filter(i => inHero(i.rect)).slice(0, 3)
+            },
+            raw_top_texts: texts.slice(0, 10)
+        };
+    }
+    """
+    try:
+        # Wrap evaluation in a race with a timeout
+        logger.info("🧬 Extracting scientific DOM boundaries...")
+        # Note: Playwright's evaluate is synchronous but respects the page timeout
+        # However, for safety we can wrap the script to return early if it bogs down
+        # For now, evaluate with a reasonably guarded try/except block.
+        return page.evaluate(script)
+    except PlaywrightTimeoutError:
+        logger.warning("🧬 Scientific DOM extraction TIMED OUT. Page might be too complex. Proceeding with empty DOM struct.")
+        return {}
+    except Exception as e:
+        logger.warning(f"Failed to extract scientific DOM boundaries: {e}")
+        return {}
+
+
+def capture_screenshot_and_html(url: str) -> Tuple[bytes, str, Dict[str, Any]]:
+    """
+    Capture screenshot, HTML content, and Scientific DOM Mapping from a webpage.
 
     This is more efficient than calling capture_screenshot and fetching HTML separately,
     as it reuses the same browser session.
@@ -416,7 +547,7 @@ def capture_screenshot_and_html(url: str) -> Tuple[bytes, str]:
         url: URL to capture
 
     Returns:
-        Tuple of (screenshot_bytes, html_content)
+        Tuple of (screenshot_bytes, html_content, dom_data_dict)
         
     Raises:
         Exception: If capture fails with descriptive error message
@@ -479,6 +610,14 @@ def capture_screenshot_and_html(url: str) -> Tuple[bytes, str]:
                 except Exception as e:
                     logger.warning(f"Cookie popup handling failed (non-critical): {e}")
 
+                # Extract Scientific DOM Math
+                try:
+                    dom_data = _extract_scientific_dom(page)
+                    logger.info(f"🧬 Extracted Scientific DOM bounds for {url}")
+                except Exception as e:
+                    logger.error(f"Failed to extract DOM data for {url}: {e}")
+                    dom_data = {}
+
                 # Capture both screenshot and HTML
                 try:
                     screenshot = page.screenshot(type="png", full_page=True)
@@ -489,7 +628,7 @@ def capture_screenshot_and_html(url: str) -> Tuple[bytes, str]:
                     raise Exception(f"Failed to capture screenshot: {str(e)}")
 
                 browser.close()
-                return screenshot, html_content
+                return screenshot, html_content, dom_data
                 
             except Exception as e:
                 # Ensure browser is closed even if page operations fail

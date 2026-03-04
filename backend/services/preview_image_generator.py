@@ -435,9 +435,9 @@ def generate_designed_preview(
     template_type: str = "default",
     tags: List[str] = None,
     context_items: List[Dict[str, str]] = None,
-    credibility_items: List[Dict[str, str]] = None,
     primary_image_base64: Optional[str] = None,
-    product_intelligence: Optional[Dict[str, Any]] = None
+    product_intelligence: Optional[Dict[str, Any]] = None,
+    dom_data: Optional[Dict[str, Any]] = None
 ) -> bytes:
     """
     Generate a PREMIUM og:image that stops the scroll.
@@ -506,7 +506,7 @@ def generate_designed_preview(
             return _generate_hero_template(
                 screenshot_bytes, title, subtitle, description, 
                 primary_color, secondary_color, accent_color,
-                credibility_items, tags, primary_image_base64
+                credibility_items, tags, primary_image_base64, dom_data=dom_data
             )
         
         # Product, E-commerce → Enhanced Product Template (category-aware)
@@ -579,7 +579,8 @@ def _generate_hero_template(
     accent_color: Tuple[int, int, int],
     credibility_items: List[Dict],
     tags: List[str],
-    primary_image_base64: Optional[str]
+    primary_image_base64: Optional[str],
+    dom_data: Optional[Dict[str, Any]] = None
 ) -> bytes:
     """
     PREMIUM Hero template: Brand gradient on the left, actual page screenshot on the right.
@@ -595,6 +596,15 @@ def _generate_hero_template(
     # ── BACKGROUND & OPTIONAL SPLIT LAYOUT ────────────────────────────────
     img = Image.new('RGB', (OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT), primary_color)
     img = _draw_gradient_background(img, primary_color, secondary_color, "diagonal")
+
+    # ── DOM DATA EXTRACTION (Scientific Layout Prep) ──────────────
+    top_texts = []
+    ctas = []
+    hero_image = None
+    if dom_data:
+        top_texts = dom_data.get("raw_top_texts", [])
+        ctas = dom_data.get("raw_ctas", [])
+        hero_image = dom_data.get("hero_image_computed")
 
     split_layout = False
     text_panel_width = OG_IMAGE_WIDTH  # default: full width
@@ -696,33 +706,58 @@ def _generate_hero_template(
 
     content_y += logo_size + 60
 
-    # ── MAIN HEADLINE ─────────────────────────────────────────────────────
-    title_length = len(title) if title else 0
+    # ── MAIN TEXT AND CTA COMPOSITING FROM DOM DATA ────────────────
+    # We now heavily favor using the raw DOM texts if available for "pixel-perfect" representation
 
-    if title_length < 25:
-        title_font_size = 96
-    elif title_length < 40:
-        title_font_size = 80
-    elif title_length < 60:
-        title_font_size = 64
-    else:
-        title_font_size = 56
+    # Find strongest H1/H2
+    main_heading = None
+    sub_heading = None
+    
+    if top_texts:
+        # Group by type
+        h1s = [t for t in top_texts if t.get('tag') == 'H1']
+        h2s = [t for t in top_texts if t.get('tag') == 'H2']
+        ps = [t for t in top_texts if t.get('tag') == 'P']
+        
+        if h1s:
+            main_heading = h1s[0]
+            if h2s: sub_heading = h2s[0]
+            elif ps: sub_heading = ps[0]
+        elif h2s:
+            main_heading = h2s[0]
+            if len(h2s) > 1: sub_heading = h2s[1]
+            elif ps: sub_heading = ps[0]
 
-    # Slightly smaller in split mode because the text panel is narrower
-    if split_layout:
-        title_font_size = int(title_font_size * 0.88)
+    if not main_heading and title:
+        # Fallback to AI extracted text if DOM extraction failed
+        main_heading = {"text": title}
 
-    title_font = _load_font(title_font_size, bold=True)
-    title_line_height = int(title_font_size * 1.2)
+    if main_heading:
+        heading_text = main_heading.get("text", "Untitled")
+        title_length = len(heading_text)
+        
+        # Determine dynamic size
+        if title_length < 25:
+            title_font_size = 96
+        elif title_length < 40:
+            title_font_size = 80
+        elif title_length < 60:
+            title_font_size = 64
+        else:
+            title_font_size = 56
 
-    if title and title != "Untitled":
-        title_lines = _wrap_text(title, title_font, content_width, draw)
+        if split_layout:
+            title_font_size = int(title_font_size * 0.88)
 
+        title_font = _load_font(title_font_size, bold=True)
+        title_line_height = int(title_font_size * 1.2)
+
+        title_lines = _wrap_text(heading_text, title_font, content_width, draw)
         max_lines = 3 if title_length > 50 else 2
         actual_lines = min(len(title_lines), max_lines)
         total_title_height = actual_lines * title_line_height
         remaining_space = OG_IMAGE_HEIGHT - content_y - padding - 60
-        title_y = content_y + max(0, int((remaining_space - total_title_height) / 3))
+        title_y = content_y + max(0, int((remaining_space - total_title_height) / 4))
 
         for i, line in enumerate(title_lines[:max_lines]):
             y_pos = title_y + (i * title_line_height)
@@ -731,15 +766,54 @@ def _generate_hero_template(
 
     # ── SUBTITLE / DESCRIPTION ────────────────────────────────────────────
     support_text = subtitle or description
-    if support_text and support_text != title and support_text.lower().strip() != title.lower().strip():
+    if sub_heading:
+        support_text = sub_heading.get("text", support_text)
+        
+    if support_text and (not main_heading or support_text.lower().strip() != main_heading.get("text", "").lower().strip()):
         desc_font_size = 34 if split_layout else 36
         desc_font = _load_font(desc_font_size, bold=False)
         desc_line_height = int(desc_font_size * 1.4)
 
         desc_lines = _wrap_text(support_text, desc_font, content_width, draw)
-        for i, line in enumerate(desc_lines[:2]):
+        max_lines = 2
+        for i, line in enumerate(desc_lines[:max_lines]):
             y_pos = content_y + (i * desc_line_height)
             _draw_text_with_shadow(draw, (padding, y_pos), line, desc_font, (240, 240, 245), 2)
+        content_y += min(len(desc_lines), max_lines) * desc_line_height + 40
+
+    # ── PRIMARY CTA COMPOSITING ──────────────────────────────────────────
+    if ctas:
+        # Sort by horizontal coverage (width) as an indicator of prominence
+        sorted_ctas = sorted(ctas, key=lambda c: c.get('bounds', {}).get('width', 0), reverse=True)
+        primary_cta = sorted_ctas[0]
+        cta_text = primary_cta.get('text', 'Learn More')
+        
+        # Use component colors from DOM if viable, else fallback to brand accent
+        bg_color_str = primary_cta.get('computed_styles', {}).get('backgroundColor', '')
+        
+        cta_font = _load_font(28, bold=True)
+        try:
+            bbox = draw.textbbox((0, 0), cta_text, font=cta_font)
+            text_w = bbox[2] - bbox[0]
+            text_h = bbox[3] - bbox[1]
+        except Exception:
+            text_w = len(cta_text) * 16
+            text_h = 28
+            
+        btn_padding_x = 48
+        btn_padding_y = 20
+        btn_w = text_w + (btn_padding_x * 2)
+        btn_h = text_h + (btn_padding_y * 2)
+        
+        # Draw CTA Button
+        draw.rounded_rectangle(
+            [(padding, content_y), (padding + btn_w, content_y + btn_h)],
+            radius=12,
+            fill=accent_color
+        )
+        
+        # Draw CTA Text
+        draw.text((padding + btn_padding_x, content_y + btn_padding_y), cta_text, font=cta_font, fill=(255, 255, 255))
 
     # ── BOTTOM ACCENT BAR ─────────────────────────────────────────────────
     # Spans the text panel only in split mode; full width otherwise

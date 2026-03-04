@@ -273,9 +273,9 @@ def generate_smooth_gradient(
     # Log RGB range before dithering
     logger.info(f"🎨 [GRADIENT] RGB ranges before dithering: R=[{rgb_array[:,:,0].min():.2f}, {rgb_array[:,:,0].max():.2f}], G=[{rgb_array[:,:,1].min():.2f}, {rgb_array[:,:,1].max():.2f}], B=[{rgb_array[:,:,2].min():.2f}, {rgb_array[:,:,2].max():.2f}]")
     
-    # Apply Floyd-Steinberg dithering to reduce quantization artifacts
-    logger.info(f"🎨 [GRADIENT] Applying Floyd-Steinberg dithering...")
-    rgb_array = floyd_steinberg_dither(rgb_array)
+    # Apply fast ordered dithering to reduce quantization artifacts
+    logger.info(f"🎨 [GRADIENT] Applying fast ordered dithering...")
+    rgb_array = apply_fast_dithering(rgb_array)
     
     # Log RGB range after dithering
     logger.info(f"🎨 [GRADIENT] RGB ranges after dithering: R=[{rgb_array[:,:,0].min():.2f}, {rgb_array[:,:,0].max():.2f}], G=[{rgb_array[:,:,1].min():.2f}, {rgb_array[:,:,1].max():.2f}], B=[{rgb_array[:,:,2].min():.2f}, {rgb_array[:,:,2].max():.2f}]")

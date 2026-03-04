@@ -327,7 +327,8 @@ class AIOrchestrator:
         url: str,
         screenshot_bytes: bytes,
         html_content: str,
-        complexity: str = "medium"
+        complexity: str = "medium",
+        dom_data: Dict[str, Any] = None
     ) -> OrchestrationResult:
         """
         Orchestrate complete preview generation using multi-agent system.
@@ -337,6 +338,7 @@ class AIOrchestrator:
             screenshot_bytes: Screenshot bytes
             html_content: HTML content
             complexity: Complexity level
+            dom_data: Scientific structured DOM representation
             
         Returns:
             OrchestrationResult with fused preview data
@@ -356,7 +358,8 @@ class AIOrchestrator:
             inputs = {
                 "url": url,
                 "screenshot_bytes": screenshot_bytes,
-                "html_content": html_content
+                "html_content": html_content,
+                "dom_data": dom_data or {}
             }
             
             context = {
