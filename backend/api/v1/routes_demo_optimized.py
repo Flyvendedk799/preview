@@ -451,7 +451,9 @@ def generate_demo_preview_optimized(
             enable_brand_extraction=True,
             enable_ai_reasoning=True,
             enable_composited_image=True,
-            enable_cache=not cache_disabled  # Disable cache if admin toggle is enabled
+            enable_cache=not cache_disabled,  # Disable cache if admin toggle is enabled
+            enable_multi_agent=False,  # Demo: skip expensive multi-agent orchestration
+            enable_ui_element_extraction=False,  # Demo: skip UI element extraction for speed
         )
         
         engine = PreviewEngine(config)
@@ -498,7 +500,7 @@ def generate_demo_preview_optimized(
                 balance_score=engine_result.blueprint.get("balance_score", 0.0),
                 clarity_score=engine_result.blueprint.get("clarity_score", 0.0),
                 design_fidelity_score=engine_result.blueprint.get("design_fidelity_score"),
-                overall_quality=engine_result.blueprint.get("overall_quality", 0.0),
+                overall_quality=str(engine_result.blueprint.get("overall_quality", "good")),
                 layout_reasoning=engine_result.blueprint.get("layout_reasoning", ""),
                 composition_notes=engine_result.blueprint.get("composition_notes", "")
             ),

@@ -207,8 +207,24 @@ export default function Demo() {
     // Timeout errors
     if (lowerMessage.includes('timeout') || lowerMessage.includes('timed out')) {
       return {
-        message: 'Request timed out',
-        suggestion: 'The page is still processing in the background for difficult URLs. Wait a bit and retry, or try a simpler public URL.'
+        message: 'This site is taking too long to load',
+        suggestion: 'The page may be very heavy or slow to respond. Try a simpler, faster-loading page.'
+      }
+    }
+
+    // Screenshot/capture failures
+    if (lowerMessage.includes('screenshot') || lowerMessage.includes('capture') || lowerMessage.includes('playwright')) {
+      return {
+        message: 'Could not capture this page',
+        suggestion: 'This site may be behind a login wall, use bot detection, or block screenshots. Try a publicly accessible page.'
+      }
+    }
+
+    // AI extraction failures
+    if (lowerMessage.includes('openai') || lowerMessage.includes('ai') || lowerMessage.includes('extraction')) {
+      return {
+        message: 'AI analysis failed',
+        suggestion: 'Our AI could not analyze this page. This can happen with very minimal or unusual pages. Try a different URL.'
       }
     }
 
@@ -479,8 +495,13 @@ export default function Demo() {
                 
                 // Cap at 95% until complete to avoid showing 100% prematurely
                 const progressPercent = Math.min(95, backendProgressPercent)
-                
+
                 setGenerationProgress(progressPercent)
+
+                // At 95%, show "Finalizing..." instead of stalling
+                if (progressPercent >= 92) {
+                  setGenerationStatus('Finalizing preview...')
+                }
                 
                 // Use message from backend if available, otherwise use status-based message
                 const statusMessage = statusResponse.message || 
@@ -592,14 +613,12 @@ export default function Demo() {
       setStep('preview')
       setShowCompletionCelebration(false)
       
-      // IMPROVEMENT: Show optional email subscription after successful preview (non-intrusive)
-      // Wait a bit so user can see the preview first, then offer subscription
+      // Show optional email subscription after user has had time to review the preview
       setTimeout(() => {
-        // Only show if user hasn't already subscribed
         if (!emailSubscribed) {
           setShowEmailPopup(true)
         }
-      }, 3000)
+      }, 8000)
       
       // Reset state
       setGenerationStatus('')
@@ -1172,12 +1191,14 @@ export default function Demo() {
                             </div>
                             {/* Progress Bar */}
                             <div className="w-full bg-white/20 rounded-full h-2 overflow-hidden">
-                              <div 
-                                className="h-full bg-white rounded-full transition-all duration-500 ease-out"
+                              <div
+                                className={`h-full bg-white rounded-full transition-all duration-500 ease-out ${generationProgress >= 92 ? 'animate-pulse' : ''}`}
                                 style={{ width: `${generationProgress}%` }}
                               />
                             </div>
-                            <div className="text-xs text-white/80 text-center">{Math.round(generationProgress)}%</div>
+                            <div className="text-xs text-white/80 text-center">
+                              {generationProgress >= 92 ? 'Finalizing...' : `${Math.round(generationProgress)}%`}
+                            </div>
                           </div>
                           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer" />
                         </>

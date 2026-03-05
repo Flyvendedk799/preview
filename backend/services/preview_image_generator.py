@@ -132,42 +132,58 @@ def _get_text_shadow_color(text_color: tuple) -> tuple:
     return (255, 255, 255, 40)  # Light shadow
 
 
+_FONT_CACHE: Dict[Tuple[str, int], ImageFont.FreeTypeFont] = {}
+_FONT_WARNING_LOGGED = False
+
+
 def _load_font(size: int, bold: bool = True) -> ImageFont.FreeTypeFont:
     """
-    Load font with fallbacks.
-    DESIGN FIX 1: Improved font loading with better size scaling.
+    Load font with fallbacks and caching.
+    Searches multiple font paths and caches results for performance.
+    Logs a warning (once) if falling back to default bitmap font.
     """
+    global _FONT_WARNING_LOGGED
+
+    size = max(12, size)  # Enforce minimum readable size
+
+    cache_key = ("bold" if bold else "regular", size)
+    if cache_key in _FONT_CACHE:
+        return _FONT_CACHE[cache_key]
+
     font_paths_bold = [
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
         "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
         "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
+        "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf",
     ]
     font_paths_regular = [
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
         "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
         "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+        "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
     ]
-    
+
     paths = font_paths_bold if bold else font_paths_regular
-    
+
     for path in paths:
         try:
             font = ImageFont.truetype(path, size)
-            # DESIGN FIX 1: Ensure minimum readable size
-            if size < 12:
-                logger.warning(f"Font size {size} too small, using 12")
-                return ImageFont.truetype(path, 12)
-            logger.info(f"🔍 FONT DEBUG: Successfully loaded font {path} at size {size}")
+            _FONT_CACHE[cache_key] = font
             return font
-        except Exception as e:
-            logger.warning(f"🔍 FONT DEBUG: Failed to load font {path}: {e}")
+        except Exception:
             continue
-    
-    # Fallback to default with size adjustment
-    logger.warning(f"🔍 FONT DEBUG: All TrueType fonts failed, using default font")
+
+    # Fallback: PIL default bitmap font (ugly but functional)
+    if not _FONT_WARNING_LOGGED:
+        logger.error(
+            "⚠️ CRITICAL: No TrueType fonts found on system! "
+            "Preview images will use low-quality bitmap fonts. "
+            "Install fonts-dejavu-core or fonts-liberation package."
+        )
+        _FONT_WARNING_LOGGED = True
+
     default_font = ImageFont.load_default()
-    if size < 12:
-        return default_font
+    _FONT_CACHE[cache_key] = default_font
     return default_font
 
 
@@ -389,27 +405,40 @@ def _draw_text_with_shadow(
     text: str,
     font: ImageFont.FreeTypeFont,
     fill: Tuple[int, int, int],
-    shadow_offset: int = 1,
+    shadow_offset: int = 2,
     shadow_color: Tuple[int, int, int, int] = None,
-    shadow_blur: int = 0
+    shadow_blur: int = 0,
+    image: Image.Image = None
 ) -> None:
     """
-    Draw text with minimal shadow for crisp rendering.
-    FIXED: Reduced shadow offset to 1px and only for very dark backgrounds to prevent blurry 3D effect.
+    Draw text with multi-layer shadow for guaranteed readability.
+    Uses a 3-layer approach: dark outer glow -> medium shadow -> crisp text.
+    When `image` is provided, draws the glow on a separate layer for proper blending.
     """
-    # CRITICAL FIX: Ensure text is a string to prevent garbled rendering
     text = str(text) if text is not None else ""
-    
     x, y = position
-    
-    # Only draw shadow for very light text on very dark backgrounds, with minimal offset
-    # Reduced offset to 1px to prevent blurry/3D appearance
-    if fill[0] > 220:  # Very light text (almost white) - add minimal shadow
-        # Use very subtle shadow with 1px offset only
-        shadow_fill = (30, 30, 30)  # Very dark gray
-        draw.text((x + shadow_offset, y + shadow_offset), text, font=font, fill=shadow_fill)
-    
-    # Draw main text on top
+
+    if fill[0] > 200:  # Light text on dark background
+        if image is not None:
+            # Multi-layer glow for readability on any background
+            glow_layer = Image.new('RGBA', image.size, (0, 0, 0, 0))
+            glow_draw = ImageDraw.Draw(glow_layer)
+            # Layer 1: Wide dark glow
+            for dx in range(-2, 3):
+                for dy in range(-2, 3):
+                    glow_draw.text((x + dx, y + dy), text, font=font, fill=(0, 0, 0, 50))
+            # Layer 2: Tight shadow
+            glow_draw.text((x + 1, y + 1), text, font=font, fill=(0, 0, 0, 90))
+            # Composite glow onto image
+            image.paste(Image.alpha_composite(image.convert('RGBA'), glow_layer).convert('RGB'), (0, 0))
+            # Refresh draw reference after paste
+            draw = ImageDraw.Draw(image)
+        else:
+            # Fallback: simple 2-layer shadow
+            draw.text((x + 2, y + 2), text, font=font, fill=(0, 0, 0))
+            draw.text((x + 1, y + 1), text, font=font, fill=(20, 20, 20))
+
+    # Draw main text on top (always crisp)
     draw.text((x, y), text, font=font, fill=fill)
 
 
@@ -598,6 +627,19 @@ def _generate_hero_template(
     img = Image.new('RGB', (OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT), primary_color)
     img = _draw_gradient_background(img, primary_color, secondary_color, "diagonal")
 
+    # Add subtle radial highlight in upper-left for depth/dimension
+    highlight = Image.new('RGBA', (OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT), (0, 0, 0, 0))
+    highlight_draw = ImageDraw.Draw(highlight)
+    center_x, center_y = int(OG_IMAGE_WIDTH * 0.25), int(OG_IMAGE_HEIGHT * 0.3)
+    max_radius = int(OG_IMAGE_WIDTH * 0.45)
+    for r in range(max_radius, 0, -3):
+        alpha = int(18 * (1 - (r / max_radius) ** 2))  # Quadratic falloff
+        highlight_draw.ellipse(
+            [(center_x - r, center_y - r), (center_x + r, center_y + r)],
+            fill=(255, 255, 255, alpha)
+        )
+    img = Image.alpha_composite(img.convert('RGBA'), highlight).convert('RGB')
+
     # ── DOM DATA EXTRACTION (Scientific Layout Prep) ──────────────
     top_texts = []
     ctas = []
@@ -613,10 +655,10 @@ def _generate_hero_template(
     if screenshot_bytes:
         try:
             sc = Image.open(BytesIO(screenshot_bytes)).convert('RGB')
-            # Crop to top 75% — avoids sticky footers and cookie banners near the bottom
-            sc = sc.crop((0, 0, sc.width, int(sc.height * 0.75)))
+            # Crop to top 70% — avoids sticky footers and cookie banners
+            sc = sc.crop((0, 0, sc.width, int(sc.height * 0.70)))
 
-            right_x = int(OG_IMAGE_WIDTH * 0.58)
+            right_x = int(OG_IMAGE_WIDTH * 0.56)
             right_w = OG_IMAGE_WIDTH - right_x
 
             # Scale screenshot to cover the right panel (cover behaviour)
@@ -631,13 +673,20 @@ def _generate_hero_template(
             crop_y = max(0, (sc.height - OG_IMAGE_HEIGHT) // 4)
             sc = sc.crop((crop_x, crop_y, crop_x + right_w, crop_y + OG_IMAGE_HEIGHT))
 
-            # Fade mask: transparent on left edge → fully opaque toward the right
-            # This blends the screenshot smoothly into the gradient panel
-            fade_w = 120
+            # Slight brightness/contrast boost to match gradient vibrancy
+            from PIL import ImageEnhance
+            sc = ImageEnhance.Contrast(sc).enhance(1.08)
+            sc = ImageEnhance.Brightness(sc).enhance(1.03)
+
+            # Ease-in fade mask: smoother transition than linear
+            fade_w = 180
             mask = Image.new('L', (right_w, OG_IMAGE_HEIGHT), 255)
             mask_draw = ImageDraw.Draw(mask)
             for x in range(fade_w):
-                mask_draw.line([(x, 0), (x, OG_IMAGE_HEIGHT - 1)], fill=int(255 * x / fade_w))
+                # Ease-in curve: progress^2 for smoother blend
+                progress = x / fade_w
+                alpha = int(255 * (progress ** 2))
+                mask_draw.line([(x, 0), (x, OG_IMAGE_HEIGHT - 1)], fill=alpha)
 
             img.paste(sc, (right_x, 0), mask)
             text_panel_width = right_x
@@ -645,18 +694,28 @@ def _generate_hero_template(
         except Exception as e:
             logger.warning(f"Hero template: screenshot panel failed — {e}")
 
+    # ── DARK OVERLAY for guaranteed text contrast ──────────────────────────
+    # Apply a subtle dark gradient overlay on the text panel area
+    overlay = Image.new('RGBA', (text_panel_width, OG_IMAGE_HEIGHT), (0, 0, 0, 0))
+    overlay_draw = ImageDraw.Draw(overlay)
+    # Vertical gradient: darker at bottom (where text sits) for readability
+    for y in range(OG_IMAGE_HEIGHT):
+        progress = y / OG_IMAGE_HEIGHT
+        alpha = int(15 + 35 * progress)  # 15 at top, 50 at bottom
+        overlay_draw.line([(0, y), (text_panel_width, y)], fill=(0, 0, 0, alpha))
+    img.paste(Image.alpha_composite(img.crop((0, 0, text_panel_width, OG_IMAGE_HEIGHT)).convert('RGBA'), overlay).convert('RGB'), (0, 0))
+
     draw = ImageDraw.Draw(img)
 
     # ── LAYOUT CONSTANTS ──────────────────────────────────────────────────
-    GOLDEN_RATIO = 1.618
-    base_padding = int(OG_IMAGE_WIDTH / (GOLDEN_RATIO * 2))
-    padding = max(80, min(120, base_padding))
+    padding = 80
     # Text/content is constrained to the left (gradient) panel
     content_width = text_panel_width - (padding * 2)
     content_y = padding
 
     # ── LOGO (top-left of text panel) ─────────────────────────────────────
-    logo_size = 96
+    logo_size = 80
+    logo_bottom_y = content_y
     if primary_image_base64:
         try:
             logo_data = base64.b64decode(primary_image_base64)
@@ -674,38 +733,48 @@ def _generate_hero_template(
 
             logo_img = logo_img.resize((new_width, new_height), Image.Resampling.LANCZOS)
 
-            bg_size = max(new_width, new_height) + 16
-            logo_bg = Image.new('RGBA', (bg_size, bg_size), (255, 255, 255, 250))
-            img.paste(logo_bg.convert('RGB'), (padding - 8, content_y - 8))
+            # Drop shadow behind logo (no white box)
+            shadow_layer = Image.new('RGBA', img.size, (0, 0, 0, 0))
+            shadow_draw = ImageDraw.Draw(shadow_layer)
+            shadow_draw.rectangle(
+                [(padding + 2, content_y + 2), (padding + new_width + 2, content_y + new_height + 2)],
+                fill=(0, 0, 0, 40)
+            )
+            img.paste(Image.alpha_composite(img.convert('RGBA'), shadow_layer).convert('RGB'), (0, 0))
 
-            logo_x = padding + (bg_size - new_width) // 2 - 8
-            logo_y = content_y + (bg_size - new_height) // 2 - 8
-            img.paste(logo_img, (logo_x, logo_y), logo_img)
+            img.paste(logo_img, (padding, content_y), logo_img)
+            logo_bottom_y = content_y + new_height
         except Exception as e:
             logger.warning(f"Failed to load logo: {e}")
+    draw = ImageDraw.Draw(img)
 
-    # ── SOCIAL PROOF BADGE (top-right of text panel) ──────────────────────
+    # ── SOCIAL PROOF BADGE (top-right of text panel, never overlapping logo) ──
+    badge_bottom_y = content_y
     if credibility_items:
         proof_text = str(credibility_items[0].get("value", "")).strip()
         if proof_text and len(proof_text) > 2:
-            proof_font = _load_font(32, bold=True)
+            proof_font = _load_font(28, bold=True)
             try:
                 bbox = draw.textbbox((0, 0), proof_text, font=proof_font)
-                badge_width = bbox[2] - bbox[0] + 40
-                badge_height = 56
+                badge_width = bbox[2] - bbox[0] + 36
+                badge_height = 44
             except Exception:
-                badge_width = len(proof_text) * 12 + 40
-                badge_height = 48
+                badge_width = len(proof_text) * 12 + 36
+                badge_height = 44
 
-            # Right-align badge to the TEXT PANEL edge, not the full image edge
+            # Right-align badge, ensure it doesn't overlap logo area
             badge_x = text_panel_width - padding - int(badge_width)
 
-            badge_img = Image.new('RGBA', (int(badge_width), badge_height), (*accent_color, 255))
-            img.paste(badge_img.convert('RGB'), (badge_x, content_y))
-            draw = ImageDraw.Draw(img)
-            draw.text((badge_x + 20, content_y + 12), str(proof_text), font=proof_font, fill=(255, 255, 255))
+            # Rounded accent badge
+            draw.rounded_rectangle(
+                [(badge_x, content_y), (badge_x + int(badge_width), content_y + badge_height)],
+                radius=8,
+                fill=accent_color
+            )
+            draw.text((badge_x + 18, content_y + 10), str(proof_text), font=proof_font, fill=(255, 255, 255))
+            badge_bottom_y = content_y + badge_height
 
-    content_y += logo_size + 60
+    content_y = max(logo_bottom_y, badge_bottom_y) + 48
 
     # ── MAIN TEXT AND CTA COMPOSITING FROM DOM DATA ────────────────
     # We now heavily favor using the raw DOM texts if available for "pixel-perfect" representation
@@ -736,51 +805,56 @@ def _generate_hero_template(
     if main_heading:
         heading_text = main_heading.get("text", "Untitled")
         title_length = len(heading_text)
-        
-        # Determine dynamic size
+
+        # Dynamic font size based on text length
         if title_length < 25:
-            title_font_size = 96
+            title_font_size = 92
         elif title_length < 40:
-            title_font_size = 80
+            title_font_size = 76
         elif title_length < 60:
-            title_font_size = 64
+            title_font_size = 62
         else:
-            title_font_size = 56
+            title_font_size = 52
 
         if split_layout:
             title_font_size = int(title_font_size * 0.88)
 
         title_font = _load_font(title_font_size, bold=True)
-        title_line_height = int(title_font_size * 1.2)
+        title_line_height = int(title_font_size * 1.18)
 
         title_lines = _wrap_text(heading_text, title_font, content_width, draw)
         max_lines = 3 if title_length > 50 else 2
         actual_lines = min(len(title_lines), max_lines)
+
+        # Measure total content height to distribute space evenly
         total_title_height = actual_lines * title_line_height
         remaining_space = OG_IMAGE_HEIGHT - content_y - padding - 60
-        title_y = content_y + max(0, int((remaining_space - total_title_height) / 4))
+        title_y = content_y + max(0, int((remaining_space - total_title_height) / 5))
 
         for i, line in enumerate(title_lines[:max_lines]):
             y_pos = title_y + (i * title_line_height)
-            _draw_text_with_shadow(draw, (padding, y_pos), line, title_font, (255, 255, 255), 2)
-        content_y = title_y + actual_lines * title_line_height + 40
+            _draw_text_with_shadow(draw, (padding, y_pos), line, title_font, (255, 255, 255), 2, image=img)
+            draw = ImageDraw.Draw(img)  # Refresh after shadow compositing
+        content_y = title_y + actual_lines * title_line_height + 32
 
-    # ── SUBTITLE / DESCRIPTION ────────────────────────────────────────────
+    # ── SUBTITLE / DESCRIPTION (visually distinct: lighter weight, lower opacity) ──
     support_text = subtitle or description
     if sub_heading:
         support_text = sub_heading.get("text", support_text)
-        
+
     if support_text and (not main_heading or support_text.lower().strip() != main_heading.get("text", "").lower().strip()):
-        desc_font_size = 34 if split_layout else 36
-        desc_font = _load_font(desc_font_size, bold=False)
+        desc_font_size = 30 if split_layout else 32
+        desc_font = _load_font(desc_font_size, bold=False)  # Regular weight for contrast with bold title
         desc_line_height = int(desc_font_size * 1.4)
 
         desc_lines = _wrap_text(support_text, desc_font, content_width, draw)
         max_lines = 2
         for i, line in enumerate(desc_lines[:max_lines]):
             y_pos = content_y + (i * desc_line_height)
-            _draw_text_with_shadow(draw, (padding, y_pos), line, desc_font, (240, 240, 245), 2)
-        content_y += min(len(desc_lines), max_lines) * desc_line_height + 40
+            # Lighter opacity (210) vs title (255) for visual hierarchy
+            _draw_text_with_shadow(draw, (padding, y_pos), line, desc_font, (210, 215, 225), 1, image=img)
+            draw = ImageDraw.Draw(img)
+        content_y += min(len(desc_lines), max_lines) * desc_line_height + 32
 
     # ── PRIMARY CTA COMPOSITING ──────────────────────────────────────────
     if ctas:
@@ -927,16 +1001,21 @@ def _generate_profile_template(
     draw = ImageDraw.Draw(img)
     
     # === PREMIUM GRADIENT HEADER ===
-    header_height = 140  # Taller header for better visual impact
+    header_height = 160  # Taller header for better visual impact
     header_img = Image.new('RGB', (OG_IMAGE_WIDTH, header_height), primary_color)
-    
+
     # Rich diagonal gradient
     header_img = _draw_gradient_background(header_img, primary_color, secondary_color, "diagonal")
-    
-    # Add depth with subtle overlay
-    overlay = Image.new('RGBA', (OG_IMAGE_WIDTH, header_height), (0, 0, 0, 15))
+
+    # Add depth with subtle overlay + noise texture
+    overlay = Image.new('RGBA', (OG_IMAGE_WIDTH, header_height), (0, 0, 0, 0))
+    overlay_draw = ImageDraw.Draw(overlay)
+    for y in range(header_height):
+        progress = y / header_height
+        alpha = int(10 + 25 * progress)  # Darken toward bottom
+        overlay_draw.line([(0, y), (OG_IMAGE_WIDTH, y)], fill=(0, 0, 0, alpha))
     header_img = Image.alpha_composite(header_img.convert('RGBA'), overlay).convert('RGB')
-    
+
     img.paste(header_img, (0, 0))
     draw = ImageDraw.Draw(img)
     
@@ -1395,17 +1474,17 @@ def _generate_modern_card_template(
         fill=(255, 255, 255)
     )
     
-    # Bold accent bar (thicker for impact)
-    bar_height = 8
+    # Left vertical accent bar (more modern than top bar)
+    bar_width = 6
     draw.rectangle(
-        [(card_x, card_y), (card_x + card_width, card_y + bar_height)],
+        [(card_x, card_y), (card_x + bar_width, card_y + card_height)],
         fill=primary_color
     )
     
-    # DESIGN FIX 2: Consistent padding system
+    # Consistent padding system
     padding = int(OG_IMAGE_WIDTH * 0.047)  # ~4.7% of width (56px at 1200px)
     padding = max(40, min(70, padding))  # Clamp between 40-70px
-    content_x = card_x + padding
+    content_x = card_x + bar_width + padding  # Account for left accent bar
     content_y = card_y + bar_height + padding
     content_width = card_width - (padding * 2)
     
