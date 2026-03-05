@@ -67,9 +67,9 @@ class QualityGateConfig:
     
     def __init__(
         self,
-        min_extraction_quality: float = 0.65,  # UPGRADED from 0.60
-        min_confidence: float = 0.55,           # UPGRADED from 0.50
-        min_classification_confidence: float = 0.45,  # UPGRADED from 0.40
+        min_extraction_quality: float = 0.50,  # Lowered: mediocre preview > fallback
+        min_confidence: float = 0.40,           # Lowered: let more results through
+        min_classification_confidence: float = 0.35,  # Lowered: more permissive
         require_hook: bool = True,
         allow_navigation_hooks: bool = False,
         require_social_proof_numbers: bool = False,

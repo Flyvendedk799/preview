@@ -719,13 +719,20 @@ class PreviewEngine:
                                 f"with improvements: {', '.join(quality_metrics.suggestions[:2])}"
                             )
                             
-                            # Apply improvements and regenerate
-                            # Re-run AI reasoning with enhanced prompts
+                            # Apply improvements: boost colors and regenerate image
+                            # (Re-running AI reasoning with identical params yields identical results,
+                            # so instead we enhance the existing extraction with quality suggestions)
                             try:
-                                ai_result = self._run_ai_reasoning_enhanced(
-                                    screenshot_bytes, url_str, html_content, page_classification, dom_data
-                                )
-                                
+                                # Apply quality suggestions to improve the result
+                                if ai_result and isinstance(ai_result, dict):
+                                    blueprint = ai_result.get("blueprint", {})
+                                    # Boost contrast by darkening primary color for better text readability
+                                    from backend.services.preview_image_generator import _hex_to_rgb, _darken_color
+                                    primary_rgb = _hex_to_rgb(blueprint.get("primary_color", "#2563EB"))
+                                    darkened = _darken_color(primary_rgb, 0.75)
+                                    blueprint["primary_color"] = f"#{darkened[0]:02x}{darkened[1]:02x}{darkened[2]:02x}"
+                                    ai_result["blueprint"] = blueprint
+
                                 # Regenerate composited image with improved data
                                 composited_image_url = self._generate_composited_image(
                                     screenshot_bytes, url_str, ai_result, brand_elements, page_classification
@@ -793,20 +800,16 @@ class PreviewEngine:
                                 try:
                                     from backend.services.readability_auto_fixer import ReadabilityAutoFixer
                                     self.logger.info("🔧 Applying ReadabilityAutoFixer for low contrast...")
-                                    
+
                                     fixer = ReadabilityAutoFixer()
-                                    
-                                    # Download the current image
+
+                                    # Download the current image using sync client
                                     import httpx
-                                    async def fix_image():
-                                        async with httpx.AsyncClient() as client:
-                                            resp = await client.get(result.composited_preview_image_url)
-                                            if resp.status_code == 200:
-                                                return resp.content
-                                        return None
-                                    
-                                    import asyncio
-                                    image_bytes = asyncio.get_event_loop().run_until_complete(fix_image())
+                                    image_bytes = None
+                                    with httpx.Client(timeout=10.0) as client:
+                                        resp = client.get(result.composited_preview_image_url)
+                                        if resp.status_code == 200:
+                                            image_bytes = resp.content
                                     
                                     if image_bytes:
                                         fixed_bytes, fix_report = fixer.fix_from_bytes(
@@ -994,11 +997,20 @@ class PreviewEngine:
         
         retries = 0
         last_error = None
-        
+        CAPTURE_TIMEOUT = 15  # Hard 15-second timeout for screenshot capture
+
         while retries <= self.config.max_retries:
             try:
                 self.logger.info(f"📸 Capturing screenshot + HTML for: {url}")
-                screenshot_bytes, html_content, dom_data = capture_screenshot_and_html(url)
+                # Run capture with a hard timeout to prevent hanging on slow sites
+                from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
+                with ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(capture_screenshot_and_html, url)
+                    try:
+                        screenshot_bytes, html_content, dom_data = future.result(timeout=CAPTURE_TIMEOUT)
+                    except FuturesTimeoutError:
+                        future.cancel()
+                        raise TimeoutError(f"Screenshot capture timed out after {CAPTURE_TIMEOUT}s")
                 
                 # Validate screenshot quality
                 if len(screenshot_bytes) < 1000:  # Too small
@@ -2398,33 +2410,53 @@ class PreviewEngine:
         result: PreviewEngineResult,
         url: str
     ) -> PreviewEngineResult:
-        """7X QUALITY: Comprehensive validation and enhancement."""
+        """Comprehensive validation and enhancement of extracted content."""
         from urllib.parse import urlparse
-        
+        import re
+
         parsed = urlparse(url)
         domain = parsed.netloc.replace('www.', '')
-        
+
         # === TITLE VALIDATION ===
         generic_titles = [
             "home", "welcome", "untitled", "about", "404", "error",
-            "loading", "please wait", "document", "page"
+            "loading", "please wait", "document", "page", "index",
+            "sign in", "log in", "register", "sign up",
         ]
-        
+        # Also catch "Welcome to X" pattern
+        title_lower = (result.title or "").lower().strip()
         title_is_weak = (
-            not result.title or 
+            not result.title or
             len(result.title.strip()) < 5 or
-            result.title.lower().strip() in generic_titles or
-            result.title.lower() == domain.lower()
+            title_lower in generic_titles or
+            title_lower == domain.lower() or
+            title_lower.startswith("welcome to") or
+            title_lower.startswith("about us")
         )
-        
+
         if title_is_weak:
             result.warnings.append(f"Weak title detected: '{result.title}'")
-            # Try to use subtitle or domain as fallback
+            # Fallback priority: subtitle > og:title from metadata > domain
             if result.subtitle and len(result.subtitle) > len(result.title or ""):
                 result.title = result.subtitle
                 result.subtitle = None
-            elif not result.title or result.title.lower() in generic_titles:
+            elif not result.title or title_lower in generic_titles:
                 result.title = domain.replace('.', ' ').title()
+
+        # === SOCIAL PROOF ENRICHMENT ===
+        # If we have no credibility items, scan for numeric proof patterns
+        if not result.credibility_items and result.description:
+            proof_patterns = [
+                r'(\d[\d,]*\+?\s*(?:reviews|users|customers|downloads|ratings))',
+                r'(\d\.?\d?\s*★)',
+                r'(rated\s*\d\.?\d?\s*/\s*\d)',
+                r'(\d[\d,]*\+?\s*(?:companies|teams|developers|businesses))',
+            ]
+            for pattern in proof_patterns:
+                match = re.search(pattern, result.description, re.IGNORECASE)
+                if match:
+                    result.credibility_items = [{"type": "proof", "value": match.group(1)}]
+                    break
         
         # === DESCRIPTION VALIDATION ===
         generic_descriptions = [

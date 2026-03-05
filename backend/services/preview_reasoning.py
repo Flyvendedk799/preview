@@ -257,6 +257,14 @@ MISSION: Extract content that makes this preview IRRESISTIBLE. Someone scrolling
 Find THE SINGLE MOST COMPELLING THING about this page. Not everything - THE ONE THING.
 Then find 2-3 supporting elements. That's it.
 
+=== COLOR EXTRACTION (CRITICAL) ===
+Extract ACTUAL colors visible in the UI - do NOT guess or use defaults:
+- Primary: The dominant brand color (from logo, nav bar, or primary buttons). Extract the EXACT hex code.
+- Secondary: A complementary color used in headings, backgrounds, or secondary elements.
+- Accent: The CTA button color, link color, or highlight color.
+Look at buttons, header backgrounds, logo colors, and link colors. If the site uses blue buttons, primary should be that exact blue.
+NEVER return #2563EB or #1E40AF unless that is actually the color on the page.
+
 === CRITICAL: COMPANY vs INDIVIDUAL DETECTION ===
 BEFORE extracting, determine: Is this about ONE PERSON or a COMPANY/TEAM?
 

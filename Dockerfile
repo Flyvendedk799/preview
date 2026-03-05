@@ -32,7 +32,13 @@ COPY alembic.ini ./
 # Make sure scripts in .local are usable
 ENV PATH=/root/.local/bin:$PATH
 
-# Install Playwright + Chromium
+# Install fonts for preview image generation + Playwright + Chromium
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    fonts-dejavu-core \
+    fonts-liberation \
+    fontconfig \
+    && rm -rf /var/lib/apt/lists/* \
+    && fc-cache -f -v
 RUN pip install playwright
 RUN playwright install --with-deps chromium
 

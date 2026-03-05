@@ -66,13 +66,15 @@ def generate_demo_preview_job(url: str) -> Dict[str, Any]:
         # Update initial progress
         _update_job_progress(0.05, "Starting preview generation...")
         
-        # Configure engine for demo mode
+        # Configure engine for demo mode (optimized for speed)
         config = PreviewEngineConfig(
             is_demo=True,
             enable_brand_extraction=True,
             enable_ai_reasoning=True,
             enable_composited_image=True,
             enable_cache=not cache_disabled,  # Disable cache if admin toggle is enabled
+            enable_multi_agent=False,  # Demo: skip expensive multi-agent orchestration
+            enable_ui_element_extraction=False,  # Demo: skip UI element extraction for speed
             progress_callback=_update_job_progress
         )
         
@@ -107,7 +109,7 @@ def generate_demo_preview_job(url: str) -> Dict[str, Any]:
             "balance_score": blueprint_data.get("balance_score", 0.0),
             "clarity_score": blueprint_data.get("clarity_score", 0.0),
             "design_fidelity_score": blueprint_data.get("design_fidelity_score"),
-            "overall_quality": blueprint_data.get("overall_quality", 0.0),
+            "overall_quality": str(blueprint_data.get("overall_quality", "good")),
             "layout_reasoning": blueprint_data.get("layout_reasoning", ""),
             "composition_notes": blueprint_data.get("composition_notes", "")
         }

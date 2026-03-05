@@ -630,18 +630,24 @@ def _extract_colors_from_image(image_bytes: bytes) -> Dict[str, str]:
     
     try:
         img = Image.open(BytesIO(image_bytes))
-        # Resize for faster processing
-        img = img.resize((150, 150), Image.Resampling.LANCZOS)
-        
+        # Resize for faster processing - larger sample for better accuracy
+        img = img.resize((200, 200), Image.Resampling.LANCZOS)
+
         # Convert to RGB if needed
         if img.mode != 'RGB':
             img = img.convert('RGB')
-        
-        # Get colors (sample every 5th pixel for speed)
+
+        # Get colors - sample more densely for better representation
+        # Focus on upper 60% where brand colors tend to be (header, nav, hero)
         pixels = []
         width, height = img.size
-        for y in range(0, height, 5):
-            for x in range(0, width, 5):
+        brand_zone_height = int(height * 0.6)
+        for y in range(0, brand_zone_height, 3):
+            for x in range(0, width, 3):
+                pixels.append(img.getpixel((x, y)))
+        # Also sample the rest at lower density
+        for y in range(brand_zone_height, height, 6):
+            for x in range(0, width, 6):
                 pixels.append(img.getpixel((x, y)))
         
         # Get most common colors - get more to find contrasting ones
@@ -762,12 +768,37 @@ def _extract_colors_from_image(image_bytes: bytes) -> Dict[str, str]:
                     return FALLBACK_COLORS
         
         # Original colors have sufficient contrast - use them
+        primary = top_colors[0][0] if top_colors else (37, 99, 235)
+        secondary = top_colors[1][0] if len(top_colors) > 1 else (30, 64, 175)
+        accent = top_colors[2][0] if len(top_colors) > 2 else (245, 158, 11)
+
+        # Ensure primary and secondary are sufficiently different
+        # If too similar, derive secondary by darkening primary
+        if _get_contrast_ratio(primary, secondary) < 1.5:
+            # Shift hue by ~30 degrees in HSV space
+            import colorsys
+            h, s, v = colorsys.rgb_to_hsv(primary[0]/255, primary[1]/255, primary[2]/255)
+            h2 = (h + 0.08) % 1.0  # ~30 degree shift
+            v2 = max(0.1, v * 0.7)  # Darken
+            sr, sg, sb = colorsys.hsv_to_rgb(h2, min(1, s * 1.2), v2)
+            secondary = (int(sr * 255), int(sg * 255), int(sb * 255))
+            logger.info(f"Derived secondary from primary via hue shift: {rgb_to_hex(secondary)}")
+
+        # Ensure accent is distinct from both primary and secondary
+        if _get_contrast_ratio(accent, primary) < 2.0:
+            # Use complementary hue for accent
+            h, s, v = colorsys.rgb_to_hsv(primary[0]/255, primary[1]/255, primary[2]/255)
+            h_accent = (h + 0.42) % 1.0  # ~150 degree shift (triadic)
+            ar, ag, ab = colorsys.hsv_to_rgb(h_accent, max(0.6, s), max(0.6, v))
+            accent = (int(ar * 255), int(ag * 255), int(ab * 255))
+            logger.info(f"Derived accent via triadic hue shift: {rgb_to_hex(accent)}")
+
         colors = {
-            "primary_color": rgb_to_hex(top_colors[0][0]) if top_colors else "#2563EB",
-            "secondary_color": rgb_to_hex(top_colors[1][0]) if len(top_colors) > 1 else "#1E40AF",
-            "accent_color": rgb_to_hex(top_colors[2][0]) if len(top_colors) > 2 else "#F59E0B"
+            "primary_color": rgb_to_hex(primary),
+            "secondary_color": rgb_to_hex(secondary),
+            "accent_color": rgb_to_hex(accent)
         }
-        
+
         return colors
     except Exception as e:
         logger.warning(f"Failed to extract colors from image: {e}")
