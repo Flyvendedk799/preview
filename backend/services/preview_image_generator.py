@@ -1054,12 +1054,13 @@ def _generate_profile_template(
         bg_draw = ImageDraw.Draw(avatar_bg)
         
         # Draw gradient circle
-        for i in range(avatar_size):
-            progress = i / avatar_size
+        half = avatar_size // 2
+        for i in range(half):
+            progress = i / half
             r = int(primary_color[0] * (1 - progress) + secondary_color[0] * progress)
             g = int(primary_color[1] * (1 - progress) + secondary_color[1] * progress)
             b = int(primary_color[2] * (1 - progress) + secondary_color[2] * progress)
-            bg_draw.ellipse([(i, i), (avatar_size - i, avatar_size - i)], outline=(r, g, b, 255), width=1)
+            bg_draw.ellipse([(i, i), (avatar_size - i - 1, avatar_size - i - 1)], outline=(r, g, b, 255), width=1)
         
         # Fill center
         mask = Image.new('L', (avatar_size, avatar_size), 0)
@@ -1485,7 +1486,7 @@ def _generate_modern_card_template(
     padding = int(OG_IMAGE_WIDTH * 0.047)  # ~4.7% of width (56px at 1200px)
     padding = max(40, min(70, padding))  # Clamp between 40-70px
     content_x = card_x + bar_width + padding  # Account for left accent bar
-    content_y = card_y + bar_height + padding
+    content_y = card_y + padding
     content_width = card_width - (padding * 2)
     
     # === TOP ROW: Logo + Social Proof ===

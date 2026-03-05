@@ -13,6 +13,7 @@ ENHANCED with AI Logo Detection:
 - Validates logo quality and prominence
 """
 import base64
+import colorsys
 import json
 import logging
 import re
@@ -772,11 +773,22 @@ def _extract_colors_from_image(image_bytes: bytes) -> Dict[str, str]:
         secondary = top_colors[1][0] if len(top_colors) > 1 else (30, 64, 175)
         accent = top_colors[2][0] if len(top_colors) > 2 else (245, 158, 11)
 
+        # If primary is near-white (luminance > 0.9), swap with secondary or use dark gradient
+        # White backgrounds make terrible gradient primaries
+        if _calculate_luminance(primary) > 0.9:
+            if _calculate_luminance(secondary) < 0.7:
+                primary, secondary = secondary, primary  # Swap
+                logger.info(f"Swapped near-white primary with secondary for better gradients")
+            else:
+                # Both are light - fall back to professional dark gradient
+                primary = (71, 85, 105)   # Slate-600
+                secondary = (51, 65, 85)   # Slate-700
+                logger.info(f"Both colors near-white, using slate gradient fallback")
+
         # Ensure primary and secondary are sufficiently different
         # If too similar, derive secondary by darkening primary
         if _get_contrast_ratio(primary, secondary) < 1.5:
             # Shift hue by ~30 degrees in HSV space
-            import colorsys
             h, s, v = colorsys.rgb_to_hsv(primary[0]/255, primary[1]/255, primary[2]/255)
             h2 = (h + 0.08) % 1.0  # ~30 degree shift
             v2 = max(0.1, v * 0.7)  # Darken
