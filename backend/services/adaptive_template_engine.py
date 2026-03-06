@@ -94,7 +94,7 @@ TYPOGRAPHY_PERSONALITY_MAP = {
         "case": "mixed",             # Preserve original casing - don't force uppercase
         "font_style": ["Impact", "Oswald", "Bebas Neue", "Anton"],
         "letter_spacing_mult": -0.03,  # Tighter for modern look
-        "headline_boost": 1.15         # Larger headlines
+        "headline_boost": 1.0          # No boost - let adaptive sizing handle it
     },
     "friendly": {
         "weight": "bold",             # UPGRADED: Bolder for better hierarchy
@@ -126,7 +126,7 @@ TYPOGRAPHY_PERSONALITY_MAP = {
         "case": "mixed",               # Preserve original casing - don't force uppercase
         "font_style": ["Impact", "Oswald", "Anton", "Bebas Neue"],
         "letter_spacing_mult": -0.04,  # Very tight for impact
-        "headline_boost": 1.20         # MAXIMUM headline size
+        "headline_boost": 1.0          # No boost - let adaptive sizing handle it
     },
     "expressive": {
         "weight": "bold",
@@ -1961,9 +1961,9 @@ class AdaptiveTemplateEngine:
         
         # Adjust base size based on weight contrast
         weight_size_adjust = {
-            'high': 1.20,  # LARGER headlines for maximum impact
-            'medium': 1.10,  # Increased from 1.0
-            'subtle': 1.0   # Increased from 0.9
+            'high': 1.05,   # Slight boost for high contrast
+            'medium': 1.0,  # No adjustment
+            'subtle': 0.95  # Slightly smaller for subtlety
         }
         base_size = int(base_size * weight_size_adjust.get(weight_contrast, 1.10))
         
@@ -2036,7 +2036,7 @@ class AdaptiveTemplateEngine:
         )
         
         # Wrap text
-        lines = get_optimal_line_breaks(title, font_size, w, max_lines=2)
+        lines = get_optimal_line_breaks(title, font_size, w, max_lines=3)
         
         # Calculate line height based on DNA
         line_height_multipliers = {
@@ -2089,9 +2089,9 @@ class AdaptiveTemplateEngine:
         line_height_dna = getattr(self.dna.typography, 'line_height', 'normal')
         case_strategy = getattr(self.dna.typography, 'case_strategy', 'mixed')
         
-        # MOBILE-FIRST: Ensure subtitle is BOLD and READABLE (minimum 42px)
+        # Subtitle should be readable but clearly smaller than the title
         base_subtitle_size = self.typography.subheadline_size
-        font_size = max(42, int(base_subtitle_size * 1.1))  # Minimum 42px, boosted for impact
+        font_size = max(24, min(base_subtitle_size, 36))  # 24-36px range
         font = load_pillow_font(self.typography.pillow_fonts, font_size, bold=True)
         
         # Apply case strategy
