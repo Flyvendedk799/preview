@@ -547,6 +547,7 @@ class PreviewEngine:
         try:
             # 7X PERFORMANCE: Use triple parallelization when possible
             screenshot_bytes, html_content, dom_data = self._capture_page(url_str)
+            self._last_screenshot_bytes = screenshot_bytes  # Store for fallback color extraction
             tracer.add_step("Capture Page", 
                             details=f"HTML extracted: {len(html_content)} characters. DOM Nodes: {len(dom_data.get('raw_top_texts', []))}", 
                             image_base64=__import__('base64').b64encode(screenshot_bytes).decode('utf-8'))
@@ -715,41 +716,61 @@ class PreviewEngine:
                         if quality_metrics.should_retry and retry_count < max_retries:
                             retry_count += 1
                             self.logger.info(
-                                f"🔄 Retrying preview generation (attempt {retry_count + 1}) "
+                                f"Retrying preview generation (attempt {retry_count + 1}) "
                                 f"with improvements: {', '.join(quality_metrics.suggestions[:2])}"
                             )
-                            
-                            # Apply improvements: boost colors and regenerate image
-                            # (Re-running AI reasoning with identical params yields identical results,
-                            # so instead we enhance the existing extraction with quality suggestions)
+
                             try:
-                                # Apply quality suggestions to improve the result
                                 if ai_result and isinstance(ai_result, dict):
                                     blueprint = ai_result.get("blueprint", {})
-                                    # Boost contrast by darkening primary color for better text readability
+
+                                    # IMPROVEMENT 1: Boost contrast by darkening primary color
                                     from backend.services.preview_image_generator import _hex_to_rgb, _darken_color
                                     primary_rgb = _hex_to_rgb(blueprint.get("primary_color", "#2563EB"))
                                     darkened = _darken_color(primary_rgb, 0.75)
                                     blueprint["primary_color"] = f"#{darkened[0]:02x}{darkened[1]:02x}{darkened[2]:02x}"
                                     ai_result["blueprint"] = blueprint
 
+                                    # IMPROVEMENT 2: Augment weak content with HTML metadata
+                                    title = ai_result.get("title", "")
+                                    desc = ai_result.get("description", "")
+                                    if len(title) < 10 or len(desc or "") < 30:
+                                        metadata = extract_metadata_from_html(html_content)
+                                        if len(title) < 10:
+                                            og_title = metadata.get("og_title") or metadata.get("title") or ""
+                                            if og_title and len(og_title) > len(title):
+                                                ai_result["title"] = og_title
+                                                self.logger.info(f"Retry: augmented weak title with HTML og:title")
+                                        if len(desc or "") < 30:
+                                            og_desc = metadata.get("og_description") or metadata.get("description") or ""
+                                            if og_desc and len(og_desc) > len(desc or ""):
+                                                ai_result["description"] = og_desc[:350]
+                                                self.logger.info(f"Retry: augmented weak description with HTML metadata")
+
+                                    # IMPROVEMENT 3: If no credibility, try HTML schema
+                                    if not ai_result.get("credibility_items"):
+                                        metadata = extract_metadata_from_html(html_content) if 'metadata' not in dir() else metadata
+                                        rating = metadata.get("aggregate_rating")
+                                        if rating:
+                                            ai_result["credibility_items"] = [{"type": "rating", "value": str(rating)}]
+
                                 # Regenerate composited image with improved data
                                 composited_image_url = self._generate_composited_image(
                                     screenshot_bytes, url_str, ai_result, brand_elements, page_classification
                                 )
-                                
+
                                 # Rebuild result with improved data
                                 result = self._build_result(
                                     url_str, ai_result, brand_elements, composited_image_url,
                                     screenshot_url, start_time, page_classification, ui_elements, dom_data
                                 )
-                                
+
                                 # Re-validate
                                 result = self._validate_result_quality(result, url_str)
-                                
-                                self.logger.info(f"🔄 Retry {retry_count} complete, re-checking quality...")
+
+                                self.logger.info(f"Retry {retry_count} complete, re-checking quality...")
                                 continue  # Re-check quality
-                                
+
                             except Exception as retry_error:
                                 self.logger.warning(f"Retry {retry_count} failed: {retry_error}")
                                 break  # Exit retry loop
@@ -831,13 +852,30 @@ class PreviewEngine:
                 except Exception as e:
                     self.logger.warning(f"Visual quality validation failed: {e}")
             
-            # If quality still failed after retries, use fallback
+            # If quality still failed after retries, use the best result we have
+            # (the AI-generated result is almost always better than HTML-only fallback)
             if not quality_passed:
-                self.logger.error(
-                    f"❌ Quality gates failed after {retry_count} retries. "
-                    f"Using fallback preview - rejected preview will NOT be served."
+                self.logger.warning(
+                    f"Quality gates failed after {retry_count} retries. "
+                    f"Serving best available result with quality warnings."
                 )
-                
+                # Use the current AI result if it has a title (it's better than HTML-only)
+                if result and result.title and result.title != "Untitled" and result.composited_preview_image_url:
+                    result.warnings.append("Preview quality below target - served best available")
+                    if 'quality_metrics' in locals():
+                        result.quality_scores = {
+                            "overall": quality_metrics.overall_quality_score,
+                            "design_fidelity": quality_metrics.design_fidelity_score,
+                            "extraction": quality_metrics.extraction_quality_score,
+                            "visual": quality_metrics.visual_quality_score,
+                            "quality_level": "accepted_below_threshold",
+                            "gate_status": "soft_pass"
+                        }
+                    quality_passed = True  # Accept it
+                    self.logger.info("Accepted AI result despite quality gate failure (better than fallback)")
+
+            # Only build HTML fallback if AI result was truly broken (no title or no image)
+            if not quality_passed:
                 # PHASE 2: Build fallback preview with smart fallback colors
                 # This ensures user never gets a rejected preview
                 try:
@@ -1343,7 +1381,7 @@ class PreviewEngine:
                 
         # Fallback to the monolithic reasoning
         if not self.config.enable_ai_reasoning:
-            return self._extract_from_html_only(html_content, url)
+            return self._extract_from_html_only(html_content, url, screenshot_bytes=getattr(self, '_last_screenshot_bytes', None))
         
         self._update_progress(0.60, "Running framework-based multi-modal fusion...")
         
@@ -1409,7 +1447,7 @@ class PreviewEngine:
                 raise ValueError("OpenAI rate limit reached. Please wait a moment and try again.")
             
             # Fallback to HTML-only extraction
-            return self._extract_from_html_only(html_content, url)
+            return self._extract_from_html_only(html_content, url, screenshot_bytes=getattr(self, '_last_screenshot_bytes', None))
     
     def _map_quality_level(self, confidence: float) -> str:
         """Map confidence score to quality level."""
@@ -1549,7 +1587,7 @@ class PreviewEngine:
         """
         if not self.config.enable_ai_reasoning:
             # Fallback to HTML-only extraction
-            return self._extract_from_html_only(html_content, url)
+            return self._extract_from_html_only(html_content, url, screenshot_bytes=getattr(self, '_last_screenshot_bytes', None))
         
         self._update_progress(0.60, "Running AI reasoning...")
         
@@ -1597,12 +1635,12 @@ class PreviewEngine:
             # Check for rate limit
             if "429" in error_msg or "rate limit" in error_msg.lower():
                 self.logger.warning("⚠️ Rate limit detected, falling back to HTML extraction")
-                return self._extract_from_html_only(html_content, url)
+                return self._extract_from_html_only(html_content, url, screenshot_bytes=getattr(self, '_last_screenshot_bytes', None))
             
             # Check for timeout
             if "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
                 self.logger.warning("⚠️ Timeout detected, falling back to HTML extraction")
-                return self._extract_from_html_only(html_content, url)
+                return self._extract_from_html_only(html_content, url, screenshot_bytes=getattr(self, '_last_screenshot_bytes', None))
             
             # Check for invalid API key
             if "401" in error_msg or "unauthorized" in error_msg.lower():
@@ -1612,26 +1650,27 @@ class PreviewEngine:
             # Check for JSON parsing errors (handled in reasoning layer, but log here)
             if "json" in error_msg.lower() or "parse" in error_msg.lower():
                 self.logger.warning("⚠️ JSON parsing issue detected, falling back to HTML extraction")
-                return self._extract_from_html_only(html_content, url)
+                return self._extract_from_html_only(html_content, url, screenshot_bytes=getattr(self, '_last_screenshot_bytes', None))
             
             # Generic fallback to HTML-only extraction
             self.logger.warning("⚠️ Unknown error, falling back to HTML-only extraction")
-            return self._extract_from_html_only(html_content, url)
+            return self._extract_from_html_only(html_content, url, screenshot_bytes=getattr(self, '_last_screenshot_bytes', None))
     
     def _extract_from_html_only(
         self,
         html_content: str,
-        url: str
+        url: str,
+        screenshot_bytes: bytes = None
     ) -> Dict[str, Any]:
         """
         Extract preview data from HTML only (fallback when AI fails).
-        
-        This provides a decent preview even when AI reasoning fails by
-        intelligently extracting and prioritizing HTML metadata.
+
+        Enhanced to extract brand colors from screenshots when available,
+        producing much better results than generic blue defaults.
         """
         from urllib.parse import urlparse
-        
-        self.logger.info("📄 Extracting preview from HTML only")
+
+        self.logger.info("Extracting preview from HTML (enhanced fallback)")
         
         metadata = extract_metadata_from_html(html_content)
         semantic = extract_semantic_structure(html_content)
@@ -1720,8 +1759,41 @@ class PreviewEngine:
                 template_type = template
                 break
         
-        self.logger.info(f"📄 HTML extraction: title='{title[:40]}...', template={template_type}")
-        
+        self.logger.info(f"HTML extraction: title='{title[:40]}...', template={template_type}")
+
+        # Extract brand colors from screenshot if available (much better than generic blue)
+        primary_color = "#2563EB"
+        secondary_color = "#1E40AF"
+        accent_color = "#F59E0B"
+        confidence = 0.4
+
+        if screenshot_bytes:
+            try:
+                from backend.services.brand_extractor import extract_colors_from_screenshot
+                colors = extract_colors_from_screenshot(screenshot_bytes)
+                if colors:
+                    primary_color = colors.get("primary", primary_color)
+                    secondary_color = colors.get("secondary", secondary_color)
+                    accent_color = colors.get("accent", accent_color)
+                    confidence = 0.55  # Higher confidence with real colors
+                    self.logger.info(f"Extracted brand colors from screenshot: {primary_color}, {accent_color}")
+            except Exception as e:
+                self.logger.warning(f"Color extraction from screenshot failed: {e}")
+
+        # Try to extract og:image as primary image
+        primary_image_base64 = None
+        og_image_url = metadata.get("og_image") or metadata.get("twitter_image")
+        if og_image_url:
+            try:
+                import requests
+                resp = requests.get(og_image_url, timeout=5)
+                if resp.status_code == 200 and len(resp.content) > 1000:
+                    import base64
+                    primary_image_base64 = base64.b64encode(resp.content).decode('utf-8')
+                    self.logger.info("Extracted og:image as primary image for fallback")
+            except Exception:
+                pass
+
         return {
             "title": title,
             "subtitle": None,
@@ -1730,20 +1802,20 @@ class PreviewEngine:
             "context_items": [],
             "credibility_items": credibility_items,
             "cta_text": None,
-            "primary_image_base64": None,
+            "primary_image_base64": primary_image_base64,
             "blueprint": {
                 "template_type": template_type,
-                "primary_color": "#2563EB",
-                "secondary_color": "#1E40AF",
-                "accent_color": "#F59E0B",
+                "primary_color": primary_color,
+                "secondary_color": secondary_color,
+                "accent_color": accent_color,
                 "coherence_score": 0.5,
                 "balance_score": 0.5,
                 "clarity_score": 0.5,
-                "overall_quality": "fair",  # Fair because it's HTML-only
-                "layout_reasoning": "HTML metadata extraction (fallback mode)",
-                "composition_notes": "Preview generated from page metadata - quality gates triggered fallback"
+                "overall_quality": "fair",
+                "layout_reasoning": "HTML metadata extraction (enhanced fallback with brand colors)",
+                "composition_notes": "Preview generated from page metadata with screenshot color extraction"
             },
-            "reasoning_confidence": 0.4  # Lower confidence for HTML-only
+            "reasoning_confidence": confidence
         }
     
     def _convert_reasoned_preview_to_dict(
@@ -2289,7 +2361,7 @@ class PreviewEngine:
         """
         self.logger.warning("Building fallback result from HTML only")
         
-        html_result = self._extract_from_html_only(html_content, url)
+        html_result = self._extract_from_html_only(html_content, url, screenshot_bytes=getattr(self, '_last_screenshot_bytes', None))
         processing_time_ms = int((time.time() - start_time) * 1000)
         
         # Ensure we have valid title and description

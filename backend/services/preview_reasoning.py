@@ -1236,11 +1236,11 @@ def clean_display_text(raw_text: str, purpose: str) -> str:
     
     # Limit length based on purpose with smart truncation
     max_lengths = {
-        "hook": 100,
-        "identity": 80,
-        "proof": 60,
-        "benefits": 200,
-        "description": 300,
+        "hook": 120,
+        "identity": 100,
+        "proof": 80,
+        "benefits": 250,
+        "description": 350,
         "tagline": 120
     }
     max_len = max_lengths.get(purpose, 200)
@@ -1273,12 +1273,19 @@ def extract_final_content(
     
     # Build inclusion map
     included = {d["region_id"]: d["include"] for d in composition_decisions}
-    
+
     # Ensure highlights dict exists
     if highlights is None:
         highlights = {}
-    
+
     layout_slots = layout.get("layout", {})
+
+    # Ensure slot-referenced regions are considered included
+    for slot_key in ['headline_slot', 'visual_slot', 'proof_slot', 'benefit_slot', 'cta_slot']:
+        slot_region_id = layout_slots.get(slot_key)
+        if slot_region_id and slot_region_id in region_map and slot_region_id not in included:
+            included[slot_region_id] = True
+            logger.info(f"Auto-including slot-referenced region: {slot_region_id} ({slot_key})")
     
     # Extract content for each slot
     def get_region_content(region_id: str, purpose: str = "") -> Optional[str]:
@@ -1393,7 +1400,19 @@ def extract_final_content(
         subtitle = get_region_content(layout_slots.get("proof_slot"), "proof")
     if not subtitle:
         subtitle = get_region_content(layout_slots.get("tagline_slot"), "tagline")
-    
+
+    # PRIORITY 3: Search included regions for credibility/proof content
+    if not subtitle:
+        for region_id, include_flag in included.items():
+            if include_flag and region_id in region_map:
+                region = region_map[region_id]
+                if region.get("purpose") in ("proof", "credibility") or region.get("content_type") in ("rating", "user_count", "testimonial", "statistic"):
+                    candidate = get_region_content(region_id, "proof")
+                    if candidate and len(candidate) > 5:
+                        subtitle = candidate
+                        logger.info(f"Using credibility region as subtitle: '{subtitle}'")
+                        break
+
     # Track proof text separately for credibility_items
     proof_text = subtitle if subtitle else get_region_content(layout_slots.get("proof_slot"), "proof")
     

@@ -1055,3 +1055,18 @@ def extract_all_brand_elements(
                 f"has_hero={bool(brand_elements['hero_image_base64'])}")
 
     return brand_elements
+
+
+def extract_colors_from_screenshot(screenshot_bytes: bytes) -> Optional[Dict[str, str]]:
+    """Extract brand colors from a screenshot image only (no HTML needed)."""
+    try:
+        palette = _extract_colors_from_image(screenshot_bytes)
+        if palette:
+            return {
+                "primary": palette.get("primary_color", "#2563EB"),
+                "secondary": palette.get("secondary_color", "#1E40AF"),
+                "accent": palette.get("accent_color", "#F59E0B"),
+            }
+    except Exception as e:
+        logger.warning(f"extract_colors_from_screenshot failed: {e}")
+    return None

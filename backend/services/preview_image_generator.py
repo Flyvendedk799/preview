@@ -628,11 +628,12 @@ def generate_designed_preview(
         if template_lower in ["saas", "startup", "landing", "enterprise", "tool"]:
             logger.info("Using HERO template (bold headline, gradient background)")
             return _generate_hero_template(
-                screenshot_bytes, title, subtitle, description, 
+                screenshot_bytes, title, subtitle, description,
                 primary_color, secondary_color, accent_color,
-                credibility_items, tags, primary_image_base64, dom_data=dom_data
+                credibility_items, tags, primary_image_base64, dom_data=dom_data,
+                domain=domain
             )
-        
+
         # Product, E-commerce → Enhanced Product Template (category-aware)
         elif template_lower in ["product", "ecommerce", "marketplace"]:
             if ENHANCED_PRODUCT_RENDERER_AVAILABLE and product_intelligence:
@@ -675,9 +676,10 @@ def generate_designed_preview(
             if has_strong_proof:
                 logger.info("Using HERO template (strong social proof detected)")
                 return _generate_hero_template(
-                    screenshot_bytes, title, subtitle, description, 
+                    screenshot_bytes, title, subtitle, description,
                     primary_color, secondary_color, accent_color,
-                    credibility_items, tags, primary_image_base64, dom_data=dom_data
+                    credibility_items, tags, primary_image_base64, dom_data=dom_data,
+                    domain=domain
                 )
             else:
                 # Default to Modern Card (most versatile)
@@ -704,7 +706,8 @@ def _generate_hero_template(
     credibility_items: List[Dict],
     tags: List[str],
     primary_image_base64: Optional[str],
-    dom_data: Optional[Dict[str, Any]] = None
+    dom_data: Optional[Dict[str, Any]] = None,
+    domain: str = ""
 ) -> bytes:
     """
     PREMIUM Hero template: Brand gradient on the left, actual page screenshot on the right.
@@ -868,7 +871,7 @@ def _generate_hero_template(
             draw.text((badge_x + 18, content_y + 10), str(proof_text), font=proof_font, fill=(255, 255, 255))
             badge_bottom_y = content_y + badge_height
 
-    content_y = max(logo_bottom_y, badge_bottom_y) + 48
+    content_y = max(logo_bottom_y, badge_bottom_y) + 36
 
     # ── MAIN TEXT AND CTA COMPOSITING FROM DOM DATA ────────────────
     # We now heavily favor using the raw DOM texts if available for "pixel-perfect" representation
@@ -901,14 +904,18 @@ def _generate_hero_template(
         title_length = len(heading_text)
 
         # Dynamic font size based on text length
-        if title_length < 25:
-            title_font_size = 92
-        elif title_length < 40:
-            title_font_size = 76
-        elif title_length < 60:
-            title_font_size = 62
+        if title_length < 20:
+            title_font_size = 96
+        elif title_length < 35:
+            title_font_size = 80
+        elif title_length < 50:
+            title_font_size = 66
+        elif title_length < 70:
+            title_font_size = 56
+        elif title_length < 90:
+            title_font_size = 48
         else:
-            title_font_size = 52
+            title_font_size = 42
 
         if split_layout:
             title_font_size = int(title_font_size * 0.88)
@@ -923,7 +930,7 @@ def _generate_hero_template(
         # Measure total content height to distribute space evenly
         total_title_height = actual_lines * title_line_height
         remaining_space = OG_IMAGE_HEIGHT - content_y - padding - 60
-        title_y = content_y + max(0, int((remaining_space - total_title_height) / 5))
+        title_y = content_y + max(0, int((remaining_space - total_title_height) / 6))
 
         for i, line in enumerate(title_lines[:max_lines]):
             y_pos = title_y + (i * title_line_height)
@@ -937,12 +944,12 @@ def _generate_hero_template(
         support_text = sub_heading.get("text", support_text)
 
     if support_text and (not main_heading or support_text.lower().strip() != main_heading.get("text", "").lower().strip()):
-        desc_font_size = 30 if split_layout else 32
+        desc_font_size = 32 if split_layout else 34
         desc_font = _load_font(desc_font_size, bold=False)  # Regular weight for contrast with bold title
         desc_line_height = int(desc_font_size * 1.4)
 
         desc_lines = _wrap_text(support_text, desc_font, content_width, draw)
-        max_lines = 2
+        max_lines = 3
         for i, line in enumerate(desc_lines[:max_lines]):
             y_pos = content_y + (i * desc_line_height)
             # Lighter opacity (210) vs title (255) for visual hierarchy
@@ -983,6 +990,13 @@ def _generate_hero_template(
         
         # Draw CTA Text
         draw.text((padding + btn_padding_x, content_y + btn_padding_y), cta_text, font=cta_font, fill=(255, 255, 255))
+
+    # ── DOMAIN ATTRIBUTION (bottom-left) ──────────────────────────────────
+    if domain:
+        domain_font = _load_font(22, bold=False)
+        domain_y = OG_IMAGE_HEIGHT - 6 - 40  # bar_height is 6
+        _draw_text_with_shadow(draw, (padding, domain_y), domain, domain_font, (255, 255, 255, 140), 1)
+        draw = ImageDraw.Draw(img)
 
     # ── BOTTOM ACCENT BAR ─────────────────────────────────────────────────
     # Spans the text panel only in split mode; full width otherwise
@@ -1641,34 +1655,52 @@ def _generate_modern_card_template(
     content_y = row_y + logo_size + 36
     
     # MOBILE-FIRST DESIGN: Headline must be readable on mobile feeds
-    title_font = _load_font(96, bold=True)  # Increased from 48 for mobile readability (8% of width)
+    # Dynamic font sizing based on title length for better readability
     if title and title != "Untitled":
+        title_length = len(title)
+        if title_length < 20:
+            title_font_size = 96
+        elif title_length < 35:
+            title_font_size = 80
+        elif title_length < 50:
+            title_font_size = 66
+        elif title_length < 70:
+            title_font_size = 56
+        elif title_length < 90:
+            title_font_size = 48
+        else:
+            title_font_size = 42
+        title_font = _load_font(title_font_size, bold=True)
+        title_line_height = int(title_font_size * 1.18)
         title_lines = _wrap_text(title, title_font, content_width, draw)
-        for i, line in enumerate(title_lines[:2]):
-            y_pos = content_y + (i * 58)
+        max_title_lines = 3 if title_length > 50 else 2
+        for i, line in enumerate(title_lines[:max_title_lines]):
+            y_pos = content_y + (i * title_line_height)
             draw.text((content_x, y_pos), str(line), font=title_font, fill=(15, 23, 42))  # Near black
-        content_y += min(len(title_lines), 2) * 58 + 20
+        content_y += min(len(title_lines), max_title_lines) * title_line_height + 20
     
     # === SUBTITLE/PROOF (if not shown in badge) ===
     show_subtitle = subtitle and subtitle not in str(credibility_items)
     if show_subtitle:
         # MOBILE-FIRST: Subtitle readable on mobile
-        sub_font = _load_font(40, bold=True)  # Increased from 24, made bold
+        sub_font = _load_font(34, bold=True)  # Balanced with dynamic title sizing
+        sub_line_height = int(34 * 1.4)
         sub_lines = _wrap_text(subtitle, sub_font, content_width, draw)
-        for i, line in enumerate(sub_lines[:2]):
-            y_pos = content_y + (i * 32)
+        for i, line in enumerate(sub_lines[:3]):
+            y_pos = content_y + (i * sub_line_height)
             draw.text((content_x, y_pos), str(line), font=sub_font, fill=(71, 85, 105))  # Slate-500
-        content_y += min(len(sub_lines), 2) * 32 + 16
+        content_y += min(len(sub_lines), 3) * sub_line_height + 16
     
     # === DESCRIPTION ===
     if description and description != subtitle:
         # MOBILE-FIRST: Product description readable on mobile
-        desc_font = _load_font(36, bold=True)  # Increased from 22, made bold
+        desc_font = _load_font(32, bold=False)  # Regular weight for hierarchy contrast
+        desc_line_height = int(32 * 1.4)
         desc_lines = _wrap_text(description, desc_font, content_width, draw)
-        for i, line in enumerate(desc_lines[:2]):
-            y_pos = content_y + (i * 30)
+        for i, line in enumerate(desc_lines[:3]):
+            y_pos = content_y + (i * desc_line_height)
             draw.text((content_x, y_pos), str(line), font=desc_font, fill=(100, 116, 139))  # Slate-400
-        content_y += min(len(desc_lines), 2) * 30 + 20
+        content_y += min(len(desc_lines), 3) * desc_line_height + 20
     
     # === TAGS (bottom, as subtle chips) ===
     if tags:
