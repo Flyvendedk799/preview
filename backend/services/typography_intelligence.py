@@ -394,26 +394,34 @@ def calculate_adaptive_font_size(
     base_size: int,
     max_width: int,
     min_size: int = 24,
-    max_size: int = 160
+    max_size: int = 160,
+    max_lines: int = 3
 ) -> int:
     """
     Calculate adaptive font size based on text length and container.
-    
-    Ensures text fits while maintaining readability.
+
+    Accounts for multi-line wrapping: text can span up to max_lines lines,
+    so we target fitting within max_width * max_lines total character width.
     """
+    if not text:
+        return min(base_size, max_size)
+
     # Approximate character width ratio (varies by font)
     char_width_ratio = 0.55
-    
-    # Calculate how many characters fit at base size
+
+    # Total available width across all lines
+    total_width = max_width * max_lines
+
+    # Calculate how many characters fit at base size across all lines
     estimated_width = len(text) * base_size * char_width_ratio
-    
-    if estimated_width <= max_width:
+
+    if estimated_width <= total_width:
         return min(base_size, max_size)
-    
-    # Scale down to fit
-    scale = max_width / estimated_width
+
+    # Scale down to fit within max_lines
+    scale = total_width / estimated_width
     new_size = int(base_size * scale)
-    
+
     return max(min_size, min(new_size, max_size))
 
 

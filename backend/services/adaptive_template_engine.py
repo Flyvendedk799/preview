@@ -91,7 +91,7 @@ TYPOGRAPHY_PERSONALITY_MAP = {
     "authoritative": {
         "weight": "black",           # UPGRADED: Maximum weight for authority
         "tracking": "tight",
-        "case": "uppercase",
+        "case": "mixed",             # Preserve original casing - don't force uppercase
         "font_style": ["Impact", "Oswald", "Bebas Neue", "Anton"],
         "letter_spacing_mult": -0.03,  # Tighter for modern look
         "headline_boost": 1.15         # Larger headlines
@@ -123,7 +123,7 @@ TYPOGRAPHY_PERSONALITY_MAP = {
     "bold": {
         "weight": "black",             # Maximum impact
         "tracking": "tight",
-        "case": "uppercase",
+        "case": "mixed",               # Preserve original casing - don't force uppercase
         "font_style": ["Impact", "Oswald", "Anton", "Bebas Neue"],
         "letter_spacing_mult": -0.04,  # Very tight for impact
         "headline_boost": 1.20         # MAXIMUM headline size
@@ -1971,9 +1971,8 @@ class AdaptiveTemplateEngine:
         font_size_mult = getattr(self, '_font_size_multiplier', 1.0)
         base_size = int(base_size * font_size_mult)
         
-        # MOBILE-FIRST: LARGER minimum for maximum impact
-        # OG images displayed at 200-400px need BIG headlines
-        font_size = calculate_adaptive_font_size(title, base_size, w, min_size=72, max_size=200)
+        # Adaptive sizing: ensure text fits within canvas with wrapping (up to 3 lines)
+        font_size = calculate_adaptive_font_size(title, base_size, w, min_size=36, max_size=160)
         logger.info(f"🎨 Final headline font_size: {font_size}px (base_size={base_size}px)")
         
         # Adjust font size based on hierarchy description if available

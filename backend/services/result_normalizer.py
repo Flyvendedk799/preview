@@ -62,11 +62,20 @@ def normalize_ai_result(raw: Optional[Dict[str, Any]], url: str) -> Dict[str, An
     if subtitle:
         subtitle = str(subtitle).strip()[:200]
 
-    # Tags
+    # Tags - filter out single common words and garbage
     tags = raw.get("tags") or raw.get("keywords") or []
     if isinstance(tags, str):
         tags = [t.strip() for t in tags.split(",") if t.strip()]
-    tags = [str(t) for t in tags[:10]]
+    # Filter: tags should be meaningful (2+ chars, not generic stop words)
+    STOP_WORDS = {"the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
+                  "have", "has", "had", "do", "does", "did", "will", "would", "could",
+                  "should", "may", "might", "shall", "can", "that", "this", "it", "its",
+                  "with", "for", "from", "into", "about", "than", "then", "when", "where",
+                  "what", "which", "who", "whom", "how", "all", "each", "every", "both",
+                  "and", "but", "or", "not", "no", "nor", "so", "yet", "of", "in", "on",
+                  "at", "to", "by", "up", "out", "off", "over", "under", "between"}
+    tags = [str(t).strip() for t in tags if str(t).strip().lower() not in STOP_WORDS and len(str(t).strip()) > 2]
+    tags = tags[:10]
 
     # Credibility items
     credibility = raw.get("credibility_items") or raw.get("social_proof") or []

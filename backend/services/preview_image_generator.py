@@ -870,10 +870,10 @@ def _generate_hero_template(
     sub_heading = None
     
     if top_texts:
-        # Group by type
-        h1s = [t for t in top_texts if t.get('tag') == 'H1']
-        h2s = [t for t in top_texts if t.get('tag') == 'H2']
-        ps = [t for t in top_texts if t.get('tag') == 'P']
+        # Group by type (DOM data uses 'tagName' key with lowercase values like 'h1')
+        h1s = [t for t in top_texts if (t.get('tagName') or t.get('tag', '')).lower() == 'h1']
+        h2s = [t for t in top_texts if (t.get('tagName') or t.get('tag', '')).lower() == 'h2']
+        ps = [t for t in top_texts if (t.get('tagName') or t.get('tag', '')).lower() == 'p']
         
         if h1s:
             main_heading = h1s[0]
