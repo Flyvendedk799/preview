@@ -172,11 +172,14 @@ def generate_demo_preview_job(url: str) -> Dict[str, Any]:
             "message": result.message
         }
         
-        # Add warnings if any
+        # Add quality scores and warnings from pipeline
+        if result.quality_scores:
+            response_data["quality_scores"] = result.quality_scores
         if result.warnings:
+            response_data["warnings"] = result.warnings
             logger.warning(f"Preview generated with warnings: {result.warnings}")
-        
-        logger.info(f"🎉 Preview generated in {result.processing_time_ms}ms")
+
+        logger.info(f"Preview generated in {result.processing_time_ms}ms")
         return response_data
         
     except Exception as e:

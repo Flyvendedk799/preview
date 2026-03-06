@@ -10,12 +10,14 @@ export interface GenerationStageConfig {
 }
 
 export const GENERATION_STAGES: GenerationStageConfig[] = [
-  { id: 'capture', progress: 15, time: 4, message: 'Capturing page screenshot...' },
-  { id: 'brand', progress: 30, time: 5, message: 'Extracting brand elements...' },
-  { id: 'analyze', progress: 50, time: 10, message: 'Analyzing visual structure...' },
-  { id: 'prioritize', progress: 65, time: 6, message: 'Identifying key elements...' },
-  { id: 'compose', progress: 80, time: 5, message: 'Designing optimal layout...' },
-  { id: 'render', progress: 92, time: 3, message: 'Rendering final preview...' },
+  { id: 'capture', progress: 10, time: 4, message: 'Capturing page screenshot...' },
+  { id: 'classify', progress: 18, time: 2, message: 'Classifying page type...' },
+  { id: 'extract', progress: 35, time: 8, message: 'Extracting brand & content...' },
+  { id: 'analyze', progress: 55, time: 10, message: 'Running AI analysis...' },
+  { id: 'normalize', progress: 68, time: 2, message: 'Normalizing content...' },
+  { id: 'compose', progress: 80, time: 5, message: 'Compositing preview image...' },
+  { id: 'quality', progress: 90, time: 3, message: 'Validating quality...' },
+  { id: 'finalize', progress: 95, time: 2, message: 'Finalizing result...' },
 ]
 
 export interface DemoGenerationState {
@@ -148,14 +150,16 @@ export function useDemoGeneration(): [DemoGenerationState, DemoGenerationActions
                 setProgress(capped)
                 setStatusMessage(statusResponse.message || 'Processing...')
 
-                // Map progress to stage
+                // Map progress to stage (matches backend pipeline stages)
                 let stageIndex = 0
-                if (capped >= 15) stageIndex = 1
-                if (capped >= 30) stageIndex = 2
-                if (capped >= 50) stageIndex = 3
-                if (capped >= 65) stageIndex = 4
-                if (capped >= 80) stageIndex = 5
-                if (capped >= 92) stageIndex = 6
+                if (capped >= 10) stageIndex = 1
+                if (capped >= 18) stageIndex = 2
+                if (capped >= 35) stageIndex = 3
+                if (capped >= 55) stageIndex = 4
+                if (capped >= 68) stageIndex = 5
+                if (capped >= 80) stageIndex = 6
+                if (capped >= 90) stageIndex = 7
+                if (capped >= 95) stageIndex = 8
                 setCurrentStage(Math.min(stageIndex, GENERATION_STAGES.length - 1))
 
                 // Estimate remaining time

@@ -56,6 +56,16 @@ from backend.services.preview_tracer import PreviewTracer
 # Framework-based quality system
 from backend.services.multi_modal_fusion import MultiModalFusionEngine
 
+# Pipeline layers - context, hooks, normalization
+from backend.services.pipeline_context import PipelineContext
+from backend.services.pipeline_hooks import (
+    InputValidator,
+    StageRecovery,
+    ResultEnricher,
+    PostGenerationValidator,
+)
+from backend.services.result_normalizer import normalize_ai_result, normalize_engine_result
+
 # PHASE 2: Visual Quality Validator for post-render checks
 try:
     from backend.services.visual_quality_validator import (
@@ -521,51 +531,77 @@ class PreviewEngine:
         """
         start_time = time.time()
         url_str = str(url).strip()
-        
-        self.logger.info(f"🚀 [7X] Starting enhanced preview generation for: {url_str}")
-        self._update_progress(0.02, "Initializing enhanced engine...")
-        
+
+        # Create pipeline context - unified tracking across all stages
+        ctx = PipelineContext.create(
+            url=url_str,
+            is_demo=self.config.is_demo,
+            total_budget_seconds=self.config.timeout_seconds,
+            progress_callback=self.config.progress_callback,
+        )
+
+        # Input validation layer
+        try:
+            url_str = InputValidator.validate_for_pipeline(ctx)
+        except ValueError as e:
+            raise ValueError(f"Invalid URL: {e}")
+
+        self.logger.info(f"[{ctx.request_id}] Starting preview generation for: {url_str}")
+        ctx.update_progress(0.02, "Initializing enhanced engine...")
+
         # Initialize the Tracer
         tracer = PreviewTracer(url_str)
-        tracer.add_step("Initialization", "Preview Engine started")
+        tracer.add_step("Initialization", f"Pipeline {ctx.request_id} started")
         
-        # 7X PERFORMANCE: Check cache first (only if enabled)
+        # Cache check (with stage tracking)
         if self.config.enable_cache:
-            cached_result = self._check_cache(url_str, cache_key_prefix)
-            if cached_result:
-                self.logger.info(f"✅ [7X] Cache hit for: {url_str[:50]}...")
-                # Update progress to 100% for cache hits so frontend knows it's complete
-                self._update_progress(1.0, "Preview loaded from cache")
-                return cached_result
+            with ctx.stage("cache_check") as s:
+                cached_result = self._check_cache(url_str, cache_key_prefix)
+                if cached_result:
+                    s.set_output("hit", True)
+                    ctx.update_progress(1.0, "Preview loaded from cache")
+                    return cached_result
+                s.set_output("hit", False)
         else:
-            self.logger.info(f"🚫 [7X] Cache DISABLED - generating fresh preview for: {url_str[:50]}...")
-            # Invalidate any existing cache to ensure fresh results
+            self.logger.info(f"[{ctx.request_id}] Cache disabled, generating fresh")
             from backend.services.preview_cache import invalidate_cache
             invalidate_cache(url_str)
-            self.logger.info(f"🗑️  [7X] Cleared existing cache entries for: {url_str[:50]}...")
         
         try:
-            # 7X PERFORMANCE: Use triple parallelization when possible
-            screenshot_bytes, html_content, dom_data = self._capture_page(url_str)
-            self._last_screenshot_bytes = screenshot_bytes  # Store for fallback color extraction
-            tracer.add_step("Capture Page", 
-                            details=f"HTML extracted: {len(html_content)} characters. DOM Nodes: {len(dom_data.get('raw_top_texts', []))}", 
+            # Stage 1: Capture page (with budget enforcement)
+            with ctx.stage("capture") as s:
+                screenshot_bytes, html_content, dom_data = self._capture_page(url_str)
+                self._last_screenshot_bytes = screenshot_bytes
+                ctx.shared["screenshot_bytes"] = screenshot_bytes
+                ctx.shared["html_content"] = html_content
+                s.set_output("html_len", len(html_content))
+                s.set_output("screenshot_bytes", len(screenshot_bytes))
+            tracer.add_step("Capture Page",
+                            details=f"HTML extracted: {len(html_content)} characters. DOM Nodes: {len(dom_data.get('raw_top_texts', []))}",
                             image_base64=__import__('base64').b64encode(screenshot_bytes).decode('utf-8'))
             
-            # 7X INTELLIGENCE: Classify page type using intelligent multi-signal analysis
-            self._update_progress(0.15, "Classifying page type...")
-            page_classification = self._classify_page_intelligently(
-                url_str, html_content, screenshot_bytes
-            )
-            tracer.add_step("Page Classification", 
+            # Stage 2: Classify page type
+            with ctx.stage("classify") as s:
+                ctx.update_progress(0.15, "Classifying page type...")
+                page_classification = self._classify_page_intelligently(
+                    url_str, html_content, screenshot_bytes
+                )
+                s.set_output("category", page_classification.primary_category.value)
+                s.set_output("confidence", page_classification.confidence)
+            tracer.add_step("Page Classification",
                             json_data={"primary_category": page_classification.primary_category.value, "confidence": page_classification.confidence, "reasoning": page_classification.reasoning})
             self.logger.info(
-                f"🧠 [7X] Page classified as {page_classification.primary_category.value} "
+                f"[{ctx.request_id}] Page classified as {page_classification.primary_category.value} "
                 f"(confidence: {page_classification.confidence:.2f})"
             )
             
-            # Start brand extraction, screenshot upload, AI reasoning, and UI extraction in parallel
-            with ThreadPoolExecutor(max_workers=4) as executor:
+            # Stage 3: Parallel extraction (brand + upload + AI + UI)
+            # Check circuit breaker before committing to AI work
+            if not ctx.ai_available():
+                ctx.warn("Circuit breaker open - skipping AI reasoning, using HTML fallback")
+                ctx.current_tier = QualityTier.TIER_3_BASIC
+
+            with ctx.stage("parallel_extraction") as _pstage, ThreadPoolExecutor(max_workers=4) as executor:
                 futures = {}
                 
                 # Task 1: Upload screenshot
@@ -585,13 +621,20 @@ class PreviewEngine:
                 futures[future_brand] = "brand"
                 
                 # Task 3: Run AI reasoning (most time-consuming, starts early)
-                # Pass classification to AI reasoning for context-aware processing
-                # Add reasoning chain for complex requests
-                future_ai = executor.submit(
-                    self._run_ai_reasoning_enhanced,
-                    screenshot_bytes, url_str, html_content, page_classification, dom_data
-                )
-                futures[future_ai] = "ai"
+                # Circuit breaker gate: skip AI if breaker is open
+                if ctx.ai_available():
+                    future_ai = executor.submit(
+                        self._run_ai_reasoning_enhanced,
+                        screenshot_bytes, url_str, html_content, page_classification, dom_data
+                    )
+                    futures[future_ai] = "ai"
+                else:
+                    # Fall back to HTML-only extraction immediately
+                    future_ai = executor.submit(
+                        self._extract_from_html_only,
+                        html_content, url_str, getattr(self, '_last_screenshot_bytes', None)
+                    )
+                    futures[future_ai] = "ai"
                 
                 # Task 4: Extract UI elements (actual visual components)
                 # This extracts buttons, badges, CTAs, testimonials, etc.
@@ -628,21 +671,35 @@ class PreviewEngine:
                     except Exception as e:
                         self.logger.warning(f"⚠️  [7X] {task_name} failed: {e}")
             
-            # Step 4: Generate composited image (with classification-aware strategy)
-            composited_image_url = self._generate_composited_image(
-                screenshot_bytes, url_str, ai_result, brand_elements, page_classification
-            )
+            # Normalize AI result through the result normalizer layer
+            ai_result = normalize_ai_result(ai_result, url_str)
+
+            # Stage 4: Generate composited image
+            with ctx.stage("image_generation") as _istage:
+                composited_image_url = self._generate_composited_image(
+                    screenshot_bytes, url_str, ai_result, brand_elements, page_classification
+                )
+                _istage.set_output("has_image", composited_image_url is not None)
+
+                # Image generation recovery: if failed, use cropped screenshot
+                if not composited_image_url:
+                    composited_image_url = StageRecovery.recover_image_generation(ctx, Exception("No image generated"))
+                    if composited_image_url:
+                        _istage.set_output("recovered", True)
+
             tracer.add_step("Composition Pass", details="Generated initial layout", image_url=composited_image_url)
+
+            # Stage 5: Build result
+            with ctx.stage("build_result"):
+                result = self._build_result(
+                    url_str, ai_result, brand_elements, composited_image_url,
+                    screenshot_url, start_time, page_classification, ui_elements, dom_data
+                )
             
-            # Step 5: Build result (with classification-aware template and UI elements)
-            result = self._build_result(
-                url_str, ai_result, brand_elements, composited_image_url,
-                screenshot_url, start_time, page_classification, ui_elements, dom_data
-            )
-            
-            # 7X QUALITY: Validate and enhance result
-            result = self._validate_result_quality(result, url_str)
-            
+            # Stage 6: Quality validation and enhancement
+            with ctx.stage("quality_validation"):
+                result = self._validate_result_quality(result, url_str)
+
             # QUALITY GATE ENFORCEMENT: Comprehensive quality assessment with retry logic
             max_retries = 2
             retry_count = 0
@@ -943,16 +1000,27 @@ class PreviewEngine:
                         f"and fallback generation also failed: {fallback_error}"
                     )
             
+            # Final normalization + enrichment layers
+            normalize_engine_result(result, url_str)
+            ResultEnricher.enrich(ctx, result)
+            PostGenerationValidator.validate(result, ctx)
+
             # Cache result
             if self.config.enable_cache:
                 self._cache_result(url_str, result, cache_key_prefix)
-            
-            self._update_progress(1.0, "Preview generation complete!")
-            self.logger.info(f"🎉 [7X] Preview generated in {result.processing_time_ms}ms")
-            
+
+            ctx.update_progress(1.0, "Preview generation complete!")
+            self.logger.info(
+                f"[{ctx.request_id}] Preview generated in {result.processing_time_ms}ms "
+                f"(tier={ctx.current_tier.value}, stages={len(ctx.stages)})"
+            )
+
             # Finalize Tracing Header End
             trace_url = tracer.upload_trace()
             result.trace_url = trace_url
+
+            # Log telemetry summary
+            self.logger.info(f"[{ctx.request_id}] Telemetry: {ctx.telemetry_summary()}")
 
             return result
             
@@ -960,20 +1028,26 @@ class PreviewEngine:
             error_msg = str(e)
             tracer.add_step("Fatal Error", error=error_msg)
             tracer.upload_trace()
-            
-            self.logger.error(f"❌ [7X] Preview generation failed: {error_msg}", exc_info=True)
-            self._update_progress(0.0, f"Failed: {error_msg}")
-            
-            # 7X RELIABILITY: Try graceful degradation
+
+            self.logger.error(f"[{ctx.request_id}] Preview generation failed: {error_msg}", exc_info=True)
+            ctx.update_progress(0.0, f"Failed: {error_msg}")
+
+            # Log pipeline telemetry even on failure
+            self.logger.info(f"[{ctx.request_id}] Failed telemetry: {ctx.telemetry_summary()}")
+
+            # Try graceful degradation with stage recovery
             if 'screenshot_bytes' in locals() and 'html_content' in locals():
-                return self._build_fallback_result(
-                    url_str, 
-                    html_content, 
-                    start_time, 
+                fallback = self._build_fallback_result(
+                    url_str,
+                    html_content,
+                    start_time,
                     error_msg,
                     screenshot_bytes=screenshot_bytes
                 )
-            
+                normalize_engine_result(fallback, url_str)
+                ResultEnricher.enrich(ctx, fallback)
+                return fallback
+
             raise ValueError(f"Failed to generate preview: {error_msg}")
     
     def _check_cache(
