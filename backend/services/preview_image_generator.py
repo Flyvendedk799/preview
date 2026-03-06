@@ -372,30 +372,22 @@ def _draw_gradient_background(
     from backend.services.gradient_generator import generate_smooth_gradient
     
     width, height = image.size
-    logger.info(f"🎨 [PREVIEW_IMAGE] _draw_gradient_background called: {width}x{height}, color1={color1}, color2={color2}, direction={direction}")
-    
+
     # Map direction to angle
     angle_map = {
         "diagonal": 135,
         "vertical": 90,
         "horizontal": 0,
-        "radial": 0  # Will use radial style
+        "radial": 0
     }
     angle = angle_map.get(direction, 135)
     style = "radial" if direction == "radial" else "linear"
-    logger.info(f"🎨 [PREVIEW_IMAGE] Mapped direction '{direction}' -> angle={angle}, style={style}")
-    
-    # Generate smooth gradient using LAB color space
-    logger.info(f"🎨 [PREVIEW_IMAGE] Calling generate_smooth_gradient...")
+
     gradient_img = generate_smooth_gradient(
         width, height, color1, color2, angle=angle, style=style
     )
-    
-    logger.info(f"🎨 [PREVIEW_IMAGE] Gradient generated: {gradient_img.size}, mode={gradient_img.mode}")
-    # Paste onto original image
+
     image.paste(gradient_img)
-    logger.info(f"🎨 [PREVIEW_IMAGE] ✅ Gradient applied to image: {width}x{height}")
-    
     return image
 
 
@@ -598,11 +590,8 @@ def generate_designed_preview(
     # Ensure credibility_items have string values
     for item in credibility_items:
         if 'value' in item and item['value'] is not None:
-            logger.info(f"🔍 IMAGE_GEN DEBUG: Converting credibility value {repr(item['value'])} ({type(item['value'])})")
             item['value'] = str(item['value'])
-    
-    logger.info(f"🔍 IMAGE_GEN DEBUG: Final credibility_items: {credibility_items}")
-    
+
     try:
         # Ensure we have valid colors
         primary_color = _hex_to_rgb(blueprint.get("primary_color", "#2563EB"))
@@ -934,7 +923,7 @@ def _generate_hero_template(
 
         for i, line in enumerate(title_lines[:max_lines]):
             y_pos = title_y + (i * title_line_height)
-            _draw_text_with_shadow(draw, (padding, y_pos), line, title_font, (255, 255, 255), 2, image=img)
+            _draw_text_with_shadow(draw, (padding, y_pos), line, title_font, (255, 255, 255), 2)
             draw = ImageDraw.Draw(img)  # Refresh after shadow compositing
         content_y = title_y + actual_lines * title_line_height + 32
 
@@ -953,7 +942,7 @@ def _generate_hero_template(
         for i, line in enumerate(desc_lines[:max_lines]):
             y_pos = content_y + (i * desc_line_height)
             # Lighter opacity (210) vs title (255) for visual hierarchy
-            _draw_text_with_shadow(draw, (padding, y_pos), line, desc_font, (210, 215, 225), 1, image=img)
+            _draw_text_with_shadow(draw, (padding, y_pos), line, desc_font, (210, 215, 225), 1)
             draw = ImageDraw.Draw(img)
         content_y += min(len(desc_lines), max_lines) * desc_line_height + 32
 
@@ -1216,7 +1205,7 @@ def _generate_profile_template(
     # === NAME (large, bold, with subtle shadow) ===
     if title and title != "Untitled":
         # MOBILE-FIRST: Name must be readable on mobile (80px = 6.7% of width → ~27px on mobile)
-        name_font = _load_font(80, bold=True)  # Increased from 42 for mobile readability
+        name_font = _load_font(56, bold=True)  # Balanced size for OG image readability
         name_lines = _wrap_text(title, name_font, OG_IMAGE_WIDTH - (padding * 2), draw)
         name_y = content_start_y
         
@@ -1343,25 +1332,25 @@ def _generate_profile_template(
     # === DESCRIPTION (elegant, readable) ===
     if description and description != subtitle and len(description) > 10:
         # MOBILE-FIRST: Description readable on mobile
-        desc_font = _load_font(36, bold=True)  # Increased from 18, made bold
+        desc_font = _load_font(28, bold=False)  # Regular weight for visual hierarchy
         desc_lines = _wrap_text(description, desc_font, OG_IMAGE_WIDTH - (padding * 2), draw)
         desc_y = content_start_y + 16
-        
+
         for i, line in enumerate(desc_lines[:3]):
             try:
                 bbox = draw.textbbox((0, 0), line, font=desc_font)
                 text_width = bbox[2] - bbox[0]
             except:
                 text_width = len(line) * 10
-            
+
             draw.text(
-                ((OG_IMAGE_WIDTH - text_width) // 2, desc_y + (i * 26)),
+                ((OG_IMAGE_WIDTH - text_width) // 2, desc_y + (i * 36)),
                 str(line),
                 font=desc_font,
                 fill=(55, 65, 81),
                 spacing=2  # Better line spacing
             )
-        content_start_y = desc_y + min(len(desc_lines), 3) * 26 + 20
+        content_start_y = desc_y + min(len(desc_lines), 3) * 36 + 20
     
     # === CREDIBILITY ITEMS (bottom, elegant) ===
     if credibility_items:
@@ -1448,23 +1437,23 @@ def _generate_product_template(
     
     # === TITLE (big and bold) ===
     # MOBILE-FIRST: Product title readable on mobile
-    title_font = _load_font(80, bold=True)  # Increased from 46 for mobile readability
+    title_font = _load_font(52, bold=True)  # Balanced size for OG image readability
     if title and title != "Untitled":
         title_lines = _wrap_text(title, title_font, left_width - padding - 40, draw)
         for i, line in enumerate(title_lines[:2]):
-            y_pos = content_y + (i * 56)
+            y_pos = content_y + (i * 64)
             draw.text((padding, y_pos), str(line), font=title_font, fill=(15, 23, 42))
-        content_y += min(len(title_lines), 2) * 56 + 24
+        content_y += min(len(title_lines), 2) * 64 + 24
     
     # === DESCRIPTION/BENEFIT ===
     if description:
         # MOBILE-FIRST: Product description readable on mobile
-        desc_font = _load_font(36, bold=True)  # Increased from 22, made bold
+        desc_font = _load_font(28, bold=False)  # Regular weight for visual hierarchy
         desc_lines = _wrap_text(description, desc_font, left_width - padding - 40, draw)
         for i, line in enumerate(desc_lines[:3]):
-            y_pos = content_y + (i * 30)
+            y_pos = content_y + (i * 38)
             draw.text((padding, y_pos), str(line), font=desc_font, fill=(71, 85, 105))
-        content_y += min(len(desc_lines), 3) * 30 + 28
+        content_y += min(len(desc_lines), 3) * 38 + 28
     
     # === FEATURE CHECKMARKS ===
     if tags:
@@ -1599,9 +1588,8 @@ def _generate_modern_card_template(
     
     # === TOP ROW: Logo + Social Proof ===
     row_y = content_y
-    # MOBILE-FIRST: Larger logo for mobile visibility
-    # MOBILE-FIRST: Larger logo for mobile visibility
-    logo_size = 96  # Increased from 72 for better mobile visibility  # Increased from 56 for better mobile visibility
+    # Logo size for clean layout
+    logo_size = 64  # Balanced size for OG image layout
     
     # LOGO FIX: Use full logo image with aspect ratio preservation
     if primary_image_base64:
@@ -1726,7 +1714,7 @@ def _generate_modern_card_template(
             tag_x += int(tag_width) + 8
     
     # === DOMAIN (bottom-right, subtle) ===
-    domain_font = _load_font(14, bold=False)
+    domain_font = _load_font(20, bold=False)
     domain_clean = domain.replace('www.', '')
     try:
         bbox = draw.textbbox((0, 0), domain_clean, font=domain_font)
@@ -1841,7 +1829,7 @@ def _generate_fallback_preview(
         
         # Title - large and bold
         # MOBILE-FIRST: Fallback title readable on mobile
-        title_font = _load_font(96, bold=True)  # Increased from 52 for mobile readability
+        title_font = _load_font(72, bold=True)  # Balanced size to prevent text overflow
         if title and title != "Untitled":
             title_lines = _wrap_text(title, title_font, content_width, draw)
             

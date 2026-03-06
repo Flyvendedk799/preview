@@ -276,26 +276,28 @@ NEVER extract: cookie/consent/GDPR banners, navigation menus, footer content, po
 === EXTRACTION TARGETS ===
 
 1. **PRIMARY HEADLINE** (mandatory)
-   The main statement that identifies what this page is about.
+   The main H1 or largest/most prominent text on the page. Copy it VERBATIM.
    - For profiles: the person's NAME (2-4 words), not their bio
-   - For products: the product name
-   - For articles: the article title
-   - For SaaS/landing: the primary value proposition headline
-   Extract EXACT text as shown on the page.
+   - For products: the product name as displayed
+   - For articles: the article title exactly as written
+   - For SaaS/landing: the hero headline exactly as written, do NOT rephrase it
+   IMPORTANT: Do NOT rewrite or improve the headline. Use the EXACT wording from the page.
 
 2. **CREDIBILITY SIGNALS** (if available)
-   Concrete evidence of trust - numbers required:
-   - Ratings with count: "4.9★ (2,847 reviews)"
-   - User counts: "50,000+ teams"
-   - Notable clients: "Used by Google, Stripe, Airbnb"
-   - Awards: "#1 on Product Hunt", "Forbes 30 Under 30"
+   Copy the EXACT trust signal text from the page - do NOT paraphrase or invent numbers.
+   - Ratings with count: "4.9★ (2,847 reviews)" - copy exactly as shown
+   - User counts: "50,000+ teams" - use the exact number from the page
+   - Notable clients: "Used by Google, Stripe, Airbnb" - list only logos/names actually visible
+   - Awards: "#1 on Product Hunt", "Forbes 30 Under 30" - verbatim text only
+   If no concrete credibility signal with numbers exists on the page, return null. Do NOT fabricate.
 
 3. **VALUE STATEMENT** (if available)
-   One specific statement of what the user/visitor gets:
-   - "Save 10 hours/week on reporting"
-   - "Free, open-source API documentation"
-   - "Reduce infrastructure costs by 40%"
-   Avoid generic: "Powerful features", "Easy to use"
+   The subheadline or first descriptive paragraph, copied VERBATIM from the page.
+   - Use the actual subheadline text directly below the main headline
+   - Or the first paragraph of body text if no subheadline exists
+   - Do NOT summarize or rewrite - extract the exact sentence(s) as shown
+   - If only generic text like "Powerful features" or "Easy to use" exists, return null
+   Avoid generic language. If the page has no specific value statement, return null.
 
 4. **LOGO / BRAND VISUAL**
    - Logo location (typically top-left of page, within top 15% vertically)
@@ -314,8 +316,8 @@ EXAMPLE 1 (SaaS):
   }},
   "page_type": "saas",
   "primary_headline": "Financial infrastructure for the internet",
-  "credibility_signals": "Millions of companies of all sizes",
-  "value_statement": "Accept payments and manage revenue globally",
+  "credibility_signals": "Millions of companies of all sizes use Stripe",
+  "value_statement": "Hundreds of billions of dollars per year",
   "is_individual_profile": false,
   "analysis_confidence": 0.95
 }}
@@ -370,9 +372,9 @@ If page_type is "ecommerce" or has pricing/add-to-cart, also extract:
         "validation": "<1 sentence: confirming extraction accuracy>"
     }},
     "page_type": "<saas|ecommerce|agency|portfolio|blog|startup|enterprise|marketplace|tool|landing|profile|educational|documentation|government|nonprofit|news|unknown>",
-    "primary_headline": "<main headline - EXACT text from the page>",
-    "credibility_signals": "<best credibility evidence with numbers, or null>",
-    "value_statement": "<most specific value/benefit found, or null>",
+    "primary_headline": "<VERBATIM text of the main headline/H1 from the page>",
+    "credibility_signals": "<VERBATIM credibility text with numbers from the page, or null if none visible>",
+    "value_statement": "<VERBATIM subheadline or first descriptive paragraph from the page, or null>",
     "detected_person_name": "<person's full name if profile, null otherwise>",
     "is_individual_profile": <true|false>,
     "company_indicators": ["<signals indicating company/team page>"],
@@ -413,14 +415,16 @@ If page_type is "ecommerce" or has pricing/add-to-cart, also extract:
 }}
 
 === RULES ===
-1. EXACT TEXT ONLY - preserve original wording, no paraphrasing
-2. NUMBERS REQUIRED for credibility - "4.9★ (2,847 reviews)" not "Great reviews"
-3. SPECIFIC > GENERIC - "Save 10 hours/week" not "Save time"
+1. EXACT TEXT ONLY - copy text VERBATIM from the page. NEVER rephrase, summarize, or add words not on the page
+2. NUMBERS REQUIRED for credibility - "4.9★ (2,847 reviews)" not "Great reviews". If no numbers visible, use null
+3. SPECIFIC > GENERIC - "Save 10 hours/week" not "Save time". Prefer null over vague text
 4. ONE HERO ONLY - only one region gets hero visual weight
 5. LOGO IN TOP 15% - logos are almost always in the top 15% of the page
 6. BBOX PRECISION - bounding boxes should tightly wrap visible content
 7. CONTEXT MATTERS - extraction strategy varies by page type
-8. NAME VALIDATION - person names are 2-4 capitalized words, NOT job titles"""
+8. NAME VALIDATION - person names are 2-4 capitalized words, NOT job titles
+9. NO MARKETING COPY - do NOT generate promotional language. Only extract what is actually visible on the page
+10. NULL OVER FABRICATION - return null for any field where you cannot find exact matching text on the page"""
 
 
 STAGE_4_5_6_PROMPT = """You are a layout designer and quality assessor for social media previews.
@@ -737,7 +741,7 @@ def run_stages_1_2_3(screenshot_bytes: bytes) -> Tuple[List[Dict], Dict[str, str
             messages=[
                 {
                     "role": "system",
-                    "content": "You are an expert web analyst extracting structured content from webpages. Be precise - extract EXACT wording. Prioritize specific claims over generic ones. Distinguish between individual profiles and company pages. Output valid JSON only."
+                    "content": "You are an expert web analyst extracting structured content from webpages. Extract the EXACT text as it appears on the page - do NOT rephrase, summarize, or add marketing language. Copy text verbatim. Prioritize specific claims over generic ones. Distinguish between individual profiles and company pages. Output valid JSON only."
                 },
                 {
                     "role": "user",
@@ -1239,8 +1243,10 @@ def clean_display_text(raw_text: str, purpose: str) -> str:
         "hook": 120,
         "identity": 100,
         "proof": 80,
+        "benefit": 250,
         "benefits": 250,
         "description": 350,
+        "value_prop": 350,
         "tagline": 120
     }
     max_len = max_lengths.get(purpose, 200)
@@ -1420,7 +1426,7 @@ def extract_final_content(
     # PRIORITY 1: Use extracted key benefit
     description = highlights.get("key_benefit")
     if description:
-        description = clean_display_text(description, "benefit")
+        description = clean_display_text(description, "description")
         logger.info(f"📌 Using extracted key benefit as description: '{description[:50]}...'")
     
     # PRIORITY 2: Try slot-based extraction
@@ -1563,10 +1569,9 @@ def extract_final_content(
                 break
     
     # === ENRICH THIN CONTENT ===
-    # If description is thin, enrich with benefit
-    if description and len(description) < 60 and benefits:
-        if benefits[0] not in description:
-            description = f"{description} {benefits[0]}"
+    # If description is missing entirely, use the first benefit as description
+    if not description and benefits:
+        description = benefits[0]
     
     # If subtitle is missing but we have proof, use that
     if not subtitle and credibility_items:

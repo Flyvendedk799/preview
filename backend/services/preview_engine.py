@@ -2101,9 +2101,7 @@ class PreviewEngine:
                     self.logger.warning(f"Design DNA extraction for image failed: {e}")
                     design_dna_for_image = None
             
-            # CRITICAL FIX: Ensure all data passed to image generator is properly typed
-            # This prevents garbled text from non-string values in AI reasoning results
-            self.logger.info(f"🔍 DEBUG: Raw AI result types - title: {type(ai_result.get('title'))}, credibility_items: {[type(item.get('value')) for item in ai_result.get('credibility_items', [])]}")
+            # Ensure all data passed to image generator is properly typed
             
             safe_ai_result = {
                 "title": str(ai_result.get("title", "Untitled")),
@@ -2135,21 +2133,21 @@ class PreviewEngine:
                     if "value" in item and item["value"] is not None:
                         val = item["value"]
                         if isinstance(val, dict):
-                            self.logger.info(f"🔍 DEBUG: Skipping raw dictionary credibility value: {val}")
+                            self.logger.debug(f"Skipping raw dictionary credibility value")
                             continue
                         
                         val_str = str(val).strip()
                         if val_str.startswith("{") and val_str.endswith("}"):
-                            self.logger.info(f"🔍 DEBUG: Skipping stringified dictionary credibility value: {val_str}")
+                            self.logger.debug(f"Skipping stringified dictionary credibility value")
                             continue
                             
                         if val_str and val_str.lower() != "none" and val_str.lower() != "null":
                             safe_item["value"] = val_str
-                            self.logger.info(f"🔍 DEBUG: Converting credibility value {repr(val)} ({type(val)}) -> {repr(safe_item['value'])}")
+                            self.logger.debug(f"Credibility value: {safe_item['value'][:50]}")
                     if safe_item and "value" in safe_item:  # Only add if we have valid data
                         safe_ai_result["credibility_items"].append(safe_item)
             
-            self.logger.info(f"🔍 DEBUG: Safe AI result - credibility_items: {safe_ai_result['credibility_items']}")
+            self.logger.debug(f"Safe AI result prepared: {len(safe_ai_result['credibility_items'])} credibility items")
             
             composited_image_url = generate_and_upload_preview_image(
                 screenshot_bytes=screenshot_bytes,
