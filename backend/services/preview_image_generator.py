@@ -407,38 +407,26 @@ def _draw_text_with_shadow(
     fill: Tuple[int, int, int],
     shadow_offset: int = 2,
     shadow_color: Tuple[int, int, int, int] = None,
-    shadow_blur: int = 0,
-    image: Image.Image = None
+    shadow_blur: int = 2
 ) -> None:
     """
-    Draw text with multi-layer shadow for guaranteed readability.
-    Uses a 3-layer approach: dark outer glow -> medium shadow -> crisp text.
-    When `image` is provided, draws the glow on a separate layer for proper blending.
+    Draw text with subtle shadow for readability on all backgrounds.
+    Uses 2px offset with 50% black shadow for consistent legibility.
     """
     text = str(text) if text is not None else ""
+
     x, y = position
 
-    if fill[0] > 200:  # Light text on dark background
-        if image is not None:
-            # Multi-layer glow for readability on any background
-            glow_layer = Image.new('RGBA', image.size, (0, 0, 0, 0))
-            glow_draw = ImageDraw.Draw(glow_layer)
-            # Layer 1: Wide dark glow
-            for dx in range(-2, 3):
-                for dy in range(-2, 3):
-                    glow_draw.text((x + dx, y + dy), text, font=font, fill=(0, 0, 0, 50))
-            # Layer 2: Tight shadow
-            glow_draw.text((x + 1, y + 1), text, font=font, fill=(0, 0, 0, 90))
-            # Composite glow onto image
-            image.paste(Image.alpha_composite(image.convert('RGBA'), glow_layer).convert('RGB'), (0, 0))
-            # Refresh draw reference after paste
-            draw = ImageDraw.Draw(image)
-        else:
-            # Fallback: simple 2-layer shadow
-            draw.text((x + 2, y + 2), text, font=font, fill=(0, 0, 0))
-            draw.text((x + 1, y + 1), text, font=font, fill=(20, 20, 20))
+    # Subtle shadow on all backgrounds for consistent readability
+    shadow_fill = shadow_color or (0, 0, 0, 128)  # 50% black
+    # Draw shadow at multiple offsets for a soft blur effect
+    for dx in range(0, shadow_offset + 1):
+        for dy in range(0, shadow_offset + 1):
+            if dx == 0 and dy == 0:
+                continue
+            draw.text((x + dx, y + dy), text, font=font, fill=shadow_fill[:3] if len(shadow_fill) >= 3 else (0, 0, 0))
 
-    # Draw main text on top (always crisp)
+    # Draw main text on top
     draw.text((x, y), text, font=font, fill=fill)
 
 
@@ -451,6 +439,112 @@ def _create_rounded_rectangle_mask(size: Tuple[int, int], radius: int) -> Image.
     draw.rounded_rectangle([(0, 0), (size[0]-1, size[1]-1)], radius=radius, fill=255)
     
     return mask
+
+
+def _fit_text_to_box(
+    text: str,
+    max_width: int,
+    max_height: int,
+    draw: ImageDraw.Draw,
+    bold: bool = True,
+    max_font_size: int = 48,
+    min_font_size: int = 24,
+    max_lines: int = 3
+) -> Tuple[ImageFont.FreeTypeFont, List[str]]:
+    """
+    Auto-fit text into a bounding box by reducing font size until it fits.
+
+    Returns:
+        Tuple of (font, wrapped_lines) that fit within the box.
+    """
+    for size in range(max_font_size, min_font_size - 1, -2):
+        font = _load_font(size, bold=bold)
+        lines = _wrap_text(text, font, max_width, draw, max_lines=max_lines)
+        if not lines:
+            continue
+        # Measure total height
+        total_height = 0
+        for line in lines:
+            try:
+                bbox = draw.textbbox((0, 0), line, font=font)
+                total_height += bbox[3] - bbox[1] + 4  # 4px line spacing
+            except Exception:
+                total_height += size + 4
+        if total_height <= max_height:
+            return font, lines
+    # Return minimum size
+    font = _load_font(min_font_size, bold=bold)
+    lines = _wrap_text(text, font, max_width, draw, max_lines=max_lines)
+    return font, lines
+
+
+def _sample_region_luminance(image: Image.Image, x: int, y: int, w: int, h: int) -> float:
+    """Sample average luminance of a region in the image."""
+    try:
+        region = image.crop((max(0, x), max(0, y), min(image.width, x + w), min(image.height, y + h)))
+        if region.mode != 'RGB':
+            region = region.convert('RGB')
+        pixels = list(region.getdata())
+        if not pixels:
+            return 0.5
+        avg_r = sum(p[0] for p in pixels) / len(pixels)
+        avg_g = sum(p[1] for p in pixels) / len(pixels)
+        avg_b = sum(p[2] for p in pixels) / len(pixels)
+        return (0.299 * avg_r + 0.587 * avg_g + 0.114 * avg_b) / 255
+    except Exception:
+        return 0.5
+
+
+def _ensure_wcag_contrast(
+    image: Image.Image,
+    text_regions: List[Tuple[int, int, int, int]],
+    text_color: Tuple[int, int, int],
+    min_ratio: float = 4.5
+) -> Image.Image:
+    """
+    Check contrast between text color and background in specified regions.
+    If contrast is below min_ratio, add a semi-transparent overlay behind text.
+
+    Args:
+        image: The image to check/modify
+        text_regions: List of (x, y, w, h) tuples where text will be drawn
+        text_color: The text color that will be used
+        min_ratio: Minimum WCAG contrast ratio (4.5 for AA)
+
+    Returns:
+        Modified image with overlay if needed
+    """
+    text_luminance = (0.299 * text_color[0] + 0.587 * text_color[1] + 0.114 * text_color[2]) / 255
+
+    for (x, y, w, h) in text_regions:
+        bg_luminance = _sample_region_luminance(image, x, y, w, h)
+
+        # Calculate contrast ratio
+        l1 = max(text_luminance, bg_luminance) + 0.05
+        l2 = min(text_luminance, bg_luminance) + 0.05
+        ratio = l1 / l2
+
+        if ratio < min_ratio:
+            # Add semi-transparent overlay
+            overlay = Image.new('RGBA', image.size, (0, 0, 0, 0))
+            overlay_draw = ImageDraw.Draw(overlay)
+            if text_luminance > 0.5:
+                # Light text: dark overlay
+                overlay_draw.rectangle(
+                    [(max(0, x - 10), max(0, y - 5)), (min(image.width, x + w + 10), min(image.height, y + h + 5))],
+                    fill=(0, 0, 0, 120)
+                )
+            else:
+                # Dark text: light overlay
+                overlay_draw.rectangle(
+                    [(max(0, x - 10), max(0, y - 5)), (min(image.width, x + w + 10), min(image.height, y + h + 5))],
+                    fill=(255, 255, 255, 140)
+                )
+            if image.mode != 'RGBA':
+                image = image.convert('RGBA')
+            image = Image.alpha_composite(image, overlay)
+
+    return image
 
 
 def generate_designed_preview(

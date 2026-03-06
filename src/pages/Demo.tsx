@@ -22,11 +22,12 @@ import {
   ShareIcon,
 } from '@heroicons/react/24/outline'
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid'
-import { subscribeToNewsletter, generateDemoPreviewV2, createDemoJob, getDemoJobStatus, type DemoPreviewResponseV2, type DemoJobStatusResponse } from '../api/client'
+import { subscribeToNewsletter } from '../api/client'
 import ReconstructedPreview from '../components/ReconstructedPreview'
-import GenerationProgress from '../components/GenerationProgress'
+import DemoGenerating from '../components/DemoGenerating'
 import PlatformPreviewCard from '../components/PlatformPreviewCard'
 import { ErrorBoundary } from '../components/ErrorBoundary'
+import { useDemoGeneration, GENERATION_STAGES } from '../hooks/useDemoGeneration'
 import { logger } from '../utils/logger'
 
 type Step = 'input' | 'preview'
@@ -47,30 +48,36 @@ type Step = 'input' | 'preview'
  * 4. ✅ Improved caching and optimization
  */
 export default function Demo() {
+  // Use the generation hook for all preview generation logic
+  const [genState, genActions] = useDemoGeneration()
+  const {
+    isGenerating: isGeneratingPreview,
+    preview,
+    error: hookError,
+    progress: generationProgress,
+    currentStage,
+    statusMessage: generationStatus,
+    estimatedTimeRemaining,
+    showCelebration: showCompletionCelebration,
+  } = genState
+  const { generatePreview: hookGeneratePreview, cancelGeneration, resetError: resetHookError, resetAll: resetGenAll } = genActions
+
   const [step, setStep] = useState<Step>('input')
   const [email, setEmail] = useState('')
   const [url, setUrl] = useState('')
-  const [preview, setPreview] = useState<DemoPreviewResponseV2 | null>(null)
   const [scrollY, setScrollY] = useState(0)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [emailSubscribed, setEmailSubscribed] = useState(false)
   const [showEmailSuccess, setShowEmailSuccess] = useState(false)
-  const [selectedPlatform, setSelectedPlatform] = useState<string>('facebook') // Default to Facebook
+  const [selectedPlatform, setSelectedPlatform] = useState<string>('facebook')
   const [showEmailPopup, setShowEmailPopup] = useState(false)
   const [pendingUrl, setPendingUrl] = useState<string>('')
-  
+
   const [emailError, setEmailError] = useState<string | null>(null)
   const [urlError, setUrlError] = useState<string | null>(null)
   const [isSubmittingEmail, setIsSubmittingEmail] = useState(false)
-  const [isGeneratingPreview, setIsGeneratingPreview] = useState(false)
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [consentChecked, setConsentChecked] = useState(false)
-  const [generationStatus, setGenerationStatus] = useState<string>('')
-  const [generationProgress, setGenerationProgress] = useState<number>(0)
-  const [currentStage, setCurrentStage] = useState<number>(0)
-  const [estimatedTimeRemaining, setEstimatedTimeRemaining] = useState<number>(0)
-  const lastBackendProgressRef = useRef<number>(0) // Track last backend progress to ensure monotonic updates
-  const [showCompletionCelebration, setShowCompletionCelebration] = useState(false)
   const [copySuccess, setCopySuccess] = useState(false)
   const [urlHistory, setUrlHistory] = useState<string[]>([])
   const [previewsGeneratedCount, setPreviewsGeneratedCount] = useState<number>(0)
@@ -78,6 +85,24 @@ export default function Demo() {
   const heroRef = useRef<HTMLDivElement>(null)
   const lastLoggedImageUrlRef = useRef<string | null>(null)
   const imageToCopyRef = useRef<HTMLImageElement | null>(null)
+
+  // Sync hook error to local previewError state
+  useEffect(() => {
+    if (hookError) {
+      setPreviewError(hookError)
+    }
+  }, [hookError])
+
+  // Transition to preview step when preview is ready
+  useEffect(() => {
+    if (preview && !isGeneratingPreview) {
+      setStep('preview')
+      // Show optional email popup after a delay
+      if (!emailSubscribed) {
+        setTimeout(() => setShowEmailPopup(true), 3000)
+      }
+    }
+  }, [preview, isGeneratingPreview, emailSubscribed])
 
   // Example URLs for quick start
   const EXAMPLE_URLS = [
@@ -157,108 +182,7 @@ export default function Demo() {
     document.body.removeChild(link)
   }
 
-  // Generation stages configuration (defined early for use in generatePreviewWithUrl)
-  const GENERATION_STAGES = [
-    { id: 'capture', progress: 15, time: 4, message: 'Capturing page screenshot...' },
-    { id: 'brand', progress: 30, time: 5, message: 'Extracting brand elements...' },
-    { id: 'analyze', progress: 50, time: 10, message: 'Analyzing visual structure...' },
-    { id: 'prioritize', progress: 65, time: 6, message: 'Identifying key elements...' },
-    { id: 'compose', progress: 80, time: 5, message: 'Designing optimal layout...' },
-    { id: 'render', progress: 92, time: 3, message: 'Rendering final preview...' },
-  ]
-
-  const generationCancelRef = useRef<boolean>(false)
-  const stageIntervalRef = useRef<number | null>(null)
-  const progressIntervalRef = useRef<number | null>(null)
-
-  // Cancel generation function (defined early for use in keyboard handler)
-  const cancelGeneration = useCallback(() => {
-    generationCancelRef.current = true
-    if (stageIntervalRef.current) {
-      clearInterval(stageIntervalRef.current)
-      stageIntervalRef.current = null
-    }
-    if (progressIntervalRef.current) {
-      clearInterval(progressIntervalRef.current)
-      progressIntervalRef.current = null
-    }
-    setIsGeneratingPreview(false)
-    setGenerationStatus('')
-    setGenerationProgress(0)
-    setCurrentStage(0)
-    lastBackendProgressRef.current = 0
-    setEstimatedTimeRemaining(0)
-    setPreviewError(null)
-  }, [])
-
-  // Parse error message for better user feedback
-  const parseErrorMessage = (error: Error | string): { message: string; suggestion?: string } => {
-    const errorMessage = error instanceof Error ? error.message : error
-    const lowerMessage = errorMessage.toLowerCase()
-
-    // Network errors
-    if (lowerMessage.includes('fetch') || lowerMessage.includes('network') || lowerMessage.includes('connection')) {
-      return {
-        message: 'Connection failed',
-        suggestion: 'Please check your internet connection and try again. If the problem persists, the service may be temporarily unavailable.'
-      }
-    }
-
-    // Timeout errors
-    if (lowerMessage.includes('timeout') || lowerMessage.includes('timed out')) {
-      return {
-        message: 'This site is taking too long to load',
-        suggestion: 'The page may be very heavy or slow to respond. Try a simpler, faster-loading page.'
-      }
-    }
-
-    // Screenshot/capture failures
-    if (lowerMessage.includes('screenshot') || lowerMessage.includes('capture') || lowerMessage.includes('playwright')) {
-      return {
-        message: 'Could not capture this page',
-        suggestion: 'This site may be behind a login wall, use bot detection, or block screenshots. Try a publicly accessible page.'
-      }
-    }
-
-    // AI extraction failures
-    if (lowerMessage.includes('openai') || lowerMessage.includes('ai') || lowerMessage.includes('extraction')) {
-      return {
-        message: 'AI analysis failed',
-        suggestion: 'Our AI could not analyze this page. This can happen with very minimal or unusual pages. Try a different URL.'
-      }
-    }
-
-    // Invalid URL errors
-    if (lowerMessage.includes('invalid url') || lowerMessage.includes('url')) {
-      return {
-        message: 'Invalid URL',
-        suggestion: 'Please make sure the URL starts with http:// or https:// and is a valid website address.'
-      }
-    }
-
-    // Server errors
-    if (lowerMessage.includes('500') || lowerMessage.includes('server error')) {
-      return {
-        message: 'Server error',
-        suggestion: 'Our servers encountered an issue. Please try again in a few moments.'
-      }
-    }
-
-    // Rate limiting
-    if (lowerMessage.includes('rate limit') || lowerMessage.includes('too many')) {
-      return {
-        message: 'Too many requests',
-        suggestion: 'Please wait a moment before generating another preview.'
-      }
-    }
-
-    // Default
-    return {
-      message: errorMessage,
-      suggestion: 'Please try again. If the problem persists, the URL may not be accessible or may require authentication.'
-    }
-  }
-
+  // Generation stages are imported from useDemoGeneration hook
 
   // Log preview state changes (dev only)
   useEffect(() => {
@@ -396,301 +320,13 @@ export default function Demo() {
     }
   }
 
-  // Generate preview function - defined early so it can be used by other callbacks
+  // Generate preview function - wraps the useDemoGeneration hook
   const generatePreviewWithUrl = useCallback(async (urlToProcess: string) => {
-    setIsGeneratingPreview(true)
-    setCurrentStage(0)
-    setGenerationProgress(2) // Start at 2% (backend will update this)
-    setGenerationStatus('Initializing AI analysis...')
-    setEstimatedTimeRemaining(30)
     setPreviewError(null)
-    generationCancelRef.current = false
-    lastBackendProgressRef.current = 0 // Reset backend progress tracker
-    
-    // Clear any existing intervals
-    if (stageIntervalRef.current) clearInterval(stageIntervalRef.current)
-    if (progressIntervalRef.current) clearInterval(progressIntervalRef.current)
-    
-    // Don't start frontend-only progress animation - rely entirely on backend progress updates
-    // This prevents conflicts and jumping between percentages
-    
-    try {
-      // Validate URL format before sending to backend
-      try {
-        new URL(urlToProcess)
-      } catch (urlError) {
-        throw new Error('Invalid URL format. Please enter a valid URL (e.g., https://example.com)')
-      }
-
-      // Create async job (returns immediately to avoid Railway timeout)
-      const jobResponse = await createDemoJob(urlToProcess)
-      const jobId = jobResponse.job_id
-      
-      if (generationCancelRef.current) {
-        return // User cancelled
-      }
-      
-      logger.info(`[Demo] Job created: ${jobId}`)
-      
-      // Poll for job status
-      const pollInterval = 2000 // Poll every 2 seconds
-      const maxPollTime = 600000 // 10 minutes max
-      const startPollTime = Date.now()
-      
-      const pollJobStatus = async (): Promise<DemoPreviewResponseV2> => {
-        let consecutiveErrors = 0
-        const maxConsecutiveErrors = 5
-        
-        while (Date.now() - startPollTime < maxPollTime) {
-          if (generationCancelRef.current) {
-            throw new Error('Generation cancelled')
-          }
-          
-          try {
-            const statusResponse: DemoJobStatusResponse = await getDemoJobStatus(jobId)
-            consecutiveErrors = 0 // Reset error count on successful poll
-            
-            // Check if job failed - stop polling immediately
-            if (statusResponse.status === 'failed') {
-              const errorMsg = statusResponse.error || 'Job failed with unknown error'
-              // Extract user-friendly error message
-              let userFriendlyError = errorMsg
-              if (errorMsg.includes('Page load timeout') || errorMsg.includes('Timeout')) {
-                userFriendlyError = 'The website took too long to load. Please try a different URL or try again later.'
-              } else if (errorMsg.includes('Failed to capture')) {
-                userFriendlyError = 'Unable to capture the website. The site may be blocking automated access or may require authentication.'
-              }
-              throw new Error(userFriendlyError)
-            }
-            
-            // CRITICAL: Check finished status FIRST, even if progress is null
-            // This handles fast jobs (like cache hits) that finish before progress updates
-            if (statusResponse.status === 'finished') {
-              // Update UI to show completion
-              setCurrentStage(GENERATION_STAGES.length)
-              setGenerationProgress(100)
-              setGenerationStatus('Preview complete!')
-              setEstimatedTimeRemaining(0)
-              
-              if (statusResponse.result) {
-                logger.info(`[Demo] Job finished successfully, returning result`)
-                return statusResponse.result
-              } else {
-                // Job finished but no result - might be a race condition, wait a bit and retry
-                logger.warn(`[Demo] Job finished but result not yet available (attempt ${consecutiveErrors + 1}), retrying...`)
-                // Wait longer for result to become available
-                await new Promise(resolve => setTimeout(resolve, 1000))
-                continue
-              }
-            }
-            
-            // Update progress based on job status - ensure monotonic (only increases)
-            if (statusResponse.progress !== null) {
-              const backendProgressPercent = statusResponse.progress * 100
-              
-              // CRITICAL: Only update if progress has increased (monotonic)
-              // This prevents jumping backwards when backend sends lower values
-              if (backendProgressPercent >= lastBackendProgressRef.current) {
-                lastBackendProgressRef.current = backendProgressPercent
-                
-                // Cap at 95% until complete to avoid showing 100% prematurely
-                const progressPercent = Math.min(95, backendProgressPercent)
-
-                setGenerationProgress(progressPercent)
-
-                // At 95%, show "Finalizing..." instead of stalling
-                if (progressPercent >= 92) {
-                  setGenerationStatus('Finalizing preview...')
-                }
-                
-                // Use message from backend if available, otherwise use status-based message
-                const statusMessage = statusResponse.message || 
-                  (statusResponse.status === 'queued' ? 'Job queued...' :
-                   statusResponse.status === 'started' ? 'Processing page...' :
-                   'Processing...')
-                
-                setGenerationStatus(statusMessage)
-                
-                // Update stage based on progress - map backend progress to stages
-                if (statusResponse.status === 'queued') {
-                  setCurrentStage(0)
-                } else if (statusResponse.status === 'started') {
-                  // Map progress to stage (0-15% = stage 0, 15-30% = stage 1, 30-50% = stage 2, etc.)
-                  let stageIndex = 0
-                  if (progressPercent >= 15) stageIndex = 1
-                  if (progressPercent >= 30) stageIndex = 2
-                  if (progressPercent >= 50) stageIndex = 3
-                  if (progressPercent >= 65) stageIndex = 4
-                  if (progressPercent >= 80) stageIndex = 5
-                  if (progressPercent >= 92) stageIndex = 6
-                  
-                  setCurrentStage(Math.min(stageIndex, GENERATION_STAGES.length - 1))
-                  
-                  // Update estimated time based on progress
-                  const elapsed = (Date.now() - startPollTime) / 1000
-                  if (progressPercent > 0 && progressPercent < 95) {
-                    const estimatedTotal = elapsed / (progressPercent / 100)
-                    const remaining = Math.max(3, estimatedTotal - elapsed)
-                    setEstimatedTimeRemaining(Math.ceil(remaining))
-                  } else if (progressPercent >= 95) {
-                    setEstimatedTimeRemaining(0)
-                  }
-                }
-              } else {
-                // Backend sent a lower progress value - ignore it to prevent jumping backwards
-                logger.warn(`[Demo] Ignoring backend progress decrease: ${backendProgressPercent}% < ${lastBackendProgressRef.current}%`)
-              }
-            }
-            
-            // Wait before next poll
-            await new Promise(resolve => setTimeout(resolve, pollInterval))
-          } catch (error) {
-            // If it's a cancellation or job failure, re-throw immediately
-            if (error instanceof Error && (
-              error.message === 'Generation cancelled' ||
-              error.message.includes('Job failed') ||
-              error.message.includes('took too long to load') ||
-              error.message.includes('Unable to capture') ||
-              error.message.includes('not found') ||
-              error.message.includes('404')
-            )) {
-              throw error
-            }
-            
-            // For transient network errors, log and retry
-            consecutiveErrors++
-            if (consecutiveErrors >= maxConsecutiveErrors) {
-              const errorMsg = error instanceof Error ? error.message : String(error)
-              if (errorMsg.includes('404') || errorMsg.includes('not found')) {
-                throw new Error('Job not found. It may have expired. Please try generating a new preview.')
-              }
-              throw new Error(`Unable to check job status after ${maxConsecutiveErrors} attempts. Please try again.`)
-            }
-            
-            logger.warn(`[Demo] Poll error (attempt ${consecutiveErrors}/${maxConsecutiveErrors}):`, error)
-            // Wait before retrying (exponential backoff)
-            await new Promise(resolve => setTimeout(resolve, pollInterval * Math.min(consecutiveErrors, 3)))
-          }
-        }
-        
-        throw new Error('Job polling timeout - preview generation took too long (10 minutes)')
-      }
-      
-      const result = await pollJobStatus()
-      
-      if (generationCancelRef.current) {
-        return // User cancelled
-      }
-      
-      // Clear intervals
-      if (stageIntervalRef.current) clearInterval(stageIntervalRef.current)
-      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current)
-      
-      if (generationCancelRef.current) {
-        return // User cancelled
-      }
-      
-      // Complete all stages
-      setCurrentStage(GENERATION_STAGES.length)
-      setGenerationProgress(100)
-      setGenerationStatus('Preview complete!')
-      setEstimatedTimeRemaining(0)
-      
-      // Show celebration animation
-      setShowCompletionCelebration(true)
-      await new Promise(resolve => setTimeout(resolve, 1200))
-      
-      // Log preview received (dev only)
-      logger.debug('[Demo Preview Received]', {
-        composited_preview_image_url: result.composited_preview_image_url,
-        primary_image_base64: result.primary_image_base64 ? 'present (base64)' : 'null',
-        screenshot_url: result.screenshot_url,
-        title: result.title,
-        url: result.url
-      })
-      
-      setPreview(result)
-      setStep('preview')
-      setShowCompletionCelebration(false)
-      
-      // Show optional email subscription after user has had time to review the preview
-      setTimeout(() => {
-        if (!emailSubscribed) {
-          setShowEmailPopup(true)
-        }
-      }, 8000)
-      
-      // Reset state
-      setGenerationStatus('')
-      setGenerationProgress(0)
-      setCurrentStage(0)
-      lastBackendProgressRef.current = 0
-      if (stageIntervalRef.current) {
-        clearInterval(stageIntervalRef.current)
-        stageIntervalRef.current = null
-      }
-      if (progressIntervalRef.current) {
-        clearInterval(progressIntervalRef.current)
-        progressIntervalRef.current = null
-      }
-    } catch (error) {
-      if (generationCancelRef.current) {
-        return // User cancelled, don't show error
-      }
-      
-      if (stageIntervalRef.current) clearInterval(stageIntervalRef.current)
-      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current)
-      
-      // Log error details
-      logger.error('[Demo Preview Error]', {
-        error: error instanceof Error ? error.message : String(error),
-        url: urlToProcess,
-        status: error instanceof Error && 'status' in error ? (error as { status?: unknown }).status : 'unknown'
-      })
-      
-      // Use improved error parsing
-      const errorInfo = parseErrorMessage(error instanceof Error ? error : String(error))
-      let errorMessage = errorInfo.suggestion 
-        ? `${errorInfo.message}. ${errorInfo.suggestion}`
-        : errorInfo.message
-      
-      // Handle specific error cases
-      const errorStr = error instanceof Error ? error.message : String(error)
-      
-      // Handle URL validation errors
-      if (errorStr.includes('Input should be a valid URL') || 
-          errorStr.includes('Invalid URL') || 
-          errorStr.includes('field required') ||
-          errorStr.includes('URL is required')) {
-        errorMessage = 'Please enter a valid URL (e.g., https://example.com)'
-        setUrlError('Please enter a valid URL')
-      }
-      // Handle job not found specifically
-      else if (errorStr.includes('not found') || errorStr.includes('404') || errorStr.includes('expired')) {
-        errorMessage = 'The preview generation job was not found. It may have expired. Please try generating a new preview.'
-      }
-      
-      setPreviewError(errorMessage)
-      setShowEmailPopup(false)
-      setGenerationStatus('')
-      setGenerationProgress(0)
-      setCurrentStage(0)
-      setEstimatedTimeRemaining(0)
-      lastBackendProgressRef.current = 0
-      if (stageIntervalRef.current) {
-        clearInterval(stageIntervalRef.current)
-        stageIntervalRef.current = null
-      }
-      if (progressIntervalRef.current) {
-        clearInterval(progressIntervalRef.current)
-        progressIntervalRef.current = null
-      }
-    } finally {
-      if (!generationCancelRef.current) {
-        setIsGeneratingPreview(false)
-      }
-    }
-  }, [emailSubscribed, parseErrorMessage])
+    setUrlError(null)
+    resetHookError()
+    await hookGeneratePreview(urlToProcess)
+  }, [hookGeneratePreview, resetHookError])
 
   // Update handleExampleUrlClick to use generatePreviewWithUrl (defined after generatePreviewWithUrl)
   const handleExampleUrlClickWithGenerate = useCallback((exampleUrl: string) => {
@@ -1237,92 +873,16 @@ export default function Demo() {
           )}
 
           {/* AI Generation Overlay - Full Screen Progress */}
-          {isGeneratingPreview && !showEmailPopup && (
-            <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-gradient-to-br from-gray-900/90 via-gray-900/95 to-black/90 backdrop-blur-md animate-fade-in">
-              {/* Cancel button */}
-              <button
-                onClick={cancelGeneration}
-                className="absolute top-4 right-4 p-3 text-white/70 hover:text-white hover:bg-white/10 rounded-xl transition-colors"
-                aria-label="Cancel preview generation"
-              >
-                <XMarkIcon className="w-6 h-6" />
-              </button>
-              
-              {showCompletionCelebration ? (
-                /* Celebration Animation */
-                <div className="text-center animate-scale-in">
-                  {/* Confetti-like particles */}
-                  <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                    {[...Array(20)].map((_, i) => (
-                      <div
-                        key={i}
-                        className="absolute w-3 h-3 rounded-full animate-float-up"
-                        style={{
-                          left: `${Math.random() * 100}%`,
-                          backgroundColor: ['#f97316', '#fbbf24', '#34d399', '#60a5fa', '#a78bfa'][i % 5],
-                          animationDelay: `${Math.random() * 0.5}s`,
-                          animationDuration: `${1 + Math.random()}s`,
-                        }}
-                      />
-                    ))}
-                  </div>
-                  
-                  {/* Success Icon */}
-                  <div className="relative">
-                    <div className="w-24 h-24 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-full flex items-center justify-center mx-auto shadow-2xl shadow-emerald-500/50 animate-bounce">
-                      <CheckIcon className="w-12 h-12 text-white" />
-                    </div>
-                    <div className="absolute inset-0 rounded-full bg-emerald-400 animate-ping opacity-30" />
-                  </div>
-                  
-                  <h2 className="mt-6 text-3xl font-black text-white">Preview Ready!</h2>
-                  <p className="mt-2 text-white/70">AI analysis complete</p>
-                </div>
-              ) : (
-                <div className="w-full max-w-xl">
-                  <GenerationProgress
-                    isGenerating={isGeneratingPreview}
-                    currentStage={currentStage}
-                    overallProgress={generationProgress}
-                    statusMessage={generationStatus}
-                    estimatedTimeRemaining={estimatedTimeRemaining}
-                  />
-                  
-                  {/* URL being processed */}
-                  <div className="mt-6 text-center">
-                    <p className="text-white/60 text-sm mb-2">Analyzing:</p>
-                    <div className="bg-white/10 rounded-lg px-4 py-2 inline-flex items-center space-x-2">
-                      <GlobeAltIcon className="w-4 h-4 text-orange-400" />
-                      <span className="text-white/90 font-mono text-sm truncate max-w-xs">
-                        {pendingUrl || url}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Wait message */}
-                  <p className="mt-8 text-center text-white/40 text-xs">
-                    Our AI is analyzing your page using multi-stage reasoning...
-                  </p>
-                  
-                  {/* Cancel hint */}
-                  <p className="mt-4 text-center text-white/30 text-xs">
-                    Press Escape or click X to cancel
-                  </p>
-                </div>
-              )}
-              
-              {/* Animation styles */}
-              <style>{`
-                @keyframes float-up {
-                  0% { transform: translateY(100vh) rotate(0deg); opacity: 1; }
-                  100% { transform: translateY(-100vh) rotate(720deg); opacity: 0; }
-                }
-                .animate-float-up {
-                  animation: float-up 2s ease-out forwards;
-                }
-              `}</style>
-            </div>
-          )}
+          <DemoGenerating
+            isGenerating={isGeneratingPreview && !showEmailPopup}
+            currentStage={currentStage}
+            progress={generationProgress}
+            statusMessage={generationStatus}
+            estimatedTimeRemaining={estimatedTimeRemaining}
+            url={pendingUrl || url}
+            showCelebration={showCompletionCelebration}
+            onCancel={cancelGeneration}
+          />
 
           {/* Optional Email Subscription Modal - Only shown after preview generation */}
           {showEmailPopup && preview && (
@@ -2281,7 +1841,7 @@ export default function Demo() {
                       onClick={() => {
                         setStep('input')
                         setUrl('')
-                        setPreview(null)
+                        resetGenAll()
                         setPreviewError(null)
                         setSelectedPlatform('facebook')
                         window.scrollTo({ top: 0, behavior: 'smooth' })

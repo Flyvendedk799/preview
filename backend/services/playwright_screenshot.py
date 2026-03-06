@@ -1,10 +1,118 @@
 """Playwright-based screenshot service for capturing website screenshots."""
 import logging
 import json
-from typing import Tuple, List, Dict, Any
-from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError, Error as PlaywrightError, Page
+import threading
+import time
+from typing import Tuple, List, Dict, Any, Optional
+from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError, Error as PlaywrightError, Page, Playwright, Browser
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# BROWSER POOL - Maintain warm Chromium instances for faster screenshots
+# =============================================================================
+
+class BrowserPool:
+    """Pool of warm Chromium browser instances with semaphore concurrency control."""
+
+    _instance: Optional['BrowserPool'] = None
+    _lock = threading.Lock()
+
+    POOL_SIZE = 2
+    BROWSER_ARGS = [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-gpu",
+        "--disable-dev-shm-usage",
+        "--single-process",
+        "--no-zygote"
+    ]
+
+    def __init__(self):
+        self._browsers: list = []
+        self._semaphore = threading.Semaphore(self.POOL_SIZE)
+        self._playwright: Optional[Playwright] = None
+        self._initialized = False
+        self._init_lock = threading.Lock()
+
+    @classmethod
+    def get_instance(cls) -> 'BrowserPool':
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = cls()
+        return cls._instance
+
+    def _ensure_initialized(self):
+        if self._initialized:
+            return
+        with self._init_lock:
+            if self._initialized:
+                return
+            try:
+                self._playwright = sync_playwright().start()
+                for _ in range(self.POOL_SIZE):
+                    browser = self._playwright.chromium.launch(
+                        args=self.BROWSER_ARGS,
+                        headless=True
+                    )
+                    self._browsers.append(browser)
+                self._initialized = True
+                logger.info(f"BrowserPool initialized with {self.POOL_SIZE} browsers")
+            except Exception as e:
+                logger.warning(f"BrowserPool init failed, will use on-demand browsers: {e}")
+                self._initialized = False
+
+    def acquire(self) -> Optional[Browser]:
+        """Acquire a browser from the pool. Returns None if pool not available."""
+        try:
+            self._ensure_initialized()
+        except Exception:
+            return None
+
+        if not self._initialized or not self._browsers:
+            return None
+
+        acquired = self._semaphore.acquire(timeout=5)
+        if not acquired:
+            return None
+
+        with self._init_lock:
+            for browser in self._browsers:
+                if browser.is_connected():
+                    return browser
+            # All browsers dead, try to recreate
+            try:
+                browser = self._playwright.chromium.launch(
+                    args=self.BROWSER_ARGS,
+                    headless=True
+                )
+                self._browsers.append(browser)
+                return browser
+            except Exception:
+                self._semaphore.release()
+                return None
+
+    def release(self):
+        """Release a browser back to the pool."""
+        self._semaphore.release()
+
+    def shutdown(self):
+        """Shutdown all browsers and playwright."""
+        with self._init_lock:
+            for browser in self._browsers:
+                try:
+                    browser.close()
+                except Exception:
+                    pass
+            self._browsers.clear()
+            if self._playwright:
+                try:
+                    self._playwright.stop()
+                except Exception:
+                    pass
+            self._initialized = False
 
 
 # =============================================================================
@@ -308,31 +416,36 @@ def handle_cookie_popups(page: Page) -> bool:
 def capture_screenshot(url: str) -> bytes:
     """
     Uses Playwright Chromium to generate an accurate screenshot of a webpage.
-    Returns raw PNG bytes.
+    Returns raw PNG bytes. Uses BrowserPool for warm browser reuse when available.
 
     Args:
         url: URL to capture screenshot of
 
     Returns:
         Raw image bytes (PNG format)
-        
+
     Raises:
         Exception: If screenshot capture fails with descriptive error message
     """
+    # Try BrowserPool first for faster startup
+    pool = BrowserPool.get_instance()
+    pooled_browser = pool.acquire()
+
+    if pooled_browser:
+        try:
+            return _capture_screenshot_with_browser(pooled_browser, url)
+        except Exception:
+            pool.release()
+            raise
+        finally:
+            pool.release()
+
+    # Fallback: launch a fresh browser
     try:
         with sync_playwright() as p:
-            # Chromium args for containerized environments (Railway, Docker)
-            # These flags prevent GPU crashes and resource issues
             try:
                 browser = p.chromium.launch(
-                    args=[
-                        "--no-sandbox",
-                        "--disable-setuid-sandbox",
-                        "--disable-gpu",
-                        "--disable-dev-shm-usage",
-                        "--single-process",
-                        "--no-zygote"
-                    ],
+                    args=BrowserPool.BROWSER_ARGS,
                     headless=True
                 )
             except Exception as e:
@@ -340,70 +453,68 @@ def capture_screenshot(url: str) -> bytes:
                 raise Exception(f"Failed to start browser: {str(e)}")
 
             try:
-                page = browser.new_page(
-                    viewport={"width": 1200, "height": 630},  # Ideal OG size
-                    device_scale_factor=2
-                )
-
-                try:
-                    # Try networkidle first (best for most sites)
-                    try:
-                        page.goto(url, wait_until="networkidle", timeout=45000)
-                    except PlaywrightTimeoutError:
-                        # Fallback to 'load' for heavy JavaScript sites
-                        logger.warning(f"Networkidle timeout for {url}, trying 'load' strategy")
-                        page.goto(url, wait_until="load", timeout=30000)
-                        page.wait_for_timeout(2000)
-                except PlaywrightTimeoutError as e:
-                    logger.error(f"Page navigation timeout for {url} (both strategies failed): {e}")
-                    browser.close()
-                    raise Exception(f"Page load timeout: The website took too long to load. Please try again or check if the URL is accessible.")
-                except PlaywrightError as e:
-                    logger.error(f"Playwright error navigating to {url}: {e}")
-                    browser.close()
-                    error_msg = str(e)
-                    if "net::ERR_CERT_AUTHORITY_INVALID" in error_msg or "SSL" in error_msg:
-                        raise Exception(f"SSL certificate error: The website's certificate is invalid or self-signed. Cannot capture screenshot.")
-                    elif "net::ERR_NAME_NOT_RESOLVED" in error_msg:
-                        raise Exception(f"DNS error: Could not resolve the domain name. Please check the URL.")
-                    elif "net::ERR_CONNECTION_REFUSED" in error_msg:
-                        raise Exception(f"Connection refused: The website is not accessible. Please check if the URL is correct.")
-                    else:
-                        raise Exception(f"Failed to load page: {error_msg}")
-
-                # HANDLE COOKIE POPUPS before screenshot
-                try:
-                    cookie_handled = handle_cookie_popups(page)
-                    if cookie_handled:
-                        logger.info(f"🍪 Cookie popup handled for {url}")
-                except Exception as e:
-                    logger.warning(f"Cookie popup handling failed (non-critical): {e}")
-
-                # Ensure full-page screenshot because highlight detection uses it
-                try:
-                    screenshot = page.screenshot(type="png", full_page=True)
-                except Exception as e:
-                    logger.error(f"Screenshot capture failed for {url}: {e}")
-                    browser.close()
-                    raise Exception(f"Failed to capture screenshot: {str(e)}")
-
+                return _capture_screenshot_with_browser(browser, url)
+            finally:
                 browser.close()
-                return screenshot
-                
-            except Exception as e:
-                # Ensure browser is closed even if page operations fail
-                try:
-                    browser.close()
-                except:
-                    pass
-                raise
-                
+
     except Exception as e:
-        # Re-raise with more context if it's not already a descriptive error
         if "Failed to" not in str(e) and "error" not in str(e).lower():
             logger.error(f"Unexpected error capturing screenshot for {url}: {e}")
             raise Exception(f"Failed to capture screenshot: {str(e)}")
         raise
+
+
+def _capture_screenshot_with_browser(browser: Browser, url: str) -> bytes:
+    """Core screenshot logic using an already-launched browser."""
+    page = browser.new_page(
+        viewport={"width": 1200, "height": 630},
+        device_scale_factor=2
+    )
+
+    try:
+        try:
+            # Try domcontentloaded first (fastest)
+            try:
+                page.goto(url, wait_until="domcontentloaded", timeout=20000)
+                page.wait_for_timeout(1500)
+            except PlaywrightTimeoutError:
+                logger.warning(f"DOMContentLoaded timeout for {url}, trying 'load' strategy")
+                page.goto(url, wait_until="load", timeout=15000)
+                page.wait_for_timeout(2000)
+        except PlaywrightTimeoutError as e:
+            logger.error(f"Page navigation timeout for {url} (both strategies failed): {e}")
+            raise Exception(f"Page load timeout: The website took too long to load. Please try again or check if the URL is accessible.")
+        except PlaywrightError as e:
+            logger.error(f"Playwright error navigating to {url}: {e}")
+            error_msg = str(e)
+            if "net::ERR_CERT_AUTHORITY_INVALID" in error_msg or "SSL" in error_msg:
+                raise Exception(f"SSL certificate error: The website's certificate is invalid or self-signed. Cannot capture screenshot.")
+            elif "net::ERR_NAME_NOT_RESOLVED" in error_msg:
+                raise Exception(f"DNS error: Could not resolve the domain name. Please check the URL.")
+            elif "net::ERR_CONNECTION_REFUSED" in error_msg:
+                raise Exception(f"Connection refused: The website is not accessible. Please check if the URL is correct.")
+            else:
+                raise Exception(f"Failed to load page: {error_msg}")
+
+        # HANDLE COOKIE POPUPS before screenshot
+        try:
+            cookie_handled = handle_cookie_popups(page)
+            if cookie_handled:
+                logger.info(f"Cookie popup handled for {url}")
+        except Exception as e:
+            logger.warning(f"Cookie popup handling failed (non-critical): {e}")
+
+        # Capture viewport screenshot
+        try:
+            screenshot = page.screenshot(type="png", full_page=False)
+        except Exception as e:
+            logger.error(f"Screenshot capture failed for {url}: {e}")
+            raise Exception(f"Failed to capture screenshot: {str(e)}")
+
+        return screenshot
+
+    finally:
+        page.close()
 
 
 def _extract_scientific_dom(page: Page) -> Dict[str, Any]:
@@ -539,31 +650,36 @@ def _extract_scientific_dom(page: Page) -> Dict[str, Any]:
 def capture_screenshot_and_html(url: str) -> Tuple[bytes, str, Dict[str, Any]]:
     """
     Capture screenshot, HTML content, and Scientific DOM Mapping from a webpage.
-
-    This is more efficient than calling capture_screenshot and fetching HTML separately,
-    as it reuses the same browser session.
+    Uses BrowserPool for warm browser reuse when available.
 
     Args:
         url: URL to capture
 
     Returns:
         Tuple of (screenshot_bytes, html_content, dom_data_dict)
-        
+
     Raises:
         Exception: If capture fails with descriptive error message
     """
+    # Try BrowserPool first for faster startup
+    pool = BrowserPool.get_instance()
+    pooled_browser = pool.acquire()
+
+    if pooled_browser:
+        try:
+            return _capture_screenshot_and_html_with_browser(pooled_browser, url)
+        except Exception:
+            pool.release()
+            raise
+        finally:
+            pool.release()
+
+    # Fallback: launch a fresh browser
     try:
         with sync_playwright() as p:
             try:
                 browser = p.chromium.launch(
-                    args=[
-                        "--no-sandbox",
-                        "--disable-setuid-sandbox",
-                        "--disable-gpu",
-                        "--disable-dev-shm-usage",
-                        "--single-process",
-                        "--no-zygote"
-                    ],
+                    args=BrowserPool.BROWSER_ARGS,
                     headless=True
                 )
             except Exception as e:
@@ -571,77 +687,83 @@ def capture_screenshot_and_html(url: str) -> Tuple[bytes, str, Dict[str, Any]]:
                 raise Exception(f"Failed to start browser: {str(e)}")
 
             try:
-                page = browser.new_page(
-                    viewport={"width": 1200, "height": 630},
-                    device_scale_factor=2
-                )
-
-                try:
-                    # Try networkidle first (best for most sites)
-                    page.goto(url, wait_until="networkidle", timeout=45000)
-                except PlaywrightTimeoutError as e:
-                    logger.warning(f"Networkidle timeout for {url}, trying 'load' strategy: {e}")
-                    try:
-                        # Fallback to 'load' for heavy JavaScript sites (like OpenAI.com)
-                        # This waits for the load event, which is more lenient than networkidle
-                        page.goto(url, wait_until="load", timeout=30000)
-                        # Give a small delay for any remaining JS to execute
-                        page.wait_for_timeout(2000)
-                    except PlaywrightTimeoutError as e2:
-                        logger.error(f"Page navigation timeout for {url} (both strategies failed): {e2}")
-                        browser.close()
-                        raise Exception(f"Page load timeout: The website took too long to load.")
-                except PlaywrightError as e:
-                    logger.error(f"Playwright error navigating to {url}: {e}")
-                    browser.close()
-                    error_msg = str(e)
-                    if "net::ERR_CERT_AUTHORITY_INVALID" in error_msg or "SSL" in error_msg:
-                        raise Exception(f"SSL certificate error: The website's certificate is invalid.")
-                    elif "net::ERR_NAME_NOT_RESOLVED" in error_msg:
-                        raise Exception(f"DNS error: Could not resolve the domain name.")
-                    else:
-                        raise Exception(f"Failed to load page: {error_msg}")
-
-                # HANDLE COOKIE POPUPS before screenshot
-                try:
-                    cookie_handled = handle_cookie_popups(page)
-                    if cookie_handled:
-                        logger.info(f"🍪 Cookie popup handled for {url}")
-                except Exception as e:
-                    logger.warning(f"Cookie popup handling failed (non-critical): {e}")
-
-                # Extract Scientific DOM Math
-                try:
-                    dom_data = _extract_scientific_dom(page)
-                    logger.info(f"🧬 Extracted Scientific DOM bounds for {url}")
-                except Exception as e:
-                    logger.error(f"Failed to extract DOM data for {url}: {e}")
-                    dom_data = {}
-
-                # Capture both screenshot and HTML
-                try:
-                    screenshot = page.screenshot(type="png", full_page=True)
-                    html_content = page.content()
-                except Exception as e:
-                    logger.error(f"Failed to capture screenshot/HTML for {url}: {e}")
-                    browser.close()
-                    raise Exception(f"Failed to capture screenshot: {str(e)}")
-
+                return _capture_screenshot_and_html_with_browser(browser, url)
+            finally:
                 browser.close()
-                return screenshot, html_content, dom_data
-                
-            except Exception as e:
-                # Ensure browser is closed even if page operations fail
-                try:
-                    browser.close()
-                except:
-                    pass
-                raise
-                
+
     except Exception as e:
-        # Re-raise with more context if it's not already a descriptive error
         if "Failed to" not in str(e) and "error" not in str(e).lower():
             logger.error(f"Unexpected error capturing screenshot/HTML for {url}: {e}")
             raise Exception(f"Failed to capture screenshot: {str(e)}")
         raise
+
+
+def _capture_screenshot_and_html_with_browser(browser: Browser, url: str) -> Tuple[bytes, str, Dict[str, Any]]:
+    """Core screenshot+HTML capture logic using an already-launched browser."""
+    page = browser.new_page(
+        viewport={"width": 1200, "height": 630},
+        device_scale_factor=2
+    )
+
+    try:
+        try:
+            page.goto(url, wait_until="domcontentloaded", timeout=20000)
+            page.wait_for_timeout(1500)
+        except PlaywrightTimeoutError as e:
+            logger.warning(f"DOMContentLoaded timeout for {url}, trying 'load' strategy: {e}")
+            try:
+                page.goto(url, wait_until="load", timeout=15000)
+                page.wait_for_timeout(2000)
+            except PlaywrightTimeoutError as e2:
+                logger.error(f"Page navigation timeout for {url} (both strategies failed): {e2}")
+                raise Exception(f"Page load timeout: The website took too long to load.")
+        except PlaywrightError as e:
+            logger.error(f"Playwright error navigating to {url}: {e}")
+            error_msg = str(e)
+            if "net::ERR_CERT_AUTHORITY_INVALID" in error_msg or "SSL" in error_msg:
+                # SSL fallback: retry with ignore_https_errors
+                logger.warning(f"SSL error for {url}, retrying with ignore_https_errors")
+                try:
+                    page.close()
+                    page = browser.new_page(
+                        viewport={"width": 1200, "height": 630},
+                        device_scale_factor=2,
+                        ignore_https_errors=True
+                    )
+                    page.goto(url, wait_until="domcontentloaded", timeout=20000)
+                    page.wait_for_timeout(1500)
+                except Exception:
+                    raise Exception(f"SSL certificate error: {error_msg}")
+            elif "net::ERR_NAME_NOT_RESOLVED" in error_msg:
+                raise Exception(f"DNS error: Could not resolve the domain name.")
+            else:
+                raise Exception(f"Failed to load page: {error_msg}")
+
+        # HANDLE COOKIE POPUPS before screenshot
+        try:
+            cookie_handled = handle_cookie_popups(page)
+            if cookie_handled:
+                logger.info(f"Cookie popup handled for {url}")
+        except Exception as e:
+            logger.warning(f"Cookie popup handling failed (non-critical): {e}")
+
+        # Extract Scientific DOM
+        try:
+            dom_data = _extract_scientific_dom(page)
+        except Exception as e:
+            logger.error(f"Failed to extract DOM data for {url}: {e}")
+            dom_data = {}
+
+        # Capture screenshot and HTML
+        try:
+            screenshot = page.screenshot(type="png", full_page=False)
+            html_content = page.content()
+        except Exception as e:
+            logger.error(f"Failed to capture screenshot/HTML for {url}: {e}")
+            raise Exception(f"Failed to capture screenshot: {str(e)}")
+
+        return screenshot, html_content, dom_data
+
+    finally:
+        page.close()
 

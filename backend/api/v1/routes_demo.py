@@ -15,6 +15,13 @@ from backend.services.preview_cache import (
     CacheConfig,
     is_demo_cache_disabled
 )
+from backend.schemas.demo_schemas import (
+    DemoPreviewRequest,
+    ContextItem,
+    CredibilityItem,
+    BrandElements,
+    LayoutBlueprint,
+)
 import json
 import logging
 
@@ -23,64 +30,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/demo", tags=["demo"])
 
 
-class DemoPreviewRequest(BaseModel):
-    """Schema for demo preview generation request."""
-    url: HttpUrl
-
-
-# =============================================================================
-# Response Schema - Multi-Stage Reasoned Preview
-# =============================================================================
-
-class ContextItem(BaseModel):
-    """Context item like location, date, etc."""
-    icon: str
-    text: str
-
-
-class CredibilityItem(BaseModel):
-    """Credibility item like rating, review count."""
-    type: str
-    value: str
-
-
-class BrandElements(BaseModel):
-    """Extracted brand elements."""
-    brand_name: Optional[str] = None
-    logo_base64: Optional[str] = None
-    hero_image_base64: Optional[str] = None
-
-
-class LayoutBlueprint(BaseModel):
-    """Layout blueprint with full reasoning."""
-    template_type: str  # profile, product, landing, article, service
-    primary_color: str
-    secondary_color: str
-    accent_color: str
-    
-    # Quality scores from Stage 6
-    coherence_score: float
-    balance_score: float
-    clarity_score: float
-    overall_quality: str  # excellent, good, fair, poor
-    
-    # Reasoning chain
-    layout_reasoning: str
-    composition_notes: str
-
-
 class DemoPreviewResponse(BaseModel):
-    """
-    Multi-stage reasoned preview response.
-    
-    This provides structured content ready for rendering, along with
-    the full reasoning chain that led to these decisions.
-    """
-    # Source URL
+    """Legacy demo preview response - kept for backward compatibility with /demo endpoint."""
     url: str
-    
-    # ===== RENDERED CONTENT =====
-    # These are the final values to display
     title: str
     subtitle: Optional[str] = None
     description: Optional[str] = None
@@ -88,25 +40,15 @@ class DemoPreviewResponse(BaseModel):
     context_items: List[ContextItem] = []
     credibility_items: List[CredibilityItem] = []
     cta_text: Optional[str] = None
-    
-    # ===== IMAGES =====
     primary_image_base64: Optional[str] = None
     screenshot_url: Optional[str] = None
-    composited_preview_image_url: Optional[str] = None  # Final og:image with all elements
-    
-    # ===== BRAND ELEMENTS =====
+    composited_preview_image_url: Optional[str] = None
     brand: Optional[BrandElements] = None
-    
-    # ===== LAYOUT BLUEPRINT =====
     blueprint: LayoutBlueprint
-    
-    # ===== QUALITY METRICS =====
     reasoning_confidence: float
     processing_time_ms: int
     quality_scores: Optional[Dict[str, Any]] = None
     is_fallback: bool = False
-    
-    # ===== DEMO METADATA =====
     is_demo: bool = True
     message: str = "AI-reconstructed preview using multi-stage reasoning."
 

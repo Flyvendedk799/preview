@@ -80,35 +80,37 @@ const PlatformPreviewCard: React.FC<PlatformPreviewCardProps> = memo(({
 
   // Render platform-specific content
   const renderPlatformContent = () => {
-    // Slack - message-style embed
+    // Slack unfurl - 5px left border (brand color), site name bold, title as blue link
     if (isSlack) {
       return (
         <div className="px-3 py-2.5 bg-white">
-          <div className="flex items-start space-x-2">
-            <div 
-              className="w-4 h-4 rounded mt-0.5 flex-shrink-0" 
-              style={{ backgroundColor: preview.blueprint.primary_color }}
-              aria-hidden="true"
-            />
+          <div className="flex items-start gap-3">
             <div className="flex-1 min-w-0">
-              <div className="text-[11px] text-gray-500 font-medium mb-1">{domain}</div>
+              <div className="text-[13px] text-gray-900 font-bold mb-0.5">
+                {preview.brand?.brand_name || domain}
+              </div>
               {platformData.title && platformData.title !== "Untitled" && (
-                <h4 className="text-[13px] font-semibold text-gray-900 leading-tight line-clamp-2 mb-1">
+                <h4 className="text-[13px] font-normal text-[#1264A3] leading-tight line-clamp-2 mb-1 hover:underline cursor-pointer">
                   {platformData.title}
                 </h4>
               )}
               {platformData.description && platformData.description !== platformData.title && (
-                <p className="text-[12px] text-gray-600 leading-snug line-clamp-2">
+                <p className="text-[12px] text-gray-500 leading-snug line-clamp-2">
                   {platformData.description}
                 </p>
               )}
-              <div className="mt-1.5 text-[11px] text-gray-400 flex items-center gap-1">
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-                <span>Tap to open site →</span>
-              </div>
             </div>
+            {/* Thumbnail right-aligned */}
+            {platformData.image && (
+              <div className="w-[80px] h-[80px] rounded flex-shrink-0 overflow-hidden bg-gray-100">
+                <img
+                  src={platformData.image}
+                  alt=""
+                  className="w-full h-full object-cover"
+                  onError={handleImageError}
+                />
+              </div>
+            )}
           </div>
         </div>
       )
@@ -125,67 +127,51 @@ const PlatformPreviewCard: React.FC<PlatformPreviewCardProps> = memo(({
           )}
           <div className="text-[11px] text-gray-500 flex items-center gap-1">
             <span>{domain}</span>
-            <span aria-hidden="true">·</span>
-            <span className="text-gray-400">Tap to open →</span>
           </div>
         </div>
       )
     }
 
-    // X (Twitter) - minimal, clean design
+    // X (Twitter) - 16px border-radius, domain overlay bottom-left, title below
     if (isTwitter) {
       return (
-        <div className="px-3 py-2.5 bg-white">
-          <div className="text-[11px] text-gray-500 font-medium mb-1.5">{domain}</div>
+        <div className="px-3 py-2 bg-white">
           {platformData.title && platformData.title !== "Untitled" && (
-            <h4 className="text-[15px] font-bold text-gray-900 leading-tight line-clamp-2 mb-1.5">
+            <h4 className="text-[15px] font-normal text-gray-900 leading-tight line-clamp-2">
               {platformData.title}
             </h4>
           )}
-          {platformData.description && platformData.description !== platformData.title && (
-            <p className="text-[13px] text-gray-700 leading-snug line-clamp-2 mb-1.5">
-              {platformData.description}
-            </p>
-          )}
-          <div className="text-[11px] text-gray-400 flex items-center gap-1">
-            <span>Tap to open site →</span>
-          </div>
         </div>
       )
     }
 
-    // LinkedIn - professional, larger text
+    // LinkedIn - title 14px semibold single line, source 12px gray, subtle border
     if (isLinkedIn) {
       return (
-        <div className="px-3 py-3 bg-white border-t border-gray-100">
-          <div className="text-[11px] text-gray-500 font-medium mb-1.5">{domain}</div>
+        <div className="px-3 py-2.5 bg-white border-t border-gray-200">
           {platformData.title && platformData.title !== "Untitled" && (
-            <h4 className="text-[14px] font-semibold text-gray-900 leading-tight line-clamp-2 mb-1.5">
+            <h4 className="text-[14px] font-semibold text-gray-900 leading-tight line-clamp-1 mb-0.5">
               {platformData.title}
             </h4>
           )}
-          {platformData.description && platformData.description !== platformData.title && (
-            <p className="text-[12px] text-gray-700 leading-relaxed line-clamp-2">
-              {platformData.description}
-            </p>
-          )}
+          <div className="text-[12px] text-gray-500">{domain}</div>
         </div>
       )
     }
 
-    // Facebook - default layout
+    // Facebook - 1px gray border, domain in gray caps, title 16px bold max 2 lines, desc 14px max 1 line
     return (
-      <div className="px-3 py-2 bg-gray-50">
-        <div className="text-[10px] text-gray-500 uppercase tracking-wide font-medium mb-1">
+      <div className="px-3 py-2.5" style={{ backgroundColor: '#F0F2F5' }}>
+        <div className="text-[10px] text-gray-500 uppercase tracking-wider font-medium mb-1">
           {domain}
         </div>
         {platformData.title && platformData.title !== "Untitled" && (
-          <h4 className="text-[13px] font-semibold text-gray-900 leading-tight line-clamp-2 mb-0.5">
+          <h4 className="text-[16px] font-bold text-[#1C1E21] leading-tight line-clamp-2 mb-0.5">
             {platformData.title}
           </h4>
         )}
         {platformData.description && platformData.description !== platformData.title && (
-          <p className="text-[11px] text-gray-600 leading-snug line-clamp-1">
+          <p className="text-[14px] text-[#606770] leading-snug line-clamp-1">
             {platformData.description}
           </p>
         )}
@@ -195,45 +181,60 @@ const PlatformPreviewCard: React.FC<PlatformPreviewCardProps> = memo(({
 
   // Determine card styling based on platform
   const cardClassName = useMemo(() => {
-    const base = 'mx-3 mb-2 border border-gray-200 rounded-lg overflow-hidden'
-    if (isLinkedIn || isTwitter || isInstagram) {
-      return `${base} bg-white`
+    if (isTwitter) {
+      // Twitter: 16px border-radius
+      return 'mx-3 mb-2 border border-gray-300 rounded-2xl overflow-hidden bg-white'
     }
     if (isSlack) {
-      return `${base} bg-white border-l-4`
+      // Slack: 5px left border with brand color
+      return 'mx-3 mb-2 border border-gray-200 rounded overflow-hidden bg-white'
     }
-    return `${base} bg-gray-50`
-  }, [isLinkedIn, isTwitter, isSlack, isInstagram])
+    if (isLinkedIn) {
+      // LinkedIn: subtle border
+      return 'mx-3 mb-2 border border-gray-300 rounded-lg overflow-hidden bg-white'
+    }
+    if (isFacebook) {
+      // Facebook: 1px gray border, #F0F2F5 background
+      return 'mx-3 mb-2 border border-gray-300 rounded-lg overflow-hidden'
+    }
+    return 'mx-3 mb-2 border border-gray-200 rounded-lg overflow-hidden bg-white'
+  }, [isLinkedIn, isTwitter, isSlack, isInstagram, isFacebook])
 
   const cardStyle = useMemo(() => {
     if (isSlack) {
-      return { borderLeftColor: preview.blueprint.primary_color }
+      return { borderLeftWidth: '5px', borderLeftColor: preview.blueprint.primary_color }
     }
     return {}
   }, [isSlack, preview.blueprint.primary_color])
 
-  return (
-    <div className={cardClassName} style={cardStyle}>
-      {/* Preview Image */}
-      <div 
+  // Image section - not shown for Slack (Slack shows thumbnail in content)
+  const renderImage = () => {
+    if (isSlack) return null
+
+    return (
+      <div
         className="bg-gray-200 overflow-hidden relative"
         style={{ aspectRatio: platform.aspectRatio }}
         role="img"
         aria-label={`Preview image for ${platformData.title}`}
       >
-        {/* Gradient overlay for text readability */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent pointer-events-none z-10" aria-hidden="true" />
-        
         {platformData.image ? (
-          <img
-            src={platformData.image}
-            alt={platformData.title}
-            className="w-full h-full object-cover relative z-0"
-            onError={handleImageError}
-            loading="lazy"
-          />
+          <>
+            <img
+              src={platformData.image}
+              alt={platformData.title}
+              className="w-full h-full object-cover relative z-0"
+              onError={handleImageError}
+              loading="lazy"
+            />
+            {/* Twitter: domain overlay bottom-left with dark scrim */}
+            {isTwitter && (
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2 z-10">
+                <span className="text-[13px] text-white/90 font-normal">{domain}</span>
+              </div>
+            )}
+          </>
         ) : (
-          // Fallback: brand-aware gradient using extracted brand elements
           <div
             className="w-full h-full relative"
             style={{
@@ -242,7 +243,6 @@ const PlatformPreviewCard: React.FC<PlatformPreviewCardProps> = memo(({
           >
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-4">
               {preview.brand?.logo_base64 ? (
-                // Show extracted brand logo
                 <div className="w-20 h-20 rounded-2xl bg-white/15 backdrop-blur-sm flex items-center justify-center p-2 shadow-lg">
                   <img
                     src={`data:image/png;base64,${preview.brand.logo_base64}`}
@@ -252,7 +252,6 @@ const PlatformPreviewCard: React.FC<PlatformPreviewCardProps> = memo(({
                   />
                 </div>
               ) : (
-                // Show initial letter as avatar
                 <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-lg">
                   <span className="text-2xl font-black text-white">
                     {(preview.brand?.brand_name || platformData.title || 'M').charAt(0).toUpperCase()}
@@ -266,8 +265,12 @@ const PlatformPreviewCard: React.FC<PlatformPreviewCardProps> = memo(({
           </div>
         )}
       </div>
+    )
+  }
 
-      {/* Platform-specific content */}
+  return (
+    <div className={cardClassName} style={cardStyle}>
+      {renderImage()}
       {renderPlatformContent()}
     </div>
   )

@@ -3,7 +3,7 @@ Graceful Degradation - Tiered fallback system for preview generation.
 
 Instead of binary success/failure, this module provides tiered degradation:
 - Tier 1 (Best): Full multi-agent extraction + DNA-aware rendering
-- Tier 2 (Good): Single-agent extraction + template rendering  
+- Tier 2 (Good): Single-agent extraction + template rendering
 - Tier 3 (Acceptable): HTML metadata + basic rendering
 - Tier 4 (Fallback): URL-based minimal preview
 
@@ -12,11 +12,104 @@ Each tier provides progressively simpler but still useful previews.
 
 import logging
 import time
+import threading
 from typing import Dict, Any, Optional, List, Callable, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
+from collections import deque
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# TIMEOUT BUDGET
+# =============================================================================
+
+class TimeoutBudget:
+    """Allocates a total time budget across processing stages."""
+
+    def __init__(self, total_seconds: float = 60.0):
+        self.total = total_seconds
+        self.start_time = time.time()
+        self.allocations = {
+            'playwright': 15.0,
+            'openai': 35.0,
+            'image_gen': 10.0,
+        }
+
+    def remaining(self) -> float:
+        elapsed = time.time() - self.start_time
+        return max(0, self.total - elapsed)
+
+    def stage_budget(self, stage: str) -> float:
+        """Get remaining budget for a stage, capped by allocation."""
+        alloc = self.allocations.get(stage, 10.0)
+        return min(alloc, self.remaining())
+
+    def is_expired(self) -> bool:
+        return self.remaining() <= 0
+
+
+# =============================================================================
+# CIRCUIT BREAKER FOR OPENAI
+# =============================================================================
+
+class OpenAICircuitBreaker:
+    """
+    Circuit breaker for OpenAI API calls.
+    Opens after `threshold` errors in `window_seconds`, stays open for `cooldown_seconds`.
+    """
+
+    _instance: Optional['OpenAICircuitBreaker'] = None
+    _lock = threading.Lock()
+
+    def __init__(self, threshold: int = 3, window_seconds: float = 300, cooldown_seconds: float = 120):
+        self.threshold = threshold
+        self.window_seconds = window_seconds
+        self.cooldown_seconds = cooldown_seconds
+        self._errors: deque = deque()
+        self._open_until: float = 0
+        self._lock = threading.Lock()
+
+    @classmethod
+    def get_instance(cls) -> 'OpenAICircuitBreaker':
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = cls()
+        return cls._instance
+
+    def is_open(self) -> bool:
+        """Check if circuit is open (should skip OpenAI calls)."""
+        with self._lock:
+            if time.time() < self._open_until:
+                return True
+            # Clean old errors
+            cutoff = time.time() - self.window_seconds
+            while self._errors and self._errors[0] < cutoff:
+                self._errors.popleft()
+            return False
+
+    def record_error(self):
+        """Record an OpenAI error. Opens circuit if threshold reached."""
+        with self._lock:
+            now = time.time()
+            self._errors.append(now)
+            cutoff = now - self.window_seconds
+            while self._errors and self._errors[0] < cutoff:
+                self._errors.popleft()
+            if len(self._errors) >= self.threshold:
+                self._open_until = now + self.cooldown_seconds
+                logger.warning(
+                    f"Circuit breaker OPEN: {len(self._errors)} errors in {self.window_seconds}s. "
+                    f"Cooling down for {self.cooldown_seconds}s."
+                )
+
+    def record_success(self):
+        """Record a successful call. Resets error state."""
+        with self._lock:
+            self._errors.clear()
+            self._open_until = 0
 
 
 class QualityTier(str, Enum):

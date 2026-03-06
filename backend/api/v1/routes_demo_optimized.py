@@ -37,6 +37,18 @@ from backend.services.preview_cache import (
 )
 from backend.queue.queue_connection import get_rq_redis_connection
 from backend.jobs.demo_preview_job import generate_demo_preview_job
+from backend.schemas.demo_schemas import (
+    DemoPreviewRequest,
+    DemoPreviewResponse,
+    DemoJobRequest,
+    DemoJobResponse,
+    DemoJobStatusResponse,
+    ContextItem,
+    CredibilityItem,
+    BrandElements,
+    DesignDNA,
+    LayoutBlueprint,
+)
 from rq import Queue
 from rq.job import Job
 import json
@@ -45,120 +57,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/demo-v2", tags=["demo"])
-
-
-class DemoPreviewRequest(BaseModel):
-    """Schema for demo preview generation request."""
-    url: HttpUrl
-
-
-# Response schemas (same as original)
-class ContextItem(BaseModel):
-    """Context item like location, date, etc."""
-    icon: str
-    text: str
-
-
-class CredibilityItem(BaseModel):
-    """Credibility item like rating, review count."""
-    type: str
-    value: str
-
-
-class BrandElements(BaseModel):
-    """Extracted brand elements."""
-    brand_name: Optional[str] = None
-    logo_base64: Optional[str] = None
-    hero_image_base64: Optional[str] = None
-    favicon_url: Optional[str] = None
-
-
-class DesignDNA(BaseModel):
-    """Design DNA - extracted design philosophy for intelligent rendering."""
-    style: str = "corporate"
-    mood: str = "balanced"
-    formality: float = 0.5
-    typography_personality: str = "bold"
-    color_emotion: str = "trust"
-    spacing_feel: str = "balanced"
-    brand_adjectives: List[str] = []
-    design_reasoning: str = ""
-
-
-class LayoutBlueprint(BaseModel):
-    """Layout blueprint with full reasoning."""
-    template_type: str
-    primary_color: str
-    secondary_color: str
-    accent_color: str
-    coherence_score: float
-    balance_score: float
-    clarity_score: float
-    design_fidelity_score: Optional[float] = None  # How well preview honors original design
-    overall_quality: str
-    layout_reasoning: str
-    composition_notes: str
-
-
-class DemoPreviewResponse(BaseModel):
-    """Multi-stage reasoned preview response with brand elements and Design DNA."""
-    # Source URL
-    url: str
-
-    # ===== RENDERED CONTENT =====
-    title: str
-    subtitle: Optional[str] = None
-    description: Optional[str] = None
-    tags: List[str] = []
-    context_items: List[ContextItem] = []
-    credibility_items: List[CredibilityItem] = []
-    cta_text: Optional[str] = None
-
-    # ===== IMAGES =====
-    primary_image_base64: Optional[str] = None
-    screenshot_url: Optional[str] = None
-    composited_preview_image_url: Optional[str] = None
-
-    # ===== BRAND ELEMENTS =====
-    brand: Optional[BrandElements] = None
-
-    # ===== LAYOUT BLUEPRINT =====
-    blueprint: LayoutBlueprint
-    
-    # ===== DESIGN DNA (NEW) =====
-    design_dna: Optional[DesignDNA] = None  # Design intelligence for adaptive rendering
-
-    # ===== QUALITY METRICS =====
-    reasoning_confidence: float
-    design_fidelity_score: Optional[float] = None  # How well preview honors original design
-    processing_time_ms: int
-
-    # ===== DEMO METADATA =====
-    is_demo: bool = True
-    message: str = "AI-reconstructed preview using multi-stage reasoning with Design DNA."
-    trace_url: Optional[str] = None
-
-
-class DemoJobRequest(BaseModel):
-    """Schema for demo job creation request."""
-    url: HttpUrl
-
-
-class DemoJobResponse(BaseModel):
-    """Schema for demo job creation response."""
-    job_id: str
-    status: str = "queued"
-    message: str = "Preview generation started. Poll /demo-v2/jobs/{job_id}/status for updates."
-
-
-class DemoJobStatusResponse(BaseModel):
-    """Schema for demo job status response."""
-    job_id: str
-    status: str  # "queued", "started", "finished", "failed"
-    result: Optional[DemoPreviewResponse] = None
-    error: Optional[str] = None
-    progress: Optional[float] = None  # 0.0 to 1.0
-    message: Optional[str] = None  # Human-readable status message
 
 
 @router.post("/jobs", status_code=status.HTTP_202_ACCEPTED, response_model=DemoJobResponse)

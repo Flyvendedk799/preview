@@ -297,15 +297,35 @@ def crop_logo_from_screenshot(screenshot_bytes: bytes, logo_info: Dict[str, Any]
         return None
 
 
+def _download_and_validate_image(img_url: str, min_width: int = 32, min_height: int = 32) -> Optional[str]:
+    """Download image, validate dimensions, return base64 or None."""
+    try:
+        response = requests.get(img_url, timeout=5)
+        if response.status_code != 200:
+            return None
+        img = Image.open(BytesIO(response.content))
+        if img.width < min_width or img.height < min_height:
+            return None
+        # Filter decorative images (1x1 pixels, tracking pixels)
+        if img.width <= 2 or img.height <= 2:
+            return None
+        buffered = BytesIO()
+        img.save(buffered, format="PNG")
+        return base64.b64encode(buffered.getvalue()).decode('utf-8')
+    except Exception:
+        return None
+
+
 def extract_brand_logo(html_content: str, url: str, screenshot_bytes: bytes) -> Optional[str]:
     """
-    Extract brand logo from website with AI-powered detection.
+    Extract brand logo from website.
 
-    Priority order:
-    1. 🤖 AI-powered logo detection from screenshot (most accurate)
-    2. High-res logo from header/nav HTML elements
-    3. Favicon (if high quality)
-    4. Fallback: Simple screenshot crop (top-left region)
+    Priority order (HTML-first for speed, AI as fallback):
+    1. apple-touch-icon / high-res favicon (fast, reliable)
+    2. <img> in <header>/<nav> with logo-related attributes
+    3. AI-powered logo detection from screenshot
+    4. Standard favicon
+    5. Screenshot crop fallback
 
     Args:
         html_content: HTML content of the page
@@ -315,34 +335,41 @@ def extract_brand_logo(html_content: str, url: str, screenshot_bytes: bytes) -> 
     Returns:
         Base64-encoded logo image or None
     """
-    logger.info(f"🔍 Starting logo extraction for: {url}")
-    
+    logger.info(f"Starting logo extraction for: {url}")
+
     try:
-        # =================================================================
-        # PRIORITY 1: AI-Powered Logo Detection (most accurate)
-        # =================================================================
-        if screenshot_bytes and AI_LOGO_DETECTION_AVAILABLE:
-            logo_info = extract_logo_with_ai(screenshot_bytes, url)
-            if logo_info:
-                logo_base64 = crop_logo_from_screenshot(screenshot_bytes, logo_info)
-                if logo_base64:
-                    logger.info(
-                        f"✅ Logo extracted via AI detection: "
-                        f"{logo_info.get('location', 'unknown')} "
-                        f"({logo_info.get('description', 'no description')[:50]})"
-                    )
-                    return logo_base64
-        
-        # =================================================================
-        # PRIORITY 2: HTML-based logo extraction
-        # =================================================================
-        logger.debug("  AI detection not available or failed, trying HTML-based extraction...")
-        
         soup = BeautifulSoup(html_content, 'html.parser')
         base_url = f"{urlparse(url).scheme}://{urlparse(url).netloc}"
 
-        # Try to find logo in common locations
+        # =================================================================
+        # PRIORITY 1: apple-touch-icon and high-res icons (best quality, no AI needed)
+        # =================================================================
+        highres_icon_selectors = [
+            'link[rel="apple-touch-icon"]',
+            'link[rel="apple-touch-icon-precomposed"]',
+            'link[rel="icon"][sizes="192x192"]',
+            'link[rel="icon"][sizes="180x180"]',
+            'link[rel="icon"][sizes="128x128"]',
+            'link[rel="icon"][sizes="96x96"]',
+        ]
+
+        for selector in highres_icon_selectors:
+            icon = soup.select_one(selector)
+            if icon and icon.get('href'):
+                icon_url = urljoin(base_url, icon['href'])
+                logo_base64 = _download_and_validate_image(icon_url, min_width=32, min_height=32)
+                if logo_base64:
+                    logger.info(f"Logo extracted from high-res icon: {selector}")
+                    return logo_base64
+
+        # =================================================================
+        # PRIORITY 2: <img> in header/nav elements
+        # =================================================================
         logo_selectors = [
+            'header img[class*="logo" i]',
+            'nav img[class*="logo" i]',
+            'header img[alt*="logo" i]',
+            'nav img[alt*="logo" i]',
             'img[class*="logo" i]',
             'img[id*="logo" i]',
             'img[alt*="logo" i]',
@@ -351,7 +378,6 @@ def extract_brand_logo(html_content: str, url: str, screenshot_bytes: bytes) -> 
             'nav img',
             '.navbar img',
             '.header img',
-            # Additional selectors for better coverage
             '[class*="brand"] img',
             'a[href="/"] img',
             '.site-logo img',
@@ -362,34 +388,27 @@ def extract_brand_logo(html_content: str, url: str, screenshot_bytes: bytes) -> 
             logo_img = soup.select_one(selector)
             if logo_img and logo_img.get('src'):
                 logo_url = urljoin(base_url, logo_img['src'])
-                logger.debug(f"  Trying logo selector: {selector} -> {logo_url}")
-
-                # Download logo
-                try:
-                    response = requests.get(logo_url, timeout=5)
-                    if response.status_code == 200:
-                        # Check if image is reasonable size (not too small)
-                        img = Image.open(BytesIO(response.content))
-                        if img.width >= 50 and img.height >= 50:  # Minimum dimensions
-                            # Convert to base64
-                            buffered = BytesIO()
-                            img.save(buffered, format="PNG")
-                            logo_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
-                            logger.info(f"✅ Logo extracted from HTML: {selector} ({img.width}x{img.height})")
-                            return logo_base64
-                        else:
-                            logger.debug(f"  Logo too small: {img.width}x{img.height}, skipping")
-                except Exception as e:
-                    logger.debug(f"  Failed to download logo from {logo_url}: {e}")
-                    continue
+                logo_base64 = _download_and_validate_image(logo_url, min_width=32, min_height=32)
+                if logo_base64:
+                    logger.info(f"Logo extracted from HTML: {selector}")
+                    return logo_base64
 
         # =================================================================
-        # PRIORITY 3: Favicon fallback
+        # PRIORITY 3: AI-Powered Logo Detection (fallback for complex pages)
         # =================================================================
-        logger.debug("  HTML logo extraction failed, trying favicon...")
+        if screenshot_bytes and AI_LOGO_DETECTION_AVAILABLE:
+            logo_info = extract_logo_with_ai(screenshot_bytes, url)
+            if logo_info:
+                logo_base64 = crop_logo_from_screenshot(screenshot_bytes, logo_info)
+                if logo_base64:
+                    logger.info(f"Logo extracted via AI detection: {logo_info.get('location', 'unknown')}")
+                    return logo_base64
+
+        # =================================================================
+        # PRIORITY 4: Standard favicon
+        # =================================================================
         favicon_selectors = [
-            'link[rel="apple-touch-icon"]',  # Usually highest quality
-            'link[rel="icon"][sizes]',  # Sized icons
+            'link[rel="icon"][sizes]',
             'link[rel="icon"]',
             'link[rel="shortcut icon"]',
         ]
@@ -398,35 +417,31 @@ def extract_brand_logo(html_content: str, url: str, screenshot_bytes: bytes) -> 
             favicon = soup.select_one(selector)
             if favicon and favicon.get('href'):
                 favicon_url = urljoin(base_url, favicon['href'])
-                logger.debug(f"  Trying favicon: {selector} -> {favicon_url}")
-                try:
-                    response = requests.get(favicon_url, timeout=5)
-                    if response.status_code == 200:
-                        img = Image.open(BytesIO(response.content))
-                        if img.width >= 64:  # Only use if reasonable quality
-                            buffered = BytesIO()
-                            img.save(buffered, format="PNG")
-                            logo_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
-                            logger.info(f"✅ Logo extracted from favicon: {selector} ({img.width}x{img.height})")
-                            return logo_base64
-                except Exception as e:
-                    logger.debug(f"  Failed to download favicon from {favicon_url}: {e}")
-                    continue
+                logo_base64 = _download_and_validate_image(favicon_url, min_width=32, min_height=32)
+                if logo_base64:
+                    logger.info(f"Logo extracted from favicon: {selector}")
+                    return logo_base64
 
-        # =================================================================
-        # PRIORITY 4: Simple screenshot crop fallback
-        # =================================================================
-        logger.debug("  HTML/favicon extraction failed, trying screenshot-based extraction...")
-        logo_base64 = _extract_logo_from_screenshot(screenshot_bytes)
+        # Try default favicon.ico
+        default_favicon = f"{base_url}/favicon.ico"
+        logo_base64 = _download_and_validate_image(default_favicon, min_width=16, min_height=16)
         if logo_base64:
-            logger.info("✅ Logo extracted from screenshot (fallback crop method)")
+            logger.info("Logo extracted from default favicon.ico")
             return logo_base64
 
-        logger.warning(f"❌ No suitable logo found for: {url}")
+        # =================================================================
+        # PRIORITY 5: Screenshot crop fallback
+        # =================================================================
+        logo_base64 = _extract_logo_from_screenshot(screenshot_bytes)
+        if logo_base64:
+            logger.info("Logo extracted from screenshot (fallback crop)")
+            return logo_base64
+
+        logger.warning(f"No suitable logo found for: {url}")
         return None
 
     except Exception as e:
-        logger.error(f"❌ Logo extraction failed for {url}: {e}", exc_info=True)
+        logger.error(f"Logo extraction failed for {url}: {e}", exc_info=True)
         return None
 
 
@@ -472,14 +487,34 @@ def _extract_logo_from_screenshot(screenshot_bytes: bytes) -> Optional[str]:
         return None
 
 
+def _process_hero_image(img: Image.Image) -> str:
+    """Resize and encode a hero image to base64 JPEG."""
+    if img.width > 1200:
+        ratio = 1200 / img.width
+        new_size = (1200, int(img.height * ratio))
+        img = img.resize(new_size, Image.Resampling.LANCZOS)
+    if img.mode in ('RGBA', 'LA', 'P'):
+        rgb_img = Image.new('RGB', img.size, (255, 255, 255))
+        if img.mode == 'P':
+            img = img.convert('RGBA')
+        if img.mode in ('RGBA', 'LA'):
+            rgb_img.paste(img, mask=img.split()[-1])
+        img = rgb_img
+    buffered = BytesIO()
+    img.save(buffered, format="JPEG", quality=85)
+    return base64.b64encode(buffered.getvalue()).decode('utf-8')
+
+
 def extract_hero_image(html_content: str, url: str) -> Optional[str]:
     """
     Extract hero/featured image from website.
 
     Priority order:
     1. og:image meta tag
-    2. Large images in header/hero section
-    3. First significant image on page
+    2. twitter:image meta tag
+    3. Large images in hero/header sections
+    4. CSS background-image on hero sections
+    5. Largest non-decorative image in first 50% of HTML
 
     Args:
         html_content: HTML content of the page
@@ -492,7 +527,9 @@ def extract_hero_image(html_content: str, url: str) -> Optional[str]:
         soup = BeautifulSoup(html_content, 'html.parser')
         base_url = f"{urlparse(url).scheme}://{urlparse(url).netloc}"
 
-        # Try og:image first
+        # =================================================================
+        # PRIORITY 1: og:image meta tag
+        # =================================================================
         og_image = soup.find('meta', property='og:image')
         if og_image and og_image.get('content'):
             image_url = urljoin(base_url, og_image['content'])
@@ -500,36 +537,40 @@ def extract_hero_image(html_content: str, url: str) -> Optional[str]:
                 response = requests.get(image_url, timeout=5)
                 if response.status_code == 200:
                     img = Image.open(BytesIO(response.content))
-                    # Resize if too large
-                    if img.width > 1200:
-                        ratio = 1200 / img.width
-                        new_size = (1200, int(img.height * ratio))
-                        img = img.resize(new_size, Image.Resampling.LANCZOS)
-
-                    # Convert RGBA/LA/P to RGB before saving as JPEG
-                    if img.mode in ('RGBA', 'LA', 'P'):
-                        rgb_img = Image.new('RGB', img.size, (255, 255, 255))
-                        if img.mode == 'P':
-                            img = img.convert('RGBA')
-                        if img.mode in ('RGBA', 'LA'):
-                            rgb_img.paste(img, mask=img.split()[-1])
-                        img = rgb_img
-
-                    buffered = BytesIO()
-                    img.save(buffered, format="JPEG", quality=85)
-                    hero_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
-                    logger.info("Extracted hero image from og:image")
-                    return hero_base64
+                    if img.width >= 200 and img.height >= 100:
+                        logger.info("Extracted hero image from og:image")
+                        return _process_hero_image(img)
             except Exception as e:
-                logger.warning(f"Failed to download og:image: {e}")
+                logger.debug(f"Failed to download og:image: {e}")
 
-        # Try hero section images
+        # =================================================================
+        # PRIORITY 2: twitter:image meta tag
+        # =================================================================
+        twitter_image = soup.find('meta', attrs={'name': 'twitter:image'}) or soup.find('meta', property='twitter:image')
+        if twitter_image and twitter_image.get('content'):
+            image_url = urljoin(base_url, twitter_image['content'])
+            try:
+                response = requests.get(image_url, timeout=5)
+                if response.status_code == 200:
+                    img = Image.open(BytesIO(response.content))
+                    if img.width >= 200 and img.height >= 100:
+                        logger.info("Extracted hero image from twitter:image")
+                        return _process_hero_image(img)
+            except Exception as e:
+                logger.debug(f"Failed to download twitter:image: {e}")
+
+        # =================================================================
+        # PRIORITY 3: Hero section images
+        # =================================================================
         hero_selectors = [
             '.hero img',
             '.banner img',
             'header img[class*="hero" i]',
             'section[class*="hero" i] img',
             '.jumbotron img',
+            '[class*="hero-image"] img',
+            '[class*="featured-image"] img',
+            'main > section:first-child img',
         ]
 
         for selector in hero_selectors:
@@ -540,30 +581,79 @@ def extract_hero_image(html_content: str, url: str) -> Optional[str]:
                     response = requests.get(image_url, timeout=5)
                     if response.status_code == 200:
                         img = Image.open(BytesIO(response.content))
-                        if img.width >= 400 and img.height >= 300:  # Reasonable size
-                            # Resize if needed
-                            if img.width > 1200:
-                                ratio = 1200 / img.width
-                                new_size = (1200, int(img.height * ratio))
-                                img = img.resize(new_size, Image.Resampling.LANCZOS)
-
-                            # Convert RGBA/LA/P to RGB before saving as JPEG
-                            if img.mode in ('RGBA', 'LA', 'P'):
-                                rgb_img = Image.new('RGB', img.size, (255, 255, 255))
-                                if img.mode == 'P':
-                                    img = img.convert('RGBA')
-                                if img.mode in ('RGBA', 'LA'):
-                                    rgb_img.paste(img, mask=img.split()[-1])
-                                img = rgb_img
-
-                            buffered = BytesIO()
-                            img.save(buffered, format="JPEG", quality=85)
-                            hero_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
+                        if img.width >= 400 and img.height >= 200:
                             logger.info(f"Extracted hero image from: {selector}")
-                            return hero_base64
-                except Exception as e:
-                    logger.warning(f"Failed to download hero image: {e}")
+                            return _process_hero_image(img)
+                except Exception:
                     continue
+
+        # =================================================================
+        # PRIORITY 4: CSS background-image on hero sections
+        # =================================================================
+        hero_bg_selectors = [
+            '[class*="hero"]',
+            '[class*="banner"]',
+            '[class*="jumbotron"]',
+            'header',
+        ]
+        for selector in hero_bg_selectors:
+            element = soup.select_one(selector)
+            if element:
+                style = element.get('style', '')
+                bg_match = re.search(r'background-image:\s*url\(["\']?([^"\')+]+)["\']?\)', style)
+                if bg_match:
+                    bg_url = urljoin(base_url, bg_match.group(1))
+                    try:
+                        response = requests.get(bg_url, timeout=5)
+                        if response.status_code == 200:
+                            img = Image.open(BytesIO(response.content))
+                            if img.width >= 400:
+                                logger.info(f"Extracted hero image from CSS background: {selector}")
+                                return _process_hero_image(img)
+                    except Exception:
+                        continue
+
+        # =================================================================
+        # PRIORITY 5: Largest non-decorative image in first half of HTML
+        # =================================================================
+        all_images = soup.find_all('img', src=True)
+        # Only consider first half of images (above the fold)
+        half_count = max(1, len(all_images) // 2)
+        candidates = []
+        for img_tag in all_images[:half_count]:
+            src = img_tag.get('src', '')
+            # Skip decorative/tiny images
+            if any(skip in src.lower() for skip in ['pixel', 'spacer', 'blank', 'tracking', '1x1', 'data:image/gif']):
+                continue
+            # Skip images with decorative role
+            if img_tag.get('role') == 'presentation' or img_tag.get('aria-hidden') == 'true':
+                continue
+            # Check explicit dimensions
+            width_attr = img_tag.get('width', '')
+            height_attr = img_tag.get('height', '')
+            try:
+                w = int(width_attr) if width_attr and width_attr.isdigit() else 0
+                h = int(height_attr) if height_attr and height_attr.isdigit() else 0
+                if w > 0 and h > 0 and (w < 50 or h < 50):
+                    continue
+                candidates.append((img_tag, w * h if w > 0 and h > 0 else 0))
+            except (ValueError, TypeError):
+                candidates.append((img_tag, 0))
+
+        # Sort by declared area (largest first), then try downloading
+        candidates.sort(key=lambda x: x[1], reverse=True)
+        for img_tag, _ in candidates[:5]:
+            image_url = urljoin(base_url, img_tag['src'])
+            try:
+                response = requests.get(image_url, timeout=5)
+                if response.status_code == 200:
+                    img = Image.open(BytesIO(response.content))
+                    # Must be at least 400px wide and have reasonable aspect ratio
+                    if img.width >= 400 and 0.3 < (img.height / img.width) < 3.0:
+                        logger.info(f"Extracted hero image from largest page image")
+                        return _process_hero_image(img)
+            except Exception:
+                continue
 
         logger.info("No suitable hero image found")
         return None

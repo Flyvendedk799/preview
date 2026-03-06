@@ -38,6 +38,7 @@ from enum import Enum
 from PIL import Image
 from openai import OpenAI
 from backend.core.config import settings
+from backend.services.graceful_degradation import OpenAICircuitBreaker
 
 # Initialize logger FIRST (before any code that uses it)
 logger = logging.getLogger(__name__)
@@ -249,449 +250,150 @@ class ReasonedPreview:
 # AI PROMPTS - Multi-Stage Reasoning
 # =============================================================================
 
-STAGE_1_2_3_PROMPT = """You are a world-class conversion copywriter and UX expert analyzing a webpage to create the PERFECT social media preview.
+STAGE_1_2_3_PROMPT = """You are an expert web analyst extracting structured content from a webpage screenshot for an accurate social media preview.
 
-MISSION: Extract content that makes this preview IRRESISTIBLE. Someone scrolling will see this for 1.5 seconds - make it count.
+MISSION: Identify the primary headline, credibility signals, and value statement for this page. Extract EXACT text as it appears.
 
-=== THE ONE RULE ===
-Find THE SINGLE MOST COMPELLING THING about this page. Not everything - THE ONE THING.
-Then find 2-3 supporting elements. That's it.
-
-=== COLOR EXTRACTION (CRITICAL) ===
-Extract ACTUAL colors visible in the UI - do NOT guess or use defaults:
-- Primary: The dominant brand color (from logo, nav bar, or primary buttons). Extract the EXACT hex code.
-- Secondary: A complementary color used in headings, backgrounds, or secondary elements.
-- Accent: The CTA button color, link color, or highlight color.
-Look at buttons, header backgrounds, logo colors, and link colors. If the site uses blue buttons, primary should be that exact blue.
-NEVER return #2563EB or #1E40AF unless that is actually the color on the page.
-
-=== CRITICAL: COMPANY vs INDIVIDUAL DETECTION ===
-BEFORE extracting, determine: Is this about ONE PERSON or a COMPANY/TEAM?
+=== PAGE TYPE CLASSIFICATION ===
+Determine the page type FIRST - this guides all extraction:
 
 INDIVIDUAL PROFILE indicators:
-✅ Single person's name visible (2-4 words: "Sarah Chen", "John Smith")
-✅ One profile photo/avatar (circular, headshot)
-✅ Bio written in first person ("I am..." or "My work...")
-✅ URL has user slug (/profile/username, /@username)
+- Single person's name visible (2-4 words: "Sarah Chen", "John Smith")
+- One profile photo/avatar (circular, headshot)
+- Bio in first person ("I am...", "My work...")
+- URL has user slug (/profile/username, /@username)
 
-COMPANY/TEAM PAGE indicators:
-❌ Team page (/team, /our-team, /about-us without individual slug)
-❌ Multiple people shown
-❌ Company name instead of person name
-❌ "We" language ("We help...", "Our team...")
-❌ Pricing tables, product features
-❌ "About Us", "Meet Our Team" headings
+COMPANY/ORGANIZATION indicators:
+- Team page, "We" language, multiple people shown
+- Pricing tables, product features, company name prominent
+- "About Us", "Meet Our Team" headings
 
-If 2+ COMPANY indicators → NOT a profile, classify as company/landing
-If unclear → NOT a profile
+Page types: saas, ecommerce, agency, portfolio, blog, startup, enterprise, marketplace, tool, landing, profile, educational, documentation, government, nonprofit, news, unknown
 
-=== ABSOLUTE EXCLUSIONS ===
-NEVER extract any of the following - treat as INVISIBLE:
-- Cookie consent dialogs/banners/notices (anything about "cookies", "consent", "GDPR", "CCPA")
-- Privacy notices or "Accept cookies", "Manage preferences", "Cookie settings" text
-- Navigation menus (Home, About, Contact, Services, Products, etc.)
-- Footer content (legal links, terms, privacy links, copyright notices)
-- Generic CTAs without context ("Submit", "Click here", "Learn more")
-- Popup/modal content (newsletter signups, discount offers, exit intent)
-- Breadcrumb navigation
-- "Skip to content" or accessibility links
-- Social media share buttons or follow links
+=== EXCLUSIONS ===
+NEVER extract: cookie/consent/GDPR banners, navigation menus, footer content, popup/modal content, breadcrumbs, social share buttons, "Skip to content" links.
 
-=== QUALITY STANDARDS ===
-- Extract EXACT text (no paraphrasing, no "improvements")
-- Prioritize SPECIFIC numbers over vague claims
-- Focus on OUTCOMES and BENEFITS, not features
-- Look for SOCIAL PROOF with concrete evidence
-- Ignore generic marketing speak and filler content
-- VERIFY names are person names, not job titles or company names
-- IGNORE any text that contains cookie/consent/GDPR keywords
+=== EXTRACTION TARGETS ===
 
-=== WHAT TO FIND ===
+1. **PRIMARY HEADLINE** (mandatory)
+   The main statement that identifies what this page is about.
+   - For profiles: the person's NAME (2-4 words), not their bio
+   - For products: the product name
+   - For articles: the article title
+   - For SaaS/landing: the primary value proposition headline
+   Extract EXACT text as shown on the page.
 
-1. **THE HOOK** (mandatory - the preview lives or dies by this)
-   Look for the ONE statement that answers: "Why should I care?"
-   - The main headline or hero text (EXACT wording, no changes)
-   - A powerful stat or claim ("10x faster", "$2M saved", "50,000 users")
-   - A compelling promise ("Never miss a deadline again")
-   
-   FOR PROFILE PAGES: The hook should be the PERSON'S NAME (e.g., "John Doe"), NOT their bio/description
-   - Look for short text (2-4 words) that appears prominently (usually in title, h1, or dialog name)
-   - Names are typically capitalized: "Celeste Hansen", "John Smith"
-   - Avoid extracting long descriptions as names - names are concise
-   
-   BAD hooks: "Welcome to our website", "About Us", "Learn More", long bio descriptions
-   GOOD hooks: "Ship 10x faster with AI", "The #1 rated CRM for startups", "Celeste Hansen" (for profiles)
+2. **CREDIBILITY SIGNALS** (if available)
+   Concrete evidence of trust - numbers required:
+   - Ratings with count: "4.9★ (2,847 reviews)"
+   - User counts: "50,000+ teams"
+   - Notable clients: "Used by Google, Stripe, Airbnb"
+   - Awards: "#1 on Product Hunt", "Forbes 30 Under 30"
 
-2. **SOCIAL PROOF** (critical - makes people trust)
-   Numbers and specifics ONLY. Find:
-   - Star ratings with count: "4.9★ (2,847 reviews)" - INCLUDE THE NUMBER
-   - User/customer counts: "Join 50,000+ teams" - EXACT NUMBER
-   - Big names: "Used by Google, Stripe, Airbnb"
-   - Awards/badges: "#1 Product Hunt", "Forbes 30 Under 30"
-   
-   If you see "★★★★★" extract it as "5★" or "4.9★"
-
-3. **KEY BENEFIT** (one powerful benefit is better than three weak ones)
-   Find the SPECIFIC value people get:
+3. **VALUE STATEMENT** (if available)
+   One specific statement of what the user/visitor gets:
    - "Save 10 hours/week on reporting"
-   - "Reduce costs by 40%"
-   - "Get results in 24 hours, not 2 weeks"
-   
-   Avoid generic: "Powerful features", "Easy to use", "Great support"
+   - "Free, open-source API documentation"
+   - "Reduce infrastructure costs by 40%"
+   Avoid generic: "Powerful features", "Easy to use"
 
-4. **BRAND VISUAL** (logo or hero image for recognition)
-   - Company logo (top-left, navigation, or footer)
-   - Product screenshot or hero image
-   - **Profile avatar/image** (circular images, profile photos, headshots - CRITICAL for profile pages)
-   - Founder/team photo (for personal brands)
-   
-   FOR PROFILE PAGES: Prioritize circular/rounded profile images, avatars, headshots
-   Look for images with classes like: avatar, profile, user, expert, person, headshot
+4. **LOGO / BRAND VISUAL**
+   - Logo location (typically top-left of page, within top 15% vertically)
+   - Hero image or product screenshot
+   - Profile avatar for individual pages
 
-=== WHAT TO IGNORE ===
-- Navigation menus
-- Footer content
-- Cookie notices
-- Generic stock photos
-- Social media links
-- Legal text
-- "Sign up" without context
+=== FEW-SHOT EXAMPLES ===
 
-=== CHAIN-OF-THOUGHT: Think Step-by-Step ===
-Before extracting, answer these questions in your mind (don't output these, but use them to guide your extraction):
-
-STEP 1: What type of page is this?
-- Am I looking at ONE person or MULTIPLE people/a company?
-- Is this selling something (product/service) or providing information (profile/article)?
-- Does the URL have a user slug (/profile/username) or is it generic (/team, /about)?
-
-STEP 2: Verify individual vs company:
-- Can I see ONE person's name (2-4 words, capitalized)?
-- Are there company indicators (pricing, "we" language, multiple team members)?
-- Is this a team page masquerading as an individual profile?
-
-STEP 3: Find the ONE most compelling thing:
-- What's the SINGLE most important statement on this page?
-- For profiles: Is it the person's NAME (not their bio)?
-- For products/services: Is it a specific value proposition (not "welcome")?
-
-STEP 4: Validate my extraction:
-- Is my hook actual content or navigation text?
-- Does my social proof have NUMBERS?
-- Does my classification match the signals (profile → name, company → product)?
-
-=== FEW-SHOT EXAMPLES (Learn from these) ===
-
-EXAMPLE 1: SaaS Landing Page (Stripe)
-THINKING: This is a company homepage (not individual). URL is domain root. Has product features and "we" language.
-✅ GOOD:
-{
-  "reasoning_chain": {
-    "page_type_decision": "This is a SaaS company homepage selling payment infrastructure",
-    "individual_vs_company": "company - has product features, pricing, 'we' language",
-    "hook_selection": "Main headline is value prop, not navigation",
-    "validation": "All signals point to company/landing page"
-  },
+EXAMPLE 1 (SaaS):
+{{
+  "reasoning_chain": {{
+    "page_type_decision": "SaaS company homepage - payment infrastructure product",
+    "individual_vs_company": "company - product features, pricing, 'we' language",
+    "headline_selection": "Main hero headline describes the product",
+    "validation": "Headline is specific, credibility has numbers"
+  }},
   "page_type": "saas",
-  "the_hook": "Financial infrastructure for the internet",
-  "social_proof_found": "Millions of companies of all sizes",
-  "key_benefit": "Accept payments and manage revenue",
+  "primary_headline": "Financial infrastructure for the internet",
+  "credibility_signals": "Millions of companies of all sizes",
+  "value_statement": "Accept payments and manage revenue globally",
   "is_individual_profile": false,
-  "company_indicators": ["company homepage", "product features", "we language"],
   "analysis_confidence": 0.95
-}
-❌ BAD:
-{
-  "the_hook": "Welcome to Stripe",  // ❌ Generic navigation text
-  "social_proof_found": "Great reviews"  // ❌ No numbers
-}
+}}
 
-EXAMPLE 2: Profile Page (Designer)
-THINKING: This is ONE person's page. URL has /profile/sarah-chen. I see a single name, single photo, "I" language.
-✅ GOOD:
-{
-  "reasoning_chain": {
-    "page_type_decision": "Individual profile - URL has user slug, one person shown",
-    "individual_vs_company": "individual - single name, single photo, first-person bio",
-    "hook_selection": "Person's name 'Sarah Chen' is the hook, not her job title or bio",
-    "validation": "Name is 2 words, capitalized, no job title keywords"
-  },
+EXAMPLE 2 (Article/News):
+{{
+  "reasoning_chain": {{
+    "page_type_decision": "News article - has byline, date, article body",
+    "individual_vs_company": "company - news publication",
+    "headline_selection": "Article title is the primary headline",
+    "validation": "Clear article structure with author and date"
+  }},
+  "page_type": "news",
+  "primary_headline": "OpenAI Releases GPT-5 with Reasoning Capabilities",
+  "credibility_signals": "Published by Reuters, 2.3M shares",
+  "value_statement": "New model achieves state-of-the-art on all benchmarks",
+  "is_individual_profile": false,
+  "analysis_confidence": 0.9
+}}
+
+EXAMPLE 3 (Profile):
+{{
+  "reasoning_chain": {{
+    "page_type_decision": "Individual profile page - single person, user slug URL",
+    "individual_vs_company": "individual - single name, photo, first-person bio",
+    "headline_selection": "Person's name is the headline for profiles",
+    "validation": "Name is 2 words, capitalized, has profile photo"
+  }},
   "page_type": "profile",
-  "the_hook": "Sarah Chen",  // ✅ Just the name (2 words)
-  "social_proof_found": "10+ years • Ex-Google, Stripe",
-  "key_benefit": "Product design for B2B SaaS",
+  "primary_headline": "Sarah Chen",
+  "credibility_signals": "10+ years experience, Ex-Google, Stripe",
+  "value_statement": "Product design for B2B SaaS",
   "detected_person_name": "Sarah Chen",
   "is_individual_profile": true,
-  "company_indicators": [],
   "analysis_confidence": 0.9
-}
-❌ BAD:
-{
-  "the_hook": "Senior Product Designer with 10 years of experience...",  // ❌ Bio, not name
-  "detected_person_name": "Senior Product Designer"  // ❌ Job title, not name
-}
+}}
 
-EXAMPLE 3: Company Team Page (NOT a profile!)
-THINKING: URL is /team (no user slug). Multiple people shown. Heading says "Our Team". This is COMPANY, not individual.
-✅ GOOD:
-{
-  "reasoning_chain": {
-    "page_type_decision": "Company team page - URL is /team without individual slug",
-    "individual_vs_company": "company - multiple people, 'our team' heading, no individual profile",
-    "hook_selection": "Team page heading, not any individual's name",
-    "validation": "Multiple company indicators, zero individual indicators"
-  },
-  "page_type": "company",
-  "the_hook": "Meet Our Team",
-  "social_proof_found": "50+ experts across 6 countries",
-  "is_individual_profile": false,  // ✅ Correctly identified as company
-  "company_indicators": ["team page", "multiple people", "we language", "no user slug"],
-  "analysis_confidence": 0.95
-}
-❌ BAD:
-{
-  "page_type": "profile",  // ❌ WRONG! This is a team page, not individual profile
-  "the_hook": "John Doe"  // ❌ Extracted one team member's name incorrectly
-}
-
-EXAMPLE 4: E-commerce Product
-THINKING: Product page with price and buy button. Not a profile. Extract product name and ratings.
-✅ GOOD:
-{
-  "reasoning_chain": {
-    "page_type_decision": "E-commerce product page - has price, reviews, add-to-cart",
-    "individual_vs_company": "company/product - selling a product, not about a person",
-    "hook_selection": "Product name is the hook",
-    "validation": "Has pricing indicators, NOT a profile"
-  },
-  "page_type": "ecommerce",
-  "the_hook": "Nike Air Max 2024",
-  "social_proof_found": "4.7★ (1,892 reviews)",  // ✅ Has numbers
-  "key_benefit": "$189.99 with 20% OFF",
-  "is_individual_profile": false,
-  "company_indicators": ["has pricing", "has reviews", "add to cart button"],
-  "analysis_confidence": 0.92,
-  "pricing": {
-    "current_price": "$149.99",
-    "original_price": "$189.99",
-    "discount_percentage": 20,
-    "deal_ends": "Ends in 4 hours"
-  },
-  "availability": {
-    "in_stock": true,
-    "stock_level": "Only 5 left in stock"
-  },
-  "rating": {
-    "value": 4.7,
-    "count": 1892
-  },
-  "badges": ["Best Seller", "Free Shipping"]
-}
-❌ BAD:
-{
-  "social_proof_found": "Great reviews"  // ❌ No numbers
-}
-
-=== 🛍️ PRODUCT PAGE SPECIAL INSTRUCTIONS ===
-
-IF this is an E-COMMERCE or PRODUCT page (has pricing, add-to-cart, reviews), extract COMPREHENSIVE PRODUCT DATA:
-
-**CRITICAL PRICING EXTRACTION:**
-Look for these EXACT patterns and extract ALL:
-1. Current price: $XX.XX, €XX.XX, £XX.XX (exact numbers)
-2. Original/strikethrough price: "was $X", strikethrough text
-3. Discount: "Save XX%", "XX% OFF", "-XX%"
-4. Deal countdown: "Ends in X hours", "Sale ends Dec 25", "Limited time"
-5. Subscription pricing: "Subscribe & Save", "$XX/month"
-
-Examples to extract:
-- "$149.99" (current)
-- "$189.99" (strikethrough) → original_price
-- "Save 20%" → discount_percentage: 20
-- "Deal ends in 2 hours" → deal_ends: "Ends in 2 hours"
-
-**STOCK & AVAILABILITY:**
-Extract urgency signals:
-1. Stock level: "Only X left", "Low stock", "In stock", "Out of stock"
-2. Quantity: Extract the NUMBER (e.g., "Only 5 left" → stock_quantity: 5)
-3. Pre-order: "Available Dec 25", "Ships in 2 weeks"
-4. Backorder: "Backorder available"
-
-**RATINGS & REVIEWS (WITH EXACT NUMBERS):**
-1. Star rating: "4.8★", "4.8 out of 5", "★★★★★" (extract as number: 4.8)
-2. Review count: "2,847 reviews", "2.8K reviews" (extract NUMBER: 2847 or 2800)
-3. Answered questions: "500 answered questions"
-4. Verified purchases: "95% verified purchases"
-
-**PRODUCT BADGES:**
-Look for and extract ALL badges/labels:
-- "Best Seller", "Amazon's Choice", "#1 in Category"
-- "Top Rated", "Editor's Pick"
-- "New Arrival", "Limited Edition"
-- "Free Shipping", "Prime"
-- "SALE", "Clearance"
-- "Trending", "Hot Item"
-
-**PRODUCT DETAILS:**
-1. Brand: Extract brand name (Nike, Apple, etc.)
-2. Model: Model number/name
-3. Category: Electronics, Fashion, Food, Beauty, etc.
-4. ASIN/SKU: Product ID if visible
-
-**KEY FEATURES:**
-Extract 3-5 bullet point features (EXACT text):
-- "Water-resistant to 50 meters"
-- "24-hour battery life"
-- "Made from 100% organic cotton"
-
-**VARIANTS:**
-1. Colors: ["Black", "White", "Red"] (list all available)
-2. Sizes: ["S", "M", "L", "XL"] (list all available)
-3. Other variants: ["16GB", "32GB", "64GB"]
-
-**TRUST SIGNALS:**
-1. Shipping: "Free Shipping", "Prime", "Ships in 2 days"
-2. Returns: "Free Returns", "30-day return policy"
-3. Warranty: "2-year warranty", "Lifetime guarantee"
-4. Seller: Seller name and rating if visible
-
-**POPULARITY SIGNALS:**
-Extract any popularity/urgency indicators:
-- "500+ bought this week"
-- "Trending in Electronics"
-- "Fast selling"
-- "Hot item"
-
-ADD ALL THIS DATA to your JSON output in these fields:
-- "pricing": {current_price, original_price, discount_percentage, deal_ends}
-- "availability": {in_stock, stock_level, stock_quantity}
-- "rating": {value, count}
-- "product_details": {brand, model, category}
-- "features": {key_features: []}
-- "variants": {colors: [], sizes: []}
-- "badges": []
-- "trust_signals": {shipping, returns, warranty}
-
-EXAMPLE COMPLETE PRODUCT EXTRACTION:
-{
-  "page_type": "ecommerce",
-  "the_hook": "Apple AirPods Pro (2nd Gen)",
-  "social_proof_found": "4.8★ (28,474 reviews)",
-  "key_benefit": "Active Noise Cancellation + Spatial Audio",
-  "pricing": {
-    "current_price": "$199.99",
-    "original_price": "$249.99",
-    "discount_percentage": 20,
-    "currency": "USD",
-    "deal_ends": "Ends tonight at midnight"
-  },
-  "availability": {
-    "in_stock": true,
-    "stock_level": "Only 3 left in stock",
-    "stock_quantity": 3
-  },
-  "rating": {
-    "value": 4.8,
-    "count": 28474,
-    "answered_questions": 1247
-  },
-  "product_details": {
-    "brand": "Apple",
-    "model": "AirPods Pro (2nd Generation)",
-    "category": "Electronics",
-    "subcategory": "Headphones"
-  },
-  "features": {
-    "key_features": [
-      "Active Noise Cancellation",
-      "Adaptive Transparency",
-      "Up to 6 hours listening time",
-      "MagSafe charging case"
-    ]
-  },
-  "variants": {
-    "colors": ["White"]
-  },
-  "badges": ["Best Seller", "Amazon's Choice", "Free Shipping"],
-  "trust_signals": {
-    "shipping": "Free Prime Shipping",
-    "returns": "Free 30-day returns",
-    "warranty": "1-year AppleCare"
-  }
-}
+=== PRODUCT PAGE FIELDS ===
+If page_type is "ecommerce" or has pricing/add-to-cart, also extract:
+- "pricing": {{current_price, original_price, discount_percentage, currency, deal_ends}}
+- "availability": {{in_stock, stock_level, stock_quantity}}
+- "rating": {{value, count}}
+- "badges": ["Best Seller", ...]
+- "trust_signals": {{shipping, returns, warranty}}
 
 === OUTPUT JSON ===
 {{
     "reasoning_chain": {{
-        "page_type_decision": "<1-2 sentences explaining what type of page this is and why>",
-        "individual_vs_company": "<individual|company|unclear - explain reasoning>",
-        "hook_selection": "<1 sentence explaining why this hook was chosen>",
-        "validation": "<1 sentence confirming extraction makes sense>"
+        "page_type_decision": "<1-2 sentences: what type of page and why>",
+        "individual_vs_company": "<individual|company|unclear - reasoning>",
+        "headline_selection": "<1 sentence: why this headline was chosen>",
+        "validation": "<1 sentence: confirming extraction accuracy>"
     }},
-    "page_type": "<saas|ecommerce|agency|portfolio|blog|startup|enterprise|marketplace|tool|landing|profile|unknown>",
-    "the_hook": "<THE single most compelling statement on this page - exact text. FOR PROFILE PAGES: This should be the PERSON'S NAME (2-4 words), NOT their bio description>",
-    "social_proof_found": "<best social proof with numbers, or null if none>",
-    "key_benefit": "<most specific benefit found, or null>",
-    "detected_person_name": "<person's full name if profile page, null otherwise. MUST be 2-4 words, capitalized, NO job titles>",
-    "is_individual_profile": <true only if this is ONE person's profile page, false for teams/companies>,
-    "company_indicators": ["<list", "of", "signals", "that", "indicate", "company/team page>"],
-    
-    // 🛍️ PRODUCT-SPECIFIC FIELDS (include if page_type is "ecommerce" or "product"):
-    "pricing": {{
-        "current_price": "<$XX.XX - exact current price>",
-        "original_price": "<$XX.XX - before discount, or null>",
-        "discount_percentage": <XX - integer percentage, or null>,
-        "currency": "<USD|EUR|GBP|etc>",
-        "deal_ends": "<'Ends in X hours' or 'Sale ends Dec 25', or null>"
-    }},
-    "availability": {{
-        "in_stock": <true|false>,
-        "stock_level": "<'Only X left', 'Low stock', or null>",
-        "stock_quantity": <X - exact number if extractable, or null>
-    }},
-    "rating": {{
-        "value": <4.8 - numeric rating>,
-        "count": <2847 - total review count as integer>
-    }},
-    "product_details": {{
-        "brand": "<brand name>",
-        "model": "<model name/number>",
-        "category": "<Electronics|Fashion|Food|Beauty|Home|etc>",
-        "subcategory": "<Laptops|Sneakers|etc>"
-    }},
-    "features": {{
-        "key_features": ["<feature 1>", "<feature 2>", "<feature 3>"]
-    }},
-    "variants": {{
-        "colors": ["<color1>", "<color2>", ...],
-        "sizes": ["<S>", "<M>", "<L>", ...]
-    }},
-    "badges": ["<Best Seller>", "<Amazon's Choice>", ...],
-    "trust_signals": {{
-        "shipping": "<Free Shipping, Prime, etc>",
-        "returns": "<Free Returns, 30-day, etc>",
-        "warranty": "<2-year warranty, etc>"
-    }},
-    // END PRODUCT-SPECIFIC FIELDS
-    
+    "page_type": "<saas|ecommerce|agency|portfolio|blog|startup|enterprise|marketplace|tool|landing|profile|educational|documentation|government|nonprofit|news|unknown>",
+    "primary_headline": "<main headline - EXACT text from the page>",
+    "credibility_signals": "<best credibility evidence with numbers, or null>",
+    "value_statement": "<most specific value/benefit found, or null>",
+    "detected_person_name": "<person's full name if profile, null otherwise>",
+    "is_individual_profile": <true|false>,
+    "company_indicators": ["<signals indicating company/team page>"],
     "regions": [
         {{
             "id": "<unique_id>",
             "content_type": "<headline|subheadline|hero_image|logo|rating|user_count|testimonial|benefit|cta|statistic|badge|price|other>",
-            "raw_content": "<EXACT text - preserve original wording>",
+            "raw_content": "<EXACT text>",
             "bbox": {{"x": <0-1>, "y": <0-1>, "width": <0-1>, "height": <0-1>}},
-            "purpose": "<hook|proof|benefit|identity|action|filler>",
+            "purpose": "<headline|credibility|value|identity|action|filler>",
             "marketing_value": "<high|medium|low>",
-            "why_it_matters": "<1 sentence on conversion value>",
+            "why_it_matters": "<1 sentence>",
             "visual_weight": "<hero|primary|secondary|omit>",
             "priority_score": <0.0-1.0>,
             "is_logo": <true|false>
         }}
     ],
     "detected_palette": {{
-        "primary": "<hex - main brand color from logo/buttons>",
-        "secondary": "<hex - background or secondary color>",
-        "accent": "<hex - CTA button or highlight color>"
+        "primary": "<hex - main brand color>",
+        "secondary": "<hex - background color>",
+        "accent": "<hex - CTA/highlight color>"
     }},
     "detected_logo": {{
         "region_id": "<id or null>",
@@ -705,68 +407,85 @@ EXAMPLE COMPLETE PRODUCT EXTRACTION:
         "color_emotion": "<trust|energy|calm|sophistication|warmth|innovation|playfulness>",
         "spacing_feel": "<compact|balanced|spacious|ultra-minimal>",
         "brand_adjectives": ["<3-5 words describing brand personality>"],
-        "design_reasoning": "<1-2 sentences on why this design works for this brand>"
+        "design_reasoning": "<1-2 sentences on design choices>"
     }},
     "analysis_confidence": <0.0-1.0>
 }}
 
-=== CRITICAL RULES ===
-1. EXACT TEXT ONLY - No paraphrasing, no "improving" the copy, preserve original wording
-2. NUMBERS WIN - "4.9★ from 2,847 reviews" beats "Great reviews" - Always include counts
-3. SPECIFIC > GENERIC - "Save 10 hours/week" beats "Save time" - Quantify everything
-4. ONE HERO ONLY - Don't mark multiple things as hero weight - Pick THE best
-5. BBOX PRECISION - CRITICAL for profile images/avatars: Detect ONLY the circular/rounded profile image itself. The bounding box should tightly wrap around the actual face/avatar circle, excluding any surrounding whitespace, borders, or padding. For circular profile images, the bounding box should be roughly square and should include ONLY the visible circular image content, not the empty space around it.
-6. CONTEXT MATTERS - Consider page type (product vs blog vs landing) when prioritizing
-7. TRUST SIGNALS FIRST - Social proof, ratings, testimonials get highest priority
-8. AVOID FILLER - Skip "Welcome", "About Us", navigation text, legal disclaimers
-9. VERIFY PROFILE - If classifying as profile, confirm: (a) ONE person name detected, (b) NO company indicators, (c) has user slug in URL
-10. NAME VALIDATION - Person names are 2-4 words, capitalized, NO job titles ("Senior Designer" is NOT a name)"""
+=== RULES ===
+1. EXACT TEXT ONLY - preserve original wording, no paraphrasing
+2. NUMBERS REQUIRED for credibility - "4.9★ (2,847 reviews)" not "Great reviews"
+3. SPECIFIC > GENERIC - "Save 10 hours/week" not "Save time"
+4. ONE HERO ONLY - only one region gets hero visual weight
+5. LOGO IN TOP 15% - logos are almost always in the top 15% of the page
+6. BBOX PRECISION - bounding boxes should tightly wrap visible content
+7. CONTEXT MATTERS - extraction strategy varies by page type
+8. NAME VALIDATION - person names are 2-4 capitalized words, NOT job titles"""
 
 
-STAGE_4_5_PROMPT = """You're designing a preview that has 1.5 seconds to convince someone to click. Every element must earn its place.
+STAGE_4_5_6_PROMPT = """You are a layout designer and quality assessor for social media previews.
+
+TASK: Given extracted regions from a webpage, decide what to include, design the layout, and score the result quality.
 
 EXTRACTED CONTENT:
 {regions_json}
 
 PAGE TYPE: {page_type}
 COLORS: Primary={primary}, Secondary={secondary}, Accent={accent}
+DESIGN DNA: {design_dna_json}
 
-=== DECISION FRAMEWORK ===
+=== COMPOSITION DECISIONS ===
 
-For each region, ask: "Would removing this make the preview WORSE?"
-- If YES → Include it
-- If MAYBE → Probably exclude it
-- If NO → Definitely exclude it
+For each region, decide: "Does removing this make the preview less informative?"
+- YES → Include
+- NO → Exclude
 
 MUST INCLUDE (if available):
-1. The HOOK (headline) - without this, nothing else matters
-2. SOCIAL PROOF with numbers - this is what makes people trust and click
-3. ONE visual element - logo for recognition OR hero for impact, not both
+1. HEADLINE - the primary identifying statement
+2. CREDIBILITY - trust signals with specific numbers
+3. ONE visual element - logo or hero image, not both
 
-NICE TO HAVE:
-4. One specific benefit - only if it adds real value
-5. CTA text - only if it's compelling ("Start free trial" not "Submit")
+OPTIONAL:
+4. One value statement - only if specific ("Save 10 hours/week", not "Easy to use")
+5. CTA text - only if meaningful ("Start free trial", not "Submit")
 
-ALWAYS EXCLUDE:
-- Generic taglines ("Your trusted partner")
-- Multiple headlines (pick ONE)
-- Navigation and footers
-- Vague benefits ("Easy to use", "Powerful")
-- Anything you've seen on 100 other sites
+ALWAYS EXCLUDE: navigation, footers, generic taglines, duplicate headlines, vague benefits.
 
-=== LAYOUT DESIGN ===
+=== LAYOUT STRUCTURE ===
 
-The preview has THREE zones:
+THREE zones:
 ┌─────────────────────────────────────┐
-│  HOOK (headline) - biggest, boldest │
-│  The ONE thing people remember      │
+│  HEADLINE - primary, largest text   │
 ├─────────────────────────────────────┤
-│  PROOF - social proof with numbers  │
-│  "4.9★ from 2,847 reviews"          │
+│  CREDIBILITY - trust signals        │
 ├─────────────────────────────────────┤
-│  BENEFIT/VISUAL - supporting value  │
-│  Logo or one key benefit            │
+│  CONTEXT - value statement + visual │
 └─────────────────────────────────────┘
+
+=== QUALITY SCORING ===
+
+Rate the assembled preview on these dimensions (0.0-1.0):
+
+ACCURACY SCORE: Does the preview faithfully represent the page?
+- Headline matches actual page content? +0.4
+- No misleading or out-of-context claims? +0.3
+- Correct page type classification? +0.3
+
+CLARITY SCORE: Can someone understand this in 2 seconds?
+- One clear message, not competing messages? +0.4
+- Right amount of info (not sparse, not overwhelming)? +0.3
+- Text readable at small sizes? +0.3
+
+ENGAGEMENT SCORE: Would someone want to learn more?
+- Clear reason to visit the page? +0.4
+- Credibility signals present and specific? +0.3
+- Visual identity recognizable? +0.3
+
+DESIGN FIDELITY SCORE: Does this honor the original brand?
+- Colors match the brand identity? +0.25
+- Typography personality is consistent? +0.25
+- Spacing/density matches original? +0.25
+- Brand would be recognizable? +0.25
 
 OUTPUT JSON:
 {{
@@ -774,97 +493,35 @@ OUTPUT JSON:
         {{
             "region_id": "<id>",
             "include": <true|false>,
-            "slot_assignment": "<hook|proof|benefit|visual|none>",
-            "decision_reasoning": "<why include/exclude - be specific>"
+            "slot_assignment": "<headline|credibility|value|visual|none>",
+            "decision_reasoning": "<why include/exclude>"
         }}
     ],
     "layout": {{
         "template_style": "<bold|professional|minimal|energetic>",
-        "headline_slot": "<region_id for the main hook>",
+        "headline_slot": "<region_id for headline>",
         "visual_slot": "<region_id for logo/image, or null>",
-        "proof_slot": "<region_id for social proof, or null>",
-        "benefit_slot": "<region_id for key benefit, or null>",
+        "proof_slot": "<region_id for credibility, or null>",
+        "benefit_slot": "<region_id for value statement, or null>",
         "cta_slot": "<region_id or null>"
     }},
-    "layout_reasoning": "<2-3 sentences explaining the strategy>",
-    "preview_strength": "<strong|moderate|weak> - honest assessment"
-}}
-
-GOLDEN RULES:
-- 3 elements is better than 5 mediocre ones - Quality over quantity
-- Numbers always beat vague claims - "50,000 users" > "Many users"
-- Specificity wins - "Save 10 hours/week" > "Save time"
-- Trust signals are non-negotiable - If there's proof, include it prominently
-- Visual hierarchy matters - Biggest = most important
-- Mobile-first thinking - Will this read well at small sizes?
-- If there's no good social proof, don't fake it
-- The hook must be SHORT (under 60 chars ideal) and SPECIFIC"""
-
-
-STAGE_6_PROMPT = """Rate this preview honestly. Would YOU click on this? Be brutally honest.
-
-LAYOUT:
-{layout_json}
-
-CONTENT:
-{included_regions}
-
-ORIGINAL DESIGN DNA:
-{design_dna_json}
-
-=== BRUTAL HONESTY CHECK ===
-
-HOOK SCORE (0-1): How compelling is the main headline?
-- 0.9-1.0: "I need to click this right now" - Specific, benefit-driven, creates urgency
-- 0.7-0.8: "This looks interesting" - Clear value prop, somewhat specific
-- 0.5-0.6: "It's okay, might click" - Generic but readable
-- 0.3-0.4: "Meh, probably skip" - Vague, no clear benefit
-- 0.0-0.2: "Generic/boring, definitely skip" - "Welcome", "About Us", filler text
-
-TRUST SCORE (0-1): How trustworthy does this look?
-- Has SPECIFIC numbers (reviews, users, stats)? +0.3
-- Has recognizable proof (awards, logos, big names)? +0.3
-- Looks professional, not spammy? +0.2
-- Makes realistic, believable claims? +0.2
-- If NO social proof at all, cap at 0.5
-
-CLARITY SCORE (0-1): Can someone understand this instantly?
-- Can understand the value in 2 seconds? +0.4
-- One clear message, not multiple competing messages? +0.3
-- Right amount of info (not overwhelming, not too sparse)? +0.3
-
-CLICK MOTIVATION SCORE (0-1): What's the motivation to click?
-- Clear, specific benefit to clicking? +0.4
-- Creates curiosity gap or FOMO? +0.3
-- Would someone share or remember this? +0.3
-
-=== DESIGN FIDELITY CHECK (NEW) ===
-
-DESIGN FIDELITY SCORE (0-1): Does this preview honor the original design's soul?
-- Typography feels consistent with the brand? +0.25
-- Colors evoke the same emotional response? +0.25
-- Spacing/density matches original's personality? +0.25
-- Would someone familiar with the brand recognize it? +0.25
-
-OUTPUT JSON:
-{{
-    "hook_score": <0.0-1.0>,
-    "hook_notes": "<be specific - what works/doesn't>",
-    "trust_score": <0.0-1.0>,
-    "trust_notes": "<what proof exists or is missing>",
+    "layout_reasoning": "<2-3 sentences on layout strategy>",
+    "preview_strength": "<strong|moderate|weak>",
+    "accuracy_score": <0.0-1.0>,
     "clarity_score": <0.0-1.0>,
-    "clarity_notes": "<can someone get it instantly?>",
-    "click_motivation_score": <0.0-1.0>,
-    "click_notes": "<honest - would you click?>",
+    "engagement_score": <0.0-1.0>,
     "design_fidelity_score": <0.0-1.0>,
-    "design_fidelity_notes": "<does this honor the original design's intent?>",
     "overall_quality": "<excellent|good|fair|poor>",
     "biggest_weakness": "<the ONE thing that would improve this most>",
     "improvement_suggestions": ["<specific, actionable fixes>"]
 }}
 
-BE HONEST: Most previews are "fair" or "good". Reserve "excellent" for previews you'd actually share.
-DESIGN FIDELITY: A preview should FEEL like it belongs to the original brand - same energy, same personality."""
+RULES:
+- 3 focused elements beat 5 mediocre ones
+- Numbers always beat vague claims
+- If no credibility signals exist, don't fabricate them
+- Headline should be under 80 characters
+- Be honest: most previews are "good", reserve "excellent" for truly strong ones"""
 
 
 # =============================================================================
@@ -1065,31 +722,42 @@ def run_stages_1_2_3(screenshot_bytes: bytes) -> Tuple[List[Dict], Dict[str, str
         Tuple of (regions_list, color_palette, page_type, confidence, extracted_highlights, design_dna)
     """
     image_base64, pil_image = prepare_image(screenshot_bytes)
-    
+
+    # Check circuit breaker before making OpenAI call
+    circuit_breaker = OpenAICircuitBreaker.get_instance()
+    if circuit_breaker.is_open():
+        logger.warning("Circuit breaker OPEN - skipping Stage 1-2-3 OpenAI call, using fallback")
+        raise Exception("OpenAI circuit breaker is open - too many recent errors")
+
     client = OpenAI(api_key=settings.OPENAI_API_KEY, timeout=60)
-    
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {
-                "role": "system",
-                "content": "You are a conversion copywriter extracting the most compelling content from webpages. Be precise with text - extract EXACT wording. Prioritize SPECIFIC claims over generic ones. Numbers and social proof are gold. CRITICAL: Distinguish between individual profiles and company pages. Verify person names are actual names, not job titles. Output valid JSON only."
-            },
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": STAGE_1_2_3_PROMPT},
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/jpeg;base64,{image_base64}", "detail": "high"}
-                    }
-                ]
-            }
-        ],
-        max_tokens=4000,  # Increased for new fields (detected_person_name, company_indicators)
-        temperature=0.0,  # CHANGED: Fully deterministic for consistent results
-        seed=42  # Deterministic seed for reproducibility
-    )
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an expert web analyst extracting structured content from webpages. Be precise - extract EXACT wording. Prioritize specific claims over generic ones. Distinguish between individual profiles and company pages. Output valid JSON only."
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": STAGE_1_2_3_PROMPT},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/jpeg;base64,{image_base64}", "detail": "high"}
+                        }
+                    ]
+                }
+            ],
+            max_tokens=4000,
+            temperature=0.0,
+            seed=42
+        )
+        circuit_breaker.record_success()
+    except Exception as e:
+        circuit_breaker.record_error()
+        raise
     
     content = response.choices[0].message.content.strip()
     if "```json" in content:
@@ -1136,11 +804,11 @@ def run_stages_1_2_3(screenshot_bytes: bytes) -> Tuple[List[Dict], Dict[str, str
                 "analysis_confidence": 0.3
             }
     
-    # Extract highlights from the new prompt structure
+    # Extract highlights - support both old and new field names
     extracted_highlights = {
-        "the_hook": data.get("the_hook"),
-        "social_proof_found": data.get("social_proof_found"),
-        "key_benefit": data.get("key_benefit")
+        "the_hook": data.get("primary_headline") or data.get("the_hook"),
+        "social_proof_found": data.get("credibility_signals") or data.get("social_proof_found"),
+        "key_benefit": data.get("value_statement") or data.get("key_benefit")
     }
     
     # Extract Design DNA (NEW - for design-intelligent rendering)
@@ -1304,98 +972,98 @@ def run_stages_1_2_3(screenshot_bytes: bytes) -> Tuple[List[Dict], Dict[str, str
 
 
 def run_stages_4_5(regions: List[Dict], page_type: str, palette: Dict[str, str]) -> Dict[str, Any]:
+    """Backward-compatible wrapper that calls the merged stages 4-5-6."""
+    return run_stages_4_5_6(regions, page_type, palette)
+
+
+def run_stages_4_5_6(regions: List[Dict], page_type: str, palette: Dict[str, str], design_dna: Dict[str, Any] = None) -> Dict[str, Any]:
     """
-    Run Stages 4-5: Composition Decision, Layout Synthesis.
-    
+    Run Stages 4-6: Composition Decision, Layout Synthesis, and Quality Check.
+
+    Merged into a single API call for ~4s latency reduction.
+
     Returns:
-        Layout plan dictionary with normalized slot names for backward compatibility.
+        Layout plan dictionary with quality scores and normalized slot names.
     """
     # Filter to non-omit regions for composition decisions
     relevant_regions = [r for r in regions if r.get("visual_weight") != "omit"]
-    
-    # OPTIMIZATION: Remove image_data from regions to reduce token usage
+
+    # Remove image_data from regions to reduce token usage
     regions_for_ai = []
     for r in relevant_regions:
         region_copy = {k: v for k, v in r.items() if k != "image_data"}
         if r.get("image_data"):
             region_copy["has_image"] = True
+        # Truncate long content
+        if "raw_content" in region_copy:
+            region_copy["raw_content"] = region_copy["raw_content"][:200]
         regions_for_ai.append(region_copy)
-    
+
+    # Check circuit breaker before making OpenAI call
+    circuit_breaker = OpenAICircuitBreaker.get_instance()
+    if circuit_breaker.is_open():
+        logger.warning("Circuit breaker OPEN - skipping Stage 4-5-6 OpenAI call, using fallback")
+        return _fallback_layout_result(page_type)
+
     client = OpenAI(api_key=settings.OPENAI_API_KEY, timeout=45)
-    
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {
-                "role": "system",
-                "content": "You are a conversion-focused designer. Create layouts that DRIVE CLICKS. Be decisive - include only high-value content. Output valid JSON only."
-            },
-            {
-                "role": "user",
-                "content": STAGE_4_5_PROMPT.format(
-                    regions_json=json.dumps(regions_for_ai, indent=2),
-                    page_type=page_type,
-                    primary=palette.get("primary", "#3B82F6"),
-                    secondary=palette.get("secondary", "#1E293B"),
-                    accent=palette.get("accent", "#F59E0B")
-                )
-            }
-        ],
-        max_tokens=1800,  # Optimized for faster responses
-        temperature=0.0  # Fully deterministic for consistent results
-    )
-    
-    content = response.choices[0].message.content.strip()
-    if "```json" in content:
-        content = content.split("```json")[1].split("```")[0].strip()
-    elif "```" in content:
-        content = content.split("```")[1].split("```")[0].strip()
-    
-    # FIX 1: Robust JSON parsing with fallbacks
+
     try:
-        result = json.loads(content)
-    except json.JSONDecodeError as e:
-        logger.error(f"❌ JSON parsing failed in stage 4-5: {e}. Content preview: {content[:200]}...")
-        import re
-        json_match = re.search(r'\{.*\}', content, re.DOTALL)
-        if json_match:
-            try:
-                result = json.loads(json_match.group(0))
-                logger.info("✅ Recovered JSON using regex extraction")
-            except:
-                logger.warning("⚠️ Using fallback layout structure")
-                result = {
-                    "composition_decisions": [],
-                    "layout": {
-                        "template_style": page_type,
-                        "headline_slot": None,
-                        "visual_slot": None,
-                        "proof_slot": None,
-                        "benefit_slot": None,
-                        "cta_slot": None
-                    },
-                    "layout_reasoning": "Fallback due to JSON parse error",
-                    "preview_strength": "weak"
-                }
-        else:
-            result = {
-                "composition_decisions": [],
-                "layout": {
-                    "template_style": page_type,
-                    "headline_slot": None,
-                    "visual_slot": None,
-                    "proof_slot": None,
-                    "benefit_slot": None,
-                    "cta_slot": None
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a layout designer and quality assessor for social media previews. Create clear, accurate layouts. Output valid JSON only."
                 },
-                "layout_reasoning": "Fallback due to JSON parse error",
-                "preview_strength": "weak"
-            }
-    
-    # Normalize new-style layout to include old-style slots for backward compatibility
+                {
+                    "role": "user",
+                    "content": STAGE_4_5_6_PROMPT.format(
+                        regions_json=json.dumps(regions_for_ai, indent=2),
+                        page_type=page_type,
+                        primary=palette.get("primary", "#3B82F6"),
+                        secondary=palette.get("secondary", "#1E293B"),
+                        accent=palette.get("accent", "#F59E0B"),
+                        design_dna_json=json.dumps(design_dna or {}, indent=2)
+                    )
+                }
+            ],
+            max_tokens=2000,
+            temperature=0.0
+        )
+        circuit_breaker.record_success()
+
+        content = response.choices[0].message.content.strip()
+        if "```json" in content:
+            content = content.split("```json")[1].split("```")[0].strip()
+        elif "```" in content:
+            content = content.split("```")[1].split("```")[0].strip()
+
+        try:
+            result = json.loads(content)
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON parsing failed in stage 4-5-6: {e}. Content: {content[:200]}...")
+            import re
+            json_match = re.search(r'\{.*\}', content, re.DOTALL)
+            if json_match:
+                try:
+                    result = json.loads(json_match.group(0))
+                except Exception:
+                    result = _fallback_layout_result(page_type)
+            else:
+                result = _fallback_layout_result(page_type)
+
+    except Exception as e:
+        circuit_breaker.record_error()
+        error_msg = str(e)
+        if "429" in error_msg or "rate_limit" in error_msg.lower():
+            logger.warning(f"Stage 4-5-6 rate limited, using fallback: {error_msg[:200]}")
+        else:
+            logger.warning(f"Stage 4-5-6 failed, using fallback: {error_msg[:200]}")
+        result = _fallback_layout_result(page_type)
+
+    # Normalize layout for backward compatibility
     layout = result.get("layout", {})
-    
-    # Map new slots to old slots if they exist
+
     if "headline_slot" in layout and "identity_slot" not in layout:
         layout["identity_slot"] = layout["headline_slot"]
     if "visual_slot" in layout and "identity_image_slot" not in layout:
@@ -1409,162 +1077,68 @@ def run_stages_4_5(regions: List[Dict], page_type: str, palette: Dict[str, str])
             layout["credibility_slots"] = [layout["proof_slot"]]
         elif layout["proof_slot"] not in layout["credibility_slots"]:
             layout["credibility_slots"].insert(0, layout["proof_slot"])
-    
-    # Ensure required fields exist
+
     layout.setdefault("template_type", layout.get("template_style", page_type))
     layout.setdefault("context_slots", [])
     layout.setdefault("tags_slots", [])
     layout.setdefault("credibility_slots", [])
     layout.setdefault("benefits_slots", [])
-    
-    # Add secondary benefit to benefits if present
+
     if layout.get("secondary_benefit_slot"):
         if layout["secondary_benefit_slot"] not in layout["benefits_slots"]:
             layout["benefits_slots"].append(layout["secondary_benefit_slot"])
-    
+
     result["layout"] = layout
     return result
 
 
+def _fallback_layout_result(page_type: str) -> Dict[str, Any]:
+    """Return a minimal valid layout result for error cases."""
+    return {
+        "composition_decisions": [],
+        "layout": {
+            "template_style": page_type,
+            "headline_slot": None,
+            "visual_slot": None,
+            "proof_slot": None,
+            "benefit_slot": None,
+            "cta_slot": None
+        },
+        "layout_reasoning": "Fallback due to error",
+        "preview_strength": "weak",
+        "accuracy_score": 0.7,
+        "clarity_score": 0.7,
+        "engagement_score": 0.7,
+        "design_fidelity_score": 0.7,
+        "overall_quality": "good",
+        "improvement_suggestions": []
+    }
+
+
+def _extract_quality_from_merged(result: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract quality scores from merged stage 4-5-6 result."""
+    quality = {
+        "coherence_score": result.get("accuracy_score", 0.7),
+        "balance_score": result.get("engagement_score", 0.7),
+        "clarity_score": result.get("clarity_score", 0.7),
+        "design_fidelity_score": result.get("design_fidelity_score", 0.7),
+        "overall_quality": result.get("overall_quality", "good"),
+        "improvement_suggestions": result.get("improvement_suggestions", []),
+        "hook_score": result.get("accuracy_score", 0.7),
+        "trust_score": result.get("engagement_score", 0.7),
+        "click_motivation_score": result.get("engagement_score", 0.7)
+    }
+    return quality
+
+
 def run_stage_6(layout: Dict[str, Any], included_regions: List[Dict], design_dna: Dict[str, Any] = None) -> Dict[str, Any]:
     """
-    Run Stage 6: Conversion Quality Check with Design Fidelity.
-    
-    Now includes design fidelity scoring to ensure preview honors original design.
-    
-    Returns:
-        Quality scores dictionary with normalized field names and design fidelity score.
+    Stage 6 is now merged into run_stages_4_5_6.
+    This function extracts quality scores from the merged result.
+    If called with the merged result (which contains quality scores), it returns them directly.
+    Otherwise returns fallback scores.
     """
-    # OPTIMIZATION: Strip image_data and other large fields to reduce token usage
-    # Only keep essential text and metadata for quality assessment
-    regions_for_ai = []
-    for r in included_regions:
-        region_copy = {
-            "id": r.get("id"),
-            "content_type": r.get("content_type"),
-            "raw_content": r.get("raw_content", "")[:200],  # Truncate long content
-            "purpose": r.get("purpose"),
-            "marketing_value": r.get("marketing_value"),
-            "has_image": bool(r.get("image_data"))
-        }
-        regions_for_ai.append(region_copy)
-    
-    # Simplify layout - only keep essential fields
-    simplified_layout = {
-        "template_style": layout.get("layout", {}).get("template_style"),
-        "headline_slot": layout.get("layout", {}).get("headline_slot"),
-        "visual_slot": layout.get("layout", {}).get("visual_slot"),
-        "proof_slot": layout.get("layout", {}).get("proof_slot"),
-        "benefit_slot": layout.get("layout", {}).get("benefit_slot"),
-        "preview_strength": layout.get("preview_strength")
-    }
-    
-    try:
-        client = OpenAI(api_key=settings.OPENAI_API_KEY, timeout=30)
-        
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a conversion expert. Rate this preview's ability to drive clicks. Be critical but fair. Output valid JSON only."
-                },
-                {
-                    "role": "user",
-                    "content": STAGE_6_PROMPT.format(
-                        layout_json=json.dumps(simplified_layout, indent=2),
-                        included_regions=json.dumps(regions_for_ai, indent=2),
-                        design_dna_json=json.dumps(design_dna or {}, indent=2)
-                    )
-                }
-            ],
-            max_tokens=500,  # Reduced for faster responses
-            temperature=0.0  # Fully deterministic for consistent results
-        )
-        
-        content = response.choices[0].message.content.strip()
-        if "```json" in content:
-            content = content.split("```json")[1].split("```")[0].strip()
-        elif "```" in content:
-            content = content.split("```")[1].split("```")[0].strip()
-        
-        # FIX 1: Robust JSON parsing with fallbacks
-        try:
-            result = json.loads(content)
-        except json.JSONDecodeError as e:
-            logger.error(f"❌ JSON parsing failed in stage 6: {e}. Content preview: {content[:200]}...")
-            import re
-            json_match = re.search(r'\{.*\}', content, re.DOTALL)
-            if json_match:
-                try:
-                    result = json.loads(json_match.group(0))
-                    logger.info("✅ Recovered JSON using regex extraction")
-                except:
-                    logger.warning("⚠️ Using fallback quality scores due to JSON parse error")
-                    result = {
-                        "coherence_score": 0.7,
-                        "balance_score": 0.7,
-                        "clarity_score": 0.7,
-                        "design_fidelity_score": 0.7,
-                        "overall_quality": "good",
-                        "improvement_suggestions": []
-                    }
-            else:
-                result = {
-                    "coherence_score": 0.7,
-                    "balance_score": 0.7,
-                    "clarity_score": 0.7,
-                    "design_fidelity_score": 0.7,
-                    "overall_quality": "good",
-                    "improvement_suggestions": []
-                }
-        
-        # Normalize new-style scores to old-style for backward compatibility
-        if "hook_score" in result and "coherence_score" not in result:
-            result["coherence_score"] = result["hook_score"]
-        if "trust_score" in result and "balance_score" not in result:
-            result["balance_score"] = result["trust_score"]
-        if "click_motivation_score" in result:
-            # Use click motivation as a factor in overall quality
-            click_score = result["click_motivation_score"]
-            if click_score >= 0.8:
-                result["overall_quality"] = "excellent"
-            elif click_score >= 0.6:
-                result["overall_quality"] = "good"
-            elif click_score >= 0.4:
-                result["overall_quality"] = "fair"
-            else:
-                result["overall_quality"] = "poor"
-        
-        # Ensure required fields exist
-        result.setdefault("coherence_score", 0.7)
-        result.setdefault("balance_score", 0.7)
-        result.setdefault("clarity_score", 0.7)
-        result.setdefault("design_fidelity_score", 0.7)
-        result.setdefault("overall_quality", "good")
-        result.setdefault("improvement_suggestions", [])
-        
-        return result
-        
-    except Exception as e:
-        # Handle rate limits and other API errors gracefully
-        error_msg = str(e)
-        if "429" in error_msg or "rate_limit" in error_msg.lower() or "tokens per min" in error_msg.lower():
-            logger.warning(f"⚠️ Stage 6 rate limited, using fallback quality scores: {error_msg[:200]}")
-        else:
-            logger.warning(f"⚠️ Stage 6 failed, using fallback quality scores: {error_msg[:200]}")
-        # Return fallback scores
-        return {
-            "coherence_score": 0.7,
-            "balance_score": 0.7,
-            "clarity_score": 0.7,
-            "design_fidelity_score": 0.7,
-            "overall_quality": "good",
-            "improvement_suggestions": [],
-            "hook_score": 0.7,
-            "trust_score": 0.7,
-            "click_motivation_score": 0.7
-        }
+    return _extract_quality_from_merged(layout)
 
 
 # =============================================================================
@@ -1788,7 +1362,7 @@ def extract_final_content(
         for region_id, include_flag in included.items():
             if include_flag and region_id in region_map:
                 region = region_map[region_id]
-                if region.get("purpose") == "hook" or region.get("content_type") == "headline":
+                if region.get("purpose") in ("hook", "headline") or region.get("content_type") == "headline":
                     candidate = get_region_content(region_id, region.get("purpose", ""))
                     if candidate and 5 < len(candidate) < 120:
                         title = candidate
@@ -1996,6 +1570,26 @@ def extract_final_content(
 # MAIN ENTRY POINT
 # =============================================================================
 
+def _normalize_purpose(purpose_str: str) -> RegionPurpose:
+    """Map AI output purpose strings to RegionPurpose enum values."""
+    mapping = {
+        "headline": RegionPurpose.VALUE_PROP,
+        "hook": RegionPurpose.VALUE_PROP,
+        "credibility": RegionPurpose.CREDIBILITY,
+        "proof": RegionPurpose.CREDIBILITY,
+        "value": RegionPurpose.VALUE_PROP,
+        "benefit": RegionPurpose.VALUE_PROP,
+        "identity": RegionPurpose.IDENTITY,
+        "action": RegionPurpose.ACTION,
+        "filler": RegionPurpose.DECORATION,
+        "navigation": RegionPurpose.NAVIGATION,
+        "decoration": RegionPurpose.DECORATION,
+        "context": RegionPurpose.CONTEXT,
+        "value_prop": RegionPurpose.VALUE_PROP,
+    }
+    return mapping.get(purpose_str.lower(), RegionPurpose.DECORATION)
+
+
 def generate_reasoned_preview(screenshot_bytes: bytes, url: str = "") -> ReasonedPreview:
     """
     Main entry point for multi-stage reasoned preview generation.
@@ -2019,23 +1613,22 @@ def generate_reasoned_preview(screenshot_bytes: bytes, url: str = "") -> Reasone
     
     logger.info("Starting multi-stage preview reasoning")
     
-    # Stages 1-3: Analysis (now includes Design DNA extraction)
+    # Stages 1-3: Analysis (includes Design DNA extraction)
     logger.info("Running Stages 1-3: Segmentation, Purpose, Priority + Design DNA")
     regions, palette, page_type, confidence, highlights, design_dna = run_stages_1_2_3(screenshot_bytes)
     logger.info(f"Identified {len(regions)} regions, page_type={page_type}, design_style={design_dna.get('style', 'unknown')}")
-    
-    # Stages 4-5: Layout
-    logger.info("Running Stages 4-5: Composition, Layout")
-    layout_result = run_stages_4_5(regions, page_type, palette)
-    
-    # Get included regions for Stage 6
+
+    # Stages 4-5-6: Layout + Quality (merged into single API call)
+    logger.info("Running Stages 4-5-6: Composition, Layout, Quality Check")
+    layout_result = run_stages_4_5_6(regions, page_type, palette, design_dna)
+
+    # Get included regions
     composition_decisions = layout_result.get("composition_decisions", [])
     included_ids = {d["region_id"] for d in composition_decisions if d.get("include")}
     included_regions = [r for r in regions if r["id"] in included_ids]
-    
-    # Stage 6: Quality Check (now includes Design Fidelity scoring)
-    logger.info("Running Stage 6: Coherence Check + Design Fidelity")
-    quality = run_stage_6(layout_result, included_regions, design_dna)
+
+    # Extract quality scores from merged result
+    quality = _extract_quality_from_merged(layout_result)
     
     # Extract final content (pass highlights for prioritization)
     final_content = extract_final_content(regions, layout_result, composition_decisions, highlights)
@@ -2050,7 +1643,7 @@ def generate_reasoned_preview(screenshot_bytes: bytes, url: str = "") -> Reasone
                 id=r["id"],
                 content_type=r.get("content_type", "other"),
                 raw_content=r.get("raw_content", ""),
-                purpose=RegionPurpose(r.get("purpose", "decoration")),
+                purpose=_normalize_purpose(r.get("purpose", "decoration")),
                 purpose_reasoning=r.get("purpose_reasoning", ""),
                 visual_weight=VisualWeight(r.get("visual_weight", "omit")),
                 priority_score=r.get("priority_score", 0.0),
