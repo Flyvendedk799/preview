@@ -1,5 +1,5 @@
 """Shared Pydantic schemas for demo preview endpoints."""
-from typing import Optional, List
+from typing import Optional, List, Literal
 from pydantic import BaseModel, HttpUrl
 
 
@@ -82,6 +82,7 @@ class DemoPreviewResponse(BaseModel):
 class DemoJobRequest(BaseModel):
     """Schema for demo job creation request."""
     url: HttpUrl
+    quality_mode: Literal["fast", "balanced", "ultra"] = "ultra"
 
 
 class DemoJobResponse(BaseModel):
@@ -99,3 +100,5 @@ class DemoJobStatusResponse(BaseModel):
     error: Optional[str] = None
     progress: Optional[float] = None
     message: Optional[str] = None
+
+

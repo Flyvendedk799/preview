@@ -1213,7 +1213,7 @@ export async function createDemoJob(url: string): Promise<DemoJobResponse> {
   const token = getAuthToken()
   return fetchApi<DemoJobResponse>('/api/v1/demo-v2/jobs', {
     method: 'POST',
-    body: JSON.stringify({ url }),
+    body: JSON.stringify({ url, quality_mode: 'ultra' }),
     timeout: 30000, // 30 seconds for job creation (should be instant)
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   }, false) // Public endpoint; attach auth when available for user-scoped activity logs
@@ -1519,4 +1519,8 @@ export async function updateSiteSettings(siteId: number, payload: SiteSettingsUp
     body: JSON.stringify(payload),
   })
 }
+
+
+
+
 

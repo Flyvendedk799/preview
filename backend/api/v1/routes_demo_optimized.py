@@ -111,7 +111,8 @@ def create_demo_job(
         job = queue.enqueue(
             generate_demo_preview_job,
             url_str,
-            job_timeout='10m'
+            request_data.quality_mode,
+            job_timeout='15m'
         )
 
         logger.info(f"Demo job created: {job.id} for URL: {url_str[:50]}...")
@@ -125,6 +126,7 @@ def create_demo_job(
                 "outcome": "queued",
                 "job_id": job.id,
                 "client_ip": client_ip,
+                "quality_mode": request_data.quality_mode,
             },
         )
 
@@ -303,7 +305,7 @@ def generate_demo_preview_optimized(
         
         # Get redis client and cache key (needed for both cache check and cache write)
         redis_client = get_redis_client()
-        cache_key = generate_cache_key(url_str, "demo:preview:v2:")
+        cache_key = generate_cache_key(url_str, "demo:preview:v3:ultra:")
 
         if cache_disabled:
             logger.info(f"🚫 Cache DISABLED - generating fresh preview for: {url_str[:50]}...")
@@ -352,12 +354,14 @@ def generate_demo_preview_optimized(
             enable_ai_reasoning=True,
             enable_composited_image=True,
             enable_cache=not cache_disabled,  # Disable cache if admin toggle is enabled
-            enable_multi_agent=False,  # Demo: skip expensive multi-agent orchestration
-            enable_ui_element_extraction=False,  # Demo: skip UI element extraction for speed
+            enable_multi_agent=True,
+            enable_ui_element_extraction=True,
+            quality_threshold=0.88,
+            max_quality_iterations=3
         )
         
         engine = PreviewEngine(config)
-        engine_result = engine.generate(url_str, cache_key_prefix="demo:preview:v2:")
+        engine_result = engine.generate(url_str, cache_key_prefix="demo:preview:v3:ultra:")
         
         # Convert PreviewEngineResult to DemoPreviewResponse
         response = DemoPreviewResponse(
@@ -441,3 +445,5 @@ def generate_demo_preview_optimized(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to generate preview: {str(e)}. Please try again."
         )
+
+
