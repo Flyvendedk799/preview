@@ -754,6 +754,7 @@ class PreviewEngine:
                                         resp.content, expected_colors, has_logo
                                     )
                                     result_dict["_visual_quality_score"] = vq.overall_score
+                                    result_dict["_contrast_score"] = vq.contrast_score
                             except Exception as ve:
                                 self.logger.debug(f"Pre-compute visual quality skipped: {ve}")
 
@@ -791,8 +792,12 @@ class PreviewEngine:
                             f"gate={quality_metrics.gate_status.value}"
                         )
                         
-                        # Check if retry is recommended
-                        if quality_metrics.should_retry and retry_count < max_retries:
+                        # Check if retry is recommended (include contrast failure - retry with darker colors)
+                        should_retry_now = quality_metrics.should_retry or (
+                            quality_metrics.contrast_score is not None
+                            and quality_metrics.contrast_score < 0.35
+                        )
+                        if should_retry_now and retry_count < max_retries:
                             retry_count += 1
                             self.logger.info(
                                 f"Retrying preview generation (attempt {retry_count + 1}) "
@@ -904,33 +909,29 @@ class PreviewEngine:
                             if visual_quality.contrast_score < 0.5:  # Contrast is particularly bad
                                 try:
                                     from backend.services.readability_auto_fixer import ReadabilityAutoFixer
-                                    self.logger.info("🔧 Applying ReadabilityAutoFixer for low contrast...")
+                                    # More aggressive overlay when contrast is very bad
+                                    overlay_max = 0.9 if visual_quality.contrast_score < 0.3 else 0.7
+                                    self.logger.info(f"🔧 Applying ReadabilityAutoFixer (overlay_max={overlay_max})...")
+                                    fixer = ReadabilityAutoFixer(overlay_opacity_max=overlay_max)
 
-                                    fixer = ReadabilityAutoFixer()
-
-                                    # Download the current image using sync client
-                                    import httpx
-                                    image_bytes = None
-                                    with httpx.Client(timeout=10.0) as client:
-                                        resp = client.get(result.composited_preview_image_url)
-                                        if resp.status_code == 200:
-                                            image_bytes = resp.content
-                                    
-                                    if image_bytes:
+                                    import requests
+                                    resp = requests.get(result.composited_preview_image_url, timeout=10)
+                                    if resp.status_code == 200 and resp.content:
                                         fixed_bytes, fix_report = fixer.fix_from_bytes(
-                                            image_bytes,
+                                            resp.content,
                                             quality_score=visual_quality
                                         )
-                                        
-                                        if fix_report.fixes_applied:
-                                            # Re-upload the fixed image (use module-level import)
+                                        # Upload when improved or any fixes applied
+                                        ratio_ok = fix_report.final_contrast_ratio >= 2.5
+                                        if fix_report.fixes_applied or ratio_ok:
                                             fixed_filename = f"previews/demo/{uuid4()}_fixed.png"
                                             new_url = upload_file_to_r2(fixed_bytes, fixed_filename, "image/png")
-                                            
                                             if new_url:
                                                 result.composited_preview_image_url = new_url
                                                 result.warnings.append("Contrast auto-fixed")
-                                                self.logger.info(f"✅ Contrast fixed, new image: {new_url}")
+                                                self.logger.info(
+                                                    f"✅ Contrast fixed: ratio {fix_report.final_contrast_ratio:.2f}"
+                                                )
                                 except Exception as fix_error:
                                     self.logger.warning(f"ReadabilityAutoFixer failed: {fix_error}")
                 except Exception as e:

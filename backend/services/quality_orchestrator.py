@@ -106,7 +106,8 @@ class UnifiedQualityMetrics:
     # Detailed scores
     quality_assurance_score: Optional[QualityScore] = None
     design_fidelity_result: Optional[DesignFidelityResult] = None
-    
+    contrast_score: Optional[float] = None  # 0-1, from visual validator
+
     # Issues and suggestions
     issues: List[str] = field(default_factory=list)
     suggestions: List[str] = field(default_factory=list)
@@ -255,6 +256,7 @@ class QualityOrchestrator:
         
         # 2. Visual Quality Assessment (pre-computed score or from image)
         precomputed_visual = preview_result.get("_visual_quality_score")
+        precomputed_contrast = preview_result.get("_contrast_score")
         if precomputed_visual is not None:
             visual_quality_score = float(precomputed_visual)
             logger.info(f"📊 Visual quality (pre-computed): {visual_quality_score:.2f}")
@@ -402,6 +404,7 @@ class QualityOrchestrator:
             gate_status=gate_status,
             quality_assurance_score=quality_assurance_score,
             design_fidelity_result=design_fidelity_result,
+            contrast_score=float(precomputed_contrast) if precomputed_contrast is not None else None,
             issues=issues,
             suggestions=suggestions,
             should_use=should_use,
@@ -438,6 +441,13 @@ class QualityOrchestrator:
             True if preview passes gates (PREMIUM, STANDARD, or ACCEPTABLE tier)
         """
         # PHASE 5: Use tier system for more nuanced decisions
+
+        # Hard gate: contrast must be acceptable (avoid unreadable previews)
+        if metrics.contrast_score is not None and metrics.contrast_score < 0.35:
+            logger.warning(
+                f"❌ Quality gate failed: contrast too low ({metrics.contrast_score:.2f} < 0.35)"
+            )
+            return False
         
         # PREMIUM and STANDARD always pass
         if metrics.quality_tier in [QualityTier.PREMIUM, QualityTier.STANDARD]:
