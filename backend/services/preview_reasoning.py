@@ -1614,155 +1614,286 @@ def _normalize_purpose(purpose_str: str) -> RegionPurpose:
     return mapping.get(purpose_str.lower(), RegionPurpose.DECORATION)
 
 
+SINGLE_PASS_PROMPT = """You are a world-class web analyst creating a social media preview card from a webpage screenshot.
+
+YOUR GOAL: Extract the 3-4 most important pieces of text from this page to create a compelling, ACCURATE preview card. Think: what would make someone click this link on Twitter/LinkedIn?
+
+=== STEP 1: CLASSIFY THE PAGE ===
+What kind of page is this?
+- "saas" / "startup" / "tool" — software product with features/pricing
+- "ecommerce" / "product" — thing for sale with price/reviews
+- "profile" — individual person's page (name + photo + bio)
+- "blog" / "news" / "article" — written content with author/date
+- "agency" / "portfolio" — showcasing work/services
+- "landing" — generic marketing/company page
+- "educational" / "documentation" — learning/reference content
+
+=== STEP 2: EXTRACT CONTENT (VERBATIM ONLY) ===
+
+Extract these fields by copying EXACT text from the page. NEVER rephrase, summarize, or invent text.
+
+1. **title** (REQUIRED) — The single most prominent headline on the page.
+   - For profiles: the person's FULL NAME (e.g. "Sarah Chen"), not their title/role
+   - For products: the product name or hero headline
+   - For articles: the article title
+   - For SaaS: the hero headline exactly as written
+   - MUST be verbatim from the page
+
+2. **subtitle** — The secondary headline or subheading directly below the title.
+   - Copy it exactly. If none exists, use null.
+   - For profiles: their role/title (e.g. "Senior Product Designer at Stripe")
+   - For SaaS: the sub-headline that explains the product
+
+3. **description** — The first descriptive paragraph or value proposition.
+   - Copy the actual text, max ~200 chars. If only generic text exists ("Easy to use"), use null.
+
+4. **credibility** — The single strongest trust signal WITH specific numbers.
+   - "4.9 stars from 2,847 reviews" — copy exactly
+   - "Trusted by 50,000+ teams" — copy exactly
+   - "Featured in Forbes, TechCrunch" — only if visible on page
+   - If no specific numbers/names visible, use null. NEVER fabricate.
+
+5. **cta_text** — The primary call-to-action button text (e.g. "Start Free Trial", "Shop Now").
+   - Copy the button text exactly. If generic ("Submit", "Click here"), use null.
+
+6. **tags** — 2-3 short category/topic labels that describe what this page is about.
+   - Use visible category tags, nav labels, or infer from content (e.g. "AI", "Developer Tools", "E-commerce")
+   - Keep each tag to 1-2 words. Max 3 tags.
+
+=== STEP 3: EXTRACT VISUAL IDENTITY ===
+
+6. **colors** — The 3 dominant colors from the page:
+   - primary: the main brand color (buttons, headers)
+   - secondary: the background or secondary brand color
+   - accent: highlight/CTA color
+
+7. **logo_bbox** — Bounding box of the logo/avatar (usually top-left, top 15% of page):
+   - {{x, y, width, height}} as fractions 0.0-1.0 of image dimensions
+   - For profiles: the profile photo/avatar location
+   - null if no clear logo visible
+
+8. **design_dna** — The design personality:
+   - style: minimalist | corporate | luxurious | playful | technical | editorial | brutalist
+   - mood: calm | balanced | dynamic | dramatic
+   - typography_personality: authoritative | friendly | elegant | technical | bold
+   - color_emotion: trust | energy | calm | sophistication | warmth | innovation
+   - spacing_feel: compact | balanced | spacious
+   - brand_adjectives: 3 words describing the brand personality
+
+=== EXCLUSIONS ===
+NEVER extract from: cookie banners, navigation menus, footer links, popups, breadcrumbs, "Skip to content" links.
+
+=== OUTPUT (valid JSON only) ===
+{{
+    "page_type": "<type>",
+    "title": "<VERBATIM headline from page>",
+    "subtitle": "<VERBATIM sub-headline or null>",
+    "description": "<VERBATIM value prop paragraph or null>",
+    "credibility": "<VERBATIM trust signal with numbers or null>",
+    "cta_text": "<VERBATIM button text or null>",
+    "tags": ["<tag1>", "<tag2>"],
+    "is_individual_profile": <true|false>,
+    "colors": {{
+        "primary": "<hex>",
+        "secondary": "<hex>",
+        "accent": "<hex>"
+    }},
+    "logo_bbox": {{"x": <0-1>, "y": <0-1>, "width": <0-1>, "height": <0-1>}} or null,
+    "design_dna": {{
+        "style": "<style>",
+        "mood": "<mood>",
+        "typography_personality": "<personality>",
+        "color_emotion": "<emotion>",
+        "spacing_feel": "<feel>",
+        "brand_adjectives": ["<word1>", "<word2>", "<word3>"]
+    }},
+    "confidence": <0.0-1.0>
+}}
+
+RULES:
+1. VERBATIM ONLY — copy text exactly as shown on the page
+2. NULL OVER FABRICATION — return null for any field where you cannot find exact text
+3. NUMBERS REQUIRED for credibility — no vague claims
+4. TITLE IS MANDATORY — always extract the most prominent headline
+5. Keep it focused — 3 strong fields beat 6 weak ones"""
+
+
 def generate_reasoned_preview(screenshot_bytes: bytes, url: str = "") -> ReasonedPreview:
     """
-    Main entry point for multi-stage reasoned preview generation.
-    
-    This function orchestrates all 6 stages of the reasoning framework:
-    1. Segmentation
-    2. Purpose Analysis
-    3. Priority Assignment
-    4. Composition Decision
-    5. Layout Synthesis
-    6. Coherence Check
-    
+    Generate a preview using a single, focused AI vision call.
+
+    Uses one optimized prompt that extracts title, subtitle, description,
+    credibility, colors, and design DNA in a single pass. This is faster
+    and produces more consistent results than the multi-stage approach.
+
     Args:
         screenshot_bytes: Raw PNG screenshot
         url: URL for context
-        
+
     Returns:
-        ReasonedPreview with full reasoning chain
+        ReasonedPreview with extracted content
     """
     start_time = time.time()
-    
-    logger.info("Starting multi-stage preview reasoning")
-    
-    # Stages 1-3: Analysis (includes Design DNA extraction)
-    logger.info("Running Stages 1-3: Segmentation, Purpose, Priority + Design DNA")
-    regions, palette, page_type, confidence, highlights, design_dna = run_stages_1_2_3(screenshot_bytes)
-    logger.info(f"Identified {len(regions)} regions, page_type={page_type}, design_style={design_dna.get('style', 'unknown')}")
+    logger.info(f"[SinglePass] Starting preview extraction for: {url}")
 
-    # Stages 4-5-6: Layout + Quality (merged into single API call)
-    logger.info("Running Stages 4-5-6: Composition, Layout, Quality Check")
-    layout_result = run_stages_4_5_6(regions, page_type, palette, design_dna)
+    image_base64, pil_image = prepare_image(screenshot_bytes)
 
-    # Get included regions
-    composition_decisions = layout_result.get("composition_decisions", [])
-    included_ids = {d["region_id"] for d in composition_decisions if d.get("include")}
-    included_regions = [r for r in regions if r["id"] in included_ids]
+    # Circuit breaker check
+    circuit_breaker = OpenAICircuitBreaker.get_instance()
+    if circuit_breaker.is_open():
+        logger.warning("Circuit breaker OPEN - using fallback")
+        raise Exception("OpenAI circuit breaker is open")
 
-    # Extract quality scores from merged result
-    quality = _extract_quality_from_merged(layout_result)
-    
-    # Extract final content (pass highlights for prioritization)
-    final_content = extract_final_content(regions, layout_result, composition_decisions, highlights)
-    
-    # Build analyzed regions
-    analyzed_regions = []
-    for r in regions:
-        try:
-            decision = next((d for d in composition_decisions if d["region_id"] == r["id"]), None)
-            
-            analyzed_regions.append(AnalyzedRegion(
-                id=r["id"],
-                content_type=r.get("content_type", "other"),
-                raw_content=r.get("raw_content", ""),
-                purpose=_normalize_purpose(r.get("purpose", "decoration")),
-                purpose_reasoning=r.get("purpose_reasoning", ""),
-                visual_weight=VisualWeight(r.get("visual_weight", "omit")),
-                priority_score=r.get("priority_score", 0.0),
-                priority_reasoning=r.get("priority_reasoning", ""),
-                include_in_preview=decision.get("include", False) if decision else False,
-                decision_reasoning=decision.get("decision_reasoning", "") if decision else "",
-                display_text=clean_display_text(r.get("raw_content", ""), r.get("purpose", "")),
-                image_data=r.get("image_data"),
-                bbox=r.get("bbox")
-            ))
-        except (ValueError, KeyError) as e:
-            logger.warning(f"Error building analyzed region: {e}")
-    
-    # Normalize page type to expected template types
-    # Maps AI page types to frontend template types
-    def normalize_template_type(page_type: str) -> str:
-        pt = (page_type or "unknown").lower()
-        
-        # Profile: personal pages
-        if pt in ["personal", "profile"]:
-            return "profile"
-        
-        # Product: e-commerce
-        if pt in ["product", "ecommerce", "marketplace", "shop"]:
-            return "product"
-        
-        # Article: content pages
-        if pt in ["article", "blog", "news", "documentation"]:
-            return "article"
-        
-        # Service: agencies, portfolios
-        if pt in ["service", "agency", "portfolio"]:
-            return "service"
-        
-        # Landing: SaaS, startups, companies (DEFAULT for most business pages)
-        # This should be the default for unknown types too
-        if pt in ["landing", "saas", "startup", "enterprise", "tool", "company", "unknown"]:
-            return "landing"
-        
-        # Fallback to landing (most versatile)
-        return "landing"
-    
-    # Build layout blueprint
-    layout_data = layout_result.get("layout", {})
-    normalized_type = normalize_template_type(page_type)
-    
-    blueprint = LayoutBlueprint(
-        template_type=normalized_type,
-        primary_color=palette.get("primary", "#3B82F6"),
-        secondary_color=palette.get("secondary", "#1E293B"),
-        accent_color=palette.get("accent", "#F59E0B"),
-        identity_slot=layout_data.get("identity_slot"),
-        identity_image_slot=layout_data.get("identity_image_slot"),
-        tagline_slot=layout_data.get("tagline_slot"),
-        value_slot=layout_data.get("value_slot"),
-        context_slots=layout_data.get("context_slots", []),
-        credibility_slots=layout_data.get("credibility_slots", []),
-        action_slot=layout_data.get("action_slot"),
-        tags_slots=layout_data.get("tags_slots", []),
-        layout_reasoning=layout_result.get("layout_reasoning", ""),
-        composition_notes=layout_result.get("composition_notes", ""),
-        coherence_score=quality.get("coherence_score", 0.7),
-        balance_score=quality.get("balance_score", 0.7),
-        clarity_score=quality.get("clarity_score", 0.7),
-        overall_quality=quality.get("overall_quality", "good")
+    client = OpenAI(api_key=settings.OPENAI_API_KEY, timeout=60)
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You extract structured content from webpage screenshots for social media preview cards. "
+                        "Copy text VERBATIM from the page. Never rephrase or invent text. Output valid JSON only."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": SINGLE_PASS_PROMPT},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/jpeg;base64,{image_base64}", "detail": "high"},
+                        },
+                    ],
+                },
+            ],
+            max_tokens=2000,
+            temperature=0.0,
+            seed=42,
+        )
+        circuit_breaker.record_success()
+    except Exception as e:
+        circuit_breaker.record_error()
+        raise
+
+    # Parse response
+    content = response.choices[0].message.content.strip()
+    if "```json" in content:
+        content = content.split("```json")[1].split("```")[0].strip()
+    elif "```" in content:
+        content = content.split("```")[1].split("```")[0].strip()
+
+    try:
+        data = json.loads(content)
+    except json.JSONDecodeError:
+        import re
+        json_match = re.search(r'\{.*\}', content, re.DOTALL)
+        if json_match:
+            try:
+                data = json.loads(json_match.group(0))
+            except Exception:
+                data = {}
+        else:
+            data = {}
+
+    # Extract fields with safe defaults
+    page_type = (data.get("page_type") or "landing").lower()
+    title = data.get("title") or "Untitled"
+    subtitle = data.get("subtitle")
+    description = data.get("description")
+    credibility = data.get("credibility")
+    cta_text = data.get("cta_text")
+    tags = data.get("tags", [])
+    if not isinstance(tags, list):
+        tags = []
+    tags = [str(t) for t in tags if t][:3]
+    confidence = float(data.get("confidence", 0.7))
+    colors = data.get("colors", {})
+    design_dna = data.get("design_dna", {})
+    logo_bbox = data.get("logo_bbox")
+
+    # Set design DNA defaults
+    design_dna.setdefault("style", "corporate")
+    design_dna.setdefault("mood", "balanced")
+    design_dna.setdefault("typography_personality", "bold")
+    design_dna.setdefault("color_emotion", "trust")
+    design_dna.setdefault("spacing_feel", "balanced")
+    design_dna.setdefault("brand_adjectives", ["professional", "modern"])
+
+    palette = {
+        "primary": colors.get("primary", "#3B82F6"),
+        "secondary": colors.get("secondary", "#1E293B"),
+        "accent": colors.get("accent", "#F59E0B"),
+    }
+
+    logger.info(
+        f"[SinglePass] Extracted: title='{title[:60]}', type={page_type}, "
+        f"has_subtitle={subtitle is not None}, has_credibility={credibility is not None}, "
+        f"confidence={confidence:.2f}"
     )
-    
+
+    # Crop logo/avatar if bounding box was detected
+    primary_image_base64 = None
+    if logo_bbox and isinstance(logo_bbox, dict):
+        try:
+            is_profile = data.get("is_individual_profile", False)
+            primary_image_base64 = crop_region(pil_image, logo_bbox, is_profile_image=is_profile)
+            if primary_image_base64:
+                logger.info(f"[SinglePass] Cropped {'avatar' if is_profile else 'logo'} from bbox")
+        except Exception as e:
+            logger.warning(f"[SinglePass] Logo crop failed: {e}")
+
+    # Build credibility items
+    credibility_items = []
+    if credibility:
+        credibility_items.append({"type": "proof", "value": credibility})
+
+    # Normalize page type to template type
+    template_map = {
+        "profile": "profile", "personal": "profile",
+        "product": "product", "ecommerce": "product", "marketplace": "product",
+        "blog": "article", "news": "article", "article": "article", "documentation": "article",
+        "agency": "service", "portfolio": "service",
+    }
+    template_type = template_map.get(page_type, "landing")
+
+    # Build blueprint
+    blueprint = LayoutBlueprint(
+        template_type=template_type,
+        primary_color=palette["primary"],
+        secondary_color=palette["secondary"],
+        accent_color=palette["accent"],
+        layout_reasoning=f"Single-pass extraction, page_type={page_type}",
+        coherence_score=confidence,
+        balance_score=confidence,
+        clarity_score=confidence,
+        overall_quality="excellent" if confidence >= 0.9 else "good" if confidence >= 0.7 else "fair",
+    )
+
     processing_time = int((time.time() - start_time) * 1000)
-    
-    # IMPROVEMENT: Enrich description with benefits if available
-    description = final_content.get("description", "")
-    benefits = final_content.get("benefits", [])
-    if benefits and description:
-        # If description is short, append first benefit
-        if len(description) < 100 and len(benefits) > 0:
-            description = f"{description} {benefits[0]}"
-    
+
     result = ReasonedPreview(
-        regions=analyzed_regions,
+        regions=[],
         blueprint=blueprint,
-        title=final_content["title"],
-        subtitle=final_content["subtitle"],
-        description=description,  # Use enriched description
-        tags=final_content["tags"],
-        context_items=final_content["context_items"],
-        credibility_items=final_content["credibility_items"],
-        cta_text=final_content["cta_text"],
-        primary_image_base64=final_content["primary_image_base64"],
-        design_dna=design_dna,  # NEW: Design DNA for intelligent rendering
+        title=title,
+        subtitle=subtitle,
+        description=description,
+        tags=tags,
+        context_items=[],
+        credibility_items=credibility_items,
+        cta_text=cta_text,
+        primary_image_base64=primary_image_base64,
+        design_dna=design_dna,
         processing_time_ms=processing_time,
         reasoning_confidence=confidence,
-        design_fidelity_score=quality.get("design_fidelity_score", 0.7)  # NEW: Design fidelity metric
+        design_fidelity_score=confidence,
     )
-    
-    logger.info(f"Preview reasoning complete: quality={blueprint.overall_quality}, fidelity={result.design_fidelity_score:.2f}, time={processing_time}ms")
-    
+
+    logger.info(
+        f"[SinglePass] Done in {processing_time}ms: "
+        f"template={template_type}, quality={blueprint.overall_quality}"
+    )
+
     return result
 

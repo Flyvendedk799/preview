@@ -1,5 +1,4 @@
 """Demo/landing page routes for marketing campaigns."""
-from uuid import uuid4
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
@@ -74,119 +73,82 @@ def generate_demo_preview(
     Rate limited to prevent abuse.
     """
     url_str = str(request_data.url)
-    flow_id = str(uuid4())
     redis_client = None
     cache_key = None
     user_id = get_authenticated_user_id(request, db)
+    client_ip = get_client_ip(request)
 
-    def log_flow_step(step: str, status: str, **metadata: Any) -> None:
-        """Log each demo preview framework step for admin troubleshooting."""
-        log_activity(
-            db,
-            user_id=user_id,
-            action="demo.preview.flow_step",
-            request=request,
-            metadata={
-                "flow_id": flow_id,
-                "url": url_str,
-                "step": step,
-                "status": status,
-                **metadata,
-            },
-        )
-
-    log_flow_step("flow_initialized", "started")
-    
     # Check if demo caching is disabled via admin toggle
     cache_disabled = is_demo_cache_disabled()
-    log_flow_step("cache_toggle_checked", "completed", cache_disabled=cache_disabled)
-    
+
     if cache_disabled:
-        logger.info(f"🚫 Cache DISABLED - generating fresh preview for: {url_str[:50]}...")
-        # Invalidate any existing cache to ensure fresh results
+        logger.info(f"Cache DISABLED - generating fresh preview for: {url_str[:50]}...")
         from backend.services.preview_cache import invalidate_cache
         invalidate_cache(url_str)
-        logger.info(f"🗑️  Cleared existing cache entries for: {url_str[:50]}...")
-        log_flow_step("cache_invalidated", "completed")
     else:
-        logger.info(f"✅ Cache ENABLED - checking cache first for: {url_str[:50]}...")
-        # IMPROVEMENT: Check cache first for repeated URLs (e.g., subpay.dk)
+        logger.info(f"Cache ENABLED - checking cache first for: {url_str[:50]}...")
         redis_client = get_redis_client()
         cache_key = generate_cache_key(url_str, "demo:preview:")
-        cached_result = None
-        
+
         if redis_client:
             try:
                 cached_data = redis_client.get(cache_key)
                 if cached_data:
                     logger.info(f"Cache hit for demo preview: {url_str[:50]}...")
-                    cached_result = json.loads(cached_data)
-                    log_flow_step("cache_lookup", "cache_hit")
-                    # Return cached result immediately
-                    return DemoPreviewResponse(**cached_result)
-                log_flow_step("cache_lookup", "cache_miss")
+                    return DemoPreviewResponse(**json.loads(cached_data))
             except Exception as e:
                 logger.warning(f"Cache read error: {e}")
-                log_flow_step("cache_lookup", "error", error=str(e))
-    
+
     # Rate limiting: 10 previews per hour per IP
-    client_ip = get_client_ip(request)
     rate_limit_key = get_rate_limit_key_for_ip(client_ip, "demo_preview")
     if not check_rate_limit(rate_limit_key, limit=10, window_seconds=3600):
-        log_flow_step("rate_limit", "blocked", client_ip=client_ip)
+        log_activity(db, user_id=user_id, action="demo.preview.completed", request=request,
+                     metadata={"url": url_str, "outcome": "rate_limited", "client_ip": client_ip})
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Rate limit exceeded. Please try again later."
         )
-    log_flow_step("rate_limit", "passed", client_ip=client_ip)
-    
+
     # Validate URL security
     try:
         validate_url_security(url_str)
     except ValueError as e:
-        log_flow_step("url_security_validation", "failed", error=str(e))
+        log_activity(db, user_id=user_id, action="demo.preview.completed", request=request,
+                     metadata={"url": url_str, "outcome": "invalid_url", "error": str(e), "client_ip": client_ip})
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
-    log_flow_step("url_security_validation", "passed")
-    
+
     # Use unified preview engine
-    logger.info(f"🚀 Using unified preview engine for: {url_str}")
-    
+    logger.info(f"Using unified preview engine for: {url_str}")
+
     try:
         config = PreviewEngineConfig(
             is_demo=True,
             enable_brand_extraction=True,
             enable_ai_reasoning=True,
             enable_composited_image=True,
-            enable_cache=not cache_disabled  # Disable cache if admin toggle is enabled
+            enable_cache=not cache_disabled
         )
-        
+
         engine = PreviewEngine(config)
-        log_flow_step("preview_engine", "started", config=config.model_dump())
         engine_result = engine.generate(url_str, cache_key_prefix="demo:preview:")
-        log_flow_step(
-            "preview_engine",
-            "completed",
-            quality_scores=engine_result.quality_scores,
-            processing_time_ms=engine_result.processing_time_ms,
-        )
-        
+
     except ValueError as e:
-        # Quality gate failures or validation errors
         error_msg = str(e)
-        logger.error(f"❌ Preview generation failed: {error_msg}")
-        log_flow_step("preview_engine", "failed_quality_gate", error=error_msg)
+        logger.error(f"Preview generation failed: {error_msg}")
+        log_activity(db, user_id=user_id, action="demo.preview.completed", request=request,
+                     metadata={"url": url_str, "outcome": "quality_gate_failed", "error": error_msg, "client_ip": client_ip})
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Preview generation failed quality checks: {error_msg}. Please try again or contact support."
         )
     except Exception as e:
-        # Unexpected errors
         error_msg = str(e)
-        logger.error(f"❌ Unexpected error in preview generation: {error_msg}", exc_info=True)
-        log_flow_step("preview_engine", "failed_unexpected", error=error_msg)
+        logger.error(f"Unexpected error in preview generation: {error_msg}", exc_info=True)
+        log_activity(db, user_id=user_id, action="demo.preview.completed", request=request,
+                     metadata={"url": url_str, "outcome": "error", "error": error_msg, "client_ip": client_ip})
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to generate preview: {error_msg}. Please try again."
@@ -250,21 +212,31 @@ def generate_demo_preview(
         message=engine_result.message
     )
     
-    # IMPROVEMENT: Cache the result for future requests (24 hour TTL)
-    # Skip cache write if disabled via admin toggle
+    # Cache the result for future requests (24 hour TTL)
     if redis_client and cache_key and not cache_disabled:
         try:
-            # Convert response to dict for caching
             response_dict = response.model_dump()
             cache_data = json.dumps(response_dict)
             ttl_seconds = CacheConfig.DEFAULT_TTL_HOURS * 3600
             redis_client.setex(cache_key, ttl_seconds, cache_data)
             logger.info(f"Cached demo preview result for: {url_str[:50]}...")
-            log_flow_step("cache_write", "completed", ttl_seconds=ttl_seconds)
         except Exception as e:
             logger.warning(f"Failed to cache result: {e}")
-            log_flow_step("cache_write", "error", error=str(e))
 
-    log_flow_step("flow_completed", "success", preview_title=response.title)
+    # Single consolidated log entry for the entire sync flow
+    log_activity(
+        db, user_id=user_id, action="demo.preview.completed", request=request,
+        metadata={
+            "url": url_str,
+            "outcome": "success",
+            "title": (response.title or "")[:120],
+            "template_type": response.blueprint.template_type if response.blueprint else "unknown",
+            "processing_time_ms": response.processing_time_ms,
+            "confidence": response.reasoning_confidence,
+            "overall_quality": response.blueprint.overall_quality if response.blueprint else "unknown",
+            "has_composited_image": bool(response.composited_preview_image_url),
+            "client_ip": client_ip,
+        },
+    )
 
     return response

@@ -16,6 +16,8 @@ from backend.services.preview_cache import (
     CacheConfig,
     is_demo_cache_disabled
 )
+from backend.services.activity_logger import log_activity
+from backend.db.session import SessionLocal
 import json
 
 logger = logging.getLogger(__name__)
@@ -180,14 +182,59 @@ def generate_demo_preview_job(url: str) -> Dict[str, Any]:
             logger.warning(f"Preview generated with warnings: {result.warnings}")
 
         logger.info(f"Preview generated in {result.processing_time_ms}ms")
+
+        # Log a single comprehensive completion entry for admin debugging
+        try:
+            db = SessionLocal()
+            log_activity(
+                db,
+                action="demo.preview.completed",
+                metadata={
+                    "url": url_str,
+                    "title": (result.title or "")[:120],
+                    "template_type": blueprint_data.get("template_type", "unknown"),
+                    "processing_time_ms": result.processing_time_ms,
+                    "confidence": result.reasoning_confidence,
+                    "design_fidelity": blueprint_data.get("design_fidelity_score"),
+                    "overall_quality": blueprint_data.get("overall_quality", "unknown"),
+                    "coherence": blueprint_data.get("coherence_score", 0),
+                    "has_composited_image": bool(result.composited_preview_image_url),
+                    "has_screenshot": bool(result.screenshot_url),
+                    "has_logo": bool(brand_data.get("logo_base64")),
+                    "tags": (result.tags or [])[:5],
+                    "credibility_items_count": len(result.credibility_items or []),
+                    "warnings": (result.warnings or [])[:3],
+                    "image_url": result.composited_preview_image_url or result.screenshot_url,
+                },
+            )
+            db.close()
+        except Exception as log_err:
+            logger.warning(f"Activity logging failed (non-fatal): {log_err}")
+
         return response_data
-        
+
     except Exception as e:
         error_msg = str(e)
-        logger.error(f"❌ Fatal error in demo preview job: {error_msg}", exc_info=True)
+        logger.error(f"Fatal error in demo preview job: {error_msg}", exc_info=True)
         try:
             _update_job_progress(0.0, f"Failed: {error_msg}")
         except:
-            pass  # Don't fail if progress update fails
+            pass
+
+        # Log failure for admin debugging
+        try:
+            db = SessionLocal()
+            log_activity(
+                db,
+                action="demo.preview.failed",
+                metadata={
+                    "url": url_str if 'url_str' in dir() else str(url),
+                    "error": error_msg[:500],
+                },
+            )
+            db.close()
+        except Exception:
+            pass
+
         raise
 

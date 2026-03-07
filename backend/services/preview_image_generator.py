@@ -620,7 +620,7 @@ def generate_designed_preview(
                 screenshot_bytes, title, subtitle, description,
                 primary_color, secondary_color, accent_color,
                 credibility_items, tags, primary_image_base64, dom_data=dom_data,
-                domain=domain
+                domain=domain, cta_text=cta_text
             )
 
         # Product, E-commerce → Enhanced Product Template (category-aware)
@@ -668,7 +668,7 @@ def generate_designed_preview(
                     screenshot_bytes, title, subtitle, description,
                     primary_color, secondary_color, accent_color,
                     credibility_items, tags, primary_image_base64, dom_data=dom_data,
-                    domain=domain
+                    domain=domain, cta_text=cta_text
                 )
             else:
                 # Default to Modern Card (most versatile)
@@ -696,7 +696,8 @@ def _generate_hero_template(
     tags: List[str],
     primary_image_base64: Optional[str],
     dom_data: Optional[Dict[str, Any]] = None,
-    domain: str = ""
+    domain: str = "",
+    cta_text: Optional[str] = None
 ) -> bytes:
     """
     PREMIUM Hero template: Brand gradient on the left, actual page screenshot on the right.
@@ -947,38 +948,60 @@ def _generate_hero_template(
         content_y += min(len(desc_lines), max_lines) * desc_line_height + 32
 
     # ── PRIMARY CTA COMPOSITING ──────────────────────────────────────────
+    # Use DOM CTA if available, otherwise fall back to AI-extracted cta_text
+    rendered_cta_text = None
     if ctas:
-        # Sort by horizontal coverage (width) as an indicator of prominence
         sorted_ctas = sorted(ctas, key=lambda c: c.get('bounds', {}).get('width', 0), reverse=True)
-        primary_cta = sorted_ctas[0]
-        cta_text = primary_cta.get('text', 'Learn More')
-        
-        # Use component colors from DOM if viable, else fallback to brand accent
-        bg_color_str = primary_cta.get('computed_styles', {}).get('backgroundColor', '')
-        
+        rendered_cta_text = sorted_ctas[0].get('text', '').strip()
+    if not rendered_cta_text and cta_text:
+        rendered_cta_text = cta_text.strip()
+
+    if rendered_cta_text and len(rendered_cta_text) > 1:
         cta_font = _load_font(28, bold=True)
         try:
-            bbox = draw.textbbox((0, 0), cta_text, font=cta_font)
+            bbox = draw.textbbox((0, 0), rendered_cta_text, font=cta_font)
             text_w = bbox[2] - bbox[0]
             text_h = bbox[3] - bbox[1]
         except Exception:
-            text_w = len(cta_text) * 16
+            text_w = len(rendered_cta_text) * 16
             text_h = 28
-            
+
         btn_padding_x = 48
         btn_padding_y = 20
         btn_w = text_w + (btn_padding_x * 2)
         btn_h = text_h + (btn_padding_y * 2)
-        
-        # Draw CTA Button
+
         draw.rounded_rectangle(
             [(padding, content_y), (padding + btn_w, content_y + btn_h)],
             radius=12,
             fill=accent_color
         )
-        
-        # Draw CTA Text
-        draw.text((padding + btn_padding_x, content_y + btn_padding_y), cta_text, font=cta_font, fill=(255, 255, 255))
+        draw.text((padding + btn_padding_x, content_y + btn_padding_y), rendered_cta_text, font=cta_font, fill=(255, 255, 255))
+        content_y += btn_h + 24
+
+    # ── TAGS (bottom of text panel, subtle pills) ─────────────────────────
+    if tags and len(tags) > 0:
+        tag_font = _load_font(18, bold=True)
+        tag_y = OG_IMAGE_HEIGHT - 6 - 40 - 36  # above domain + bar
+        tag_x = padding
+        # Use a muted version of accent color for pill background
+        pill_bg = _lighten_color(accent_color, 0.15)
+        for tag in tags[:3]:
+            tag_str = str(tag)
+            try:
+                bbox = draw.textbbox((0, 0), tag_str, font=tag_font)
+                tag_width = bbox[2] - bbox[0] + 22
+            except Exception:
+                tag_width = len(tag_str) * 9 + 22
+            if tag_x + int(tag_width) > text_panel_width - padding:
+                break
+            draw.rounded_rectangle(
+                [(tag_x, tag_y), (tag_x + int(tag_width), tag_y + 26)],
+                radius=13,
+                fill=pill_bg
+            )
+            draw.text((tag_x + 11, tag_y + 5), tag_str, font=tag_font, fill=(255, 255, 255))
+            tag_x += int(tag_width) + 8
 
     # ── DOMAIN ATTRIBUTION (bottom-left) ──────────────────────────────────
     if domain:

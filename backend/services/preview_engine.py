@@ -1456,70 +1456,69 @@ class PreviewEngine:
         # Fallback to the monolithic reasoning
         if not self.config.enable_ai_reasoning:
             return self._extract_from_html_only(html_content, url, screenshot_bytes=getattr(self, '_last_screenshot_bytes', None))
-        
-        self._update_progress(0.60, "Running framework-based multi-modal fusion...")
-        
+
+        # PRIMARY PATH: Use direct multi-stage vision reasoning for highest quality
+        # This sends the screenshot to OpenAI Vision with detailed extraction prompts
+        # producing verbatim text, design DNA, credibility signals, and reasoning chains.
+        # Much higher quality than the fusion engine which dilutes vision results with HTML metadata.
+        self._update_progress(0.60, "Running AI vision analysis...")
+
         try:
-            self.logger.info(f"🔧 [Framework] Running multi-modal fusion for: {url}")
-            
-            # Use framework-based fusion engine with context awareness
-            fused_result = self.fusion_engine.extract_preview_content(
-                html_content=html_content,
-                screenshot_bytes=screenshot_bytes,
-                url=url,
-                page_classification=page_classification
-            )
-            
-            # Log source usage
-            sources = fused_result.get("sources", {})
-            self.logger.info(
-                f"✅ [Framework] Fusion complete - "
-                f"Title: {sources.get('title', 'unknown')}, "
-                f"Description: {sources.get('description', 'unknown')}, "
-                f"Confidence: {fused_result.get('confidence', 0.0):.2f}"
-            )
-            
-            # Convert to expected format
-            design = fused_result.get("design", {})
-            color_palette = design.get("color_palette", {})
-            
-            return {
-                "title": fused_result["title"],
-                "subtitle": None,
-                "description": fused_result["description"],
-                "tags": fused_result.get("tags", []),
-                "context_items": [],
-                "credibility_items": [],
-                "cta_text": None,
-                "primary_image_base64": fused_result.get("image"),
-                "blueprint": {
-                    "template_type": page_classification.preview_strategy.get("template_type", "landing") if page_classification and page_classification.preview_strategy else "landing",
-                    "primary_color": color_palette.get("primary", "#2563EB"),
-                    "secondary_color": color_palette.get("secondary", "#1E40AF"),
-                    "accent_color": color_palette.get("accent", "#F59E0B"),
-                    "coherence_score": fused_result.get("quality_scores", {}).get("overall", 0.7),
-                    "balance_score": fused_result.get("quality_scores", {}).get("overall", 0.7),
-                    "clarity_score": fused_result.get("quality_scores", {}).get("overall", 0.7),
-                    "overall_quality": self._map_quality_level(fused_result.get("quality_scores", {}).get("overall", 0.7)),
-                    "layout_reasoning": f"Framework-based extraction (sources: {sources.get('title')}, {sources.get('description')})",
-                    "composition_notes": f"Design style: {design.get('design_style', 'corporate')}"
-                },
-                "reasoning_confidence": fused_result.get("confidence", 0.7),
-                "design_dna": {
-                    "color_palette": color_palette,
-                    "typography": design.get("typography", {}),
-                    "layout_structure": design.get("layout_structure", {}),
-                    "design_style": design.get("design_style", "corporate")
-                }
+            self.logger.info(f"[ReasonedPreview] Running direct vision reasoning for: {url}")
+
+            reasoned = generate_reasoned_preview(screenshot_bytes, url)
+
+            blueprint_dict = reasoned.blueprint.to_dict() if hasattr(reasoned.blueprint, 'to_dict') else {
+                "template_type": "landing",
+                "primary_color": "#2563EB",
+                "secondary_color": "#1E40AF",
+                "accent_color": "#F59E0B",
+                "coherence_score": 0.7,
+                "balance_score": 0.7,
+                "clarity_score": 0.7,
+                "overall_quality": "good",
+                "layout_reasoning": "",
+                "composition_notes": ""
             }
-            
+
+            # Use page classification template_type if available
+            if page_classification and page_classification.preview_strategy:
+                strategy_template = page_classification.preview_strategy.get("template_type")
+                if strategy_template:
+                    blueprint_dict["template_type"] = strategy_template
+
+            result = {
+                "title": reasoned.title,
+                "subtitle": reasoned.subtitle,
+                "description": reasoned.description,
+                "tags": reasoned.tags,
+                "context_items": reasoned.context_items,
+                "credibility_items": reasoned.credibility_items,
+                "cta_text": reasoned.cta_text,
+                "primary_image_base64": reasoned.primary_image_base64,
+                "blueprint": blueprint_dict,
+                "reasoning_confidence": reasoned.reasoning_confidence,
+                "design_fidelity_score": reasoned.design_fidelity_score,
+                "design_dna": reasoned.design_dna or {}
+            }
+
+            self.logger.info(
+                f"[ReasonedPreview] Done - "
+                f"Title: '{reasoned.title[:60]}', "
+                f"Template: {blueprint_dict.get('template_type')}, "
+                f"Confidence: {reasoned.reasoning_confidence:.2f}, "
+                f"Fidelity: {reasoned.design_fidelity_score:.2f}"
+            )
+
+            return result
+
         except Exception as e:
             error_msg = str(e)
-            self.logger.error(f"❌ [Framework] Fusion failed: {error_msg}", exc_info=True)
-            
+            self.logger.error(f"[ReasonedPreview] Failed: {error_msg}", exc_info=True)
+
             if "429" in error_msg or "rate limit" in error_msg.lower():
                 raise ValueError("OpenAI rate limit reached. Please wait a moment and try again.")
-            
+
             # Fallback to HTML-only extraction
             return self._extract_from_html_only(html_content, url, screenshot_bytes=getattr(self, '_last_screenshot_bytes', None))
     
