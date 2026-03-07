@@ -357,7 +357,11 @@ def generate_demo_preview_optimized(
             enable_multi_agent=True,
             enable_ui_element_extraction=True,
             quality_threshold=0.88,
-            max_quality_iterations=3
+            max_quality_iterations=4,
+            allow_soft_pass=False,
+            min_soft_pass_overall=0.85,
+            min_soft_pass_visual=0.75,
+            min_soft_pass_fidelity=0.72
         )
         
         engine = PreviewEngine(config)
@@ -445,5 +449,7 @@ def generate_demo_preview_optimized(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to generate preview: {str(e)}. Please try again."
         )
+
+
 
 

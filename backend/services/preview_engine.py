@@ -316,6 +316,10 @@ class PreviewEngineConfig:
     # Quality iteration settings
     quality_threshold: float = 0.80  # Minimum quality to pass
     max_quality_iterations: int = 2  # Max iterations for quality loop
+    allow_soft_pass: bool = True  # Allow serving best-effort results below threshold
+    min_soft_pass_overall: float = 0.60
+    min_soft_pass_visual: float = 0.0
+    min_soft_pass_fidelity: float = 0.0
     
     # Brand settings (for SaaS)
     brand_settings: Optional[Dict[str, Any]] = None
@@ -373,6 +377,7 @@ class PreviewEngineResult:
     
     # Quality metrics
     quality_scores: Dict[str, float] = field(default_factory=dict)
+    design_fidelity_score: Optional[float] = None
     
     # Warnings (non-fatal issues)
     warnings: List[str] = field(default_factory=list)
@@ -701,7 +706,7 @@ class PreviewEngine:
                 result = self._validate_result_quality(result, url_str)
 
             # QUALITY GATE ENFORCEMENT: Comprehensive quality assessment with retry logic
-            max_retries = 2
+            max_retries = max(1, self.config.max_quality_iterations)
             retry_count = 0
             quality_passed = False
             
@@ -770,7 +775,7 @@ class PreviewEngine:
                         quality_passed = self.quality_orchestrator.enforce_quality_gates(quality_metrics)
                         
                         if quality_passed:
-                            # Quality passed - add metrics and continue
+                            # Quality passed - persist quality metrics for API/logging.
                             result.quality_scores = {
                                 "overall": quality_metrics.overall_quality_score,
                                 "design_fidelity": quality_metrics.design_fidelity_score,
@@ -779,8 +784,11 @@ class PreviewEngine:
                                 "quality_level": quality_metrics.quality_level.value,
                                 "gate_status": quality_metrics.gate_status.value
                             }
+                            result.design_fidelity_score = quality_metrics.design_fidelity_score
+                            if isinstance(result.blueprint, dict):
+                                result.blueprint["design_fidelity_score"] = quality_metrics.design_fidelity_score
                             tracer.add_step("Quality Validated", details="Passed Quality Gates", json_data=result.quality_scores)
-                            self.logger.info(f"✅ Quality gates passed on attempt {retry_count + 1}")
+                            self.logger.info(f"Quality gates passed on attempt {retry_count + 1}")
                             break
                         
                         # Quality failed - check if we should retry
@@ -792,10 +800,15 @@ class PreviewEngine:
                             f"gate={quality_metrics.gate_status.value}"
                         )
                         
-                        # Check if retry is recommended (include contrast failure - retry with darker colors)
-                        should_retry_now = quality_metrics.should_retry or (
-                            quality_metrics.contrast_score is not None
-                            and quality_metrics.contrast_score < 0.35
+                        # Retry when quality is below target, not only when gate says "retry".
+                        should_retry_now = (
+                            quality_metrics.should_retry
+                            or quality_metrics.overall_quality_score < self.config.quality_threshold
+                            or quality_metrics.design_fidelity_score < self.config.min_soft_pass_fidelity
+                            or (
+                                quality_metrics.contrast_score is not None
+                                and quality_metrics.contrast_score < 0.35
+                            )
                         )
                         if should_retry_now and retry_count < max_retries:
                             retry_count += 1
@@ -937,34 +950,6 @@ class PreviewEngine:
                 except Exception as e:
                     self.logger.warning(f"Visual quality validation failed: {e}")
             
-            # If quality still failed after retries: only soft-pass if overall >= 0.6
-            # Below 0.6, use fallback - subpar previews hurt UX more than HTML fallback
-            if not quality_passed:
-                self.logger.warning(
-                    f"Quality gates failed after {retry_count} retries. "
-                    f"Serving best available result with quality warnings."
-                )
-                overall = quality_metrics.overall_quality_score if 'quality_metrics' in locals() else 0
-                min_soft_pass = 0.60  # Reject soft pass when quality is too low
-                if (result and result.title and result.title != "Untitled" and result.composited_preview_image_url
-                        and overall >= min_soft_pass):
-                    result.warnings.append("Preview quality below target - served best available")
-                    if 'quality_metrics' in locals():
-                        result.quality_scores = {
-                            "overall": quality_metrics.overall_quality_score,
-                            "design_fidelity": quality_metrics.design_fidelity_score,
-                            "extraction": quality_metrics.extraction_quality_score,
-                            "visual": quality_metrics.visual_quality_score,
-                            "quality_level": "accepted_below_threshold",
-                            "gate_status": "soft_pass"
-                        }
-                    quality_passed = True
-                    self.logger.info("Accepted AI result despite quality gate failure (better than fallback)")
-                else:
-                    self.logger.info(
-                        f"Rejecting soft pass: overall={overall:.2f} < {min_soft_pass} - using fallback instead"
-                    )
-
             # Only build HTML fallback if AI result was truly broken (no title or no image)
             if not quality_passed:
                 # PHASE 2: Build fallback preview with smart fallback colors
@@ -1026,6 +1011,9 @@ class PreviewEngine:
                         "gate_status": "pass",
                         "is_fallback": True
                     }
+                    result.design_fidelity_score = 0.5
+                    if isinstance(result.blueprint, dict):
+                        result.blueprint["design_fidelity_score"] = 0.5
                 except Exception as fallback_error:
                     self.logger.error(f"Fallback generation also failed: {fallback_error}", exc_info=True)
                     # Last resort: raise error so API can handle it properly
@@ -1034,6 +1022,53 @@ class PreviewEngine:
                         f"and fallback generation also failed: {fallback_error}"
                     )
             
+            # Attach structured debug diagnostics for persisted activity logs.
+            if not result.quality_scores:
+                result.quality_scores = {}
+
+            quality_metrics_debug = {
+                "overall": None,
+                "design_fidelity": None,
+                "extraction": None,
+                "visual": None,
+                "quality_level": None,
+                "gate_status": None,
+            }
+            if "quality_metrics" in locals():
+                quality_metrics_debug.update({
+                    "overall": quality_metrics.overall_quality_score,
+                    "design_fidelity": quality_metrics.design_fidelity_score,
+                    "extraction": quality_metrics.extraction_quality_score,
+                    "visual": quality_metrics.visual_quality_score,
+                    "quality_level": quality_metrics.quality_level.value,
+                    "gate_status": quality_metrics.gate_status.value,
+                })
+
+            final_gate_status = str(result.quality_scores.get("gate_status", "unknown"))
+            if bool(result.quality_scores.get("is_fallback")):
+                final_decision = "fallback"
+            elif final_gate_status == "soft_pass":
+                final_decision = "soft_pass"
+            elif quality_passed:
+                final_decision = "pass"
+            else:
+                final_decision = "fallback"
+
+            result.quality_scores["debug"] = {
+                "retry_attempts_used": int(retry_count),
+                "retry_budget": int(max_retries),
+                "quality_passed": bool(quality_passed),
+                "final_decision": final_decision,
+                "thresholds": {
+                    "quality_threshold": float(self.config.quality_threshold),
+                    "allow_soft_pass": bool(self.config.allow_soft_pass),
+                    "min_soft_pass_overall": float(self.config.min_soft_pass_overall),
+                    "min_soft_pass_visual": float(self.config.min_soft_pass_visual),
+                    "min_soft_pass_fidelity": float(self.config.min_soft_pass_fidelity),
+                },
+                "metrics_snapshot": quality_metrics_debug,
+                "warnings_count": len(result.warnings or []),
+            }
             # Final normalization + enrichment layers
             normalize_engine_result(result, url_str)
             ResultEnricher.enrich(ctx, result)
@@ -1052,6 +1087,9 @@ class PreviewEngine:
             # Finalize Tracing Header End
             trace_url = tracer.upload_trace()
             result.trace_url = trace_url
+            result.quality_scores["trace_url"] = trace_url
+            if isinstance(result.quality_scores.get("debug"), dict):
+                result.quality_scores["debug"]["request_id"] = ctx.request_id
 
             # Log telemetry summary
             self.logger.info(f"[{ctx.request_id}] Telemetry: {ctx.telemetry_summary()}")
@@ -2444,7 +2482,8 @@ class PreviewEngine:
                 "balance": blueprint.get("balance_score", 0.0),
                 "clarity": blueprint.get("clarity_score", 0.0),
                 "overall": blueprint.get("overall_quality", 0.0)
-            }
+            },
+            design_fidelity_score=blueprint.get("design_fidelity_score")
         )
     
     def _build_fallback_result(
@@ -3177,4 +3216,16 @@ def get_available_enhancements() -> Dict[str, bool]:
         "visual_quality_validator": VISUAL_QUALITY_VALIDATOR_AVAILABLE,
         "composition_intelligence": COMPOSITION_INTELLIGENCE_AVAILABLE
     }
+
+
+
+
+
+
+
+
+
+
+
+
 
