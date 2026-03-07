@@ -253,8 +253,12 @@ class QualityOrchestrator:
             except Exception as e:
                 logger.warning(f"Extraction quality assessment failed: {e}")
         
-        # 2. Visual Quality Assessment (if image provided)
-        if preview_image and self.quality_assurance_engine:
+        # 2. Visual Quality Assessment (pre-computed score or from image)
+        precomputed_visual = preview_result.get("_visual_quality_score")
+        if precomputed_visual is not None:
+            visual_quality_score = float(precomputed_visual)
+            logger.info(f"📊 Visual quality (pre-computed): {visual_quality_score:.2f}")
+        elif preview_image and self.quality_assurance_engine:
             try:
                 design_data = {
                     "colors": preview_result.get("blueprint", {}),

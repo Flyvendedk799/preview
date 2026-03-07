@@ -44,6 +44,8 @@ def normalize_ai_result(raw: Optional[Dict[str, Any]], url: str) -> Dict[str, An
     title = str(title).strip()
     if not title or title.lower() in ("none", "null", "untitled", "n/a"):
         title = _title_from_url(url)
+    elif _is_generic_placeholder_title(title):
+        title = _title_from_url(url)
 
     # Description normalization
     description = (
@@ -202,6 +204,30 @@ def _validate_hex(color: Any, fallback: str) -> str:
         return fallback
 
 
+# Generic placeholder titles from No Code platforms, templates, etc.
+_GENERIC_TITLE_PATTERNS = (
+    "your news site",
+    "your site",
+    "live today",
+    "your website",
+    "welcome to",
+    "get started",
+    "my site",
+    "your blog",
+    "your page",
+    "coming soon",
+    "under construction",
+)
+
+
+def _is_generic_placeholder_title(title: str) -> bool:
+    """Detect generic/placeholder titles that should be replaced with domain-based title."""
+    if not title or len(title) < 5:
+        return False
+    lower = title.lower()
+    return any(p in lower for p in _GENERIC_TITLE_PATTERNS)
+
+
 def _title_from_url(url: str) -> str:
     """Generate a reasonable title from a URL."""
     try:
@@ -249,8 +275,10 @@ def normalize_engine_result(result, url: str) -> None:
     Ensures all required fields are populated with sensible values
     regardless of which pipeline path produced the result.
     """
-    # Title must not be empty
+    # Title must not be empty or generic placeholder
     if not result.title or result.title.strip() == "":
+        result.title = _title_from_url(url)
+    elif _is_generic_placeholder_title(result.title):
         result.title = _title_from_url(url)
 
     # Description should be a string

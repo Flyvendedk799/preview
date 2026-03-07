@@ -734,7 +734,29 @@ class PreviewEngine:
                             "the_hook": result.title,  # Use title as hook for quality gates
                             "design_dna": ai_result.get("design_dna")
                         }
-                        
+                        # Pre-compute visual quality when we have composited image (avoids visual=0)
+                        if result.composited_preview_image_url and VISUAL_QUALITY_VALIDATOR_AVAILABLE:
+                            try:
+                                import requests
+                                resp = requests.get(result.composited_preview_image_url, timeout=10)
+                                if resp.status_code == 200:
+                                    expected_colors = None
+                                    if brand_elements and brand_elements.get("colors"):
+                                        colors = brand_elements["colors"]
+                                        expected_colors = {
+                                            "primary_color": colors.get("primary_color"),
+                                            "secondary_color": colors.get("secondary_color"),
+                                            "background_color": "#FFFFFF",
+                                            "text_color": "#111827"
+                                        }
+                                    has_logo = bool(brand_elements and brand_elements.get("logo_base64"))
+                                    vq = validate_visual_quality_from_bytes(
+                                        resp.content, expected_colors, has_logo
+                                    )
+                                    result_dict["_visual_quality_score"] = vq.overall_score
+                            except Exception as ve:
+                                self.logger.debug(f"Pre-compute visual quality skipped: {ve}")
+
                         # Assess quality
                         quality_metrics = self.quality_orchestrator.assess_quality(
                             preview_result=result_dict,
@@ -788,16 +810,21 @@ class PreviewEngine:
                                     blueprint["primary_color"] = f"#{darkened[0]:02x}{darkened[1]:02x}{darkened[2]:02x}"
                                     ai_result["blueprint"] = blueprint
 
-                                    # IMPROVEMENT 2: Augment weak content with HTML metadata
+                                    # IMPROVEMENT 2: Augment weak or generic content with HTML metadata
+                                    from backend.services.result_normalizer import _is_generic_placeholder_title, _title_from_url
                                     title = ai_result.get("title", "")
                                     desc = ai_result.get("description", "")
-                                    if len(title) < 10 or len(desc or "") < 30:
+                                    if len(title) < 10 or _is_generic_placeholder_title(title) or len(desc or "") < 30:
                                         metadata = extract_metadata_from_html(html_content)
-                                        if len(title) < 10:
+                                        if len(title) < 10 or _is_generic_placeholder_title(title):
                                             og_title = metadata.get("og_title") or metadata.get("title") or ""
-                                            if og_title and len(og_title) > len(title):
+                                            # Use og_title only if it's not also generic
+                                            if og_title and not _is_generic_placeholder_title(og_title) and len(og_title) > 5:
                                                 ai_result["title"] = og_title
-                                                self.logger.info(f"Retry: augmented weak title with HTML og:title")
+                                                self.logger.info(f"Retry: augmented title with HTML og:title")
+                                            elif _is_generic_placeholder_title(title):
+                                                ai_result["title"] = _title_from_url(url_str)
+                                                self.logger.info(f"Retry: replaced generic title with domain-based title")
                                         if len(desc or "") < 30:
                                             og_desc = metadata.get("og_description") or metadata.get("description") or ""
                                             if og_desc and len(og_desc) > len(desc or ""):
@@ -909,15 +936,17 @@ class PreviewEngine:
                 except Exception as e:
                     self.logger.warning(f"Visual quality validation failed: {e}")
             
-            # If quality still failed after retries, use the best result we have
-            # (the AI-generated result is almost always better than HTML-only fallback)
+            # If quality still failed after retries: only soft-pass if overall >= 0.6
+            # Below 0.6, use fallback - subpar previews hurt UX more than HTML fallback
             if not quality_passed:
                 self.logger.warning(
                     f"Quality gates failed after {retry_count} retries. "
                     f"Serving best available result with quality warnings."
                 )
-                # Use the current AI result if it has a title (it's better than HTML-only)
-                if result and result.title and result.title != "Untitled" and result.composited_preview_image_url:
+                overall = quality_metrics.overall_quality_score if 'quality_metrics' in locals() else 0
+                min_soft_pass = 0.60  # Reject soft pass when quality is too low
+                if (result and result.title and result.title != "Untitled" and result.composited_preview_image_url
+                        and overall >= min_soft_pass):
                     result.warnings.append("Preview quality below target - served best available")
                     if 'quality_metrics' in locals():
                         result.quality_scores = {
@@ -928,8 +957,12 @@ class PreviewEngine:
                             "quality_level": "accepted_below_threshold",
                             "gate_status": "soft_pass"
                         }
-                    quality_passed = True  # Accept it
+                    quality_passed = True
                     self.logger.info("Accepted AI result despite quality gate failure (better than fallback)")
+                else:
+                    self.logger.info(
+                        f"Rejecting soft pass: overall={overall:.2f} < {min_soft_pass} - using fallback instead"
+                    )
 
             # Only build HTML fallback if AI result was truly broken (no title or no image)
             if not quality_passed:

@@ -242,6 +242,18 @@ class IntelligentPageClassifier:
                 reasoning=f"URL path matches {content_matches} content/article pattern(s): {path}",
                 weight=1.2
             ))
+
+        # News/publisher domain patterns (e.g. dinredaktion.dk, newsite.com)
+        domain = (parsed.netloc or "").replace("www.", "").lower()
+        news_domain_keywords = ["redaktion", "news", "nyt", "nieuws", "journal", "press", "media", "artikler"]
+        if any(kw in domain for kw in news_domain_keywords):
+            signals.append(ClassificationSignal(
+                source="url_pattern",
+                category=PageCategory.CONTENT,
+                confidence=0.75,
+                reasoning=f"Domain suggests news/publisher: {domain}",
+                weight=1.2
+            ))
         
         # Landing/marketing patterns
         landing_patterns = [
