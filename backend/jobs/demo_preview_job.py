@@ -36,7 +36,7 @@ def _update_job_progress(progress: float, message: str) -> None:
         logger.warning(f"Failed to update job progress: {e}")
 
 
-def generate_demo_preview_job(url: str) -> Dict[str, Any]:
+def generate_demo_preview_job(url: str, quality_mode: str = "ultra") -> Dict[str, Any]:
     """
     Background job to generate demo preview using unified preview engine.
     
@@ -67,6 +67,13 @@ def generate_demo_preview_job(url: str) -> Dict[str, Any]:
         
         # Update initial progress
         _update_job_progress(0.05, "Starting preview generation...")
+
+        quality_profiles = {
+            "fast": {"multi_agent": False, "ui_extraction": False, "threshold": 0.78, "iterations": 2},
+            "balanced": {"multi_agent": True, "ui_extraction": True, "threshold": 0.82, "iterations": 2},
+            "ultra": {"multi_agent": True, "ui_extraction": True, "threshold": 0.88, "iterations": 3},
+        }
+        selected_profile = quality_profiles.get((quality_mode or "ultra").lower(), quality_profiles["ultra"])
         
         # Configure engine for demo mode (optimized for speed)
         config = PreviewEngineConfig(
@@ -74,15 +81,17 @@ def generate_demo_preview_job(url: str) -> Dict[str, Any]:
             enable_brand_extraction=True,
             enable_ai_reasoning=True,
             enable_composited_image=True,
-            enable_cache=not cache_disabled,  # Disable cache if admin toggle is enabled
-            enable_multi_agent=False,  # Demo: skip expensive multi-agent orchestration
-            enable_ui_element_extraction=False,  # Demo: skip UI element extraction for speed
+            enable_cache=not cache_disabled,
+            enable_multi_agent=selected_profile["multi_agent"],
+            enable_ui_element_extraction=selected_profile["ui_extraction"],
+            quality_threshold=selected_profile["threshold"],
+            max_quality_iterations=selected_profile["iterations"],
             progress_callback=_update_job_progress
         )
         
         # Create engine and generate preview
         engine = PreviewEngine(config)
-        result = engine.generate(url_str, cache_key_prefix="demo:preview:v2:")
+        result = engine.generate(url_str, cache_key_prefix=f"demo:preview:v3:{quality_mode}:")
         
         # Ensure progress is at 100% when job completes successfully
         # Do this BEFORE returning to ensure it's saved to Redis
@@ -171,7 +180,7 @@ def generate_demo_preview_job(url: str) -> Dict[str, Any]:
             
             # Metadata
             "is_demo": True,
-            "message": result.message
+            "message": f"{result.message} [quality_mode={quality_mode}]"
         }
         
         # Add quality scores and warnings from pipeline
@@ -213,6 +222,7 @@ def generate_demo_preview_job(url: str) -> Dict[str, Any]:
                     "quality_scores": result.quality_scores,
                     "message": (result.message or "")[:200],
                     "image_url": result.composited_preview_image_url or result.screenshot_url,
+                    "quality_mode": quality_mode,
                 },
             )
             db.close()
@@ -246,6 +256,7 @@ def generate_demo_preview_job(url: str) -> Dict[str, Any]:
                     "url": url_str if 'url_str' in dir() else str(url),
                     "error": error_msg[:500],
                     "exception_type": type(e).__name__,
+                    "quality_mode": quality_mode,
                     "traceback_snippet": tb_snippet,
                 },
             )
@@ -254,4 +265,6 @@ def generate_demo_preview_job(url: str) -> Dict[str, Any]:
             pass
 
         raise
+
+
 
