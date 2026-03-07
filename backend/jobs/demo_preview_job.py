@@ -69,9 +69,18 @@ def generate_demo_preview_job(url: str, quality_mode: str = "ultra") -> Dict[str
         _update_job_progress(0.05, "Starting preview generation...")
 
         quality_profiles = {
-            "fast": {"multi_agent": False, "ui_extraction": False, "threshold": 0.78, "iterations": 2},
-            "balanced": {"multi_agent": True, "ui_extraction": True, "threshold": 0.82, "iterations": 2},
-            "ultra": {"multi_agent": True, "ui_extraction": True, "threshold": 0.88, "iterations": 3},
+            "fast": {
+                "multi_agent": False, "ui_extraction": False, "threshold": 0.78, "iterations": 2,
+                "allow_soft_pass": True, "min_soft_pass_overall": 0.66, "min_soft_pass_visual": 0.52, "min_soft_pass_fidelity": 0.50
+            },
+            "balanced": {
+                "multi_agent": True, "ui_extraction": True, "threshold": 0.82, "iterations": 3,
+                "allow_soft_pass": True, "min_soft_pass_overall": 0.74, "min_soft_pass_visual": 0.62, "min_soft_pass_fidelity": 0.60
+            },
+            "ultra": {
+                "multi_agent": True, "ui_extraction": True, "threshold": 0.88, "iterations": 4,
+                "allow_soft_pass": False, "min_soft_pass_overall": 0.85, "min_soft_pass_visual": 0.75, "min_soft_pass_fidelity": 0.72
+            },
         }
         selected_profile = quality_profiles.get((quality_mode or "ultra").lower(), quality_profiles["ultra"])
         
@@ -86,6 +95,10 @@ def generate_demo_preview_job(url: str, quality_mode: str = "ultra") -> Dict[str
             enable_ui_element_extraction=selected_profile["ui_extraction"],
             quality_threshold=selected_profile["threshold"],
             max_quality_iterations=selected_profile["iterations"],
+            allow_soft_pass=selected_profile["allow_soft_pass"],
+            min_soft_pass_overall=selected_profile["min_soft_pass_overall"],
+            min_soft_pass_visual=selected_profile["min_soft_pass_visual"],
+            min_soft_pass_fidelity=selected_profile["min_soft_pass_fidelity"],
             progress_callback=_update_job_progress
         )
         
@@ -180,7 +193,8 @@ def generate_demo_preview_job(url: str, quality_mode: str = "ultra") -> Dict[str
             
             # Metadata
             "is_demo": True,
-            "message": f"{result.message} [quality_mode={quality_mode}]"
+            "message": f"{result.message} [quality_mode={quality_mode}]",
+            "trace_url": result.trace_url
         }
         
         # Add quality scores and warnings from pipeline
@@ -191,6 +205,24 @@ def generate_demo_preview_job(url: str, quality_mode: str = "ultra") -> Dict[str
             logger.warning(f"Preview generated with warnings: {result.warnings}")
 
         logger.info(f"Preview generated in {result.processing_time_ms}ms")
+        quality_scores = result.quality_scores or {}
+        debug_scores = quality_scores.get("debug") if isinstance(quality_scores.get("debug"), dict) else {}
+        pipeline_stages = quality_scores.get("pipeline_stages") if isinstance(quality_scores.get("pipeline_stages"), dict) else {}
+        request_id = quality_scores.get("request_id") or debug_scores.get("request_id")
+        quality_debug = {
+            "decision": debug_scores.get("final_decision"),
+            "retry_attempts_used": debug_scores.get("retry_attempts_used"),
+            "retry_budget": debug_scores.get("retry_budget"),
+            "quality_passed": debug_scores.get("quality_passed"),
+            "thresholds": debug_scores.get("thresholds"),
+            "metrics_snapshot": debug_scores.get("metrics_snapshot"),
+            "warnings_count": debug_scores.get("warnings_count", len(result.warnings or [])),
+        }
+        generation_profile = {
+            "quality_mode": quality_mode,
+            "profile": selected_profile,
+            "cache_disabled": cache_disabled,
+        }
 
         # Log a single comprehensive completion entry for admin debugging
         try:
@@ -208,7 +240,7 @@ def generate_demo_preview_job(url: str, quality_mode: str = "ultra") -> Dict[str
                     "template_type": blueprint_data.get("template_type", "unknown"),
                     "processing_time_ms": result.processing_time_ms,
                     "confidence": result.reasoning_confidence,
-                    "design_fidelity": blueprint_data.get("design_fidelity_score"),
+                    "design_fidelity": getattr(result, "design_fidelity_score", blueprint_data.get("design_fidelity_score")),
                     "overall_quality": blueprint_data.get("overall_quality", "unknown"),
                     "coherence": blueprint_data.get("coherence_score", 0),
                     "balance_score": blueprint_data.get("balance_score"),
@@ -219,10 +251,19 @@ def generate_demo_preview_job(url: str, quality_mode: str = "ultra") -> Dict[str
                     "tags": (result.tags or [])[:5],
                     "credibility_items_count": len(result.credibility_items or []),
                     "warnings": (result.warnings or [])[:5],
-                    "quality_scores": result.quality_scores,
+                    "quality_scores": quality_scores,
+                    "quality_debug": quality_debug,
+                    "pipeline": {
+                        "tier": quality_scores.get("tier"),
+                        "total_ms": quality_scores.get("total_ms"),
+                        "stages": pipeline_stages,
+                    },
                     "message": (result.message or "")[:200],
                     "image_url": result.composited_preview_image_url or result.screenshot_url,
+                    "trace_url": result.trace_url,
+                    "request_id": request_id,
                     "quality_mode": quality_mode,
+                    "generation_profile": generation_profile,
                 },
             )
             db.close()
@@ -257,6 +298,8 @@ def generate_demo_preview_job(url: str, quality_mode: str = "ultra") -> Dict[str
                     "error": error_msg[:500],
                     "exception_type": type(e).__name__,
                     "quality_mode": quality_mode,
+                    "generation_profile": selected_profile if 'selected_profile' in locals() else None,
+                    "job_meta": (job.get_meta(refresh=True) if job else None),
                     "traceback_snippet": tb_snippet,
                 },
             )
@@ -265,6 +308,11 @@ def generate_demo_preview_job(url: str, quality_mode: str = "ultra") -> Dict[str
             pass
 
         raise
+
+
+
+
+
 
 
 
