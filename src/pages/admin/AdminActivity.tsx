@@ -15,6 +15,8 @@ export default function AdminActivity() {
   const [filterAction, setFilterAction] = useState<string>('')
   const [filterUrl, setFilterUrl] = useState<string>('')
   const [copiedId, setCopiedId] = useState<number | null>(null)
+  const [copiedFullId, setCopiedFullId] = useState<number | null>(null)
+  const [copiedSupportId, setCopiedSupportId] = useState<number | null>(null)
   const limit = 50
 
   useEffect(() => { loadUsers() }, [])
@@ -48,79 +50,132 @@ export default function AdminActivity() {
     }
   }
 
-  const copyLogLine = useCallback(async (log: AdminActivityLog) => {
+  type LogWithMeta = AdminActivityLog & { extra_metadata?: Record<string, unknown> }
+
+  /** Build a debug-friendly object for copying - always includes metadata explicitly */
+  const buildCopyPayload = useCallback((log: LogWithMeta) => {
     const user = users.find((u) => u.id === log.user_id)
-    const line = JSON.stringify({
+    const meta = log.metadata ?? log.extra_metadata ?? {}
+    return {
       id: log.id,
       action: log.action,
-      user: user?.email || log.user_id || 'system',
-      ip: log.ip_address,
+      user: user?.email ?? log.user_id ?? 'system',
+      ip: log.ip_address ?? null,
       time: log.created_at,
-      ...log.metadata,
-    })
-    await navigator.clipboard.writeText(line)
-    setCopiedId(log.id)
-    setTimeout(() => setCopiedId(null), 1500)
+      metadata: meta,
+    }
   }, [users])
 
+  /** Build full debug object for copy - includes all fields */
+  const buildFullPayload = useCallback((log: LogWithMeta) => {
+    const meta = log.metadata ?? log.extra_metadata ?? {}
+    return {
+      id: log.id,
+      action: log.action,
+      user_id: log.user_id,
+      organization_id: log.organization_id,
+      ip_address: log.ip_address,
+      user_agent: log.user_agent,
+      created_at: log.created_at,
+      metadata: meta,
+    }
+  }, [])
+
+  const copyLogLine = useCallback(async (log: AdminActivityLog) => {
+    const payload = buildCopyPayload(log)
+    await navigator.clipboard.writeText(JSON.stringify(payload))
+    setCopiedId(log.id)
+    setTimeout(() => setCopiedId(null), 1500)
+  }, [buildCopyPayload])
+
+  /** Copy full log as pretty JSON - everything the API returned, for debugging */
+  const copyLogFull = useCallback(async (log: LogWithMeta) => {
+    const full = buildFullPayload(log)
+    await navigator.clipboard.writeText(JSON.stringify(full, null, 2))
+    setCopiedFullId(log.id)
+    setTimeout(() => setCopiedFullId(null), 1500)
+  }, [buildFullPayload])
+
+  /** Copy human-readable support format + full JSON for pasting into tickets */
+  const copyLogForSupport = useCallback(async (log: LogWithMeta) => {
+    const user = users.find((u) => u.id === log.user_id)
+    const meta = log.metadata ?? log.extra_metadata ?? {}
+    const timeStr = new Date(log.created_at).toISOString()
+    const lines: string[] = [
+      '--- Activity Log (Debug) ---',
+      `ID: ${log.id}`,
+      `Action: ${log.action}`,
+      `Time: ${timeStr}`,
+      `User: ${user?.email ?? log.user_id ?? 'system'}`,
+      `IP: ${log.ip_address ?? 'n/a'}`,
+      `User-Agent: ${(log.user_agent || 'n/a').slice(0, 80)}`,
+      '',
+      '--- Metadata ---',
+      ...Object.entries(meta).map(([k, v]) => {
+        const val = typeof v === 'object' ? JSON.stringify(v) : String(v)
+        return `${k}: ${val.slice(0, 200)}${val.length > 200 ? '...' : ''}`
+      }),
+      '',
+      '--- Full JSON ---',
+      JSON.stringify(buildFullPayload(log), null, 2),
+    ]
+    await navigator.clipboard.writeText(lines.join('\n'))
+    setCopiedSupportId(log.id)
+    setTimeout(() => setCopiedSupportId(null), 1500)
+  }, [users, buildFullPayload])
+
   const copyAllVisible = useCallback(async () => {
-    const lines = logs.map((log) => {
-      const user = users.find((u) => u.id === log.user_id)
-      return JSON.stringify({
-        id: log.id,
-        action: log.action,
-        user: user?.email || log.user_id || 'system',
-        ip: log.ip_address,
-        time: log.created_at,
-        ...log.metadata,
-      })
-    })
+    const lines = logs.map((log) => JSON.stringify(buildCopyPayload(log)))
     await navigator.clipboard.writeText(lines.join('\n'))
     setCopiedId(-1)
     setTimeout(() => setCopiedId(null), 1500)
-  }, [logs, users])
+  }, [logs, buildCopyPayload])
 
   const actionTypes = Array.from(new Set(logs.map((log) => log.action)))
 
   /** Format metadata into a concise single-line summary for the table */
-  const summarizeMetadata = (log: AdminActivityLog): string => {
-    const m = log.metadata
-    if (!m) return ''
+  const summarizeMetadata = (log: LogWithMeta): string => {
+    const m = log.metadata ?? log.extra_metadata
+    if (!m || typeof m !== 'object') return ''
 
     const parts: string[] = []
 
     // URL is the most important field
     if (m.url) parts.push(m.url)
 
-    // Outcome / status
+    // Outcome / status / source
     if (m.outcome) parts.push(`outcome=${m.outcome}`)
     if (m.status) parts.push(`status=${m.status}`)
+    if (m.source) parts.push(`source=${m.source}`)
 
-    // Job ID
+    // Job ID (for correlating with RQ)
     if (m.job_id) parts.push(`job=${String(m.job_id).slice(0, 12)}`)
 
     // Preview result fields
-    if (m.title) parts.push(`"${String(m.title).slice(0, 60)}"`)
+    if (m.title) parts.push(`"${String(m.title).slice(0, 50)}"`)
     if (m.template_type) parts.push(`template=${m.template_type}`)
-    if (m.processing_time_ms) parts.push(`${m.processing_time_ms}ms`)
+    if (m.processing_time_ms != null) parts.push(`${m.processing_time_ms}ms`)
     if (m.confidence !== undefined) parts.push(`conf=${Number(m.confidence).toFixed(2)}`)
     if (m.overall_quality) parts.push(`quality=${m.overall_quality}`)
+    if (m.design_fidelity != null) parts.push(`fidelity=${m.design_fidelity}`)
+    if (m.coherence != null) parts.push(`coherence=${m.coherence}`)
 
-    // Error
-    if (m.error) parts.push(`err="${String(m.error).slice(0, 80)}"`)
+    // Error / exception (critical for debugging)
+    if (m.error) parts.push(`err="${String(m.error).slice(0, 60)}"`)
+    if (m.exception_type) parts.push(`ex=${m.exception_type}`)
 
     // Warnings
     if (m.warnings && Array.isArray(m.warnings) && m.warnings.length > 0) {
-      parts.push(`warnings=[${m.warnings.join(', ')}]`)
+      parts.push(`warnings=[${m.warnings.slice(0, 2).join(', ')}]`)
     }
 
-    // Image
+    // Image flags
     if (m.image_url) parts.push(`img=yes`)
     if (m.has_composited_image !== undefined) parts.push(`composited=${m.has_composited_image}`)
 
     // Generic fallback: show first few keys
     if (parts.length === 0) {
-      const keys = Object.keys(m).slice(0, 4)
+      const keys = Object.keys(m).slice(0, 5)
       for (const k of keys) {
         const v = m[k]
         const vs = typeof v === 'object' ? JSON.stringify(v) : String(v)
@@ -144,7 +199,7 @@ export default function AdminActivity() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-secondary mb-1">Activity</h1>
-          <p className="text-gray-500 text-sm">Each row is one event. Click the copy icon to get a single JSON line for debugging.</p>
+          <p className="text-gray-500 text-sm">Each row is one event. Copy = one-line JSON. Full = pretty JSON. Support = human-readable + JSON for tickets.</p>
         </div>
         <Button
           onClick={copyAllVisible}
@@ -215,21 +270,39 @@ export default function AdminActivity() {
             {logs.map((log) => {
               const user = users.find((u) => u.id === log.user_id)
               const isCopied = copiedId === log.id
+              const isCopiedFull = copiedFullId === log.id
+              const isCopiedSupport = copiedSupportId === log.id
               return (
                 <div
                   key={log.id}
                   className="group flex items-start gap-2 px-3 py-2 bg-white border border-gray-100 rounded-md hover:border-gray-200 hover:bg-gray-50/50 transition-colors font-mono text-xs leading-relaxed"
                 >
-                  {/* Copy button */}
+                  {/* Copy one-line */}
                   <button
                     onClick={() => copyLogLine(log)}
                     className="shrink-0 mt-0.5 p-0.5 rounded hover:bg-gray-200 transition-colors"
-                    title="Copy as JSON line"
+                    title="Copy one-line JSON (id, action, metadata)"
                   >
                     {isCopied
                       ? <CheckIcon className="w-3.5 h-3.5 text-green-600" />
                       : <ClipboardDocumentIcon className="w-3.5 h-3.5 text-gray-400 group-hover:text-gray-600" />
                     }
+                  </button>
+                  {/* Copy full */}
+                  <button
+                    onClick={() => copyLogFull(log)}
+                    className="shrink-0 mt-0.5 px-1 py-0.5 rounded hover:bg-gray-200 transition-colors text-[10px] text-gray-400 group-hover:text-gray-600"
+                    title="Copy full log as pretty JSON"
+                  >
+                    {isCopiedFull ? '✓' : 'full'}
+                  </button>
+                  {/* Copy for support */}
+                  <button
+                    onClick={() => copyLogForSupport(log)}
+                    className="shrink-0 mt-0.5 px-1 py-0.5 rounded hover:bg-gray-200 transition-colors text-[10px] text-gray-400 group-hover:text-gray-600"
+                    title="Copy human-readable + JSON for support tickets"
+                  >
+                    {isCopiedSupport ? '✓' : 'support'}
                   </button>
 
                   {/* Timestamp */}

@@ -186,10 +186,14 @@ def generate_demo_preview_job(url: str) -> Dict[str, Any]:
         # Log a single comprehensive completion entry for admin debugging
         try:
             db = SessionLocal()
+            job = get_current_job()
+            job_id = str(job.id) if job else None
             log_activity(
                 db,
                 action="demo.preview.completed",
                 metadata={
+                    "outcome": "success",
+                    "job_id": job_id,
                     "url": url_str,
                     "title": (result.title or "")[:120],
                     "template_type": blueprint_data.get("template_type", "unknown"),
@@ -198,12 +202,16 @@ def generate_demo_preview_job(url: str) -> Dict[str, Any]:
                     "design_fidelity": blueprint_data.get("design_fidelity_score"),
                     "overall_quality": blueprint_data.get("overall_quality", "unknown"),
                     "coherence": blueprint_data.get("coherence_score", 0),
+                    "balance_score": blueprint_data.get("balance_score"),
+                    "clarity_score": blueprint_data.get("clarity_score"),
                     "has_composited_image": bool(result.composited_preview_image_url),
                     "has_screenshot": bool(result.screenshot_url),
                     "has_logo": bool(brand_data.get("logo_base64")),
                     "tags": (result.tags or [])[:5],
                     "credibility_items_count": len(result.credibility_items or []),
-                    "warnings": (result.warnings or [])[:3],
+                    "warnings": (result.warnings or [])[:5],
+                    "quality_scores": result.quality_scores,
+                    "message": (result.message or "")[:200],
                     "image_url": result.composited_preview_image_url or result.screenshot_url,
                 },
             )
@@ -214,22 +222,31 @@ def generate_demo_preview_job(url: str) -> Dict[str, Any]:
         return response_data
 
     except Exception as e:
+        import traceback
         error_msg = str(e)
         logger.error(f"Fatal error in demo preview job: {error_msg}", exc_info=True)
         try:
             _update_job_progress(0.0, f"Failed: {error_msg}")
-        except:
+        except Exception:
             pass
 
-        # Log failure for admin debugging
+        # Log failure for admin debugging with extensive context
         try:
             db = SessionLocal()
+            job = get_current_job()
+            job_id = str(job.id) if job else None
+            tb_lines = traceback.format_exc().splitlines()
+            tb_snippet = "\n".join(tb_lines[-8:])[:800] if tb_lines else ""
             log_activity(
                 db,
                 action="demo.preview.failed",
                 metadata={
+                    "outcome": "failed",
+                    "job_id": job_id,
                     "url": url_str if 'url_str' in dir() else str(url),
                     "error": error_msg[:500],
+                    "exception_type": type(e).__name__,
+                    "traceback_snippet": tb_snippet,
                 },
             )
             db.close()

@@ -223,18 +223,21 @@ def generate_demo_preview(
         except Exception as e:
             logger.warning(f"Failed to cache result: {e}")
 
-    # Single consolidated log entry for the entire sync flow
+    # Single consolidated log entry for the entire sync flow (extensive for debugging)
     log_activity(
         db, user_id=user_id, action="demo.preview.completed", request=request,
         metadata={
             "url": url_str,
             "outcome": "success",
+            "source": "sync",
             "title": (response.title or "")[:120],
             "template_type": response.blueprint.template_type if response.blueprint else "unknown",
             "processing_time_ms": response.processing_time_ms,
             "confidence": response.reasoning_confidence,
             "overall_quality": response.blueprint.overall_quality if response.blueprint else "unknown",
             "has_composited_image": bool(response.composited_preview_image_url),
+            "warnings": (engine_result.warnings or [])[:5],
+            "quality_scores": engine_result.quality_scores,
             "client_ip": client_ip,
         },
     )
