@@ -16,6 +16,11 @@ from backend.services.preview_cache import (
     CacheConfig,
     is_demo_cache_disabled
 )
+from backend.services.demo_quality_profiles import (
+    get_cache_prefix_for_mode,
+    get_quality_profile,
+    resolve_quality_mode,
+)
 from backend.services.activity_logger import log_activity
 from backend.db.session import SessionLocal
 import json
@@ -36,7 +41,7 @@ def _update_job_progress(progress: float, message: str) -> None:
         logger.warning(f"Failed to update job progress: {e}")
 
 
-def generate_demo_preview_job(url: str, quality_mode: str = "ultra") -> Dict[str, Any]:
+def generate_demo_preview_job(url: str, quality_mode: str = "auto") -> Dict[str, Any]:
     """
     Background job to generate demo preview using unified preview engine.
     
@@ -68,21 +73,9 @@ def generate_demo_preview_job(url: str, quality_mode: str = "ultra") -> Dict[str
         # Update initial progress
         _update_job_progress(0.05, "Starting preview generation...")
 
-        quality_profiles = {
-            "fast": {
-                "multi_agent": False, "ui_extraction": False, "threshold": 0.78, "iterations": 2,
-                "allow_soft_pass": True, "enforce_target_quality": False, "min_soft_pass_overall": 0.66, "min_soft_pass_visual": 0.52, "min_soft_pass_fidelity": 0.50
-            },
-            "balanced": {
-                "multi_agent": True, "ui_extraction": True, "threshold": 0.82, "iterations": 3,
-                "allow_soft_pass": True, "enforce_target_quality": False, "min_soft_pass_overall": 0.74, "min_soft_pass_visual": 0.62, "min_soft_pass_fidelity": 0.60
-            },
-            "ultra": {
-                "multi_agent": True, "ui_extraction": True, "threshold": 0.88, "iterations": 4,
-                "allow_soft_pass": False, "enforce_target_quality": True, "min_soft_pass_overall": 0.85, "min_soft_pass_visual": 0.75, "min_soft_pass_fidelity": 0.72
-            },
-        }
-        selected_profile = quality_profiles.get((quality_mode or "ultra").lower(), quality_profiles["ultra"])
+        resolved_mode = resolve_quality_mode(quality_mode, url=url_str)
+        selected_profile = get_quality_profile(resolved_mode)
+        cache_key_prefix = get_cache_prefix_for_mode(resolved_mode)
         
         # Configure engine for demo mode (optimized for speed)
         config = PreviewEngineConfig(
@@ -91,21 +84,21 @@ def generate_demo_preview_job(url: str, quality_mode: str = "ultra") -> Dict[str
             enable_ai_reasoning=True,
             enable_composited_image=True,
             enable_cache=not cache_disabled,
-            enable_multi_agent=selected_profile["multi_agent"],
-            enable_ui_element_extraction=selected_profile["ui_extraction"],
-            quality_threshold=selected_profile["threshold"],
-            max_quality_iterations=selected_profile["iterations"],
-            allow_soft_pass=selected_profile["allow_soft_pass"],
-            enforce_target_quality=selected_profile["enforce_target_quality"],
-            min_soft_pass_overall=selected_profile["min_soft_pass_overall"],
-            min_soft_pass_visual=selected_profile["min_soft_pass_visual"],
-            min_soft_pass_fidelity=selected_profile["min_soft_pass_fidelity"],
+            enable_multi_agent=selected_profile.multi_agent,
+            enable_ui_element_extraction=selected_profile.ui_extraction,
+            quality_threshold=selected_profile.threshold,
+            max_quality_iterations=selected_profile.iterations,
+            allow_soft_pass=selected_profile.allow_soft_pass,
+            enforce_target_quality=selected_profile.enforce_target_quality,
+            min_soft_pass_overall=selected_profile.min_soft_pass_overall,
+            min_soft_pass_visual=selected_profile.min_soft_pass_visual,
+            min_soft_pass_fidelity=selected_profile.min_soft_pass_fidelity,
             progress_callback=_update_job_progress
         )
         
         # Create engine and generate preview
         engine = PreviewEngine(config)
-        result = engine.generate(url_str, cache_key_prefix=f"demo:preview:v3:{quality_mode}:")
+        result = engine.generate(url_str, cache_key_prefix=cache_key_prefix)
         
         # Ensure progress is at 100% when job completes successfully
         # Do this BEFORE returning to ensure it's saved to Redis
@@ -194,7 +187,7 @@ def generate_demo_preview_job(url: str, quality_mode: str = "ultra") -> Dict[str
             
             # Metadata
             "is_demo": True,
-            "message": f"{result.message} [quality_mode={quality_mode}]",
+            "message": f"{result.message} [quality_mode={resolved_mode}]",
             "trace_url": result.trace_url
         }
         
@@ -220,8 +213,8 @@ def generate_demo_preview_job(url: str, quality_mode: str = "ultra") -> Dict[str
             "warnings_count": debug_scores.get("warnings_count", len(result.warnings or [])),
         }
         generation_profile = {
-            "quality_mode": quality_mode,
-            "profile": selected_profile,
+            "quality_mode": resolved_mode,
+            "profile": selected_profile.__dict__,
             "cache_disabled": cache_disabled,
         }
 
@@ -263,7 +256,7 @@ def generate_demo_preview_job(url: str, quality_mode: str = "ultra") -> Dict[str
                     "image_url": result.composited_preview_image_url or result.screenshot_url,
                     "trace_url": result.trace_url,
                     "request_id": request_id,
-                    "quality_mode": quality_mode,
+                    "quality_mode": resolved_mode,
                     "generation_profile": generation_profile,
                 },
             )
@@ -298,8 +291,8 @@ def generate_demo_preview_job(url: str, quality_mode: str = "ultra") -> Dict[str
                     "url": url_str if 'url_str' in dir() else str(url),
                     "error": error_msg[:500],
                     "exception_type": type(e).__name__,
-                    "quality_mode": quality_mode,
-                    "generation_profile": selected_profile if 'selected_profile' in locals() else None,
+                    "quality_mode": resolved_mode if 'resolved_mode' in locals() else quality_mode,
+                    "generation_profile": selected_profile.__dict__ if 'selected_profile' in locals() else None,
                     "job_meta": (job.get_meta(refresh=True) if job else None),
                     "traceback_snippet": tb_snippet,
                 },
