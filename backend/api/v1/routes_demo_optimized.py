@@ -359,6 +359,7 @@ def generate_demo_preview_optimized(
             quality_threshold=0.88,
             max_quality_iterations=4,
             allow_soft_pass=False,
+            enforce_target_quality=True,
             min_soft_pass_overall=0.85,
             min_soft_pass_visual=0.75,
             min_soft_pass_fidelity=0.72
