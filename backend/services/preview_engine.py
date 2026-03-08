@@ -1179,7 +1179,13 @@ class PreviewEngine:
             
             if cached_data:
                 data = json.loads(cached_data)
-                return PreviewEngineResult(**data)
+                cached_result = PreviewEngineResult(**data)
+                if not self._is_cache_eligible_result(cached_result):
+                    self.logger.info(
+                        "Skipping cached preview because it does not meet cache quality policy"
+                    )
+                    return None
+                return cached_result
         except Exception as e:
             self.logger.warning(f"Cache read error: {e}")
         
@@ -1196,6 +1202,12 @@ class PreviewEngine:
             redis_client = get_redis_client()
             if not redis_client:
                 return
+
+            if not self._is_cache_eligible_result(result):
+                self.logger.info(
+                    "Skipping cache write because result does not meet cache quality policy"
+                )
+                return
             
             cache_key = generate_cache_key(url, cache_key_prefix)
             cache_data = json.dumps(result.__dict__, default=str)
@@ -1204,6 +1216,63 @@ class PreviewEngine:
             self.logger.info(f"✅ Cached result for: {url[:50]}...")
         except Exception as e:
             self.logger.warning(f"⚠️  Failed to cache result: {e}")
+
+    def _is_cache_eligible_result(self, result: PreviewEngineResult) -> bool:
+        """
+        Decide whether a result is safe to read/write via cache.
+
+        In strict quality modes, avoid serving stale fallback/below-target outputs.
+        """
+        quality_scores = result.quality_scores if isinstance(result.quality_scores, dict) else {}
+        if quality_scores.get("is_fallback"):
+            return False
+
+        gate_status = str(quality_scores.get("gate_status", "")).lower()
+        if gate_status in {"fail", "reject", "retry"}:
+            return False
+
+        debug_data = quality_scores.get("debug")
+        if isinstance(debug_data, dict):
+            final_decision = str(debug_data.get("final_decision", "")).lower()
+            if final_decision in {"fallback", "below_target_pass"}:
+                return False
+
+        if self.config.enforce_target_quality and not self._meets_cache_quality_targets(quality_scores):
+            return False
+
+        return True
+
+    def _meets_cache_quality_targets(self, quality_scores: Dict[str, Any]) -> bool:
+        """Validate cached quality scores against configured thresholds."""
+        def _metric(name: str) -> Optional[float]:
+            value = quality_scores.get(name)
+            if isinstance(value, (int, float)):
+                return float(value)
+
+            debug_data = quality_scores.get("debug")
+            if isinstance(debug_data, dict):
+                snapshot = debug_data.get("metrics_snapshot")
+                if isinstance(snapshot, dict):
+                    snap_value = snapshot.get(name)
+                    if isinstance(snap_value, (int, float)):
+                        return float(snap_value)
+            return None
+
+        overall = _metric("overall")
+        design_fidelity = _metric("design_fidelity")
+        visual = _metric("visual")
+
+        if overall is None or design_fidelity is None:
+            return False
+        if overall < float(self.config.quality_threshold):
+            return False
+        if design_fidelity < float(self.config.min_soft_pass_fidelity):
+            return False
+        if float(self.config.min_soft_pass_visual) > 0.0:
+            if visual is None or visual < float(self.config.min_soft_pass_visual):
+                return False
+
+        return True
     
     def _capture_page(
         self,
