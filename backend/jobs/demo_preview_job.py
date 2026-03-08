@@ -71,15 +71,15 @@ def generate_demo_preview_job(url: str, quality_mode: str = "ultra") -> Dict[str
         quality_profiles = {
             "fast": {
                 "multi_agent": False, "ui_extraction": False, "threshold": 0.78, "iterations": 2,
-                "allow_soft_pass": True, "min_soft_pass_overall": 0.66, "min_soft_pass_visual": 0.52, "min_soft_pass_fidelity": 0.50
+                "allow_soft_pass": True, "enforce_target_quality": False, "min_soft_pass_overall": 0.66, "min_soft_pass_visual": 0.52, "min_soft_pass_fidelity": 0.50
             },
             "balanced": {
                 "multi_agent": True, "ui_extraction": True, "threshold": 0.82, "iterations": 3,
-                "allow_soft_pass": True, "min_soft_pass_overall": 0.74, "min_soft_pass_visual": 0.62, "min_soft_pass_fidelity": 0.60
+                "allow_soft_pass": True, "enforce_target_quality": False, "min_soft_pass_overall": 0.74, "min_soft_pass_visual": 0.62, "min_soft_pass_fidelity": 0.60
             },
             "ultra": {
                 "multi_agent": True, "ui_extraction": True, "threshold": 0.88, "iterations": 4,
-                "allow_soft_pass": False, "min_soft_pass_overall": 0.85, "min_soft_pass_visual": 0.75, "min_soft_pass_fidelity": 0.72
+                "allow_soft_pass": False, "enforce_target_quality": True, "min_soft_pass_overall": 0.85, "min_soft_pass_visual": 0.75, "min_soft_pass_fidelity": 0.72
             },
         }
         selected_profile = quality_profiles.get((quality_mode or "ultra").lower(), quality_profiles["ultra"])
@@ -96,6 +96,7 @@ def generate_demo_preview_job(url: str, quality_mode: str = "ultra") -> Dict[str
             quality_threshold=selected_profile["threshold"],
             max_quality_iterations=selected_profile["iterations"],
             allow_soft_pass=selected_profile["allow_soft_pass"],
+            enforce_target_quality=selected_profile["enforce_target_quality"],
             min_soft_pass_overall=selected_profile["min_soft_pass_overall"],
             min_soft_pass_visual=selected_profile["min_soft_pass_visual"],
             min_soft_pass_fidelity=selected_profile["min_soft_pass_fidelity"],
@@ -308,6 +309,8 @@ def generate_demo_preview_job(url: str, quality_mode: str = "ultra") -> Dict[str
             pass
 
         raise
+
+
 
 
 

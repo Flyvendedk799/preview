@@ -316,6 +316,7 @@ class PreviewEngineConfig:
     # Quality iteration settings
     quality_threshold: float = 0.80  # Minimum quality to pass
     max_quality_iterations: int = 2  # Max iterations for quality loop
+    enforce_target_quality: bool = False  # If true, outputs below thresholds are not accepted
     allow_soft_pass: bool = True  # Allow serving best-effort results below threshold
     min_soft_pass_overall: float = 0.60
     min_soft_pass_visual: float = 0.0
@@ -775,21 +776,46 @@ class PreviewEngine:
                         quality_passed = self.quality_orchestrator.enforce_quality_gates(quality_metrics)
                         
                         if quality_passed:
-                            # Quality passed - persist quality metrics for API/logging.
-                            result.quality_scores = {
-                                "overall": quality_metrics.overall_quality_score,
-                                "design_fidelity": quality_metrics.design_fidelity_score,
-                                "extraction": quality_metrics.extraction_quality_score,
-                                "visual": quality_metrics.visual_quality_score,
-                                "quality_level": quality_metrics.quality_level.value,
-                                "gate_status": quality_metrics.gate_status.value
-                            }
-                            result.design_fidelity_score = quality_metrics.design_fidelity_score
-                            if isinstance(result.blueprint, dict):
-                                result.blueprint["design_fidelity_score"] = quality_metrics.design_fidelity_score
-                            tracer.add_step("Quality Validated", details="Passed Quality Gates", json_data=result.quality_scores)
-                            self.logger.info(f"Quality gates passed on attempt {retry_count + 1}")
-                            break
+                            # Gate pass is necessary but not always sufficient in strict modes.
+                            meets_target_now = (
+                                quality_metrics.overall_quality_score >= self.config.quality_threshold
+                                and quality_metrics.design_fidelity_score >= self.config.min_soft_pass_fidelity
+                                and (
+                                    self.config.min_soft_pass_visual <= 0.0
+                                    or quality_metrics.visual_quality_score >= self.config.min_soft_pass_visual
+                                )
+                            )
+
+                            if self.config.enforce_target_quality and not meets_target_now:
+                                if retry_count < max_retries:
+                                    retry_count += 1
+                                    self.logger.warning(
+                                        f"Gate passed but below target thresholds; retrying (attempt {retry_count + 1}/{max_retries + 1}): "
+                                        f"overall={quality_metrics.overall_quality_score:.2f}/{self.config.quality_threshold:.2f}, "
+                                        f"fidelity={quality_metrics.design_fidelity_score:.2f}/{self.config.min_soft_pass_fidelity:.2f}, "
+                                        f"visual={quality_metrics.visual_quality_score:.2f}/{self.config.min_soft_pass_visual:.2f}"
+                                    )
+                                    continue
+                                quality_passed = False
+                                self.logger.warning(
+                                    "Gate passed but below target thresholds with no retries left; forcing fallback path"
+                                )
+                            else:
+                                # Quality accepted - persist metrics for API/logging.
+                                result.quality_scores = {
+                                    "overall": quality_metrics.overall_quality_score,
+                                    "design_fidelity": quality_metrics.design_fidelity_score,
+                                    "extraction": quality_metrics.extraction_quality_score,
+                                    "visual": quality_metrics.visual_quality_score,
+                                    "quality_level": quality_metrics.quality_level.value,
+                                    "gate_status": quality_metrics.gate_status.value
+                                }
+                                result.design_fidelity_score = quality_metrics.design_fidelity_score
+                                if isinstance(result.blueprint, dict):
+                                    result.blueprint["design_fidelity_score"] = quality_metrics.design_fidelity_score
+                                tracer.add_step("Quality Validated", details="Passed Quality Gates", json_data=result.quality_scores)
+                                self.logger.info(f"Quality gates passed on attempt {retry_count + 1}")
+                                break
                         
                         # Quality failed - check if we should retry
                         tracer.add_step("Quality Failed", details=f"Failed attempt {retry_count + 1}", error=f"Fidelity score: {quality_metrics.design_fidelity_score:.2f}")
@@ -1045,12 +1071,26 @@ class PreviewEngine:
                 })
 
             final_gate_status = str(result.quality_scores.get("gate_status", "unknown"))
+            metric_overall = quality_metrics_debug.get("overall")
+            metric_fidelity = quality_metrics_debug.get("design_fidelity")
+            metric_visual = quality_metrics_debug.get("visual")
+
+            meets_target = True
+            if isinstance(metric_overall, (int, float)):
+                meets_target = meets_target and (float(metric_overall) >= float(self.config.quality_threshold))
+            if isinstance(metric_fidelity, (int, float)):
+                meets_target = meets_target and (float(metric_fidelity) >= float(self.config.min_soft_pass_fidelity))
+            if isinstance(metric_visual, (int, float)) and float(self.config.min_soft_pass_visual) > 0.0:
+                meets_target = meets_target and (float(metric_visual) >= float(self.config.min_soft_pass_visual))
+
             if bool(result.quality_scores.get("is_fallback")):
                 final_decision = "fallback"
             elif final_gate_status == "soft_pass":
                 final_decision = "soft_pass"
-            elif quality_passed:
+            elif quality_passed and meets_target:
                 final_decision = "pass"
+            elif quality_passed and not meets_target:
+                final_decision = "below_target_pass"
             else:
                 final_decision = "fallback"
 
@@ -1067,6 +1107,7 @@ class PreviewEngine:
                     "min_soft_pass_fidelity": float(self.config.min_soft_pass_fidelity),
                 },
                 "metrics_snapshot": quality_metrics_debug,
+                "meets_target": bool(meets_target),
                 "warnings_count": len(result.warnings or []),
             }
             # Final normalization + enrichment layers
