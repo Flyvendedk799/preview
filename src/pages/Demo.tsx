@@ -715,7 +715,7 @@ export default function Demo() {
                           placeholder="https://example.com/article"
                           className={`w-full pl-11 sm:pl-12 pr-3 sm:pr-4 py-3 sm:py-4 rounded-lg sm:rounded-xl border-2 transition-all duration-200 focus:outline-none focus:ring-2 text-base sm:text-lg ${
                             urlError || previewError
-                              ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
+                              ? 'border-error-300 focus:border-error-500 focus:ring-error-200'
                               : url
                               ? 'border-orange-300 focus:border-orange-500 focus:ring-orange-200'
                               : 'border-gray-200 focus:border-orange-500 focus:ring-orange-200'
@@ -780,18 +780,18 @@ export default function Demo() {
                       </div>
                       
                       {urlError && (
-                        <div id="url-error" className="mt-2 flex items-start space-x-2 text-sm text-red-600 bg-red-50 p-3 rounded-lg animate-shake" role="alert">
-                          <ExclamationCircleIcon className="w-5 h-5 flex-shrink-0 mt-0.5" aria-hidden="true" />
+                        <div id="url-error" className="mt-2 alert-error animate-shake" role="alert">
+                          <ExclamationCircleIcon className="w-5 h-5 flex-shrink-0 mt-0.5 text-error-600" aria-hidden="true" />
                           <span>{urlError}</span>
                         </div>
                       )}
                       {previewError && (
-                        <div id="url-error" className="mt-2 flex items-start space-x-2 text-sm text-red-600 bg-red-50 p-3 rounded-lg animate-shake" role="alert">
-                          <ExclamationCircleIcon className="w-5 h-5 flex-shrink-0 mt-0.5" aria-hidden="true" />
+                        <div id="url-error" className="mt-2 alert-error animate-shake" role="alert">
+                          <ExclamationCircleIcon className="w-5 h-5 flex-shrink-0 mt-0.5 text-error-600" aria-hidden="true" />
                           <div className="flex-1">
                             <p className="font-medium">{previewError.split('. ')[0]}</p>
                             {previewError.includes('. ') && (
-                              <p className="text-xs mt-1 text-red-500">{previewError.split('. ').slice(1).join('. ')}</p>
+                              <p className="text-xs mt-1 text-error-600">{previewError.split('. ').slice(1).join('. ')}</p>
                             )}
                             {url.trim() && (
                               <button
@@ -927,7 +927,7 @@ export default function Demo() {
                       placeholder="your@email.com"
                       className={`w-full px-4 py-3 rounded-xl border-2 transition-all duration-200 focus:outline-none focus:ring-2 text-base ${
                         emailError
-                          ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
+                          ? 'border-error-300 focus:border-error-500 focus:ring-error-200'
                           : 'border-gray-200 focus:border-orange-500 focus:ring-orange-200'
                       }`}
                       disabled={isSubmittingEmail}
@@ -956,8 +956,8 @@ export default function Demo() {
                   )}
 
                   {emailError && (
-                    <div className="flex items-center space-x-2 text-sm text-red-600 bg-red-50 p-3 rounded-lg animate-shake">
-                      <ExclamationCircleIcon className="w-5 h-5 flex-shrink-0" />
+                    <div className="alert-error animate-shake">
+                      <ExclamationCircleIcon className="w-5 h-5 flex-shrink-0 text-error-600" />
                       <span>{emailError}</span>
                     </div>
                   )}

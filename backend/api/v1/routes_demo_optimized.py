@@ -28,11 +28,6 @@ from backend.services.rate_limiter import check_rate_limit, get_rate_limit_key_f
 from backend.services.activity_logger import get_client_ip, log_activity, get_authenticated_user_id
 from backend.utils.url_sanitizer import validate_url_security
 from backend.services.preview_engine import PreviewEngine, PreviewEngineConfig
-from backend.services.demo_quality_profiles import (
-    get_cache_prefix_for_mode,
-    get_quality_profile,
-    resolve_quality_mode,
-)
 from backend.services.preview_cache import (
     generate_cache_key,
     get_redis_client,
@@ -308,13 +303,9 @@ def generate_demo_preview_optimized(
         # Check if demo caching is disabled via admin toggle
         cache_disabled = is_demo_cache_disabled()
         
-        resolved_mode = resolve_quality_mode("auto", url=url_str)
-        cache_key_prefix = get_cache_prefix_for_mode(resolved_mode)
-        selected_profile = get_quality_profile(resolved_mode)
-
         # Get redis client and cache key (needed for both cache check and cache write)
         redis_client = get_redis_client()
-        cache_key = generate_cache_key(url_str, cache_key_prefix)
+        cache_key = generate_cache_key(url_str, "demo:preview:v3:ultra:")
 
         if cache_disabled:
             logger.info(f"🚫 Cache DISABLED - generating fresh preview for: {url_str[:50]}...")
@@ -363,19 +354,19 @@ def generate_demo_preview_optimized(
             enable_ai_reasoning=True,
             enable_composited_image=True,
             enable_cache=not cache_disabled,  # Disable cache if admin toggle is enabled
-            enable_multi_agent=selected_profile.multi_agent,
-            enable_ui_element_extraction=selected_profile.ui_extraction,
-            quality_threshold=selected_profile.threshold,
-            max_quality_iterations=selected_profile.iterations,
-            allow_soft_pass=selected_profile.allow_soft_pass,
-            enforce_target_quality=selected_profile.enforce_target_quality,
-            min_soft_pass_overall=selected_profile.min_soft_pass_overall,
-            min_soft_pass_visual=selected_profile.min_soft_pass_visual,
-            min_soft_pass_fidelity=selected_profile.min_soft_pass_fidelity,
+            enable_multi_agent=True,
+            enable_ui_element_extraction=True,
+            quality_threshold=0.88,
+            max_quality_iterations=4,
+            allow_soft_pass=False,
+            enforce_target_quality=True,
+            min_soft_pass_overall=0.85,
+            min_soft_pass_visual=0.75,
+            min_soft_pass_fidelity=0.72
         )
         
         engine = PreviewEngine(config)
-        engine_result = engine.generate(url_str, cache_key_prefix=cache_key_prefix)
+        engine_result = engine.generate(url_str, cache_key_prefix="demo:preview:v3:ultra:")
         
         # Convert PreviewEngineResult to DemoPreviewResponse
         response = DemoPreviewResponse(
@@ -433,7 +424,7 @@ def generate_demo_preview_optimized(
             
             # Metadata
             is_demo=True,
-            message=f"{engine_result.message} [quality_mode={resolved_mode}]",
+            message=engine_result.message,
             trace_url=engine_result.trace_url
         )
 

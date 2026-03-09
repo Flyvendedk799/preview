@@ -1147,6 +1147,11 @@ export interface DemoPreviewResponse {
   message: string
 }
 
+/**
+ * @deprecated Use createDemoJob + getDemoJobStatus instead. The /api/v1/demo/preview
+ * endpoint is deprecated; demo-v2 job flow avoids Railway's 60s timeout and provides
+ * progress feedback. Will be removed in a future release.
+ */
 export async function generateDemoPreview(url: string): Promise<DemoPreviewResponse> {
   const token = getAuthToken()
   return fetchApi<DemoPreviewResponse>('/api/v1/demo/preview', {
@@ -1172,13 +1177,11 @@ export interface DemoPreviewResponseV2 extends DemoPreviewResponse {
 }
 
 /**
- * Generate demo preview using optimized V2 endpoint.
+ * Generate demo preview using sync V2 endpoint.
  *
- * IMPROVEMENTS:
- * - 30-40% faster processing (~30s vs ~48s)
- * - Extracts brand logo, colors, hero image
- * - Better brand alignment in og:images
- * - Parallel processing for performance
+ * @deprecated Prefer createDemoJob + getDemoJobStatus for production. Sync endpoint
+ * can hit Railway's 60s load balancer timeout. Job flow provides progress and avoids
+ * timeouts. Sync endpoint kept for quick tests only.
  *
  * @param url - URL to generate preview for
  * @returns Enhanced preview response with brand elements
@@ -1213,7 +1216,7 @@ export async function createDemoJob(url: string): Promise<DemoJobResponse> {
   const token = getAuthToken()
   return fetchApi<DemoJobResponse>('/api/v1/demo-v2/jobs', {
     method: 'POST',
-    body: JSON.stringify({ url, quality_mode: 'auto' }),
+    body: JSON.stringify({ url, quality_mode: 'ultra' }),
     timeout: 30000, // 30 seconds for job creation (should be instant)
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   }, false) // Public endpoint; attach auth when available for user-scoped activity logs

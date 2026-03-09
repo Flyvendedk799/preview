@@ -16,6 +16,7 @@ import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import Modal from '../components/ui/Modal'
 import EmptyState from '../components/ui/EmptyState'
+import Alert from '../components/ui/Alert'
 import { SkeletonList } from '../components/ui/Skeleton'
 import { useDomains } from '../hooks/useDomains'
 import { startDomainVerification, checkDomainVerification, debugDomainVerification } from '../api/client'
@@ -270,21 +271,21 @@ export default function Domains() {
   const getStatusBadge = (status: string) => {
     if (status === 'verified') {
       return (
-        <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+        <span className="badge-success">
           <CheckCircleIcon className="w-3 h-3 mr-1.5" />
           Verified
         </span>
       )
     } else if (status === 'pending' || status === 'active') {
       return (
-        <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800">
+        <span className="badge-warning">
           <ExclamationTriangleIcon className="w-3 h-3 mr-1.5" />
           Pending Verification
         </span>
       )
     } else {
       return (
-        <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-600">
+        <span className="badge-secondary">
           Not Verified
         </span>
       )
@@ -358,11 +359,8 @@ export default function Domains() {
       </div>
 
       {successMessage && (
-        <Card className="mb-6 bg-green-50 border-green-200">
-          <div className="flex items-start space-x-3">
-            <CheckCircleIcon className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
-            <p className="text-green-800">{successMessage}</p>
-          </div>
+        <Card className="mb-6" padding="md">
+          <Alert variant="success">{successMessage}</Alert>
         </Card>
       )}
 
@@ -391,11 +389,8 @@ export default function Domains() {
       )}
 
       {apiError && (
-        <Card className="mb-6 bg-red-50 border-red-200">
-          <div className="flex items-start space-x-3">
-            <ExclamationTriangleIcon className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
-            <p className="text-red-800">Error: {apiError}</p>
-          </div>
+        <Card className="mb-6" padding="md">
+          <Alert variant="error">{apiError}</Alert>
         </Card>
       )}
 
@@ -528,7 +523,7 @@ export default function Domains() {
                   }
                 }}
                 className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all font-mono ${
-                  error ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                  error ? 'border-error-300 bg-error-50/50' : 'border-secondary-300'
                 }`}
                 autoFocus
               />
@@ -539,10 +534,7 @@ export default function Domains() {
               )}
             </div>
             {error && (
-              <div className="mt-2 flex items-start space-x-2">
-                <ExclamationTriangleIcon className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
-                <p className="text-sm text-red-600">{error}</p>
-              </div>
+              <Alert variant="error" className="mt-2">{error}</Alert>
             )}
             {!error && domainName && (
               <p className="mt-2 text-xs text-gray-500">
@@ -871,12 +863,7 @@ export default function Domains() {
               )}
 
               {verificationError && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                  <div className="flex items-start space-x-2">
-                    <ExclamationTriangleIcon className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
-                    <p className="text-sm text-red-800">{verificationError}</p>
-                  </div>
-                </div>
+                <Alert variant="error">{verificationError}</Alert>
               )}
 
               {/* Debug Section for DNS */}

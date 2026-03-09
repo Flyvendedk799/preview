@@ -191,9 +191,9 @@ export default function Dashboard() {
 
       {isLoading ? (
         <Card>
-          <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-4"></div>
-            <p className="text-muted">Loading dashboard data...</p>
+          <div className="flex flex-col items-center justify-center py-12">
+            <div className="w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin mb-4" />
+            <p className="text-secondary-500 text-sm">Loading dashboard data...</p>
           </div>
         </Card>
       ) : domains.length === 0 && previews.length === 0 && onboardingDismissed ? (
