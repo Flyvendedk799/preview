@@ -5,12 +5,23 @@
 set -e
 
 echo "[Entrypoint] Starting nginx frontend..."
+
+# Wait for PORT from Railway (injected at container start; may lag slightly)
+# Max 10s to avoid blocking indefinitely
+for i in 1 2 3 4 5 6 7 8 9 10; do
+    if [ -n "$PORT" ]; then
+        break
+    fi
+    echo "[Entrypoint] Waiting for PORT... (attempt $i/10)"
+    sleep 1
+done
+
 echo "[Entrypoint] PORT=${PORT:-NOT_SET}"
 
 # Set default PORT if not provided
 if [ -z "$PORT" ]; then
     export PORT=8080
-    echo "[Entrypoint] PORT not set, defaulting to 8080"
+    echo "[Entrypoint] PORT not set after wait, defaulting to 8080"
 fi
 
 # Derive BACKEND_API_URL if not set

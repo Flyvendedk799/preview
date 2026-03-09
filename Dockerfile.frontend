@@ -2,7 +2,7 @@
 FROM node:20-alpine as builder
 
 # Cache bust argument
-ARG CACHEBUST=2026-03-09-nginx-bind-all-interfaces
+ARG CACHEBUST=2026-03-09-healthcheck-fix
 
 ARG VITE_API_BASE_URL
 ARG VITE_STRIPE_PRICE_TIER_BASIC
@@ -26,6 +26,9 @@ RUN echo "=== Build: ${CACHEBUST} ===" && npm run build
 # Production stage
 FROM nginx:alpine
 
+# Ensure wget exists for HEALTHCHECK (alpine minimal may not have it)
+RUN apk add --no-cache wget
+
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/templates/default.conf.template
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint-custom.sh
@@ -34,8 +37,8 @@ RUN chmod +x /usr/local/bin/docker-entrypoint-custom.sh
 EXPOSE 8080
 
 # Health check on $PORT (defaults to 8080)
-# start-period=60s: Railway needs time for nginx to bind and envsubst to complete
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD wget --quiet --tries=1 --spider http://127.0.0.1:${PORT:-8080}/health || exit 1
+# start-period=30s: nginx starts in seconds; Railway uses its own probe with healthcheckTimeout
+HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
+    CMD wget -q --spider "http://127.0.0.1:${PORT:-8080}/health" || exit 1
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint-custom.sh"]
