@@ -50,6 +50,7 @@ from backend.schemas.demo_schemas import (
 )
 from rq import Queue
 from rq.job import Job
+import redis
 import json
 import logging
 
@@ -134,6 +135,12 @@ def create_demo_job(
             job_id=job.id,
             status="queued",
             message="Preview generation started. Poll /demo-v2/jobs/{job_id}/status for updates."
+        )
+    except (redis.ConnectionError, redis.TimeoutError, OSError) as e:
+        logger.error(f"Redis/RQ unavailable during job enqueue: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Background job service is temporarily unavailable. Please try again in a few moments."
         )
     except Exception as e:
         logger.error(f"Failed to create demo job: {str(e)}", exc_info=True)
