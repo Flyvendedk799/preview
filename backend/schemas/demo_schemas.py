@@ -1,6 +1,6 @@
 """Shared Pydantic schemas for demo preview endpoints."""
 from typing import Optional, List, Literal
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel, HttpUrl, field_validator
 
 
 class ContextItem(BaseModel):
@@ -83,6 +83,14 @@ class DemoJobRequest(BaseModel):
     """Schema for demo job creation request."""
     url: HttpUrl
     quality_mode: Literal["fast", "balanced", "ultra"] = "ultra"
+
+    @field_validator("url", mode="before")
+    @classmethod
+    def normalize_url(cls, v: str) -> str:
+        """Normalize URL: add https:// if no scheme to avoid 422 from strict HttpUrl."""
+        if isinstance(v, str) and v.strip() and "://" not in v:
+            return f"https://{v.strip()}"
+        return v
 
 
 class DemoJobResponse(BaseModel):
