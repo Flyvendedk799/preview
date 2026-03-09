@@ -1,4 +1,7 @@
-"""Demo/landing page routes for marketing campaigns."""
+"""Demo/landing page routes for marketing campaigns.
+
+DEPRECATED: /demo/preview is deprecated. Use /demo-v2/jobs for new integrations.
+"""
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
@@ -52,13 +55,21 @@ class DemoPreviewResponse(BaseModel):
     message: str = "AI-reconstructed preview using multi-stage reasoning."
 
 
-@router.post("/preview", response_model=DemoPreviewResponse)
+@router.post(
+    "/preview",
+    response_model=DemoPreviewResponse,
+    deprecated=True,
+    summary="[DEPRECATED] Use POST /api/v1/demo-v2/jobs instead",
+)
 def generate_demo_preview(
     request_data: DemoPreviewRequest,
     request: Request,
     db: Session = Depends(get_db)
 ):
     """
+    [DEPRECATED] Use POST /api/v1/demo-v2/jobs for new integrations.
+    This sync endpoint can hit Railway's 60s timeout. Job flow provides progress and reliability.
+
     Generate a premium-quality preview using multi-stage reasoning.
     
     The system follows a rigorous 6-stage process:

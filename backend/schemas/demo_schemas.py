@@ -82,7 +82,7 @@ class DemoPreviewResponse(BaseModel):
 class DemoJobRequest(BaseModel):
     """Schema for demo job creation request."""
     url: HttpUrl
-    quality_mode: Literal["auto", "fast", "balanced", "ultra"] = "auto"
+    quality_mode: Literal["fast", "balanced", "ultra"] = "ultra"
 
 
 class DemoJobResponse(BaseModel):

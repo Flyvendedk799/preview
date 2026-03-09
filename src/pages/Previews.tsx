@@ -4,6 +4,7 @@ import Card from '../components/ui/Card'
 import Button from '../components/ui/Button'
 import Modal from '../components/ui/Modal'
 import EmptyState from '../components/ui/EmptyState'
+import Alert from '../components/ui/Alert'
 import { SkeletonGrid } from '../components/ui/Skeleton'
 import { usePreviews } from '../hooks/usePreviews'
 import { useDomains } from '../hooks/useDomains'
@@ -299,8 +300,8 @@ export default function Previews() {
       </div>
 
       {error && (
-        <Card className="mb-6 bg-red-50 border-red-200">
-          <p className="text-red-800">Error: {error}</p>
+        <Card className="mb-6" padding="md">
+          <Alert variant="error">{error}</Alert>
         </Card>
       )}
 
@@ -312,8 +313,8 @@ export default function Previews() {
             onClick={() => setActiveFilter(filter)}
             className={`px-4 py-2.5 rounded-lg font-medium transition-all min-h-[44px] ${
               activeFilter === filter
-                ? 'bg-primary text-white shadow-md'
-                : 'bg-white text-gray-700 border border-gray-200 hover:border-primary hover:text-primary'
+                ? 'bg-primary-500 text-white shadow-md'
+                : 'bg-surface text-secondary-700 border border-secondary-200 hover:border-primary-500 hover:text-primary-600'
             }`}
           >
             {filter}
@@ -366,13 +367,13 @@ export default function Previews() {
                     <div className="p-4">
                       {/* Variant Tabs */}
                       {hasVariants && (
-                        <div className="flex items-center space-x-1 mb-3 border-b border-gray-200">
+                        <div className="flex items-center space-x-1 mb-3 border-b border-secondary-200">
                           <button
                             onClick={() => setActiveVariants(prev => ({ ...prev, [preview.id]: 'main' }))}
                             className={`px-2 py-1 text-xs font-medium transition-colors ${
                               (activeVariants[preview.id] || 'main') === 'main'
-                                ? 'text-primary border-b-2 border-primary'
-                                : 'text-gray-500 hover:text-gray-700'
+                                ? 'text-primary-600 border-b-2 border-primary-500'
+                                : 'text-secondary-500 hover:text-secondary-700'
                             }`}
                           >
                             Main
@@ -383,8 +384,8 @@ export default function Previews() {
                               onClick={() => setActiveVariants(prev => ({ ...prev, [preview.id]: variant.variant_key as 'a' | 'b' | 'c' }))}
                               className={`px-2 py-1 text-xs font-medium transition-colors ${
                                 activeVariants[preview.id] === variant.variant_key
-                                  ? 'text-primary border-b-2 border-primary'
-                                  : 'text-gray-500 hover:text-gray-700'
+                                  ? 'text-primary-600 border-b-2 border-primary-500'
+                                  : 'text-secondary-500 hover:text-secondary-700'
                               }`}
                             >
                               {variant.variant_key.toUpperCase()}
@@ -394,21 +395,21 @@ export default function Previews() {
                       )}
                       
                       <div className="flex items-center justify-between mb-2">
-                        <h3 className="font-semibold text-gray-900">{displayData.title}</h3>
-                        <span className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded-full capitalize">
+                        <h3 className="font-semibold text-secondary-900">{displayData.title}</h3>
+                        <span className="text-xs px-2 py-1 bg-secondary-100 text-secondary-600 rounded-full capitalize">
                           {preview.type}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-500 mb-2 line-clamp-2">{preview.url}</p>
+                      <p className="text-sm text-secondary-500 mb-2 line-clamp-2">{preview.url}</p>
                       {displayData.description && (
-                        <p className="text-xs text-gray-600 mb-2 line-clamp-2">{displayData.description}</p>
+                        <p className="text-xs text-secondary-600 mb-2 line-clamp-2">{displayData.description}</p>
                       )}
                       {preview.keywords && (
                         <div className="flex flex-wrap gap-1 mb-2">
                           {preview.keywords.split(',').map((keyword, idx) => (
                             <span
                               key={idx}
-                              className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full"
+                              className="text-xs px-2 py-0.5 bg-secondary-100 text-secondary-600 rounded-full"
                             >
                               {keyword.trim()}
                             </span>
@@ -416,13 +417,13 @@ export default function Previews() {
                         </div>
                       )}
                       {!preview.keywords && (
-                        <p className="text-xs text-gray-400 italic mb-2">— no keywords detected —</p>
+                        <p className="text-xs text-secondary-400 italic mb-2">— no keywords detected —</p>
                       )}
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-2">
-                          <span className="text-xs text-gray-500">{preview.monthly_clicks.toLocaleString()} clicks</span>
+                          <span className="text-xs text-secondary-500">{preview.monthly_clicks.toLocaleString()} clicks</span>
                           {preview.tone && (
-                            <span className="text-xs text-gray-400">• {preview.tone}</span>
+                            <span className="text-xs text-secondary-400">• {preview.tone}</span>
                           )}
                         </div>
                         <div className="flex items-center space-x-2">
@@ -435,7 +436,7 @@ export default function Previews() {
                           </button>
                           <button
                             onClick={() => handleDelete(preview.id)}
-                            className="text-red-600 hover:text-red-800 transition-colors p-1"
+                            className="text-error-600 hover:text-error-700 transition-colors p-1"
                             title="Delete preview"
                           >
                             <TrashIcon className="w-4 h-4" />
@@ -460,13 +461,11 @@ export default function Previews() {
       >
         <div className="space-y-4">
           {formError && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-              <p className="text-sm text-red-800">{formError}</p>
-            </div>
+            <Alert variant="error">{formError}</Alert>
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-secondary-700 mb-2">
               URL <span className="text-red-500">*</span>
             </label>
             <input
@@ -479,8 +478,8 @@ export default function Previews() {
               }}
               disabled={editingPreview !== null}
               className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all ${
-                formError && !formData.url ? 'border-red-300' : 'border-gray-300'
-              } ${editingPreview !== null ? 'bg-gray-50 cursor-not-allowed' : ''}`}
+                formError && !formData.url ? 'border-error-300 bg-error-50/50' : 'border-secondary-300'
+              } ${editingPreview !== null ? 'bg-secondary-50 cursor-not-allowed' : ''}`}
             />
             {editingPreview !== null && (
               <p className="text-xs text-gray-500 mt-1">URL cannot be changed after creation</p>
@@ -488,7 +487,7 @@ export default function Previews() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-secondary-700 mb-2">
               Domain <span className="text-red-500">*</span>
             </label>
             {domains.length > 0 ? (
@@ -500,8 +499,8 @@ export default function Previews() {
                 }}
                 disabled={editingPreview !== null}
                 className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all ${
-                  formError && !formData.domain ? 'border-red-300' : 'border-gray-300'
-                } ${editingPreview !== null ? 'bg-gray-50 cursor-not-allowed' : ''}`}
+                  formError && !formData.domain ? 'border-error-300 bg-error-50/50' : 'border-secondary-300'
+                } ${editingPreview !== null ? 'bg-secondary-50 cursor-not-allowed' : ''}`}
               >
                 <option value="">Select a domain</option>
                 {domains.map((domain) => (
@@ -521,8 +520,8 @@ export default function Previews() {
                 }}
                 disabled={editingPreview !== null}
                 className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all ${
-                  formError && !formData.domain ? 'border-red-300' : 'border-gray-300'
-                } ${editingPreview !== null ? 'bg-gray-50 cursor-not-allowed' : ''}`}
+                  formError && !formData.domain ? 'border-error-300 bg-error-50/50' : 'border-secondary-300'
+                } ${editingPreview !== null ? 'bg-secondary-50 cursor-not-allowed' : ''}`}
               />
             )}
             {domains.length === 0 && (
@@ -533,7 +532,7 @@ export default function Previews() {
           {/* Variant Switcher in Edit Mode */}
           {editingPreview !== null && previewVariants[editingPreview] && previewVariants[editingPreview].length > 0 && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-secondary-700 mb-2">
                 Edit Variant
               </label>
               <div className="flex items-center space-x-2">
@@ -565,7 +564,7 @@ export default function Previews() {
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-secondary-700 mb-2">
               Title <span className="text-red-500">*</span>
             </label>
             <input
@@ -577,14 +576,14 @@ export default function Previews() {
                 setFormError(null)
               }}
               className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all ${
-                formError && !formData.title ? 'border-red-300' : 'border-gray-300'
+                formError && !formData.title ? 'border-error-300 bg-error-50/50' : 'border-secondary-300'
               }`}
             />
           </div>
           
           {editingPreview !== null && editingVariant !== 'main' && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-secondary-700 mb-2">
                 Description
               </label>
               <textarea
@@ -595,13 +594,13 @@ export default function Previews() {
                   setFormError(null)
                 }}
                 rows={3}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
+                className="w-full px-4 py-2 border border-secondary-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
               />
             </div>
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-secondary-700 mb-2">
               Type <span className="text-red-500">*</span>
             </label>
             <select
@@ -621,7 +620,7 @@ export default function Previews() {
           {/* Only show image URL for editing, not for new previews using AI */}
           {editingPreview !== null && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-secondary-700 mb-2">
                 Image URL (optional)
               </label>
               <input
@@ -632,7 +631,7 @@ export default function Previews() {
                   setFormData({ ...formData, image_url: e.target.value || null })
                   setFormError(null)
                 }}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
+                className="w-full px-4 py-2 border border-secondary-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
               />
               <p className="text-xs text-gray-500 mt-1">Override the AI-generated image with a custom URL.</p>
             </div>
@@ -640,17 +639,17 @@ export default function Previews() {
 
           {/* AI Generation Status */}
           {isGeneratingAI && jobStatus && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="alert-info">
               <div className="flex items-center space-x-3">
-                <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                <div className="w-5 h-5 border-2 border-primary-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
                 <div>
-                  <p className="text-sm font-medium text-blue-800">
+                  <p className="text-sm font-medium">
                     {jobStatus === 'queued' && 'Queued - Waiting to process...'}
                     {jobStatus === 'started' && 'Processing - Capturing screenshot & analyzing with AI...'}
                     {jobStatus === 'finished' && 'Complete!'}
                     {jobStatus === 'failed' && 'Failed - Please try again'}
                   </p>
-                  <p className="text-xs text-blue-600 mt-1">
+                  <p className="text-xs opacity-90 mt-1">
                     AI is capturing a screenshot, detecting the focal region, and generating optimized preview content.
                   </p>
                 </div>

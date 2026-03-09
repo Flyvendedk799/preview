@@ -199,11 +199,6 @@ The application uses JWT-based authentication:
 - **Phase 5**: SQLAlchemy database integration
 - **Phase 6**: JWT authentication system (current)
 
-## Git Workflow
-
-- Default workflow: create a feature branch and open a pull request into `main`.
-- Direct pushes to `main` are only for urgent hotfixes with explicit approval.
-
 ## Troubleshooting
 
 ### Frontend Can't Connect to Backend (ERR_CONNECTION_REFUSED)
