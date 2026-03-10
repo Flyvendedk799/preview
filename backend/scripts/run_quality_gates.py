@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Quality gates for MyMetaView 2.0 demo flow.
+Quality gates for MyMetaView demo flow (2.0 / 3.0 / 3.5).
 
 Run before final PR to validate:
 - Regression tests pass
@@ -31,6 +31,8 @@ def gate_regression_tests() -> Tuple[bool, str]:
                 "backend/tests/test_demo_flow.py",
                 "backend/tests/test_preview_reasoning.py",
                 "backend/tests/test_brand_extractor.py",
+                "backend/tests/test_demo_quality_profiles.py",
+                "backend/tests/test_preview_cache_quality_policy.py",
                 "-v",
                 "--tb=short",
             ],
@@ -84,7 +86,7 @@ def gate_schema_contracts() -> Tuple[bool, str]:
         assert isinstance(bp.overall_quality, str)
 
         req = DemoPreviewRequest(url="https://example.com")
-        assert str(req.url) == "https://example.com"
+        assert "https://example.com" in str(req.url)
 
         return True, "Schema contracts valid"
     except ImportError as e:

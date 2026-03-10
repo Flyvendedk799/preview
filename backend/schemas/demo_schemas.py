@@ -111,3 +111,57 @@ class DemoJobStatusResponse(BaseModel):
     message: Optional[str] = None
 
 
+# --- Batch API schemas (MyMetaView 4.0 P3) ---
+
+class BatchJobRequest(BaseModel):
+    """Schema for batch job creation request."""
+    urls: List[HttpUrl]
+    quality_mode: Literal["fast", "balanced", "ultra"] = "balanced"
+    callback_url: Optional[HttpUrl] = None  # P8: per-job webhook on completion
+
+    @field_validator("urls")
+    @classmethod
+    def validate_urls(cls, v: list) -> list:
+        if not v:
+            raise ValueError("At least one URL is required")
+        if len(v) > 50:
+            raise ValueError("Maximum 50 URLs per batch")
+        return v
+
+
+class BatchJobResponse(BaseModel):
+    """Schema for batch job creation response."""
+    job_id: str
+    status: str = "queued"
+    total: int
+    message: str = "Batch job created. Poll /demo-v2/batch/{job_id} for status."
+
+
+class BatchJobStatusResponse(BaseModel):
+    """Schema for batch job status response."""
+    job_id: str
+    status: Literal["queued", "running", "completed", "failed"]
+    total: int
+    completed: int
+    failed: int
+
+
+class BatchResultItem(BaseModel):
+    """Single result in a batch (URL + preview image URL)."""
+    url: str
+    preview_image_url: Optional[str] = None
+    screenshot_url: Optional[str] = None
+    title: Optional[str] = None
+    error: Optional[str] = None
+
+
+class BatchJobResultsResponse(BaseModel):
+    """Schema for batch job results response."""
+    job_id: str
+    status: Literal["queued", "running", "completed", "failed"]
+    total: int
+    completed: int
+    failed: int
+    results: List[BatchResultItem] = []
+
+

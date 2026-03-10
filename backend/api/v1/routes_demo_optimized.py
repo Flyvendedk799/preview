@@ -16,16 +16,28 @@ ENHANCEMENTS:
 ASYNC PROCESSING:
 - Added async job endpoints to work around Railway's 60-second load balancer timeout
 - Jobs run in background workers, client polls for status
+
+BATCH API (MyMetaView 4.0 P3):
+- POST /batch - Submit multi-URL job
+- GET /batch/{job_id} - Poll status
+- GET /batch/{job_id}/results - Retrieve results
 """
 from typing import Optional, List, Dict, Any
+from uuid import uuid4
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
 from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, HttpUrl
 from backend.db.session import get_db
 from backend.services.rate_limiter import check_rate_limit, get_rate_limit_key_for_ip
 from backend.services.activity_logger import get_client_ip, log_activity, get_authenticated_user_id
+from backend.services.usage_limits import (
+    get_tenant_key_from_ip,
+    check_batch_job_limit,
+    check_queue_backpressure,
+)
 from backend.utils.url_sanitizer import validate_url_security
 from backend.services.preview_engine import PreviewEngine, PreviewEngineConfig
 from backend.services.demo_quality_profiles import get_quality_profile, get_cache_prefix_for_mode
@@ -37,12 +49,18 @@ from backend.services.preview_cache import (
 )
 from backend.queue.queue_connection import get_rq_redis_connection
 from backend.jobs.demo_preview_job import generate_demo_preview_job
+from backend.jobs.demo_batch_job import generate_demo_batch_job, get_batch_data
 from backend.schemas.demo_schemas import (
     DemoPreviewRequest,
     DemoPreviewResponse,
     DemoJobRequest,
     DemoJobResponse,
     DemoJobStatusResponse,
+    BatchJobRequest,
+    BatchJobResponse,
+    BatchJobStatusResponse,
+    BatchJobResultsResponse,
+    BatchResultItem,
     ContextItem,
     CredibilityItem,
     BrandElements,
@@ -287,6 +305,117 @@ def get_demo_job_status(
         )
 
 
+# --- Batch API (MyMetaView 4.0 P3) ---
+
+@router.post("/batch", status_code=status.HTTP_202_ACCEPTED, response_model=BatchJobResponse)
+def create_batch_job(
+    request_data: BatchJobRequest,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """
+    Submit a batch job to generate previews for multiple URLs.
+    Poll GET /demo-v2/batch/{job_id} for status, GET /demo-v2/batch/{job_id}/results for results.
+    """
+    urls = [str(u) for u in request_data.urls]
+    user_id = get_authenticated_user_id(request, db)
+    client_ip = get_client_ip(request)
+
+    rate_limit_key = get_rate_limit_key_for_ip(client_ip, "demo_batch_v2")
+    if not check_rate_limit(rate_limit_key, limit=5, window_seconds=3600):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Rate limit exceeded. Please try again later."
+        )
+
+    for url_str in urls:
+        try:
+            validate_url_security(url_str)
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    batch_id = str(uuid4())
+    try:
+        redis_conn = get_rq_redis_connection()
+        queue = Queue("preview_generation", connection=redis_conn)
+        queue.enqueue(
+            generate_demo_batch_job,
+            batch_id,
+            urls,
+            request_data.quality_mode,
+            job_timeout="30m",
+        )
+        log_activity(
+            db, user_id=user_id, action="demo.batch.created",
+            request=request,
+            metadata={"batch_id": batch_id, "url_count": len(urls), "client_ip": client_ip},
+        )
+        return BatchJobResponse(
+            job_id=batch_id,
+            status="queued",
+            total=len(urls),
+            message=f"Batch job created. Poll /demo-v2/batch/{batch_id} for status.",
+        )
+    except (redis.ConnectionError, redis.TimeoutError, OSError) as e:
+        logger.error(f"Redis unavailable during batch enqueue: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Background job service is temporarily unavailable.",
+        )
+
+
+@router.get("/batch/{batch_id}", response_model=BatchJobStatusResponse)
+def get_batch_status(batch_id: str):
+    """Poll batch job status."""
+    data = get_batch_data(batch_id)
+    if not data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Batch {batch_id} not found. It may have expired.",
+        )
+    return BatchJobStatusResponse(
+        job_id=batch_id,
+        status=data["status"],
+        total=data["total"],
+        completed=data["completed"],
+        failed=data["failed"],
+    )
+
+
+@router.get("/batch/{batch_id}/results", response_model=BatchJobResultsResponse)
+def get_batch_results(batch_id: str):
+    """Retrieve batch job results. Returns 202 if still running."""
+    data = get_batch_data(batch_id)
+    if not data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Batch {batch_id} not found.",
+        )
+    if data["status"] not in ("completed", "failed"):
+        raise HTTPException(
+            status_code=status.HTTP_202_ACCEPTED,
+            detail="Job still running. Poll again later.",
+        )
+    results = [
+        BatchResultItem(
+            url=r["url"],
+            preview_image_url=r.get("preview_image_url"),
+            screenshot_url=r.get("screenshot_url"),
+            title=r.get("title"),
+            error=r.get("error"),
+        )
+        for r in data["results"]
+    ]
+    return BatchJobResultsResponse(
+        job_id=batch_id,
+        status=data["status"],
+        total=data["total"],
+        completed=data["completed"],
+        failed=data["failed"],
+        results=results,
+    )
+
+
 @router.post("/preview", response_model=DemoPreviewResponse)
 def generate_demo_preview_optimized(
     request_data: DemoPreviewRequest,
@@ -461,6 +590,174 @@ def generate_demo_preview_optimized(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to generate preview: {str(e)}. Please try again."
         )
+
+
+# =============================================================================
+# Batch API (MyMetaView 4.0 P3)
+# =============================================================================
+
+@router.post("/batch", status_code=status.HTTP_202_ACCEPTED, response_model=BatchJobResponse)
+def create_batch_job(
+    request_data: BatchJobRequest,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """
+    Submit a multi-URL batch job for preview generation.
+
+    Returns job_id immediately. Poll GET /demo-v2/batch/{job_id} for status,
+    GET /demo-v2/batch/{job_id}/results for preview URLs when complete.
+    """
+    user_id = get_authenticated_user_id(request, db)
+    client_ip = get_client_ip(request)
+    tenant_key = get_tenant_key_from_ip(client_ip)
+
+    # Queue backpressure: reject when overloaded (P9)
+    allowed, retry_after = check_queue_backpressure()
+    if not allowed:
+        log_activity(
+            db, user_id=user_id, action="demo.batch.job_rejected",
+            request=request,
+            metadata={"reason": "queue_backpressure", "client_ip": client_ip},
+        )
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"detail": "Service temporarily overloaded. Please retry later."},
+            headers={"Retry-After": str(retry_after or 60)},
+        )
+
+    # Per-tenant usage limit: jobs/hour (P9)
+    allowed, retry_after = check_batch_job_limit(tenant_key)
+    if not allowed:
+        log_activity(
+            db, user_id=user_id, action="demo.batch.job_rejected",
+            request=request,
+            metadata={"reason": "rate_limit", "client_ip": client_ip},
+        )
+        return JSONResponse(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            content={"detail": "Batch job limit exceeded. Please try again later."},
+            headers={"Retry-After": str(retry_after or 60)},
+        )
+
+    urls = [str(u) for u in request_data.urls]
+    quality_mode = request_data.quality_mode
+    callback_url = str(request_data.callback_url) if request_data.callback_url else None
+
+    # Validate all URLs
+    for url_str in urls:
+        try:
+            validate_url_security(url_str)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid URL: {url_str[:80]}... — {e}"
+            )
+
+    redis_client = get_redis_client()
+    if not redis_client:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Batch service temporarily unavailable."
+        )
+
+    batch_id = str(uuid4())
+    initial_data = {
+        "status": "queued",
+        "total": len(urls),
+        "completed": 0,
+        "failed": 0,
+        "results": [],
+    }
+    redis_client.setex(
+        f"demo:batch:{batch_id}",
+        86400,  # 24h TTL
+        json.dumps(initial_data),
+    )
+
+    try:
+        redis_conn = get_rq_redis_connection()
+        queue = Queue("preview_generation", connection=redis_conn)
+        queue.enqueue(
+            generate_demo_batch_job,
+            batch_id,
+            urls,
+            quality_mode,
+            callback_url,
+            job_timeout="30m",
+        )
+    except (redis.ConnectionError, redis.TimeoutError, OSError) as e:
+        logger.error(f"Redis/RQ unavailable for batch enqueue: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Background job service temporarily unavailable."
+        )
+
+    log_activity(
+        db, user_id=user_id, action="demo.batch.job_created",
+        request=request,
+        metadata={
+            "batch_id": batch_id,
+            "url_count": len(urls),
+            "quality_mode": quality_mode,
+            "client_ip": client_ip,
+            "has_callback": bool(callback_url),
+        },
+    )
+
+    return BatchJobResponse(
+        job_id=batch_id,
+        status="queued",
+        total=len(urls),
+        message=f"Batch job created. Poll /demo-v2/batch/{batch_id} for status.",
+    )
+
+
+@router.get("/batch/{job_id}", response_model=BatchJobStatusResponse)
+def get_batch_job_status(job_id: str):
+    """Get batch job status: queued, running, completed, failed."""
+    data = get_batch_data(job_id)
+    if not data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Batch job {job_id} not found. It may have expired or never existed."
+        )
+    return BatchJobStatusResponse(
+        job_id=job_id,
+        status=data["status"],
+        total=data["total"],
+        completed=data["completed"],
+        failed=data["failed"],
+    )
+
+
+@router.get("/batch/{job_id}/results", response_model=BatchJobResultsResponse)
+def get_batch_job_results(job_id: str):
+    """Retrieve batch job results (preview URLs, errors per URL)."""
+    data = get_batch_data(job_id)
+    if not data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Batch job {job_id} not found. It may have expired or never existed."
+        )
+    results = [
+        BatchResultItem(
+            url=r["url"],
+            preview_image_url=r.get("preview_image_url"),
+            screenshot_url=r.get("screenshot_url"),
+            title=r.get("title"),
+            error=r.get("error"),
+        )
+        for r in data.get("results", [])
+    ]
+    return BatchJobResultsResponse(
+        job_id=job_id,
+        status=data["status"],
+        total=data["total"],
+        completed=data["completed"],
+        failed=data["failed"],
+        results=results,
+    )
 
 
 
