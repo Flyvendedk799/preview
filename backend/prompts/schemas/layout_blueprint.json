@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "LayoutBlueprint",
+  "description": "Output schema for layout reasoning stages 4-6",
+  "type": "object",
+  "properties": {
+    "template_type": {
+      "type": "string",
+      "enum": ["article", "hero", "product", "landing", "profile", "service"]
+    },
+    "primary_color": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+    "secondary_color": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+    "accent_color": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+    "coherence_score": { "type": "number", "minimum": 0, "maximum": 1 },
+    "balance_score": { "type": "number", "minimum": 0, "maximum": 1 },
+    "clarity_score": { "type": "number", "minimum": 0, "maximum": 1 },
+    "design_fidelity_score": { "type": "number", "minimum": 0, "maximum": 1 },
+    "overall_quality": {
+      "type": "string",
+      "enum": ["good", "excellent", "needs_work", "fair", "poor"]
+    },
+    "layout_reasoning": { "type": "string" },
+    "composition_notes": { "type": "string" },
+    "composition_decisions": { "type": "array" },
+    "layout": { "type": "object" }
+  }
+}

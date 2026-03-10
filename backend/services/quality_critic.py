@@ -163,9 +163,14 @@ class QualityCritic:
                 }
             ]
             
-            # Call GPT-4o
+            # Call GPT-4o (per TECHNICAL_ARCHITECTURE_MYMETAVIEW_3.5.md)
+            try:
+                from backend.prompts.loader import MODEL_QUALITY_CRITIC
+                model = MODEL_QUALITY_CRITIC
+            except ImportError:
+                model = "gpt-4o"
             response = self.client.chat.completions.create(
-                model="gpt-4o",
+                model=model,
                 messages=messages,
                 max_tokens=2000,
                 temperature=0.2
@@ -189,46 +194,16 @@ class QualityCritic:
             return self._create_fallback_result()
     
     def _get_system_prompt(self) -> str:
-        """Get the system prompt for the critic."""
+        """Get the system prompt for the critic (from backend/prompts/quality_critic/)."""
+        try:
+            from backend.prompts.loader import get_quality_critic_prompt
+            prompt = get_quality_critic_prompt()
+            if prompt:
+                return prompt
+        except ImportError:
+            pass
         return """You are a Quality Critic - brutally honest about preview quality.
-
-Your job is to evaluate social media previews and provide actionable feedback.
-Be HONEST - most previews are "fair" or "good". Reserve "excellent" for truly exceptional work.
-
-=== SCORING CRITERIA ===
-
-1. HOOK STRENGTH (0-1): Is the headline compelling?
-   - 0.9+: "I NEED to click this" - Urgent, specific, irresistible
-   - 0.7-0.8: "This looks interesting" - Clear value, somewhat specific
-   - 0.5-0.6: "Meh, might click" - Generic but readable
-   - <0.5: "Skip" - Vague, boring, or confusing
-
-2. TRUST SIGNALS (0-1): Does this look trustworthy?
-   - Has specific numbers (review counts, user stats)?
-   - Has recognizable proof (awards, logos)?
-   - Looks professional, not spammy?
-   - Makes believable claims?
-
-3. CLARITY (0-1): Can you understand it in 2 seconds?
-   - One clear message or competing messages?
-   - Right amount of info (not too much or too little)?
-   - Visual hierarchy clear?
-
-4. DESIGN FIDELITY (0-1): Does it honor the original design?
-   - Colors match the brand?
-   - Typography feels consistent?
-   - Spacing and density appropriate?
-   - Would brand fans recognize it?
-
-5. CLICK MOTIVATION (0-1): Would someone click?
-   - Clear benefit to clicking?
-   - Creates curiosity or FOMO?
-   - Would someone share this?
-
-=== OUTPUT FORMAT ===
-Return valid JSON with your critique.
-
-Be specific in improvement actions - vague suggestions aren't helpful."""
+Evaluate social media previews. Return valid JSON with scores, verdict, biggest_weakness, improvement_actions."""
     
     def _build_critique_prompt(
         self,

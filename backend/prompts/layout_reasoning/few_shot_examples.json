@@ -1,0 +1,93 @@
+{
+  "article": [
+    {
+      "reasoning_chain": {
+        "page_type_decision": "News article - has byline, date, article body",
+        "individual_vs_company": "company - news publication",
+        "headline_selection": "Article title is the primary headline",
+        "validation": "Clear article structure with author and date"
+      },
+      "page_type": "news",
+      "primary_headline": "OpenAI Releases GPT-5 with Reasoning Capabilities",
+      "credibility_signals": "Published by Reuters, 2.3M shares",
+      "value_statement": "New model achieves state-of-the-art on all benchmarks",
+      "is_individual_profile": false,
+      "analysis_confidence": 0.9
+    },
+    {
+      "reasoning_chain": {
+        "page_type_decision": "Blog post - author byline, reading time, share buttons",
+        "individual_vs_company": "company - content site",
+        "headline_selection": "Blog title is the main identifier",
+        "validation": "Article metadata present"
+      },
+      "page_type": "blog",
+      "primary_headline": "How We Built a 10x Faster API",
+      "credibility_signals": "12 min read, 847 claps",
+      "value_statement": "A deep dive into our optimization journey",
+      "is_individual_profile": false,
+      "analysis_confidence": 0.88
+    }
+  ],
+  "hero": [
+    {
+      "reasoning_chain": {
+        "page_type_decision": "SaaS company homepage - payment infrastructure product",
+        "individual_vs_company": "company - product features, pricing, 'we' language",
+        "headline_selection": "Main hero headline describes the product",
+        "validation": "Headline is specific, credibility has numbers"
+      },
+      "page_type": "saas",
+      "primary_headline": "Financial infrastructure for the internet",
+      "credibility_signals": "Millions of companies of all sizes use Stripe",
+      "value_statement": "Hundreds of billions of dollars per year",
+      "is_individual_profile": false,
+      "analysis_confidence": 0.95
+    },
+    {
+      "reasoning_chain": {
+        "page_type_decision": "Landing page - single CTA, hero image, value props",
+        "individual_vs_company": "company - marketing page",
+        "headline_selection": "Hero headline is the primary message",
+        "validation": "Clear conversion focus"
+      },
+      "page_type": "landing",
+      "primary_headline": "Turn every shared link into a high-converting preview",
+      "credibility_signals": "Trusted by 5,000+ teams",
+      "value_statement": "AI-powered meta images in seconds. Zero coding.",
+      "is_individual_profile": false,
+      "analysis_confidence": 0.92
+    }
+  ],
+  "product": [
+    {
+      "reasoning_chain": {
+        "page_type_decision": "E-commerce product page - price, add to cart, images",
+        "individual_vs_company": "company - product catalog",
+        "headline_selection": "Product name is the headline",
+        "validation": "Pricing and CTA visible"
+      },
+      "page_type": "ecommerce",
+      "primary_headline": "Wireless Noise-Cancelling Headphones Pro",
+      "credibility_signals": "4.8★ (12,847 reviews)",
+      "value_statement": "40-hour battery, spatial audio, premium build",
+      "is_individual_profile": false,
+      "analysis_confidence": 0.9
+    },
+    {
+      "reasoning_chain": {
+        "page_type_decision": "Individual profile page - single person, user slug URL",
+        "individual_vs_company": "individual - single name, photo, first-person bio",
+        "headline_selection": "Person's name is the headline for profiles",
+        "validation": "Name is 2 words, capitalized, has profile photo"
+      },
+      "page_type": "profile",
+      "primary_headline": "Sarah Chen",
+      "credibility_signals": "10+ years experience, Ex-Google, Stripe",
+      "value_statement": "Product design for B2B SaaS",
+      "detected_person_name": "Sarah Chen",
+      "is_individual_profile": true,
+      "analysis_confidence": 0.9
+    }
+  ]
+}

@@ -54,56 +54,16 @@ except ImportError:
 # AI-POWERED LOGO DETECTION
 # =============================================================================
 
-LOGO_DETECTION_PROMPT = """Analyze this webpage screenshot and locate the brand/company logo.
-
-MISSION: Find the PRIMARY brand logo that identifies the company/website.
-
-LOOK FOR LOGOS IN THESE LOCATIONS (priority order):
-1. Header/Navigation bar (top-left or top-center is most common)
-2. Hero section (large logo in the main content area)
-3. Footer (bottom of page, usually smaller)
-4. Sidebar or floating elements
-
-LOGO CHARACTERISTICS TO IDENTIFY:
-- Company name in stylized text
-- Icon/symbol representing the brand
-- Combination of icon + text (logomark + logotype)
-- Usually appears in prominent position with good contrast
-- Often has consistent styling (not mixed with other content)
-
-DO NOT IDENTIFY AS LOGOS:
-- Navigation menu items
-- Social media icons (Facebook, Twitter, etc.)
-- Generic icons (hamburger menu, search, user)
-- Partner/client logos in "trusted by" sections
-- Product images or screenshots
-
-OUTPUT JSON:
-{
-    "logos_found": [
-        {
-            "bbox": {
-                "x": <0.0-1.0 normalized left position>,
-                "y": <0.0-1.0 normalized top position>,
-                "width": <0.0-1.0 normalized width>,
-                "height": <0.0-1.0 normalized height>
-            },
-            "confidence": <0.0-1.0>,
-            "location": "header|hero|footer|sidebar",
-            "type": "text|icon|combined",
-            "description": "<brief description of what the logo looks like>"
-        }
-    ],
-    "best_logo_index": <index of the best logo to use, or -1 if no good logo found>,
-    "extraction_notes": "<any notes about the extraction>"
-}
-
-CRITICAL RULES:
-1. Bounding box must TIGHTLY wrap the logo (no extra padding)
-2. Only include logos with confidence >= 0.6
-3. If multiple logos found, best_logo_index should point to the primary brand logo
-4. If no suitable logo found, set best_logo_index to -1
-5. Coordinates are normalized (0.0-1.0) relative to image dimensions"""
+# Logo detection prompt - loaded from backend/prompts/brand_extraction/system_brand.txt
+def _get_logo_detection_prompt() -> str:
+    try:
+        from backend.prompts.loader import get_brand_extraction_prompt
+        prompt = get_brand_extraction_prompt()
+        if prompt:
+            return prompt
+    except ImportError:
+        pass
+    return "Analyze this webpage screenshot and locate the brand/company logo. Output valid JSON with logos_found and best_logo_index."
 
 
 def extract_logo_with_ai(screenshot_bytes: bytes, url: str = "") -> Optional[Dict[str, Any]]:
@@ -155,8 +115,13 @@ def extract_logo_with_ai(screenshot_bytes: bytes, url: str = "") -> Optional[Dic
         # Call GPT-4o vision
         client = OpenAI(api_key=settings.OPENAI_API_KEY, timeout=30)
         
+        try:
+            from backend.prompts.loader import MODEL_BRAND_EXTRACTION
+            model = MODEL_BRAND_EXTRACTION
+        except ImportError:
+            model = "gpt-4o"
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model=model,
             messages=[
                 {
                     "role": "system",
@@ -165,7 +130,7 @@ def extract_logo_with_ai(screenshot_bytes: bytes, url: str = "") -> Optional[Dic
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": LOGO_DETECTION_PROMPT},
+                        {"type": "text", "text": _get_logo_detection_prompt()},
                         {
                             "type": "image_url",
                             "image_url": {

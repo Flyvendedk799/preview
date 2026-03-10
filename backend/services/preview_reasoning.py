@@ -28,6 +28,7 @@ REASONING STAGES:
 """
 
 import json
+import re
 import base64
 import logging
 import time
@@ -247,285 +248,23 @@ class ReasonedPreview:
 
 
 # =============================================================================
-# AI PROMPTS - Multi-Stage Reasoning
+# AI PROMPTS - Multi-Stage Reasoning (loaded from backend/prompts/)
 # =============================================================================
 
-STAGE_1_2_3_PROMPT = """You are an expert web analyst extracting structured content from a webpage screenshot for an accurate social media preview.
+try:
+    from backend.prompts.loader import (
+        get_layout_stage1_prompt,
+        get_layout_stage4_prompt,
+        MODEL_LAYOUT_REASONING,
+    )
+    PROMPT_LOADER_AVAILABLE = True
+except ImportError:
+    PROMPT_LOADER_AVAILABLE = False
+    MODEL_LAYOUT_REASONING = "gpt-4o"
 
-MISSION: Identify the primary headline, credibility signals, and value statement for this page. Extract EXACT text as it appears.
-
-=== PAGE TYPE CLASSIFICATION ===
-Determine the page type FIRST - this guides all extraction:
-
-INDIVIDUAL PROFILE indicators:
-- Single person's name visible (2-4 words: "Sarah Chen", "John Smith")
-- One profile photo/avatar (circular, headshot)
-- Bio in first person ("I am...", "My work...")
-- URL has user slug (/profile/username, /@username)
-
-COMPANY/ORGANIZATION indicators:
-- Team page, "We" language, multiple people shown
-- Pricing tables, product features, company name prominent
-- "About Us", "Meet Our Team" headings
-
-Page types: saas, ecommerce, agency, portfolio, blog, startup, enterprise, marketplace, tool, landing, profile, educational, documentation, government, nonprofit, news, unknown
-
-=== EXCLUSIONS ===
-NEVER extract: cookie/consent/GDPR banners, navigation menus, footer content, popup/modal content, breadcrumbs, social share buttons, "Skip to content" links.
-
-=== EXTRACTION TARGETS ===
-
-1. **PRIMARY HEADLINE** (mandatory)
-   The main H1 or largest/most prominent text on the page. Copy it VERBATIM.
-   - For profiles: the person's NAME (2-4 words), not their bio
-   - For products: the product name as displayed
-   - For articles: the article title exactly as written
-   - For SaaS/landing: the hero headline exactly as written, do NOT rephrase it
-   IMPORTANT: Do NOT rewrite or improve the headline. Use the EXACT wording from the page.
-
-2. **CREDIBILITY SIGNALS** (if available)
-   Copy the EXACT trust signal text from the page - do NOT paraphrase or invent numbers.
-   - Ratings with count: "4.9★ (2,847 reviews)" - copy exactly as shown
-   - User counts: "50,000+ teams" - use the exact number from the page
-   - Notable clients: "Used by Google, Stripe, Airbnb" - list only logos/names actually visible
-   - Awards: "#1 on Product Hunt", "Forbes 30 Under 30" - verbatim text only
-   If no concrete credibility signal with numbers exists on the page, return null. Do NOT fabricate.
-
-3. **VALUE STATEMENT** (if available)
-   The subheadline or first descriptive paragraph, copied VERBATIM from the page.
-   - Use the actual subheadline text directly below the main headline
-   - Or the first paragraph of body text if no subheadline exists
-   - Do NOT summarize or rewrite - extract the exact sentence(s) as shown
-   - If only generic text like "Powerful features" or "Easy to use" exists, return null
-   Avoid generic language. If the page has no specific value statement, return null.
-
-4. **LOGO / BRAND VISUAL**
-   - Logo location (typically top-left of page, within top 15% vertically)
-   - Hero image or product screenshot
-   - Profile avatar for individual pages
-
-=== FEW-SHOT EXAMPLES ===
-
-EXAMPLE 1 (SaaS):
-{{
-  "reasoning_chain": {{
-    "page_type_decision": "SaaS company homepage - payment infrastructure product",
-    "individual_vs_company": "company - product features, pricing, 'we' language",
-    "headline_selection": "Main hero headline describes the product",
-    "validation": "Headline is specific, credibility has numbers"
-  }},
-  "page_type": "saas",
-  "primary_headline": "Financial infrastructure for the internet",
-  "credibility_signals": "Millions of companies of all sizes use Stripe",
-  "value_statement": "Hundreds of billions of dollars per year",
-  "is_individual_profile": false,
-  "analysis_confidence": 0.95
-}}
-
-EXAMPLE 2 (Article/News):
-{{
-  "reasoning_chain": {{
-    "page_type_decision": "News article - has byline, date, article body",
-    "individual_vs_company": "company - news publication",
-    "headline_selection": "Article title is the primary headline",
-    "validation": "Clear article structure with author and date"
-  }},
-  "page_type": "news",
-  "primary_headline": "OpenAI Releases GPT-5 with Reasoning Capabilities",
-  "credibility_signals": "Published by Reuters, 2.3M shares",
-  "value_statement": "New model achieves state-of-the-art on all benchmarks",
-  "is_individual_profile": false,
-  "analysis_confidence": 0.9
-}}
-
-EXAMPLE 3 (Profile):
-{{
-  "reasoning_chain": {{
-    "page_type_decision": "Individual profile page - single person, user slug URL",
-    "individual_vs_company": "individual - single name, photo, first-person bio",
-    "headline_selection": "Person's name is the headline for profiles",
-    "validation": "Name is 2 words, capitalized, has profile photo"
-  }},
-  "page_type": "profile",
-  "primary_headline": "Sarah Chen",
-  "credibility_signals": "10+ years experience, Ex-Google, Stripe",
-  "value_statement": "Product design for B2B SaaS",
-  "detected_person_name": "Sarah Chen",
-  "is_individual_profile": true,
-  "analysis_confidence": 0.9
-}}
-
-=== PRODUCT PAGE FIELDS ===
-If page_type is "ecommerce" or has pricing/add-to-cart, also extract:
-- "pricing": {{current_price, original_price, discount_percentage, currency, deal_ends}}
-- "availability": {{in_stock, stock_level, stock_quantity}}
-- "rating": {{value, count}}
-- "badges": ["Best Seller", ...]
-- "trust_signals": {{shipping, returns, warranty}}
-
-=== OUTPUT JSON ===
-{{
-    "reasoning_chain": {{
-        "page_type_decision": "<1-2 sentences: what type of page and why>",
-        "individual_vs_company": "<individual|company|unclear - reasoning>",
-        "headline_selection": "<1 sentence: why this headline was chosen>",
-        "validation": "<1 sentence: confirming extraction accuracy>"
-    }},
-    "page_type": "<saas|ecommerce|agency|portfolio|blog|startup|enterprise|marketplace|tool|landing|profile|educational|documentation|government|nonprofit|news|unknown>",
-    "primary_headline": "<VERBATIM text of the main headline/H1 from the page>",
-    "credibility_signals": "<VERBATIM credibility text with numbers from the page, or null if none visible>",
-    "value_statement": "<VERBATIM subheadline or first descriptive paragraph from the page, or null>",
-    "detected_person_name": "<person's full name if profile, null otherwise>",
-    "is_individual_profile": <true|false>,
-    "company_indicators": ["<signals indicating company/team page>"],
-    "regions": [
-        {{
-            "id": "<unique_id>",
-            "content_type": "<headline|subheadline|hero_image|logo|rating|user_count|testimonial|benefit|cta|statistic|badge|price|other>",
-            "raw_content": "<EXACT text>",
-            "bbox": {{"x": <0-1>, "y": <0-1>, "width": <0-1>, "height": <0-1>}},
-            "purpose": "<headline|credibility|value|identity|action|filler>",
-            "marketing_value": "<high|medium|low>",
-            "why_it_matters": "<1 sentence>",
-            "visual_weight": "<hero|primary|secondary|omit>",
-            "priority_score": <0.0-1.0>,
-            "is_logo": <true|false>
-        }}
-    ],
-    "detected_palette": {{
-        "primary": "<hex - main brand color>",
-        "secondary": "<hex - background color>",
-        "accent": "<hex - CTA/highlight color>"
-    }},
-    "detected_logo": {{
-        "region_id": "<id or null>",
-        "confidence": <0.0-1.0>
-    }},
-    "design_dna": {{
-        "style": "<minimalist|maximalist|corporate|luxurious|playful|technical|editorial|brutalist|organic>",
-        "mood": "<calm|balanced|dynamic|dramatic>",
-        "formality": <0.0-1.0>,
-        "typography_personality": "<authoritative|friendly|elegant|technical|bold|subtle|expressive>",
-        "color_emotion": "<trust|energy|calm|sophistication|warmth|innovation|playfulness>",
-        "spacing_feel": "<compact|balanced|spacious|ultra-minimal>",
-        "brand_adjectives": ["<3-5 words describing brand personality>"],
-        "design_reasoning": "<1-2 sentences on design choices>"
-    }},
-    "analysis_confidence": <0.0-1.0>
-}}
-
-=== RULES ===
-1. EXACT TEXT ONLY - copy text VERBATIM from the page. NEVER rephrase, summarize, or add words not on the page
-2. NUMBERS REQUIRED for credibility - "4.9★ (2,847 reviews)" not "Great reviews". If no numbers visible, use null
-3. SPECIFIC > GENERIC - "Save 10 hours/week" not "Save time". Prefer null over vague text
-4. ONE HERO ONLY - only one region gets hero visual weight
-5. LOGO IN TOP 15% - logos are almost always in the top 15% of the page
-6. BBOX PRECISION - bounding boxes should tightly wrap visible content
-7. CONTEXT MATTERS - extraction strategy varies by page type
-8. NAME VALIDATION - person names are 2-4 capitalized words, NOT job titles
-9. NO MARKETING COPY - do NOT generate promotional language. Only extract what is actually visible on the page
-10. NULL OVER FABRICATION - return null for any field where you cannot find exact matching text on the page"""
-
-
-STAGE_4_5_6_PROMPT = """You are a layout designer and quality assessor for social media previews.
-
-TASK: Given extracted regions from a webpage, decide what to include, design the layout, and score the result quality.
-
-EXTRACTED CONTENT:
-{regions_json}
-
-PAGE TYPE: {page_type}
-COLORS: Primary={primary}, Secondary={secondary}, Accent={accent}
-DESIGN DNA: {design_dna_json}
-
-=== COMPOSITION DECISIONS ===
-
-For each region, decide: "Does removing this make the preview less informative?"
-- YES → Include
-- NO → Exclude
-
-MUST INCLUDE (if available):
-1. HEADLINE - the primary identifying statement
-2. CREDIBILITY - trust signals with specific numbers
-3. ONE visual element - logo or hero image, not both
-
-OPTIONAL:
-4. One value statement - only if specific ("Save 10 hours/week", not "Easy to use")
-5. CTA text - only if meaningful ("Start free trial", not "Submit")
-
-ALWAYS EXCLUDE: navigation, footers, generic taglines, duplicate headlines, vague benefits.
-
-=== LAYOUT STRUCTURE ===
-
-THREE zones:
-┌─────────────────────────────────────┐
-│  HEADLINE - primary, largest text   │
-├─────────────────────────────────────┤
-│  CREDIBILITY - trust signals        │
-├─────────────────────────────────────┤
-│  CONTEXT - value statement + visual │
-└─────────────────────────────────────┘
-
-=== QUALITY SCORING ===
-
-Rate the assembled preview on these dimensions (0.0-1.0):
-
-ACCURACY SCORE: Does the preview faithfully represent the page?
-- Headline matches actual page content? +0.4
-- No misleading or out-of-context claims? +0.3
-- Correct page type classification? +0.3
-
-CLARITY SCORE: Can someone understand this in 2 seconds?
-- One clear message, not competing messages? +0.4
-- Right amount of info (not sparse, not overwhelming)? +0.3
-- Text readable at small sizes? +0.3
-
-ENGAGEMENT SCORE: Would someone want to learn more?
-- Clear reason to visit the page? +0.4
-- Credibility signals present and specific? +0.3
-- Visual identity recognizable? +0.3
-
-DESIGN FIDELITY SCORE: Does this honor the original brand?
-- Colors match the brand identity? +0.25
-- Typography personality is consistent? +0.25
-- Spacing/density matches original? +0.25
-- Brand would be recognizable? +0.25
-
-OUTPUT JSON:
-{{
-    "composition_decisions": [
-        {{
-            "region_id": "<id>",
-            "include": <true|false>,
-            "slot_assignment": "<headline|credibility|value|visual|none>",
-            "decision_reasoning": "<why include/exclude>"
-        }}
-    ],
-    "layout": {{
-        "template_style": "<bold|professional|minimal|energetic>",
-        "headline_slot": "<region_id for headline>",
-        "visual_slot": "<region_id for logo/image, or null>",
-        "proof_slot": "<region_id for credibility, or null>",
-        "benefit_slot": "<region_id for value statement, or null>",
-        "cta_slot": "<region_id or null>"
-    }},
-    "layout_reasoning": "<2-3 sentences on layout strategy>",
-    "preview_strength": "<strong|moderate|weak>",
-    "accuracy_score": <0.0-1.0>,
-    "clarity_score": <0.0-1.0>,
-    "engagement_score": <0.0-1.0>,
-    "design_fidelity_score": <0.0-1.0>,
-    "overall_quality": "<excellent|good|fair|poor>",
-    "biggest_weakness": "<the ONE thing that would improve this most>",
-    "improvement_suggestions": ["<specific, actionable fixes>"]
-}}
-
-RULES:
-- 3 focused elements beat 5 mediocre ones
-- Numbers always beat vague claims
-- If no credibility signals exist, don't fabricate them
-- Headline should be under 80 characters
-- Be honest: most previews are "good", reserve "excellent" for truly strong ones"""
+# Fallback prompts if loader unavailable (keep minimal inline)
+_STAGE_1_2_3_FALLBACK = "You are an expert web analyst. Extract primary_headline, credibility_signals, value_statement, page_type, regions, design_dna, analysis_confidence. Output valid JSON only."
+_STAGE_4_5_6_FALLBACK = "You are a layout designer. Output valid JSON with layout, layout_reasoning, accuracy_score, clarity_score, engagement_score, design_fidelity_score, overall_quality."
 
 
 # =============================================================================
@@ -735,18 +474,29 @@ def run_stages_1_2_3(screenshot_bytes: bytes) -> Tuple[List[Dict], Dict[str, str
 
     client = OpenAI(api_key=settings.OPENAI_API_KEY, timeout=60)
 
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o",
+    stage1_prompt = (
+        get_layout_stage1_prompt() if PROMPT_LOADER_AVAILABLE else _STAGE_1_2_3_FALLBACK
+    )
+    if not stage1_prompt:
+        stage1_prompt = _STAGE_1_2_3_FALLBACK
+
+    def _call_stage1(retry_simplified: bool = False) -> str:
+        prompt_text = (
+            "Return valid JSON only. Extract primary_headline, credibility_signals, value_statement, page_type, regions, design_dna, analysis_confidence."
+            if retry_simplified
+            else stage1_prompt
+        )
+        resp = client.chat.completions.create(
+            model=MODEL_LAYOUT_REASONING,
             messages=[
                 {
                     "role": "system",
-                    "content": "You are an expert web analyst extracting structured content from webpages. Extract the EXACT text as it appears on the page - do NOT rephrase, summarize, or add marketing language. Copy text verbatim. Prioritize specific claims over generic ones. Distinguish between individual profiles and company pages. Output valid JSON only."
+                    "content": "You are an expert web analyst. Extract EXACT text as it appears. Output valid JSON only."
                 },
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": STAGE_1_2_3_PROMPT},
+                        {"type": "text", "text": prompt_text},
                         {
                             "type": "image_url",
                             "image_url": {"url": f"data:image/jpeg;base64,{image_base64}", "detail": "high"}
@@ -758,55 +508,66 @@ def run_stages_1_2_3(screenshot_bytes: bytes) -> Tuple[List[Dict], Dict[str, str
             temperature=0.0,
             seed=42
         )
+        return resp.choices[0].message.content.strip()
+
+    try:
+        content = _call_stage1(retry_simplified=False)
         circuit_breaker.record_success()
     except Exception as e:
         circuit_breaker.record_error()
         raise
-    
-    content = response.choices[0].message.content.strip()
     if "```json" in content:
         content = content.split("```json")[1].split("```")[0].strip()
     elif "```" in content:
         content = content.split("```")[1].split("```")[0].strip()
     
-    # FIX 1: Robust JSON parsing with fallbacks
-    try:
-        data = json.loads(content)
-    except json.JSONDecodeError as e:
-        logger.error(f"❌ JSON parsing failed: {e}. Content preview: {content[:200]}...")
-        # Try to extract JSON from content more aggressively
-        import re
-        json_match = re.search(r'\{.*\}', content, re.DOTALL)
-        if json_match:
-            try:
-                data = json.loads(json_match.group(0))
-                logger.info("✅ Recovered JSON using regex extraction")
-            except:
-                # Last resort: return minimal valid structure
-                logger.warning("⚠️ Using fallback structure due to JSON parse failure")
-                data = {
-                    "page_type": "unknown",
-                    "the_hook": None,
-                    "social_proof_found": None,
-                    "key_benefit": None,
-                    "regions": [],
-                    "detected_palette": {"primary": "#3B82F6", "secondary": "#1E293B", "accent": "#F59E0B"},
-                    "detected_logo": {},
-                    "analysis_confidence": 0.3
-                }
-        else:
-            # No JSON found, use fallback
-            logger.warning("⚠️ No JSON found in response, using fallback structure")
+    # FIX 1: Robust JSON parsing with retry on parse failure (AIL-112)
+    def _parse_stage1_content(raw: str) -> Optional[Dict]:
+        c = raw.strip()
+        if "```json" in c:
+            c = c.split("```json")[1].split("```")[0].strip()
+        elif "```" in c:
+            c = c.split("```")[1].split("```")[0].strip()
+        try:
+            return json.loads(c)
+        except json.JSONDecodeError:
+            m = re.search(r'\{.*\}', c, re.DOTALL)
+            if m:
+                try:
+                    return json.loads(m.group(0))
+                except json.JSONDecodeError:
+                    pass
+        return None
+
+    data = _parse_stage1_content(content)
+    if data is None:
+        # Retry once with simplified prompt (AIL-112 schema enforcement)
+        logger.warning("⚠️ Stage 1-3 parse failed, retrying with simplified prompt")
+        try:
+            content = _call_stage1(retry_simplified=True)
+            data = _parse_stage1_content(content)
+        except Exception as retry_err:
+            logger.warning(f"Retry failed: {retry_err}")
+        if data is None:
             data = {
                 "page_type": "unknown",
-                "the_hook": None,
-                "social_proof_found": None,
-                "key_benefit": None,
+                "primary_headline": None,
+                "credibility_signals": None,
+                "value_statement": None,
                 "regions": [],
                 "detected_palette": {"primary": "#3B82F6", "secondary": "#1E293B", "accent": "#F59E0B"},
                 "detected_logo": {},
                 "analysis_confidence": 0.3
             }
+            logger.warning("⚠️ Using fallback structure after parse failure")
+
+    # Pydantic validation (AIL-112)
+    try:
+        from backend.schemas.ai_output_schemas import validate_reasoning_output
+        validated = validate_reasoning_output(data)
+        data = validated.model_dump()
+    except Exception as val_err:
+        logger.debug(f"Pydantic validation skipped: {val_err}")
     
     # Extract highlights - support both old and new field names
     # Robustness: coerce to str to avoid TypeError on malformed JSON (AIL-75, AIL-99)
@@ -1022,25 +783,45 @@ def run_stages_4_5_6(regions: List[Dict], page_type: str, palette: Dict[str, str
 
     client = OpenAI(api_key=settings.OPENAI_API_KEY, timeout=45)
 
+    stage4_prompt = ""
+    if PROMPT_LOADER_AVAILABLE:
+        stage4_prompt = get_layout_stage4_prompt(
+            regions_json=json.dumps(regions_for_ai, indent=2),
+            page_type=page_type,
+            primary=palette.get("primary", "#3B82F6"),
+            secondary=palette.get("secondary", "#1E293B"),
+            accent=palette.get("accent", "#F59E0B"),
+            design_dna_json=json.dumps(design_dna or {}, indent=2),
+        )
+    if not stage4_prompt:
+        stage4_prompt = _STAGE_4_5_6_FALLBACK
+
+    def _parse_stage4_content(raw: str) -> Optional[Dict]:
+        c = raw.strip()
+        if "```json" in c:
+            c = c.split("```json")[1].split("```")[0].strip()
+        elif "```" in c:
+            c = c.split("```")[1].split("```")[0].strip()
+        try:
+            return json.loads(c)
+        except json.JSONDecodeError:
+            m = re.search(r'\{.*\}', c, re.DOTALL)
+            if m:
+                try:
+                    return json.loads(m.group(0))
+                except json.JSONDecodeError:
+                    pass
+        return None
+
     try:
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model=MODEL_LAYOUT_REASONING,
             messages=[
                 {
                     "role": "system",
                     "content": "You are a layout designer and quality assessor for social media previews. Create clear, accurate layouts. Output valid JSON only."
                 },
-                {
-                    "role": "user",
-                    "content": STAGE_4_5_6_PROMPT.format(
-                        regions_json=json.dumps(regions_for_ai, indent=2),
-                        page_type=page_type,
-                        primary=palette.get("primary", "#3B82F6"),
-                        secondary=palette.get("secondary", "#1E293B"),
-                        accent=palette.get("accent", "#F59E0B"),
-                        design_dna_json=json.dumps(design_dna or {}, indent=2)
-                    )
-                }
+                {"role": "user", "content": stage4_prompt}
             ],
             max_tokens=2000,
             temperature=0.0
@@ -1048,24 +829,28 @@ def run_stages_4_5_6(regions: List[Dict], page_type: str, palette: Dict[str, str
         circuit_breaker.record_success()
 
         content = response.choices[0].message.content.strip()
-        if "```json" in content:
-            content = content.split("```json")[1].split("```")[0].strip()
-        elif "```" in content:
-            content = content.split("```")[1].split("```")[0].strip()
-
-        try:
-            result = json.loads(content)
-        except json.JSONDecodeError as e:
-            logger.error(f"JSON parsing failed in stage 4-5-6: {e}. Content: {content[:200]}...")
-            import re
-            json_match = re.search(r'\{.*\}', content, re.DOTALL)
-            if json_match:
-                try:
-                    result = json.loads(json_match.group(0))
-                except Exception:
-                    result = _fallback_layout_result(page_type)
-            else:
-                result = _fallback_layout_result(page_type)
+        result = _parse_stage4_content(content)
+        if result is None:
+            logger.warning("⚠️ Stage 4-5-6 parse failed, retrying with simplified prompt")
+            retry_resp = client.chat.completions.create(
+                model=MODEL_LAYOUT_REASONING,
+                messages=[
+                    {"role": "system", "content": "You are a layout designer. Output valid JSON only."},
+                    {"role": "user", "content": stage4_prompt + "\n\nReturn valid JSON only."}
+                ],
+                max_tokens=2000,
+                temperature=0.0
+            )
+            result = _parse_stage4_content(retry_resp.choices[0].message.content.strip())
+        if result is None:
+            result = _fallback_layout_result(page_type)
+        else:
+            try:
+                from backend.schemas.ai_output_schemas import validate_layout_result
+                validated = validate_layout_result(result)
+                result = validated.model_dump()
+            except Exception as val_err:
+                logger.debug(f"Layout Pydantic validation skipped: {val_err}")
 
     except Exception as e:
         circuit_breaker.record_error()
