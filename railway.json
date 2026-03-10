@@ -23,7 +23,9 @@
           "public/**",
           "index.html",
           "package.json",
-          "Dockerfile.frontend"
+          "Dockerfile.frontend",
+          "nginx.conf",
+          "docker-entrypoint.sh"
         ]
       },
       "deploy": {
