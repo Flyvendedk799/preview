@@ -268,6 +268,9 @@ def invalidate_cache(url: str) -> bool:
             CacheConfig.ANALYSIS_PREFIX,  # "analysis:"
             "demo:preview:",              # Demo route v1
             "demo:preview:v2:",           # Demo route v2 (job-based)
+            "demo:preview:v3:fast:",      # Demo v3 quality profiles
+            "demo:preview:v3:balanced:",
+            "demo:preview:v3:ultra:",
             "preview:engine:",            # Engine default
             "preview:enhanced:",          # Enhanced engine
             "saas:preview:",              # SaaS preview

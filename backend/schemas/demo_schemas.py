@@ -53,6 +53,7 @@ class LayoutBlueprint(BaseModel):
 class DemoPreviewRequest(BaseModel):
     """Schema for demo preview generation request."""
     url: HttpUrl
+    quality_mode: Literal["fast", "balanced", "ultra", "auto"] = "ultra"
 
 
 class DemoPreviewResponse(BaseModel):

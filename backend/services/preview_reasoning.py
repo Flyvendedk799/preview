@@ -809,12 +809,21 @@ def run_stages_1_2_3(screenshot_bytes: bytes) -> Tuple[List[Dict], Dict[str, str
             }
     
     # Extract highlights - support both old and new field names
-    extracted_highlights = {
+    # Robustness: coerce to str to avoid TypeError on malformed JSON (AIL-75, AIL-99)
+    def _safe_str(v: Any) -> str:
+        if v is None:
+            return ""
+        if isinstance(v, str):
+            return v
+        return str(v) if v else ""
+
+    raw_highlights = {
         "the_hook": data.get("primary_headline") or data.get("the_hook"),
         "social_proof_found": data.get("credibility_signals") or data.get("social_proof_found"),
         "key_benefit": data.get("value_statement") or data.get("key_benefit")
     }
-    
+    extracted_highlights = {k: (_safe_str(v) or "") for k, v in raw_highlights.items()}
+
     # Extract Design DNA (NEW - for design-intelligent rendering)
     design_dna = data.get("design_dna", {
         "style": "corporate",
@@ -827,7 +836,9 @@ def run_stages_1_2_3(screenshot_bytes: bytes) -> Tuple[List[Dict], Dict[str, str
         "design_reasoning": "Default design DNA"
     })
     
-    logger.info(f"🎯 Extracted highlights: hook='{extracted_highlights.get('the_hook', 'none')[:50]}...', proof='{extracted_highlights.get('social_proof_found', 'none')}'")
+    hook_val = extracted_highlights.get("the_hook") or "none"
+    proof_val = extracted_highlights.get("social_proof_found") or "none"
+    logger.info(f"🎯 Extracted highlights: hook='{str(hook_val)[:50]}...', proof='{proof_val}'")
     logger.info(f"🧬 Design DNA: style={design_dna.get('style')}, mood={design_dna.get('mood')}, typography={design_dna.get('typography_personality')}")
     
     # ENHANCED: Validate and score extraction quality
