@@ -128,12 +128,11 @@ class TestColorExtraction:
 
         colors = extract_brand_colors(
             '<html><body></body></html>',
-            'https://example.com',
             sample_screenshot_bytes
         )
 
         assert colors is not None
-        assert 'primary' in colors
-        assert 'secondary' in colors
+        assert 'primary_color' in colors
+        assert 'secondary_color' in colors
         # Colors should be hex strings
-        assert colors['primary'].startswith('#')
+        assert colors['primary_color'].startswith('#')
