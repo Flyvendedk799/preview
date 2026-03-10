@@ -206,20 +206,36 @@ export default function Landing() {
                 { href: '#features', label: 'Features', id: 'features' },
                 { href: '#pricing', label: 'Pricing', id: 'pricing' },
                 { href: '#docs', label: 'Docs', id: 'docs' },
-              ].map((item) => (
-                <a 
-                  key={item.id}
-                  href={item.href} 
-                  className={`relative py-1 font-semibold text-sm transition-all duration-200 group ${
-                    activeNavItem === item.id ? 'text-orange-600' : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  {item.label}
-                  <span className={`absolute bottom-0 left-0 h-0.5 bg-orange-500 transition-all duration-300 ${
-                    activeNavItem === item.id ? 'w-full' : 'w-0 group-hover:w-full'
-                  }`} />
-                </a>
-              ))}
+                { href: '/demo', label: 'Demo', id: 'demo', isRoute: true },
+              ].map((item) =>
+                item.isRoute ? (
+                  <Link
+                    key={item.id}
+                    to={item.href}
+                    className={`relative py-1 font-semibold text-sm transition-all duration-200 group ${
+                      activeNavItem === item.id ? 'text-orange-600' : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    {item.label}
+                    <span className={`absolute bottom-0 left-0 h-0.5 bg-orange-500 transition-all duration-300 ${
+                      activeNavItem === item.id ? 'w-full' : 'w-0 group-hover:w-full'
+                    }`} />
+                  </Link>
+                ) : (
+                  <a
+                    key={item.id}
+                    href={item.href}
+                    className={`relative py-1 font-semibold text-sm transition-all duration-200 group ${
+                      activeNavItem === item.id ? 'text-orange-600' : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    {item.label}
+                    <span className={`absolute bottom-0 left-0 h-0.5 bg-orange-500 transition-all duration-300 ${
+                      activeNavItem === item.id ? 'w-full' : 'w-0 group-hover:w-full'
+                    }`} />
+                  </a>
+                )
+              )}
               <Link 
                 to="/blog" 
                 className="relative py-1 font-semibold text-sm transition-all duration-200 group text-gray-600 hover:text-gray-900"
@@ -291,6 +307,13 @@ export default function Landing() {
                 >
                   Docs
                 </a>
+                <Link 
+                  to="/demo" 
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="px-4 py-3 text-gray-700 hover:bg-orange-50 hover:text-orange-600 rounded-xl transition-colors font-semibold text-base min-h-[44px] flex items-center"
+                >
+                  Demo
+                </Link>
                 <Link 
                   to="/blog" 
                   onClick={() => setMobileMenuOpen(false)}
@@ -370,7 +393,7 @@ export default function Landing() {
                   <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
                 </Link>
                 <Link 
-                  to="/app" 
+                  to="/demo" 
                   className="group px-6 sm:px-7 py-3.5 bg-white text-gray-800 rounded-xl font-bold text-sm border-2 border-gray-200 hover:border-orange-200 hover:bg-orange-50/50 transition-all duration-300 hover:scale-[1.03] active:scale-[0.98] hover:shadow-lg inline-flex items-center justify-center min-h-[48px] select-none"
                 >
                   Watch Demo
@@ -1044,10 +1067,10 @@ export default function Landing() {
               <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
             </Link>
             <Link 
-              to="/app" 
+              to="/demo" 
               className="px-8 py-4 bg-white/10 text-white rounded-xl font-bold text-base border border-white/20 hover:bg-white/20 hover:border-white/30 transition-all duration-300 inline-flex items-center justify-center backdrop-blur-sm"
             >
-              Schedule Demo
+              Watch Demo
             </Link>
           </div>
           
