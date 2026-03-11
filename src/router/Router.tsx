@@ -32,6 +32,7 @@ import AccountSettings from '../pages/AccountSettings'
 import Blog from '../pages/Blog'
 import BlogPost from '../pages/BlogPost'
 import Demo from '../pages/Demo'
+import DemoGenerationPage from '../pages/DemoGenerationPage'
 import SitesList from '../pages/sites/SitesList'
 import CreateSite from '../pages/sites/CreateSite'
 import SiteDashboard from '../pages/sites/SiteDashboard'
@@ -53,6 +54,7 @@ export default function Router() {
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
       <Route path="/demo" element={<Demo />} />
+      <Route path="/demo-generation" element={<DemoGenerationPage />} />
       
       {/* Public Blog routes */}
       <Route path="/blog" element={<Blog />} />
