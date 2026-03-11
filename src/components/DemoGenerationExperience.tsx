@@ -50,7 +50,7 @@ export interface DemoGenerationExperienceProps {
 export const DemoGenerationExperience: React.FC<
   DemoGenerationExperienceProps
 > = ({ initialItems, onCreateJob, onPollJob, pollIntervalMs = 1500 }) => {
-  const prefersReduced = useReducedMotion();
+  const prefersReduced = useReducedMotion() ?? false;
 
   const [status, setStatus] = useState<DemoStatus>(
     initialItems && initialItems.length > 0 ? "results_success" : "configure",
