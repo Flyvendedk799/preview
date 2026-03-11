@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
+import './styles/demo-generation.css'
 import { AppErrorBoundary } from './components/error/AppErrorBoundary'
 import { getApiBaseUrl } from './api/client'
 
