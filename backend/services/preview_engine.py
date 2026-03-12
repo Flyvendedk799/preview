@@ -710,7 +710,8 @@ class PreviewEngine:
             max_retries = max(1, self.config.max_quality_iterations)
             retry_count = 0
             quality_passed = False
-            
+            prev_overall_score = None  # Track previous score to detect no-improvement loops
+
             while retry_count <= max_retries and not quality_passed:
                 if self.quality_orchestrator:
                     try:
@@ -749,11 +750,14 @@ class PreviewEngine:
                                     expected_colors = None
                                     if brand_elements and brand_elements.get("colors"):
                                         colors = brand_elements["colors"]
+                                        # Use actual preview colors, not hardcoded defaults.
+                                        # The blueprint holds the real bg/text colors used.
+                                        blueprint = ai_result.get("blueprint", {}) if ai_result else {}
                                         expected_colors = {
                                             "primary_color": colors.get("primary_color"),
                                             "secondary_color": colors.get("secondary_color"),
-                                            "background_color": "#FFFFFF",
-                                            "text_color": "#111827"
+                                            "background_color": blueprint.get("background_color", colors.get("background_color", "#FFFFFF")),
+                                            "text_color": blueprint.get("text_color", colors.get("text_color", "#111827"))
                                         }
                                     has_logo = bool(brand_elements and brand_elements.get("logo_base64"))
                                     vq = validate_visual_quality_from_bytes(
@@ -836,6 +840,18 @@ class PreviewEngine:
                                 and quality_metrics.contrast_score < 0.35
                             )
                         )
+
+                        # Early-exit: if the score hasn't improved from the previous
+                        # retry, stop wasting time and API calls on identical results.
+                        current_score = round(quality_metrics.overall_quality_score, 3)
+                        if prev_overall_score is not None and current_score <= prev_overall_score and retry_count > 0:
+                            self.logger.warning(
+                                f"⚠️  Score did not improve ({prev_overall_score:.3f} → {current_score:.3f}). "
+                                f"Stopping retries early to avoid wasting resources."
+                            )
+                            break
+                        prev_overall_score = current_score
+
                         if should_retry_now and retry_count < max_retries:
                             retry_count += 1
                             self.logger.info(

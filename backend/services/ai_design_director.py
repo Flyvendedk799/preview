@@ -98,6 +98,102 @@ OUTPUT JSON:
 Make BOLD creative decisions that will make this preview STAND OUT on social media feeds."""
 
 
+def _get_luminance(rgb: tuple) -> float:
+    """Calculate WCAG relative luminance."""
+    def adjust(c):
+        c = c / 255
+        return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+    r, g, b = adjust(rgb[0]), adjust(rgb[1]), adjust(rgb[2])
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def _get_contrast_ratio(c1: tuple, c2: tuple) -> float:
+    """Calculate WCAG contrast ratio between two RGB tuples."""
+    l1, l2 = _get_luminance(c1), _get_luminance(c2)
+    lighter, darker = max(l1, l2), min(l1, l2)
+    return (lighter + 0.05) / (darker + 0.05)
+
+
+def _validate_and_fix_contrast(decisions: dict) -> dict:
+    """
+    Validate text color against background and fix if contrast is too low.
+
+    The AI Director sometimes picks text colors that don't have enough contrast
+    against the chosen background (e.g., white text on medium-gray). This function
+    checks the WCAG contrast ratio and swaps to a safe text color if needed.
+    """
+    bg = decisions.get("background", {})
+    colors = decisions.get("colors", {})
+    if not bg or not colors:
+        return decisions
+
+    text_hex = colors.get("text_color", "")
+    primary_bg_hex = bg.get("primary_color", "")
+    if not text_hex or not primary_bg_hex:
+        return decisions
+
+    text_rgb = hex_to_rgb(text_hex)
+    bg_rgb = hex_to_rgb(primary_bg_hex)
+    ratio = _get_contrast_ratio(text_rgb, bg_rgb)
+
+    # WCAG AA large text requires 3:1, normal text 4.5:1.
+    # We use 4.5:1 as the minimum for preview headlines.
+    MIN_CONTRAST = 4.5
+    if ratio >= MIN_CONTRAST:
+        return decisions
+
+    logger.warning(
+        f"🎨 [AI_DIRECTOR] ⚠️ Low contrast detected: {text_hex} on {primary_bg_hex} "
+        f"(ratio={ratio:.2f}, min={MIN_CONTRAST}). Fixing..."
+    )
+
+    # Determine if bg is light or dark
+    bg_lum = _get_luminance(bg_rgb)
+    white, black = (255, 255, 255), (17, 24, 39)
+
+    if bg_lum > 0.5:
+        # Light background → use dark text
+        fixed_color = black
+    elif bg_lum < 0.2:
+        # Dark background → white works fine
+        fixed_color = white
+    else:
+        # Mid-tone background — the problematic zone.
+        # Pick whichever has higher contrast.
+        white_ratio = _get_contrast_ratio(white, bg_rgb)
+        black_ratio = _get_contrast_ratio(black, bg_rgb)
+        if white_ratio >= MIN_CONTRAST:
+            fixed_color = white
+        elif black_ratio >= MIN_CONTRAST:
+            fixed_color = black
+        else:
+            # Neither works well on mid-tone — darken the background instead
+            # to make white text work.
+            darkened_bg = tuple(max(0, int(c * 0.6)) for c in bg_rgb)
+            new_ratio = _get_contrast_ratio(white, darkened_bg)
+            if new_ratio >= MIN_CONTRAST:
+                decisions["background"]["primary_color"] = f"#{darkened_bg[0]:02x}{darkened_bg[1]:02x}{darkened_bg[2]:02x}"
+                logger.info(
+                    f"🎨 [AI_DIRECTOR] Darkened background {primary_bg_hex} → "
+                    f"#{darkened_bg[0]:02x}{darkened_bg[1]:02x}{darkened_bg[2]:02x} "
+                    f"for contrast (ratio={new_ratio:.2f})"
+                )
+            fixed_color = white
+
+    fixed_hex = f"#{fixed_color[0]:02x}{fixed_color[1]:02x}{fixed_color[2]:02x}"
+    final_ratio = _get_contrast_ratio(
+        fixed_color,
+        hex_to_rgb(decisions["background"]["primary_color"])
+    )
+    decisions["colors"]["text_color"] = fixed_hex
+    logger.info(
+        f"🎨 [AI_DIRECTOR] ✅ Fixed text color: {text_hex} → {fixed_hex} "
+        f"(contrast ratio: {ratio:.2f} → {final_ratio:.2f})"
+    )
+
+    return decisions
+
+
 def prepare_screenshot_for_vision(screenshot_bytes: bytes, max_size: int = 1024) -> str:
     """Prepare screenshot for Vision API, optimizing for speed and cost."""
     image = Image.open(BytesIO(screenshot_bytes)).convert('RGB')
@@ -204,7 +300,10 @@ def get_ai_design_decisions(
         logger.info(f"🎨 [AI_DIRECTOR]   - Dark BG: {decisions.get('colors', {}).get('use_dark_bg')}")
         logger.info(f"🎨 [AI_DIRECTOR]   - Style: {decisions.get('visual_style', {}).get('design_style')}")
         logger.info(f"🎨 [AI_DIRECTOR]   - Reasoning: {decisions.get('reasoning', '')[:100]}...")
-        
+
+        # Validate and fix text/background contrast before returning
+        decisions = _validate_and_fix_contrast(decisions)
+
         return decisions
         
     except json.JSONDecodeError as e:

@@ -211,6 +211,17 @@ INDUSTRY_PROFILES = {
         visual_elements=["gradients", "grids", "circuits", "glow"],
         avoid=["dated", "organic", "handdrawn", "traditional"]
     ),
+
+    Industry.UNKNOWN: IndustryProfile(
+        industry=Industry.UNKNOWN,
+        primary_colors=[(30, 41, 59), (37, 99, 235), (59, 130, 246)],  # Safe dark blues
+        accent_colors=[(59, 130, 246), (99, 102, 241), (168, 85, 247)],  # Blue-purple accents
+        typography_personality="authoritative",
+        design_style="professional",
+        key_values=["quality", "trust", "modern", "professional"],
+        visual_elements=["gradients", "typography", "clean-layout"],
+        avoid=["niche", "aggressive", "overly-specific"]
+    ),
 }
 
 

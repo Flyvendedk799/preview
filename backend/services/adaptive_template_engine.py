@@ -2002,7 +2002,19 @@ class AdaptiveTemplateEngine:
         # PRIORITY: Use AI Director's text color decision if available
         if hasattr(self, '_ai_text_color') and self._ai_text_color:
             text_color = self._ai_text_color
-            logger.info(f"🎨 Headline text color: AI DIRECTOR chose {text_color}")
+            # Safety check: validate contrast against actual rendered background
+            actual_bg = getattr(self, '_actual_rendered_bg_color', self.colors.background)
+            from backend.services.color_psychology import get_contrast_ratio, get_optimal_text_color
+            contrast = get_contrast_ratio(text_color, actual_bg)
+            if contrast < 4.5:
+                safe_color = get_optimal_text_color(actual_bg)
+                logger.warning(
+                    f"🎨 AI DIRECTOR text color {text_color} has low contrast "
+                    f"({contrast:.2f}) on bg={actual_bg}. Overriding with {safe_color}"
+                )
+                text_color = safe_color
+            else:
+                logger.info(f"🎨 Headline text color: AI DIRECTOR chose {text_color} (contrast={contrast:.2f})")
         else:
             # Fallback: Use ACTUAL RENDERED BACKGROUND for text color
             actual_bg = getattr(self, '_actual_rendered_bg_color', self.colors.background)

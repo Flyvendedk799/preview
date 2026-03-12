@@ -272,27 +272,25 @@ def apply_design_improvements(
     logger.info(f"🎨 [AI_DESIGN] Overall appeal: {overall_appeal}")
     
     # ==================== CONTRAST ENHANCEMENT ====================
-    # This is THE most critical factor for professional-looking designs
+    # NOTE: Global image contrast (ImageEnhance.Contrast) does NOT fix text
+    # readability — it just makes the entire image more contrasty which can
+    # wash out gradients.  Text contrast is handled upstream by the AI Director
+    # contrast validation.  We cap the boost at 1.15x to avoid over-processing.
     needs_contrast = color_analysis.get('needs_more_contrast', False)
     contrast_issue = color_analysis.get('contrast_issue', 'none')
-    
-    # Calculate contrast enhancement factor based on multiple signals
+
     contrast_factor = 1.0
     if contrast_score < 0.4 or contrast_issue == 'very_low':
-        contrast_factor = 1.35  # Maximum boost for very low contrast
+        contrast_factor = 1.15  # Capped — text contrast fixed upstream
     elif contrast_score < 0.5 or needs_contrast:
-        contrast_factor = 1.28
-    elif contrast_score < 0.6 or contrast_issue == 'low':
-        contrast_factor = 1.22
-    elif contrast_score < 0.7 or visual_hierarchy < 0.6:
-        contrast_factor = 1.18
-    elif contrast_score < 0.8 or overall_appeal in ['poor', 'fair']:
         contrast_factor = 1.12
-    elif contrast_score < 0.9:
+    elif contrast_score < 0.7 or contrast_issue == 'low':
         contrast_factor = 1.08
-    
+    elif contrast_score < 0.85:
+        contrast_factor = 1.05
+
     if contrast_factor > 1.0:
-        logger.info(f"🎨 [AI_DESIGN] Applying contrast enhancement: {contrast_factor:.2f}x")
+        logger.info(f"🎨 [AI_DESIGN] Applying mild contrast enhancement: {contrast_factor:.2f}x")
         enhancer = ImageEnhance.Contrast(enhanced_image)
         enhanced_image = enhancer.enhance(contrast_factor)
         applied_improvements.append(f"Enhanced contrast ({contrast_factor:.2f}x)")

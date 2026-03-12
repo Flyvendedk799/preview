@@ -179,13 +179,17 @@ class EnhancedPreviewOrchestrator:
         # LAYER 6: Contextual Intelligence (do first to inform other layers)
         industry_recommendation = None
         if self.config.enable_context:
-            industry_recommendation = self.context_engine.get_design_recommendation(
-                url=url,
-                content_keywords=tags,
-                design_dna=design_dna
-            )
-            layers_applied.append("contextual_intelligence")
-            logger.info(f"🏢 Industry: {industry_recommendation.industry.value}, Audience: {industry_recommendation.audience.value}")
+            try:
+                industry_recommendation = self.context_engine.get_design_recommendation(
+                    url=url,
+                    content_keywords=tags,
+                    design_dna=design_dna
+                )
+                layers_applied.append("contextual_intelligence")
+                logger.info(f"🏢 Industry: {industry_recommendation.industry.value}, Audience: {industry_recommendation.audience.value}")
+            except Exception as e:
+                logger.warning(f"🏢 Context intelligence failed (non-fatal): {e}")
+                industry_recommendation = None
         
         # LAYER 1: Visual Hierarchy
         hierarchy_elements = None

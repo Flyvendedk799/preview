@@ -12,6 +12,19 @@ from typing import Tuple, List
 logger = logging.getLogger(__name__)
 
 
+def _is_monochrome_gradient(c1: Tuple[int, int, int], c2: Tuple[int, int, int]) -> bool:
+    """
+    Check if a gradient is monochrome (grayscale or near-grayscale).
+
+    Returns True when both colors have very low saturation, meaning LAB a/b
+    channels are ~0 and 4x upscaling adds no perceptual benefit.
+    """
+    def saturation(c):
+        max_c, min_c = max(c), min(c)
+        return (max_c - min_c) / max(max_c, 1)
+    return saturation(c1) < 0.08 and saturation(c2) < 0.08
+
+
 def rgb_to_lab(r: float, g: float, b: float) -> Tuple[float, float, float]:
     """Convert RGB to LAB color space (perceptually uniform)."""
     # First convert to XYZ
@@ -189,11 +202,16 @@ def generate_smooth_gradient(
         PIL Image with smooth gradient
     """
     logger.info(f"🎨 [GRADIENT] Starting LAB gradient generation: {width}x{height}, color1={color1}, color2={color2}, angle={angle}, style={style}")
-    
-    # Generate at 4x resolution for maximum smoothness
-    scale_factor = 4
+
+    # Detect monochrome/near-monochrome gradients (same hue, only lightness differs).
+    # For these, 4x upscaling + LAB conversion adds cost but no perceptual benefit
+    # since a=0, b=0 for grays.  Use 2x instead.
+    is_monochrome = _is_monochrome_gradient(color1, color2)
+    scale_factor = 2 if is_monochrome else 4
     high_width = width * scale_factor
     high_height = height * scale_factor
+    if is_monochrome:
+        logger.info(f"🎨 [GRADIENT] Monochrome gradient detected — using 2x scale for speed")
     logger.info(f"🎨 [GRADIENT] High-res generation: {high_width}x{high_height} (scale={scale_factor}x)")
     
     # Convert colors to LAB (perceptually uniform)
