@@ -32,6 +32,7 @@ ARCHITECTURE:
 
 import json
 import logging
+import re
 import time
 from typing import Dict, Any, Optional, List, Callable, Tuple
 from dataclasses import dataclass, field
@@ -627,18 +628,24 @@ class PreviewEngine:
                 futures[future_brand] = "brand"
                 
                 # Task 3: Run AI reasoning (most time-consuming, starts early)
+                # 400% optimization: Skip AI for demo when page has rich OG metadata (early exit)
                 # Circuit breaker gate: skip AI if breaker is open
-                if ctx.ai_available():
-                    future_ai = executor.submit(
-                        self._run_ai_reasoning_enhanced,
-                        screenshot_bytes, url_str, html_content, page_classification, dom_data
-                    )
-                    futures[future_ai] = "ai"
-                else:
-                    # Fall back to HTML-only extraction immediately
+                use_html_fast_path = (
+                    not ctx.ai_available()
+                    or (self.config.is_demo and self._has_rich_og_metadata(html_content))
+                )
+                if use_html_fast_path:
+                    if self.config.is_demo and self._has_rich_og_metadata(html_content):
+                        self.logger.info(f"✅ [400%] OG-rich demo fast path: skipping AI, using HTML extraction")
                     future_ai = executor.submit(
                         self._extract_from_html_only,
                         html_content, url_str, getattr(self, '_last_screenshot_bytes', None)
+                    )
+                    futures[future_ai] = "ai"
+                else:
+                    future_ai = executor.submit(
+                        self._run_ai_reasoning_enhanced,
+                        screenshot_bytes, url_str, html_content, page_classification, dom_data
                     )
                     futures[future_ai] = "ai"
                 
@@ -1201,6 +1208,24 @@ class PreviewEngine:
         
         return None
     
+    def _is_cache_eligible_result(self, result: PreviewEngineResult) -> bool:
+        """Whether this result is eligible for caching (no fallbacks, meets thresholds in strict mode)."""
+        if result.quality_scores.get("is_fallback"):
+            return False
+        if not self.config.enforce_target_quality:
+            return True
+        q = result.quality_scores
+        overall = q.get("overall", 0)
+        fidelity = q.get("design_fidelity", 0)
+        visual = q.get("visual", 0)
+        if overall < self.config.quality_threshold:
+            return False
+        if fidelity < self.config.min_soft_pass_fidelity:
+            return False
+        if self.config.min_soft_pass_visual > 0 and visual < self.config.min_soft_pass_visual:
+            return False
+        return True
+
     def _cache_result(
         self,
         url: str,
@@ -1475,9 +1500,14 @@ class PreviewEngine:
         try:
             classifier = get_page_classifier()
             
-            # Extract metadata and structure in parallel
-            metadata = extract_metadata_from_html(html_content)
-            content_structure = extract_semantic_structure(html_content)
+            # Extract metadata and structure in parallel (400% perf: was sequential)
+            metadata = None
+            content_structure = None
+            with ThreadPoolExecutor(max_workers=2) as classify_exec:
+                future_meta = classify_exec.submit(extract_metadata_from_html, html_content)
+                future_semantic = classify_exec.submit(extract_semantic_structure, html_content)
+                metadata = future_meta.result()
+                content_structure = future_semantic.result()
             
             # Classify page
             classification = classifier.classify(
@@ -1500,6 +1530,30 @@ class PreviewEngine:
                 reasoning=f"Classification failed: {e}",
                 signals=[]
             )
+    
+    def _has_rich_og_metadata(self, html_content: str) -> bool:
+        """
+        400% optimization: Fast regex check for OG-rich pages.
+        When demo mode has strong og:title, og:description, og:image, we can skip
+        expensive AI reasoning and use HTML-only extraction.
+        """
+        if not html_content or len(html_content) < 100:
+            return False
+        # Fast regex extraction - avoid BeautifulSoup for this hot path
+        og_title = re.search(r'<meta[^>]+property=["\']og:title["\'][^>]+content=["\']([^"\']+)["\']', html_content, re.I)
+        og_desc = re.search(r'<meta[^>]+property=["\']og:description["\'][^>]+content=["\']([^"\']+)["\']', html_content, re.I)
+        og_img = re.search(r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']', html_content, re.I)
+        # Also check content-before-property order
+        if not og_title:
+            og_title = re.search(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:title["\']', html_content, re.I)
+        if not og_desc:
+            og_desc = re.search(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:description["\']', html_content, re.I)
+        if not og_img:
+            og_img = re.search(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']', html_content, re.I)
+        title_ok = og_title and len((og_title.group(1) or "").strip()) >= 10
+        desc_ok = og_desc and len((og_desc.group(1) or "").strip()) >= 40
+        img_ok = bool(og_img)
+        return bool(title_ok and desc_ok and img_ok)
     
     def _run_ai_reasoning_enhanced(
         self,

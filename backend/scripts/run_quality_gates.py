@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-Quality gates for MyMetaView demo flow (2.0 / 3.0 / 3.5).
+Quality gates for MyMetaView demo flow (2.0 / 3.0 / 3.5 / 6.0).
 
 Run before final PR to validate:
 - Regression tests pass
 - Schema contracts hold
+- Throughput validation logic (400% improvement measurable)
 - No critical quality regressions
 
 Usage:
@@ -29,6 +30,7 @@ def gate_regression_tests() -> Tuple[bool, str]:
             [
                 sys.executable, "-m", "pytest",
                 "backend/tests/test_demo_flow.py",
+                "backend/tests/test_demo_throughput.py",
                 "backend/tests/test_preview_reasoning.py",
                 "backend/tests/test_brand_extractor.py",
                 "backend/tests/test_demo_quality_profiles.py",
@@ -95,6 +97,30 @@ def gate_schema_contracts() -> Tuple[bool, str]:
         return False, str(e)
 
 
+def gate_throughput_validation() -> Tuple[bool, str]:
+    """Validate throughput benchmark logic and baseline (no live API)."""
+    try:
+        root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        env = os.environ.copy()
+        env["DEMO_BENCHMARK_SKIP_LIVE"] = "1"
+        env["PYTHONPATH"] = root
+        result = subprocess.run(
+            [sys.executable, "backend/scripts/benchmark_demo_throughput.py", "--dry-run"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            cwd=root,
+            env=env,
+        )
+        if result.returncode == 0:
+            return True, "Throughput validation logic OK"
+        return False, f"Throughput validation failed:\n{result.stderr or result.stdout}"
+    except subprocess.TimeoutExpired:
+        return False, "Throughput validation timed out"
+    except Exception as e:
+        return False, str(e)
+
+
 def main() -> int:
     """Run all quality gates."""
     root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -105,6 +131,7 @@ def main() -> int:
     gates = [
         ("Schema contracts", gate_schema_contracts),
         ("Regression tests", gate_regression_tests),
+        ("Throughput validation", gate_throughput_validation),
     ]
 
     results = []

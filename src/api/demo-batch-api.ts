@@ -24,9 +24,22 @@ export interface ResultUrl {
   error: string | null;
 }
 
+export interface BatchResultItem {
+  url: string;
+  preview_image_url?: string | null;
+  screenshot_url?: string | null;
+  title?: string | null;
+  error?: string | null;
+}
+
 export interface BatchResultsResponse {
   job_id: string;
   status: "queued" | "running" | "completed" | "failed";
+  total?: number;
+  completed?: number;
+  failed?: number;
+  results?: BatchResultItem[];
+  /** @deprecated Use results. Backend returns "results". */
   result_urls?: ResultUrl[];
 }
 
@@ -53,7 +66,7 @@ export async function submitBatchJob(
   } = {}
 ): Promise<BatchSubmitResponse> {
   const base = options.apiBase ?? DEFAULT_API_BASE;
-  const res = await fetch(`${base}/api/demo-v2/batch`, {
+  const res = await fetch(`${base}/api/v1/demo-v2/batch`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -75,15 +88,24 @@ export async function submitBatchJob(
   return res.json();
 }
 
+export interface BatchJobStatusResponse {
+  job_id: string;
+  status: "queued" | "running" | "completed" | "failed";
+  total: number;
+  completed: number;
+  failed: number;
+  results?: BatchResultItem[] | null;
+}
+
 /**
- * Poll job status (lightweight).
+ * Poll job status (6.0: includes partial results in one call). Use for efficient polling.
  */
 export async function getBatchJobStatus(
   jobId: string,
   options: { apiBase?: string; apiKey?: string } = {}
-): Promise<{ status: string; total?: number; completed?: number; failed?: number }> {
+): Promise<BatchJobStatusResponse> {
   const base = options.apiBase ?? DEFAULT_API_BASE;
-  const res = await fetch(`${base}/api/demo-v2/batch/${jobId}`, {
+  const res = await fetch(`${base}/api/v1/demo-v2/batch/${jobId}`, {
     headers: options.apiKey ? { Authorization: `Bearer ${options.apiKey}` } : {},
   });
 
@@ -104,7 +126,7 @@ export async function getBatchResults(
   options: { apiBase?: string; apiKey?: string } = {}
 ): Promise<BatchResultsResponse> {
   const base = options.apiBase ?? DEFAULT_API_BASE;
-  const res = await fetch(`${base}/api/demo-v2/batch/${jobId}/results`, {
+  const res = await fetch(`${base}/api/v1/demo-v2/batch/${jobId}/results`, {
     headers: options.apiKey ? { Authorization: `Bearer ${options.apiKey}` } : {},
   });
 
@@ -124,7 +146,7 @@ export async function getBatchPages(
   options: { apiBase?: string; apiKey?: string } = {}
 ): Promise<BatchPagesResponse | null> {
   const base = options.apiBase ?? DEFAULT_API_BASE;
-  const res = await fetch(`${base}/api/demo-v2/batch/${jobId}/pages`, {
+  const res = await fetch(`${base}/api/v1/demo-v2/batch/${jobId}/pages`, {
     headers: options.apiKey ? { Authorization: `Bearer ${options.apiKey}` } : {},
   });
 
