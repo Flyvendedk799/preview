@@ -1,0 +1,12 @@
+{
+  "baseline_ms_per_preview": 60000,
+  "target_ms_per_preview": 15000,
+  "min_success_rate": 0.8,
+  "fixture_urls": [
+    "https://example.com",
+    "https://stripe.com",
+    "https://subpay.dk/"
+  ],
+  "last_updated": "2026-03-20",
+  "_comment": "400% improvement = 5x faster. Target 15s from 60s baseline."
+}

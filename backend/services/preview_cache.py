@@ -9,6 +9,7 @@ Provides URL-based caching to:
 import json
 import hashlib
 import logging
+import os
 from typing import Optional, Dict, Any, Tuple
 from datetime import datetime, timedelta
 import redis
@@ -26,6 +27,8 @@ class CacheConfig:
     # Cache TTL (time to live)
     DEFAULT_TTL_HOURS: int = 24
     MAX_TTL_HOURS: int = 168  # 7 days
+    # Demo-specific TTL (configurable for 400% throughput - longer TTL = more cache hits)
+    DEMO_TTL_HOURS: int = int(os.getenv("DEMO_CACHE_TTL_HOURS", "48"))
     
     # Cache key prefixes
     PREVIEW_PREFIX: str = "preview:focus:"

@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MyMetaView 6.0 — Demo Generation Visual Documentation</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6;
+      color: #1a1a2e;
+      background: #fafbfc;
+    }
+    .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+    h1 { font-size: 2.5rem; font-weight: 700; margin-bottom: 0.5rem; }
+    h2 { font-size: 1.75rem; font-weight: 600; margin: 2rem 0 1rem; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.5rem; }
+    h3 { font-size: 1.25rem; font-weight: 600; margin: 1.5rem 0 0.75rem; }
+    p { margin-bottom: 0.75rem; color: #4a5568; }
+    .toc { background: white; border-radius: 12px; padding: 1.5rem; margin: 2rem 0; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .toc a { color: #4f46e5; text-decoration: none; }
+    .toc a:hover { text-decoration: underline; }
+    .toc ul { list-style: none; padding-left: 1rem; }
+    .toc li { margin: 0.25rem 0; }
+    .flow-step {
+      display: flex;
+      gap: 2rem;
+      margin: 2rem 0;
+      align-items: flex-start;
+    }
+    .flow-step .step-number {
+      width: 48px; height: 48px;
+      background: #4f46e5;
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 1.25rem;
+      flex-shrink: 0;
+    }
+    .flow-step .step-content { flex: 1; }
+    .flow-diagram {
+      background: #1e293b;
+      color: #e2e8f0;
+      padding: 1.5rem 2rem;
+      border-radius: 12px;
+      font-family: 'SF Mono', Monaco, Consolas, monospace;
+      font-size: 0.85rem;
+      line-height: 1.8;
+      overflow-x: auto;
+      margin: 1rem 0;
+    }
+    .screenshot-placeholder {
+      background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%);
+      border-radius: 12px;
+      padding: 2rem;
+      text-align: center;
+      color: #64748b;
+      font-size: 0.9rem;
+      min-height: 200px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border: 2px dashed #94a3b8;
+    }
+    .screenshot-placeholder .icon { font-size: 2.5rem; margin-bottom: 0.5rem; }
+    .screenshot-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.5rem;
+      margin: 1.5rem 0;
+    }
+    .screenshot-card {
+      background: white;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      transition: box-shadow 0.2s;
+    }
+    .screenshot-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+    .screenshot-card .caption {
+      padding: 0.75rem 1rem;
+      font-size: 0.875rem;
+      color: #4a5568;
+    }
+    .badge { display: inline-block; background: #4f46e5; color: white; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; margin-right: 0.25rem; }
+    .badge-new { background: #059669; }
+    .badge-6 { background: #7c3aed; }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+    th, td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid #e2e8f0; }
+    th { background: #f8fafc; font-weight: 600; color: #334155; }
+    .api-endpoint { font-family: monospace; background: #f1f5f9; padding: 0.2rem 0.4rem; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>MyMetaView 6.0 — Demo Generation</h1>
+    <p style="color: #718096; font-size: 1.1rem;">
+      Visual documentation for the demo generation flow, user journey, and 6.0 improvements. 
+      Aligns with <strong>AIL-187</strong> (Demo engine 400% improvement).
+    </p>
+
+    <nav class="toc">
+      <h3>Contents</h3>
+      <ul>
+        <li><a href="#user-journey">1. User Journey</a></li>
+        <li><a href="#demo-flow">2. Demo Generation Flow</a></li>
+        <li><a href="#api-architecture">3. API Architecture (6.0)</a></li>
+        <li><a href="#batch-parallel">4. Batch Parallelization (6.0)</a></li>
+        <li><a href="#quality-modes">5. Quality Modes</a></li>
+        <li><a href="#screens">6. Key Screens</a></li>
+      </ul>
+    </nav>
+
+    <section id="user-journey">
+      <h2>1. User Journey</h2>
+      <p>End-to-end flow for generating live product demos from URLs.</p>
+      
+      <div class="flow-step">
+        <div class="step-number">1</div>
+        <div class="step-content">
+          <h3>Configure</h3>
+          <p>User enters one or more URLs in the textarea (e.g. product pages, landing pages). Multi-line input supports batch generation.</p>
+          <div class="screenshot-placeholder">
+            <span class="icon">📝</span>
+            <strong>Configure screen</strong><br>
+            MyMetaView 5.0 — "Generate live product demos from any URL"<br>
+            Textarea for URLs, "Generate demo preview" button
+          </div>
+        </div>
+      </div>
+
+      <div class="flow-step">
+        <div class="step-number">2</div>
+        <div class="step-content">
+          <h3>Submitting</h3>
+          <p>Frontend calls <span class="api-endpoint">POST /api/v1/demo-v2/batch</span> or <span class="api-endpoint">POST /api/v1/demo-v2/jobs</span>. Job is queued; UI shows "Creating demo job…"</p>
+        </div>
+      </div>
+
+      <div class="flow-step">
+        <div class="step-number">3</div>
+        <div class="step-content">
+          <h3>Generating</h3>
+          <p>Backend processes URLs (single or parallel in 6.0). Frontend polls <span class="api-endpoint">GET /demo-v2/jobs/{id}/status</span> or batch endpoints every ~1.5s. Progress bar and per-URL status update in real time.</p>
+          <div class="screenshot-placeholder">
+            <span class="icon">⚡</span>
+            <strong>Generating screen</strong><br>
+            "Generating previews…" — Loading strip animation, demo items in pending/generating state
+          </div>
+        </div>
+      </div>
+
+      <div class="flow-step">
+        <div class="step-number">4</div>
+        <div class="step-content">
+          <h3>Results</h3>
+          <p>When all URLs complete: success grid with thumbnails, or partial/error states. User can review, download, or export. Live demo storyboard available.</p>
+          <div class="screenshot-placeholder">
+            <span class="icon">✅</span>
+            <strong>Results screen</strong><br>
+            "Demo previews ready to review" — Grid of composited preview images with URLs
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="demo-flow">
+      <h2>2. Demo Generation Flow</h2>
+      <p>Backend orchestration from API request to preview delivery.</p>
+      <div class="flow-diagram">
+<pre>┌─────────────────────────────────────────────────────────────────────┐
+│  Frontend: DemoGenerationPage + DemoGenerationExperience            │
+│  User submits URLs → onCreateJob() → submitBatchJob() / createJob()  │
+└────────────────────────────────┬────────────────────────────────────┘
+                                 │
+                                 ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│  API: routes_demo_optimized.py                                       │
+│  POST /demo-v2/batch  →  enqueue demo_batch_job                       │
+│  POST /demo-v2/jobs   →  enqueue demo_preview_job                    │
+└────────────────────────────────┬────────────────────────────────────┘
+                                 │
+         ┌──────────────────────┴──────────────────────┐
+         ▼                                              ▼
+┌─────────────────────┐                    ┌─────────────────────────────┐
+│ demo_preview_job    │                    │ demo_batch_job (6.0)       │
+│ Single URL          │                    │ ThreadPoolExecutor (N URLs) │
+│ PreviewEngine       │                    │ Workers run in parallel     │
+└──────────┬──────────┘                    └──────────────┬──────────────┘
+           │                                              │
+           └──────────────────┬───────────────────────────┘
+                               ▼
+                    ┌──────────────────────┐
+                    │ PreviewEngine        │
+                    │ - Screenshot         │
+                    │ - Brand extraction   │
+                    │ - AI fusion          │
+                    │ - Composited preview │
+                    └──────────┬───────────┘
+                               │
+                               ▼
+                    ┌──────────────────────┐
+                    │ Redis + R2/S3        │
+                    │ Status, results,     │
+                    │ preview images       │
+                    └─────────────────────┘</pre>
+      </div>
+    </section>
+
+    <section id="api-architecture">
+      <h2>3. API Architecture (6.0)</h2>
+      <p><span class="badge badge-6">6.0</span> Prefer async jobs for production (avoids 60s timeout). Use batch for multi-URL workloads.</p>
+      <table>
+        <thead>
+          <tr><th>Endpoint</th><th>Method</th><th>Purpose</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="api-endpoint">/demo-v2/preview</span></td><td>POST</td><td>Sync preview (may timeout)</td></tr>
+          <tr><td><span class="api-endpoint">/demo-v2/jobs</span></td><td>POST</td><td>Create async job</td></tr>
+          <tr><td><span class="api-endpoint">/demo-v2/jobs/{id}/status</span></td><td>GET</td><td>Poll job status</td></tr>
+          <tr><td><span class="api-endpoint">/demo-v2/batch</span></td><td>POST</td><td>Create batch job (up to 50 URLs)</td></tr>
+          <tr><td><span class="api-endpoint">/demo-v2/batch/{id}</span></td><td>GET</td><td>Batch status</td></tr>
+          <tr><td><span class="api-endpoint">/demo-v2/batch/{id}/results</span></td><td>GET</td><td>Batch results</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="batch-parallel">
+      <h2>4. Batch Parallelization <span class="badge badge-new">6.0</span></h2>
+      <p><strong>400% throughput improvement:</strong> Batch of 5 URLs completes in ~35s (vs ~150s sequential).</p>
+      <div class="flow-diagram">
+<pre>                    ┌─────────────────────────────────────┐
+                    │  demo_batch_job (orchestrator)       │
+                    │  ThreadPoolExecutor(max_workers=4)  │
+                    │  Webhook on completion               │
+                    └──────────────┬──────────────────────┘
+                                   │
+         ┌────────────────────────┼────────────────────────┐
+         ▼                         ▼                         ▼
+    ┌─────────┐              ┌─────────┐              ┌─────────┐
+    │ Worker 1│              │ Worker 2│              │ Worker N│
+    │ URL 1   │              │ URL 2   │              │ URL N   │
+    │ Engine  │              │ Engine  │              │ Engine  │
+    └─────────┘              └─────────┘              └─────────┘
+         │                         │                         │
+         └────────────────────────┼─────────────────────────┘
+                                   ▼
+                    ┌─────────────────────────────────────┐
+                    │  Redis: batch status + results       │
+                    └─────────────────────────────────────┘</pre>
+      </div>
+    </section>
+
+    <section id="quality-modes">
+      <h2>5. Quality Modes</h2>
+      <table>
+        <thead>
+          <tr><th>Mode</th><th>Use Case</th><th>Latency</th><th>Quality</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>fast</code></td><td>Simple pages</td><td>~2–4s</td><td>Good</td></tr>
+          <tr><td><code>balanced</code></td><td>Product/feature pages</td><td>~4–8s</td><td>Better</td></tr>
+          <tr><td><code>ultra</code></td><td>Complex pages</td><td>~8–15s</td><td>Best</td></tr>
+          <tr><td><code>auto</code></td><td>Resolved from URL</td><td>Varies</td><td>Varies</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="screens">
+      <h2>6. Key Screens</h2>
+      <p>UI screens from <code>DemoGenerationExperience</code> and <code>DemoGenerationPage</code>.</p>
+      <div class="screenshot-grid">
+        <div class="screenshot-card">
+          <div class="screenshot-placeholder">
+            <span class="icon">📋</span>
+            Configure
+          </div>
+          <div class="caption">Step 1 — User pastes URLs, selects quality mode</div>
+        </div>
+        <div class="screenshot-card">
+          <div class="screenshot-placeholder">
+            <span class="icon">🔄</span>
+            Submitting
+          </div>
+          <div class="caption">Step 2 — Job created, polling starts</div>
+        </div>
+        <div class="screenshot-card">
+          <div class="screenshot-placeholder">
+            <span class="icon">🎬</span>
+            Generating
+          </div>
+          <div class="caption">Step 3 — Progress bar, per-URL status</div>
+        </div>
+        <div class="screenshot-card">
+          <div class="screenshot-placeholder">
+            <span class="icon">🖼️</span>
+            Results
+          </div>
+          <div class="caption">Step 4 — Live demo storyboard, thumbnails</div>
+        </div>
+      </div>
+    </section>
+
+    <p style="margin-top: 2rem; font-size: 0.875rem; color: #94a3b8;">
+      Generated by Visual Documentation Specialist. Reference: AIL-198, AIL-187, AIL-186.
+    </p>
+  </div>
+</body>
+</html>

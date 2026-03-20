@@ -138,12 +138,13 @@ class BatchJobResponse(BaseModel):
 
 
 class BatchJobStatusResponse(BaseModel):
-    """Schema for batch job status response."""
+    """Schema for batch job status response. 6.0: includes partial results when running."""
     job_id: str
     status: Literal["queued", "running", "completed", "failed"]
     total: int
     completed: int
     failed: int
+    results: Optional[List["BatchResultItem"]] = None  # Partial/full results; one poll gets both
 
 
 class BatchResultItem(BaseModel):
@@ -164,4 +165,21 @@ class BatchJobResultsResponse(BaseModel):
     failed: int
     results: List[BatchResultItem] = []
 
+
+class BatchPageItem(BaseModel):
+    """Per-URL page item for /pages endpoint (6.0 polling)."""
+    url: str
+    status: Literal["queued", "running", "completed", "failed"]
+    preview_url: Optional[str] = None
+    error: Optional[str] = None
+
+
+class BatchPagesResponse(BaseModel):
+    """Schema for batch pages response (per-URL progress)."""
+    job_id: str
+    status: str
+    pages: List[BatchPageItem] = []
+
+
+BatchJobStatusResponse.model_rebuild()
 

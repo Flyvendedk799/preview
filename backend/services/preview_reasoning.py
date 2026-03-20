@@ -586,7 +586,8 @@ def run_stages_1_2_3(screenshot_bytes: bytes) -> Tuple[List[Dict], Dict[str, str
     extracted_highlights = {k: (_safe_str(v) or "") for k, v in raw_highlights.items()}
 
     # Extract Design DNA (NEW - for design-intelligent rendering)
-    design_dna = data.get("design_dna", {
+    # Guard: design_dna can be None from schema/model_dump when parse fails
+    _default_dna = {
         "style": "corporate",
         "mood": "balanced",
         "formality": 0.5,
@@ -595,8 +596,11 @@ def run_stages_1_2_3(screenshot_bytes: bytes) -> Tuple[List[Dict], Dict[str, str
         "spacing_feel": "balanced",
         "brand_adjectives": ["professional", "modern"],
         "design_reasoning": "Default design DNA"
-    })
-    
+    }
+    design_dna = data.get("design_dna") or _default_dna
+    if not isinstance(design_dna, dict):
+        design_dna = _default_dna
+
     hook_val = extracted_highlights.get("the_hook") or "none"
     proof_val = extracted_highlights.get("social_proof_found") or "none"
     logger.info(f"🎯 Extracted highlights: hook='{str(hook_val)[:50]}...', proof='{proof_val}'")

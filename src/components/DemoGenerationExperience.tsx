@@ -1,6 +1,7 @@
-// MyMetaView 5.0 Demo Generation Experience
+// MyMetaView 6.0 Demo Generation Experience
 // Copy to: your marketing/demo frontend repo and wire to real APIs.
 // Stack: React + Tailwind CSS + Framer Motion
+// Optimized: immediate first poll, adaptive intervals, retry on transient errors.
 
 import React, { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
@@ -23,6 +24,13 @@ export interface DemoItem {
   errorMessage?: string;
 }
 
+/** Transient errors we retry (network, 5xx). */
+function isRetryableError(err: unknown): boolean {
+  if (err instanceof TypeError) return true; // network
+  if (err instanceof Error && /5\d{2}/.test(String(err.message))) return true;
+  return false;
+}
+
 export interface DemoGenerationExperienceProps {
   /**
    * Optional seed items (e.g. from a previous run or server prefetch).
@@ -42,14 +50,14 @@ export interface DemoGenerationExperienceProps {
   onPollJob?: () => Promise<DemoItem[]>;
   /**
    * Polling interval in ms while generating.
-   * Default: 1500ms.
+   * Default: 800ms for fast batch completion feedback.
    */
   pollIntervalMs?: number;
 }
 
 export const DemoGenerationExperience: React.FC<
   DemoGenerationExperienceProps
-> = ({ initialItems, onCreateJob, onPollJob, pollIntervalMs = 1500 }) => {
+> = ({ initialItems, onCreateJob, onPollJob, pollIntervalMs = 800 }) => {
   const prefersReduced = useReducedMotion() ?? false;
 
   const [status, setStatus] = useState<DemoStatus>(
@@ -98,10 +106,15 @@ export const DemoGenerationExperience: React.FC<
     if (status !== "generating" || !onPollJob) return;
 
     let active = true;
-    const interval = setInterval(async () => {
+    let consecutiveErrors = 0;
+    const maxRetries = 2;
+
+    const doPoll = async () => {
       try {
         const next = await onPollJob();
         if (!active) return;
+        consecutiveErrors = 0;
+        setErrorMessage(null); // clear retry message on success
         setItems(next);
 
         const total = next.length;
@@ -129,10 +142,27 @@ export const DemoGenerationExperience: React.FC<
       } catch (err) {
         if (!active) return;
         console.error("Error polling demo job", err);
-        setErrorMessage("We hit a problem fetching the latest previews.");
-        setStatus("results_error");
+        consecutiveErrors += 1;
+        if (consecutiveErrors <= maxRetries && isRetryableError(err)) {
+          // Transient: will retry on next interval
+          setErrorMessage(
+            "Temporarily unable to reach the server. Retrying…"
+          );
+        } else {
+          const msg =
+            err instanceof Error ? err.message : "We couldn't fetch the latest previews.";
+          setErrorMessage(msg.includes("fetch") || msg.includes("network")
+            ? "Connection problem. Check your network and try again."
+            : msg);
+          setStatus("results_error");
+        }
       }
-    }, pollIntervalMs);
+    };
+
+    // Immediate first poll for fast batch completion display
+    doPoll();
+
+    const interval = setInterval(doPoll, pollIntervalMs);
 
     return () => {
       active = false;
@@ -223,10 +253,10 @@ export const DemoGenerationExperience: React.FC<
       <motion.header
         {...heroMotion}
         className="space-y-2"
-        aria-label="MyMetaView 5.0 demo generation"
+        aria-label="MyMetaView 6.0 demo generation"
       >
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-400/80">
-          MyMetaView 5.0
+          MyMetaView 6.0
         </p>
         <h1 className="text-balance text-2xl font-semibold tracking-tight text-slate-50 sm:text-3xl">
           Generate live product demos from any URL.
@@ -304,16 +334,50 @@ export const DemoGenerationExperience: React.FC<
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="space-y-0.5">
-                    <p className="text-xs font-medium text-slate-100">
+                    <motion.p
+                      key={status}
+                      className="text-xs font-medium text-slate-100"
+                      initial={
+                        status === "results_success" && !prefersReduced
+                          ? { opacity: 0, y: 4 }
+                          : false
+                      }
+                      animate={
+                        status === "results_success" && !prefersReduced
+                          ? { opacity: 1, y: 0 }
+                          : false
+                      }
+                      transition={{
+                        duration: 0.3,
+                        ease: [0.16, 1, 0.3, 1],
+                      }}
+                    >
                       {status === "submitting" && "Creating demo job…"}
                       {status === "generating" && "Generating previews…"}
-                      {status === "results_success" &&
-                        "Demo previews ready to review"}
+                      {status === "results_success" && (
+                        <span className="inline-flex items-center gap-1.5">
+                          <motion.span
+                            initial={prefersReduced ? false : { scale: 0 }}
+                            animate={prefersReduced ? false : { scale: 1 }}
+                            transition={{
+                              type: "spring",
+                              stiffness: 400,
+                              damping: 20,
+                              delay: 0.1,
+                            }}
+                            className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-emerald-500/90 text-[0.6rem]"
+                            aria-hidden
+                          >
+                            ✓
+                          </motion.span>
+                          Demo previews ready to review
+                        </span>
+                      )}
                       {status === "results_partial" &&
                         "Some previews are ready, some need attention"}
                       {status === "results_error" &&
                         "We couldn't complete this demo run"}
-                    </p>
+                    </motion.p>
                     <p className="text-[0.7rem] text-slate-400">
                       {status === "submitting" &&
                         "We're registering your URLs with MyMetaView."}
@@ -404,6 +468,10 @@ const LoadingStrip: React.FC<LoadingStripProps> = ({
   if (status === "configure") return null;
 
   const showStrip = status === "submitting" || status === "generating";
+  const isComplete =
+    status === "results_success" || status === "results_partial";
+  const displayProgress =
+    isComplete ? 100 : Math.max(4, Math.min(100, progress));
 
   return (
     <div className="mt-4 space-y-2">
@@ -416,19 +484,18 @@ const LoadingStrip: React.FC<LoadingStripProps> = ({
           {status === "results_error" && "Encountered an error"}
         </span>
         <span className="tabular-nums text-slate-300/90">
-          {Math.round(
-            status === "results_success" || status === "results_partial"
-              ? 100
-              : progress,
-          )}
-          %
+          {Math.round(isComplete ? 100 : progress)}%
         </span>
       </div>
 
-      <div className="h-1.5 overflow-hidden rounded-full bg-slate-800/80">
+      <div
+        className={`relative h-1.5 overflow-hidden rounded-full bg-slate-800/80 ${
+          isComplete && !prefersReduced ? "mv-progress-complete" : ""
+        }`}
+      >
         <motion.div
           className="h-full rounded-full bg-gradient-to-r from-sky-400 via-sky-500 to-emerald-400"
-          style={{ width: `${Math.max(4, progress)}%` }}
+          style={{ width: `${displayProgress}%` }}
           transition={
             prefersReduced
               ? { duration: 0.1 }
@@ -486,35 +553,42 @@ const ResultsGrid: React.FC<ResultsGridProps> = ({
 
         <AnimatePresence mode="popLayout">
           {showItems &&
-            items.map((item, index) => (
-              <motion.div
-                key={item.id}
-                initial={
-                  prefersReduced
-                    ? { opacity: 0 }
-                    : { opacity: 0, y: 10, scale: 0.96 }
-                }
-                animate={
-                  prefersReduced
-                    ? { opacity: 1 }
-                    : { opacity: 1, y: 0, scale: 1 }
-                }
-                exit={
-                  prefersReduced
-                    ? { opacity: 0 }
-                    : { opacity: 0, y: -6, scale: 0.98 }
-                }
-                transition={
-                  prefersReduced
-                    ? { duration: 0.12 }
-                    : {
-                        duration: 0.24,
-                        ease: [0.16, 1, 0.3, 1],
-                        delay: 0.04 * index,
-                      }
-                }
-                className="group relative overflow-hidden rounded-xl border border-slate-700/70 bg-slate-900/70 p-2 text-[0.7rem] text-slate-100 shadow-sm shadow-slate-950/50 transition-shadow hover:shadow-lg hover:shadow-sky-500/25"
-              >
+            items.map((item, index) => {
+              const statusTransitionClass =
+                !prefersReduced && item.status === "success"
+                  ? "mv-success-pulse"
+                  : !prefersReduced && item.status === "error"
+                    ? "mv-shake"
+                    : "";
+              return (
+                <motion.div
+                  key={`${item.id}-${item.status}`}
+                  initial={
+                    prefersReduced
+                      ? { opacity: 0 }
+                      : { opacity: 0, y: 10, scale: 0.96 }
+                  }
+                  animate={
+                    prefersReduced
+                      ? { opacity: 1 }
+                      : { opacity: 1, y: 0, scale: 1 }
+                  }
+                  exit={
+                    prefersReduced
+                      ? { opacity: 0 }
+                      : { opacity: 0, y: -6, scale: 0.98 }
+                  }
+                  transition={
+                    prefersReduced
+                      ? { duration: 0.12 }
+                      : {
+                          duration: 0.24,
+                          ease: [0.16, 1, 0.3, 1],
+                          delay: 0.04 * index,
+                        }
+                  }
+                  className={`group relative overflow-hidden rounded-xl border border-slate-700/70 bg-slate-900/70 p-2 text-[0.7rem] text-slate-100 shadow-sm shadow-slate-950/50 transition-shadow hover:shadow-lg hover:shadow-sky-500/25 ${statusTransitionClass}`}
+                >
                 <div className="relative h-20 overflow-hidden rounded-lg bg-slate-900/80">
                   {item.thumbnailUrl ? (
                     <img
@@ -570,7 +644,8 @@ const ResultsGrid: React.FC<ResultsGridProps> = ({
                   </p>
                 )}
               </motion.div>
-            ))}
+            );
+            })}
         </AnimatePresence>
       </div>
     </div>

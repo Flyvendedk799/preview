@@ -5,9 +5,9 @@ Per-tenant limits; rate limiting; quota enforcement.
 Builds on P3 (Batch API) and P10 (Auth). Uses IP as tenant key until P10 lands.
 
 Configurable via env:
-- BATCH_JOBS_PER_HOUR: Max batch jobs per tenant per hour (default 20)
+- BATCH_JOBS_PER_HOUR: Max batch jobs per tenant per hour (default 80, 4x for MyMetaView 6.0)
 - BATCH_URLS_PER_JOB_MAX: Max URLs per batch (default 50, also in schema)
-- BATCH_QUEUE_MAX_DEPTH: Reject new jobs when queue depth exceeds this (default 200)
+- BATCH_QUEUE_MAX_DEPTH: Reject new jobs when queue depth exceeds this (default 800, 4x for 400% throughput)
 """
 import os
 import logging
@@ -18,10 +18,10 @@ from rq import Queue
 
 logger = logging.getLogger(__name__)
 
-# Configurable limits (env overrides)
-BATCH_JOBS_PER_HOUR = int(os.getenv("BATCH_JOBS_PER_HOUR", "20"))
+# Configurable limits (env overrides) - defaults 4x for MyMetaView 6.0 400% demo throughput
+BATCH_JOBS_PER_HOUR = int(os.getenv("BATCH_JOBS_PER_HOUR", "80"))
 BATCH_URLS_PER_JOB_MAX = int(os.getenv("BATCH_URLS_PER_JOB_MAX", "50"))
-BATCH_QUEUE_MAX_DEPTH = int(os.getenv("BATCH_QUEUE_MAX_DEPTH", "200"))
+BATCH_QUEUE_MAX_DEPTH = int(os.getenv("BATCH_QUEUE_MAX_DEPTH", "800"))
 
 RATE_LIMIT_WINDOW_SECONDS = 3600  # 1 hour
 RATE_LIMIT_KEY_PREFIX = "batch_jobs"
