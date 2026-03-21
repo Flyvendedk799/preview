@@ -1001,6 +1001,10 @@ class PreviewEngine:
             
             # Only build HTML fallback if AI result was truly broken (no title or no image)
             if not quality_passed:
+                self.logger.info(
+                    f"AIL-210 DIAGNOSIS: Quality gates failed, triggering fallback path "
+                    f"(retry_count={retry_count})"
+                )
                 # PHASE 2: Build fallback preview with smart fallback colors
                 # This ensures user never gets a rejected preview
                 try:
@@ -2614,7 +2618,10 @@ class PreviewEngine:
         
         PHASE 2: Now accepts fallback_colors for brand-aware fallbacks.
         """
-        self.logger.warning("Building fallback result from HTML only")
+        self.logger.warning(
+            "AIL-210 DIAGNOSIS: Building fallback result from HTML only "
+            "(quality gate failure or AI unavailable)"
+        )
         
         html_result = self._extract_from_html_only(html_content, url, screenshot_bytes=getattr(self, '_last_screenshot_bytes', None))
         processing_time_ms = int((time.time() - start_time) * 1000)
@@ -2641,6 +2648,11 @@ class PreviewEngine:
                 domain = parsed.netloc.replace('www.', '')
                 
                 # Generate minimal but valid preview image
+                self.logger.info(
+                    f"AIL-210 DIAGNOSIS: Fallback calling generate_and_upload_preview_image "
+                    f"title={title!r} has_screenshot={bool(screenshot_bytes)} "
+                    f"blueprint={html_result.get('blueprint', {})}"
+                )
                 composited_image_url = generate_and_upload_preview_image(
                     screenshot_bytes=screenshot_bytes,
                     url=url,
@@ -2660,6 +2672,10 @@ class PreviewEngine:
                     primary_image_base64=None
                 )
                 
+                self.logger.info(
+                    f"AIL-210 DIAGNOSIS: Fallback generate_and_upload_preview_image "
+                    f"returned url={'...(truncated)' if composited_image_url else 'None'}"
+                )
                 if composited_image_url:
                     self.logger.info(f"✅ Fallback composited image generated: {composited_image_url}")
             except Exception as img_error:

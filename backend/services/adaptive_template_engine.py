@@ -1134,6 +1134,10 @@ class AdaptiveTemplateEngine:
             PNG image bytes
         """
         logger.debug(f"🎨 Generating preview with DNA: style={self.dna.philosophy.primary_style}")
+        logger.info(
+            f"AIL-210 DIAGNOSIS: [ADAPTIVE_TEMPLATE] generate() called "
+            f"title={content.title!r} subtitle={content.subtitle!r} has_screenshot={bool(screenshot_bytes)}"
+        )
         
         # PHASE 2: Update stored content for any late composition decisions
         if self._content is None:
@@ -1933,8 +1937,12 @@ class AdaptiveTemplateEngine:
         - Font size hierarchy from DNA
         - Weight contrast from DNA
         """
-        if "headline" not in self.zones or not title:
+        if "headline" not in self.zones:
             return
+        # AIL-210 FIX: Use fallback text when title is empty to avoid gradient-only output
+        display_title = (title and str(title).strip()) or "Preview"
+        if not title or not str(title).strip():
+            logger.info(f"AIL-210 DIAGNOSIS: [ADAPTIVE_TEMPLATE] _render_headline using fallback 'Preview' (title was empty)")
         
         x, y, w, h = self.zones["headline"]
         
@@ -1972,7 +1980,7 @@ class AdaptiveTemplateEngine:
         base_size = int(base_size * font_size_mult)
         
         # Adaptive sizing: ensure text fits within canvas with wrapping (up to 3 lines)
-        font_size = calculate_adaptive_font_size(title, base_size, w, min_size=36, max_size=160)
+        font_size = calculate_adaptive_font_size(display_title, base_size, w, min_size=36, max_size=160)
         logger.info(f"🎨 Final headline font_size: {font_size}px (base_size={base_size}px)")
         
         # Adjust font size based on hierarchy description if available
@@ -1992,11 +2000,11 @@ class AdaptiveTemplateEngine:
         
         # Apply case strategy - prioritize DNA case_strategy, then personality
         if case_strategy == "uppercase-accent" or personality_case == "uppercase":
-            title = title.upper()
+            display_title = display_title.upper()
         elif case_strategy == "lowercase-casual" or personality_case == "lowercase":
-            title = title.lower()
+            display_title = display_title.lower()
         elif personality_case == "sentence":
-            title = title.capitalize()
+            display_title = display_title.capitalize()
         # "mixed" keeps original case
         
         # PRIORITY: Use AI Director's text color decision if available
@@ -2048,7 +2056,7 @@ class AdaptiveTemplateEngine:
         )
         
         # Wrap text
-        lines = get_optimal_line_breaks(title, font_size, w, max_lines=3)
+        lines = get_optimal_line_breaks(display_title, font_size, w, max_lines=3)
         
         # Calculate line height based on DNA
         line_height_multipliers = {

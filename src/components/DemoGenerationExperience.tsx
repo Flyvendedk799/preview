@@ -594,7 +594,7 @@ const ResultsGrid: React.FC<ResultsGridProps> = ({
                     <img
                       src={item.thumbnailUrl}
                       alt={`Preview for ${item.url}`}
-                      className="h-full w-full object-cover"
+                      className="h-full w-full object-contain"
                     />
                   ) : (
                     <div className="flex h-full items-center justify-center text-[0.65rem] text-slate-500">

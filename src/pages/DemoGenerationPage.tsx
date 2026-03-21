@@ -50,12 +50,14 @@ function mapResultToDemoItem(
 }
 
 function mapBatchResultToDemoItem(r: BatchResultItem, index: number): DemoItem {
-  const itemStatus = r.error ? "failed" : (r.preview_image_url || r.screenshot_url) ? "completed" : "running";
+  // Prefer composited_preview_image_url (spec §5); backend maps it to preview_image_url
+  const imageUrl = r.composited_preview_image_url ?? r.preview_image_url ?? r.screenshot_url;
+  const itemStatus = r.error ? "failed" : imageUrl ? "completed" : "running";
   return {
     id: `${r.url}-${index}`,
     url: r.url,
     status: mapBackendStatusToItem(itemStatus),
-    thumbnailUrl: (r.preview_image_url ?? r.screenshot_url) ?? undefined,
+    thumbnailUrl: imageUrl ?? undefined,
     errorMessage: r.error ?? undefined,
   };
 }

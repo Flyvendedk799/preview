@@ -26,6 +26,8 @@ export interface ResultUrl {
 
 export interface BatchResultItem {
   url: string;
+  /** Composited preview image URL (og:image quality). Prefer over screenshot_url. */
+  composited_preview_image_url?: string | null;
   preview_image_url?: string | null;
   screenshot_url?: string | null;
   title?: string | null;
