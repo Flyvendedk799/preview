@@ -38,3 +38,4 @@ ENV/
 .coverage
 htmlcov/
 
+test-results/
