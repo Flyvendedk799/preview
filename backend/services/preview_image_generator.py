@@ -574,6 +574,8 @@ def generate_designed_preview(
     
     # CRITICAL FIX: Ensure all text parameters are strings to prevent garbled rendering
     title = str(title) if title is not None else "Untitled"
+    # AIL-223: Whitespace/empty title caused hero template to skip headline → gradient-only image
+    title = title.strip() or "Preview"
     subtitle = str(subtitle) if subtitle is not None else None
     description = str(description) if description is not None else None
     cta_text = str(cta_text) if cta_text is not None else None
@@ -889,12 +891,14 @@ def _generate_hero_template(
             if len(h2s) > 1: sub_heading = h2s[1]
             elif ps: sub_heading = ps[0]
 
-    if not main_heading and title:
-        # Fallback to AI extracted text if DOM extraction failed
-        main_heading = {"text": title}
+    effective_title = (title and str(title).strip()) or "Preview"
+    if not main_heading:
+        main_heading = {"text": effective_title}
+    elif not (main_heading.get("text") or "").strip():
+        main_heading = {"text": effective_title}
 
     if main_heading:
-        heading_text = main_heading.get("text", "Untitled")
+        heading_text = (main_heading.get("text") or "").strip() or "Preview"
         title_length = len(heading_text)
 
         # Dynamic font size based on text length
@@ -2134,6 +2138,13 @@ def generate_and_upload_preview_image(
         credibility_items = []
     
     try:
+        # AIL-223: Match classic template — never pass blank title into DNA/classic renderers
+        if title is None:
+            title = "Preview"
+        else:
+            t = str(title).strip()
+            title = t or "Preview"
+
         # Extract domain
         from urllib.parse import urlparse
         parsed = urlparse(url)
@@ -2197,6 +2208,12 @@ def generate_and_upload_preview_image(
                 product_intelligence=product_intelligence,
                 dom_data=dom_data
             )
+
+        if not image_bytes:
+            logger.warning(
+                "AIL-223: generate_designed_preview returned empty; using _generate_fallback_preview"
+            )
+            image_bytes = _generate_fallback_preview(title, domain, blueprint or {})
         
         # AI-powered quality improvement: detect and fix banding/blur issues
         # REMOVED: Execution of duplicate quality pass since generative pipelines

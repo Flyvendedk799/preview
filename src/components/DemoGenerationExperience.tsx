@@ -3,7 +3,7 @@
 // Stack: React + Tailwind CSS + Framer Motion
 // Optimized: immediate first poll, adaptive intervals, retry on transient errors.
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 
 type DemoStatus =
@@ -31,6 +31,8 @@ function isRetryableError(err: unknown): boolean {
   return false;
 }
 
+export type QualityMode = "fast" | "balanced" | "ultra" | "auto";
+
 export interface DemoGenerationExperienceProps {
   /**
    * Optional seed items (e.g. from a previous run or server prefetch).
@@ -53,11 +55,38 @@ export interface DemoGenerationExperienceProps {
    * Default: 800ms for fast batch completion feedback.
    */
   pollIntervalMs?: number;
+  /**
+   * Quality mode (6.0 UX spec). Affects throughput vs quality tradeoff.
+   * Default: balanced.
+   */
+  qualityMode?: QualityMode;
+  /**
+   * Called when user changes quality mode. Parent can persist (e.g. localStorage).
+   */
+  onQualityModeChange?: (mode: QualityMode) => void;
 }
+
+const QUALITY_MODE_OPTIONS: Array<{
+  value: QualityMode;
+  label: string;
+  subtext: string;
+}> = [
+  { value: "fast", label: "Fast", subtext: "~2–4s · Best for simple pages" },
+  { value: "balanced", label: "Balanced", subtext: "~4–8s · Default for most pages" },
+  { value: "ultra", label: "Ultra", subtext: "~8–15s · Best quality, complex layouts" },
+  { value: "auto", label: "Auto", subtext: "System picks based on URL" },
+];
 
 export const DemoGenerationExperience: React.FC<
   DemoGenerationExperienceProps
-> = ({ initialItems, onCreateJob, onPollJob, pollIntervalMs = 800 }) => {
+> = ({
+  initialItems,
+  onCreateJob,
+  onPollJob,
+  pollIntervalMs = 800,
+  qualityMode = "balanced",
+  onQualityModeChange,
+}) => {
   const prefersReduced = useReducedMotion() ?? false;
 
   const [status, setStatus] = useState<DemoStatus>(
@@ -67,6 +96,11 @@ export const DemoGenerationExperience: React.FC<
   const [items, setItems] = useState<DemoItem[]>(initialItems ?? []);
   const [progress, setProgress] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  /** UX spec 3.4: 800ms for first 10s in fast mode, then 1500ms. */
+  const [fastPollSteady, setFastPollSteady] = useState(false);
+  const [runStartedAt, setRunStartedAt] = useState<number | null>(null);
+  const [firstReadyBanner, setFirstReadyBanner] = useState(false);
+  const prevSuccessDuringGenerateRef = useRef(0);
 
   const hasAnySuccess = useMemo(
     () => items.some((item) => item.status === "success"),
@@ -76,6 +110,53 @@ export const DemoGenerationExperience: React.FC<
     () => items.some((item) => item.status === "error"),
     [items],
   );
+
+  const resolvedPollMs = useMemo(() => {
+    if (qualityMode === "fast" && status === "generating") {
+      return fastPollSteady ? 1500 : 800;
+    }
+    return pollIntervalMs;
+  }, [qualityMode, status, fastPollSteady, pollIntervalMs]);
+
+  useEffect(() => {
+    if (status !== "generating" || qualityMode !== "fast") {
+      setFastPollSteady(false);
+      return;
+    }
+    setFastPollSteady(false);
+    const id = window.setTimeout(() => setFastPollSteady(true), 10_000);
+    return () => window.clearTimeout(id);
+  }, [status, qualityMode]);
+
+  useEffect(() => {
+    if (status === "generating") {
+      setRunStartedAt((prev) => prev ?? Date.now());
+    } else if (status === "configure") {
+      setRunStartedAt(null);
+    }
+  }, [status]);
+
+  useEffect(() => {
+    if (status === "submitting") {
+      prevSuccessDuringGenerateRef.current = 0;
+      setFirstReadyBanner(false);
+    }
+  }, [status]);
+
+  useEffect(() => {
+    if (status !== "generating") {
+      prevSuccessDuringGenerateRef.current = 0;
+      return;
+    }
+    const successCount = items.filter((i) => i.status === "success").length;
+    if (successCount > 0 && prevSuccessDuringGenerateRef.current === 0) {
+      setFirstReadyBanner(true);
+      const dismiss = window.setTimeout(() => setFirstReadyBanner(false), 3000);
+      prevSuccessDuringGenerateRef.current = successCount;
+      return () => window.clearTimeout(dismiss);
+    }
+    prevSuccessDuringGenerateRef.current = successCount;
+  }, [items, status]);
 
   useEffect(() => {
     if (status !== "generating") return;
@@ -162,13 +243,13 @@ export const DemoGenerationExperience: React.FC<
     // Immediate first poll for fast batch completion display
     doPoll();
 
-    const interval = setInterval(doPoll, pollIntervalMs);
+    const interval = setInterval(doPoll, resolvedPollMs);
 
     return () => {
       active = false;
       clearInterval(interval);
     };
-  }, [status, onPollJob, pollIntervalMs, prefersReduced]);
+  }, [status, onPollJob, resolvedPollMs, prefersReduced]);
 
   const handleSubmit: React.FormEventHandler = async (event) => {
     event.preventDefault();
@@ -221,6 +302,10 @@ export const DemoGenerationExperience: React.FC<
   };
 
   const isLoading = status === "submitting" || status === "generating";
+  const failedCount = useMemo(
+    () => items.filter((i) => i.status === "error").length,
+    [items],
+  );
 
   const heroMotion = prefersReduced
     ? {}
@@ -284,6 +369,47 @@ export const DemoGenerationExperience: React.FC<
                   <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-[0.65rem] font-medium text-emerald-300 ring-1 ring-emerald-500/40">
                     Live animation
                   </span>
+                </div>
+
+                {/* Quality vs speed picker (6.0 UX spec) */}
+                <div className="mt-4 space-y-2">
+                  <label className="block text-xs font-medium text-slate-200/80" id="quality-mode-label">
+                    Quality vs speed
+                  </label>
+                  <div
+                    role="radiogroup"
+                    aria-labelledby="quality-mode-label"
+                    aria-label="Quality mode: fast, balanced, ultra, or auto"
+                    className="flex flex-wrap gap-1.5"
+                  >
+                    {QUALITY_MODE_OPTIONS.map((opt) => (
+                      <label
+                        key={opt.value}
+                        className={`flex cursor-pointer flex-col rounded-lg border px-2.5 py-1.5 text-[0.7rem] transition-colors ${
+                          isLoading
+                            ? "cursor-not-allowed opacity-60"
+                            : qualityMode === opt.value
+                              ? "border-sky-400 bg-sky-500/15 text-sky-100 ring-1 ring-sky-400/50"
+                              : "border-slate-600/70 bg-slate-900/50 text-slate-300 hover:border-sky-400/40 hover:text-slate-100"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="qualityMode"
+                          value={opt.value}
+                          checked={qualityMode === opt.value}
+                          onChange={() => !isLoading && onQualityModeChange?.(opt.value)}
+                          disabled={isLoading}
+                          className="sr-only"
+                          aria-checked={qualityMode === opt.value}
+                        />
+                        <span className="font-medium">{opt.label}</span>
+                        <span className="mt-0.5 text-[0.6rem] text-slate-400">
+                          {opt.subtext}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="mt-4 space-y-3">
@@ -394,13 +520,14 @@ export const DemoGenerationExperience: React.FC<
 
                   <div className="flex items-center gap-2">
                     {(status === "results_partial" ||
-                      status === "results_error") && (
+                      status === "results_error") &&
+                      failedCount > 0 && (
                       <button
                         type="button"
                         onClick={handleRetryFailed}
                         className="rounded-full border border-slate-600/70 bg-slate-900/80 px-2.5 py-1 text-[0.7rem] font-medium text-slate-100 hover:border-sky-400/60 hover:text-sky-100"
                       >
-                        Retry failed
+                        Retry {failedCount} failed
                       </button>
                     )}
                     {(status === "results_success" ||
@@ -423,6 +550,16 @@ export const DemoGenerationExperience: React.FC<
                   prefersReduced={prefersReduced}
                 />
 
+                {firstReadyBanner && status === "generating" && (
+                    <p
+                      className="text-[0.7rem] text-emerald-300/95"
+                      role="status"
+                      aria-live="polite"
+                    >
+                      First preview ready — more completing…
+                    </p>
+                  )}
+
                 <ResultsGrid
                   items={items}
                   status={status}
@@ -444,7 +581,9 @@ export const DemoGenerationExperience: React.FC<
           <StatusSummary
             status={status}
             items={items}
-            prefersReduced={prefersReduced}
+            qualityMode={qualityMode}
+            runStartedAt={runStartedAt}
+            failedCount={failedCount}
           />
         </aside>
       </div>
@@ -592,6 +731,7 @@ const ResultsGrid: React.FC<ResultsGridProps> = ({
                 <div className="relative h-20 overflow-hidden rounded-lg bg-slate-900/80">
                   {item.thumbnailUrl ? (
                     <img
+                      data-testid="demo-preview-image"
                       src={item.thumbnailUrl}
                       alt={`Preview for ${item.url}`}
                       className="h-full w-full object-contain"
@@ -796,16 +936,52 @@ const ParallaxPreview: React.FC<ParallaxPreviewProps> = ({
 interface StatusSummaryProps {
   status: DemoStatus;
   items: DemoItem[];
-  prefersReduced: boolean;
+  qualityMode: QualityMode;
+  runStartedAt: number | null;
+  failedCount: number;
 }
 
 const StatusSummary: React.FC<StatusSummaryProps> = ({
   status,
   items,
+  qualityMode,
+  runStartedAt,
+  failedCount,
 }) => {
   const total = items.length;
   const successCount = items.filter((i) => i.status === "success").length;
   const errorCount = items.filter((i) => i.status === "error").length;
+
+  const completedLike =
+    status === "results_success" ||
+    status === "results_partial" ||
+    status === "results_error";
+
+  const [elapsedSec, setElapsedSec] = useState<number | null>(null);
+  useEffect(() => {
+    if (completedLike && runStartedAt != null) {
+      setElapsedSec(Math.max(1, Math.round((Date.now() - runStartedAt) / 1000)));
+    } else {
+      setElapsedSec(null);
+    }
+  }, [completedLike, runStartedAt, status]);
+
+  const fastModeLine =
+    qualityMode === "fast" &&
+    completedLike &&
+    elapsedSec != null &&
+    status !== "results_error"
+      ? `Completed in ~${elapsedSec} s (fast mode).`
+      : null;
+
+  const suggested =
+    status === "results_partial" && failedCount > 0
+      ? `Suggested: Retry ${failedCount} failed or edit URLs and try again.`
+      : status === "results_error" && failedCount > 0
+        ? `Suggested: Edit URLs, or retry ${failedCount} failed.`
+        : status === "results_error"
+          ? "Suggested: Edit URLs and try again."
+          : null;
 
   return (
     <div className="rounded-2xl border border-slate-700/70 bg-slate-950/80 p-4 text-[0.7rem] text-slate-200">
@@ -841,15 +1017,12 @@ const StatusSummary: React.FC<StatusSummaryProps> = ({
         </div>
       </dl>
 
-      <p className="mt-3 text-[0.65rem] text-slate-400/90">
-        Wire this component to your own demo-generation API by providing{" "}
-        <span className="font-mono text-[0.6rem] text-sky-300">
-          onCreateJob
-        </span>{" "}
-        and{" "}
-        <span className="font-mono text-[0.6rem] text-sky-300">onPollJob</span>{" "}
-        props.
-      </p>
+      {fastModeLine && (
+        <p className="mt-3 text-[0.65rem] text-sky-200/90">{fastModeLine}</p>
+      )}
+      {suggested && (
+        <p className="mt-2 text-[0.65rem] text-slate-400/95">{suggested}</p>
+      )}
     </div>
   );
 };

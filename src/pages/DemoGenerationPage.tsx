@@ -6,7 +6,7 @@
  * Route: /demo-generation
  */
 
-import React, { useCallback, useRef } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import {
   DemoGenerationExperience,
   type DemoItem,
@@ -36,29 +36,87 @@ function mapBackendStatusToItem(
   }
 }
 
+/** Prefer composited URL on all batch display paths (matches /results + 6.0 engine). */
+function pickPreviewImageUrl(r: {
+  composited_preview_image_url?: string | null;
+  preview_url?: string | null;
+  preview_image_url?: string | null;
+  screenshot_url?: string | null;
+}): string | undefined {
+  const u =
+    r.composited_preview_image_url ??
+    r.preview_image_url ??
+    r.preview_url ??
+    r.screenshot_url;
+  return u ?? undefined;
+}
+
 function mapResultToDemoItem(
-  r: { url: string; status: string; preview_url?: string | null; error?: string | null },
+  r: {
+    url: string;
+    status: string;
+    composited_preview_image_url?: string | null;
+    preview_url?: string | null;
+    preview_image_url?: string | null;
+    screenshot_url?: string | null;
+    error?: string | null;
+  },
   index: number
 ): DemoItem {
+  const imageUrl = pickPreviewImageUrl(r);
+  const failed = r.status === "failed" || Boolean(r.error);
+  const completed = r.status === "completed";
+  // Do not show success without a real preview URL — avoids masking backend gaps.
+  if (failed || (completed && !imageUrl)) {
+    return {
+      id: `${r.url}-${index}`,
+      url: r.url,
+      status: "error",
+      thumbnailUrl: imageUrl,
+      errorMessage:
+        r.error ??
+        (completed && !imageUrl ? "Preview image unavailable" : undefined),
+    };
+  }
+  if (completed && imageUrl) {
+    return {
+      id: `${r.url}-${index}`,
+      url: r.url,
+      status: "success",
+      thumbnailUrl: imageUrl,
+    };
+  }
   return {
     id: `${r.url}-${index}`,
     url: r.url,
     status: mapBackendStatusToItem(r.status),
-    thumbnailUrl: r.preview_url ?? undefined,
+    thumbnailUrl: imageUrl,
     errorMessage: r.error ?? undefined,
   };
 }
 
 function mapBatchResultToDemoItem(r: BatchResultItem, index: number): DemoItem {
-  // Prefer composited_preview_image_url (spec §5); backend maps it to preview_image_url
-  const imageUrl = r.composited_preview_image_url ?? r.preview_image_url ?? r.screenshot_url;
-  const itemStatus = r.error ? "failed" : imageUrl ? "completed" : "running";
+  const imageUrl = pickPreviewImageUrl(r);
+  const failed = Boolean(r.error);
+  const doneWithoutImage =
+    !failed && !imageUrl && r.status === "completed";
+  if (failed || doneWithoutImage) {
+    return {
+      id: `${r.url}-${index}`,
+      url: r.url,
+      status: "error",
+      thumbnailUrl: imageUrl,
+      errorMessage:
+        r.error ?? (doneWithoutImage ? "Preview image unavailable" : undefined),
+    };
+  }
+  const itemStatus = imageUrl ? "completed" : "running";
   return {
     id: `${r.url}-${index}`,
     url: r.url,
     status: mapBackendStatusToItem(itemStatus),
-    thumbnailUrl: imageUrl ?? undefined,
-    errorMessage: r.error ?? undefined,
+    thumbnailUrl: imageUrl,
+    errorMessage: undefined,
   };
 }
 
@@ -119,7 +177,15 @@ async function fetchFullItems(
       const p = byUrl.get(url);
       if (p) {
         return mapResultToDemoItem(
-          { url: p.url, status: p.status, preview_url: p.preview_url, error: p.error },
+          {
+            url: p.url,
+            status: p.status,
+            composited_preview_image_url: p.composited_preview_image_url,
+            preview_url: p.preview_url,
+            preview_image_url: p.preview_image_url,
+            screenshot_url: p.screenshot_url,
+            error: p.error,
+          },
           i
         );
       }
@@ -141,19 +207,22 @@ async function fetchFullItems(
   }));
 }
 
+export type QualityMode = "fast" | "balanced" | "ultra" | "auto";
+
 export interface DemoGenerationPageProps {
   apiBase?: string;
   apiKey?: string;
-  qualityMode?: "fast" | "balanced" | "ultra" | "auto";
+  initialQualityMode?: QualityMode;
   pollIntervalMs?: number;
 }
 
 export const DemoGenerationPage: React.FC<DemoGenerationPageProps> = ({
   apiBase = getApiBaseUrl() || DEFAULT_API_BASE,
   apiKey,
-  qualityMode = "balanced",
-  pollIntervalMs = 800,
+  initialQualityMode = "balanced",
+  pollIntervalMs: pollIntervalMsProp,
 }) => {
+  const [qualityMode, setQualityMode] = useState<QualityMode>(initialQualityMode);
   const jobIdRef = useRef<string | null>(null);
   const urlsRef = useRef<string[]>([]);
 
@@ -182,7 +251,9 @@ export const DemoGenerationPage: React.FC<DemoGenerationPageProps> = ({
       <DemoGenerationExperience
         onCreateJob={onCreateJob}
         onPollJob={onPollJob}
-        pollIntervalMs={pollIntervalMs}
+        pollIntervalMs={pollIntervalMsProp ?? 1500}
+        qualityMode={qualityMode}
+        onQualityModeChange={setQualityMode}
       />
     </div>
   );

@@ -26,6 +26,8 @@ export interface ResultUrl {
 
 export interface BatchResultItem {
   url: string;
+  /** Per-row terminal state when present (e.g. completed without image → surface as error). */
+  status?: string | null;
   /** Composited preview image URL (og:image quality). Prefer over screenshot_url. */
   composited_preview_image_url?: string | null;
   preview_image_url?: string | null;
@@ -45,15 +47,21 @@ export interface BatchResultsResponse {
   result_urls?: ResultUrl[];
 }
 
+export interface BatchPageItem {
+  url: string;
+  status: string;
+  /** Prefer for display (og-quality composited). */
+  composited_preview_image_url?: string | null;
+  preview_url?: string | null;
+  preview_image_url?: string | null;
+  screenshot_url?: string | null;
+  error: string | null;
+}
+
 export interface BatchPagesResponse {
   job_id: string;
   status: string;
-  pages: Array<{
-    url: string;
-    status: string;
-    preview_url: string | null;
-    error: string | null;
-  }>;
+  pages: BatchPageItem[];
 }
 
 /**

@@ -10,9 +10,23 @@
  * - Or run against production: BASE_URL=https://www.mymetaview.com
  */
 
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 
 const DEMO_GENERATION_PATH = "/demo-generation";
+
+/** When the backend returns real preview URLs, thumbnails must be real images (not gradient-only placeholders). */
+async function expectLoadedPreviewImages(page: Page) {
+  const imgs = page.getByTestId("demo-preview-image");
+  await expect(imgs.first()).toBeVisible({ timeout: 90_000 });
+  const n = await imgs.count();
+  for (let i = 0; i < n; i++) {
+    const naturalWidth = await imgs.nth(i).evaluate((el: HTMLImageElement) => el.naturalWidth);
+    expect(
+      naturalWidth,
+      "preview image should decode to non-empty bitmap (non-gradient / non-placeholder)"
+    ).toBeGreaterThan(0);
+  }
+}
 
 test.describe("Demo generation flow", () => {
   test.beforeEach(async ({ page }) => {
@@ -55,15 +69,21 @@ test.describe("Demo generation flow", () => {
 
     // Flow completes with either: (1) results UI, or (2) submit error (backend down)
     await expect(
-      page.getByText(
-        /generating previews|assembling scenes|demo previews ready|some previews are ready|we couldn't complete|we couldn't start your demo|connection problem|edit urls|retry failed/i
-      )
+      page
+        .getByText(
+          /generating previews|assembling scenes|demo previews ready|some previews are ready|we couldn't complete|we couldn't start your demo|connection problem|demo generation failed|edit urls|retry failed/i
+        )
+        .first()
     ).toBeVisible({ timeout: 15000 });
 
     // Wait for final state (edit or retry button visible)
     await expect(
       page.getByRole("button", { name: /edit urls|retry failed/i }).first()
     ).toBeVisible({ timeout: 90000 });
+
+    if ((await page.getByTestId("demo-preview-image").count()) > 0) {
+      await expectLoadedPreviewImages(page);
+    }
   });
 
   test("supports multiple URLs in batch", async ({ page }) => {
@@ -74,14 +94,20 @@ test.describe("Demo generation flow", () => {
     await page.getByRole("button", { name: /generate demo preview/i }).click();
 
     await expect(
-      page.getByText(
-        /generating previews|assembling scenes|demo previews ready|some previews|we couldn't complete|we couldn't start|connection problem|edit urls|retry failed/i
-      )
+      page
+        .getByText(
+          /generating previews|assembling scenes|demo previews ready|some previews|we couldn't complete|we couldn't start|connection problem|demo generation failed|edit urls|retry failed/i
+        )
+        .first()
     ).toBeVisible({ timeout: 15000 });
 
     await expect(
       page.getByRole("button", { name: /edit urls|retry failed/i }).first()
     ).toBeVisible({ timeout: 90000 });
+
+    if ((await page.getByTestId("demo-preview-image").count()) > 0) {
+      await expectLoadedPreviewImages(page);
+    }
   });
 
   test("edit URLs returns to configure state", async ({ page }) => {
@@ -91,8 +117,16 @@ test.describe("Demo generation flow", () => {
     await page.getByRole("button", { name: /generate demo preview/i }).click();
 
     await expect(
-      page.getByText(/demo previews ready|some previews|we couldn't complete|edit urls|retry failed/i)
+      page
+        .getByText(
+          /demo previews ready|some previews|we couldn't complete|demo generation failed|edit urls|retry failed/i
+        )
+        .first()
     ).toBeVisible({ timeout: 90000 });
+
+    if ((await page.getByTestId("demo-preview-image").count()) > 0) {
+      await expectLoadedPreviewImages(page);
+    }
 
     await page.getByRole("button", { name: "Edit URLs" }).click();
 

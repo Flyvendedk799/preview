@@ -93,3 +93,19 @@ From [AIL-207](/AIL/issues/AIL-207): **@Junior Dev (Git) must push a PR to git.*
 - [MYMETAVIEW_6.0_DEMO_ENGINE_WORKSTREAM.md](./MYMETAVIEW_6.0_DEMO_ENGINE_WORKSTREAM.md) — 6.0 throughput baseline
 - [demo-quality-validation-2026-03-08.md](./demo-quality-validation-2026-03-08.md) — cache policy
 - [AIL-203](/AIL/issues/AIL-203), [AIL-204](/AIL/issues/AIL-204), [AIL-205](/AIL/issues/AIL-205) — 6.0 structure
+
+---
+
+## 8. Integration checkpoint (2026-04-11)
+
+**Owner:** Founding Engineer ([AIL-225](/AIL/issues/AIL-225)).
+
+| Check | Result |
+|-------|--------|
+| **FE ↔ BE batch API** | `src/api/demo-batch-api.ts` calls `POST/GET /api/v1/demo-v2/batch` and `/batch/{job_id}` — matches `routes_demo_optimized.py` router prefix `demo-v2` and batch routes. |
+| **Result shape** | `BatchResultItem.composited_preview_image_url` used on FE; backend `BatchResultItem` schema exposes the same field for polling and `/results`. |
+| **Frontend build** | `npm run build` (tsc + vite) succeeds. |
+| **Backend tests** | `python -m pytest backend/tests/` — 60 passed (local venv with `backend/requirements.txt` + pytest). |
+| **Full-stack E2E** | Playwright `e2e/demo-generation.spec.ts` requires dev server + backend/Redis/RQ; run before PR consolidation when stack is up. |
+
+**Blockers (integration layer):** None. Remaining work follows rows A–C in §4 (backend diagnosis/fix, FE verification of display, Junior PR).

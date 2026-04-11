@@ -41,6 +41,8 @@ from backend.services.color_psychology import (
     get_contrast_ratio
 )
 
+logger = logging.getLogger(__name__)
+
 # PHASE 7: Font Manager integration
 try:
     from backend.services.font_manager import (
@@ -66,8 +68,6 @@ try:
 except ImportError:
     COMPOSITION_INTELLIGENCE_AVAILABLE = False
     logger.warning("CompositionIntelligence not available")
-
-logger = logging.getLogger(__name__)
 
 
 # =============================================================================
