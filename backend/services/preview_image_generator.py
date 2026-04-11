@@ -574,6 +574,8 @@ def generate_designed_preview(
     
     # CRITICAL FIX: Ensure all text parameters are strings to prevent garbled rendering
     title = str(title) if title is not None else "Untitled"
+    # AIL-223: Whitespace/empty title caused hero template to skip headline → gradient-only image
+    title = title.strip() or "Preview"
     subtitle = str(subtitle) if subtitle is not None else None
     description = str(description) if description is not None else None
     cta_text = str(cta_text) if cta_text is not None else None
@@ -681,6 +683,10 @@ def generate_designed_preview(
         
     except Exception as e:
         logger.error(f"Designed preview generation failed: {e}", exc_info=True)
+        logger.info(
+            f"AIL-210 DIAGNOSIS: Falling back to _generate_fallback_preview "
+            f"(template exception) title={title!r} domain={domain}"
+        )
         return _generate_fallback_preview(title, domain, blueprint)
 
 
@@ -885,12 +891,14 @@ def _generate_hero_template(
             if len(h2s) > 1: sub_heading = h2s[1]
             elif ps: sub_heading = ps[0]
 
-    if not main_heading and title:
-        # Fallback to AI extracted text if DOM extraction failed
-        main_heading = {"text": title}
+    effective_title = (title and str(title).strip()) or "Preview"
+    if not main_heading:
+        main_heading = {"text": effective_title}
+    elif not (main_heading.get("text") or "").strip():
+        main_heading = {"text": effective_title}
 
     if main_heading:
-        heading_text = main_heading.get("text", "Untitled")
+        heading_text = (main_heading.get("text") or "").strip() or "Preview"
         title_length = len(heading_text)
 
         # Dynamic font size based on text length
@@ -1836,6 +1844,10 @@ def _generate_fallback_preview(
     blueprint: Dict[str, Any]
 ) -> bytes:
     """Generate a clean fallback preview if main generation fails."""
+    logger.info(
+        f"AIL-210 DIAGNOSIS: _generate_fallback_preview called title={title!r} domain={domain} "
+        f"blueprint_keys={list(blueprint.keys()) if blueprint else []}"
+    )
     try:
         primary_color = _hex_to_rgb(blueprint.get("primary_color", "#3B82F6"))
         secondary_color = _hex_to_rgb(blueprint.get("secondary_color", "#1E293B"))
@@ -1852,17 +1864,21 @@ def _generate_fallback_preview(
         
         # Title - large and bold
         # MOBILE-FIRST: Fallback title readable on mobile
+        # FIX (AIL-210): Always draw title to avoid gradient-only output; use display_title
+        # when extraction yields "Untitled" so user sees meaningful content, not just gradient.
+        display_title = (title and title.strip()) if title else ""
+        if not display_title or display_title == "Untitled":
+            display_title = "Preview"  # Avoid gradient-only output when no real title
         title_font = _load_font(72, bold=True)  # Balanced size to prevent text overflow
-        if title and title != "Untitled":
-            title_lines = _wrap_text(title, title_font, content_width, draw)
-            
-            # Calculate vertical centering
-            total_height = len(title_lines) * 64
-            start_y = (OG_IMAGE_HEIGHT - total_height) // 2 - 30
-            
-            for i, line in enumerate(title_lines[:2]):
-                y_pos = start_y + (i * 64)
-                _draw_text_with_shadow(draw, (padding, y_pos), line, title_font, (255, 255, 255), 3)
+        title_lines = _wrap_text(display_title, title_font, content_width, draw)
+
+        # Calculate vertical centering
+        total_height = len(title_lines) * 64
+        start_y = (OG_IMAGE_HEIGHT - total_height) // 2 - 30
+
+        for i, line in enumerate(title_lines[:2]):
+            y_pos = start_y + (i * 64)
+            _draw_text_with_shadow(draw, (padding, y_pos), line, title_font, (255, 255, 255), 3)
         
         # Domain at bottom
         domain_font = _load_font(18, bold=True)
@@ -2122,6 +2138,13 @@ def generate_and_upload_preview_image(
         credibility_items = []
     
     try:
+        # AIL-223: Match classic template — never pass blank title into DNA/classic renderers
+        if title is None:
+            title = "Preview"
+        else:
+            t = str(title).strip()
+            title = t or "Preview"
+
         # Extract domain
         from urllib.parse import urlparse
         parsed = urlparse(url)
@@ -2131,7 +2154,8 @@ def generate_and_upload_preview_image(
         
         # NEW: Try DNA-aware generation first if design_dna is available
         image_bytes = None
-        
+        path_used = None  # AIL-210: for gradient-only diagnosis logging
+
         if design_dna and ADAPTIVE_ENGINE_AVAILABLE:
             # Merge palette colors into design_dna for the adaptive engine
             enriched_dna = {**design_dna}
@@ -2159,11 +2183,15 @@ def generate_and_upload_preview_image(
             )
             
             if image_bytes:
+                path_used = "dna_aware"
                 logger.info("✅ Successfully generated DNA-aware preview")
+            else:
+                logger.info("📋 DNA-aware preview returned None, falling back to classic")
         
         # Fall back to classic generation if DNA-aware failed or wasn't available
         if not image_bytes:
-            logger.info("📋 Using classic template generation")
+            path_used = "classic"
+            logger.info("📋 Using classic template generation (no design_dna or DNA failed)")
             image_bytes = generate_designed_preview(
                 screenshot_bytes=screenshot_bytes,
                 title=title,
@@ -2180,6 +2208,12 @@ def generate_and_upload_preview_image(
                 product_intelligence=product_intelligence,
                 dom_data=dom_data
             )
+
+        if not image_bytes:
+            logger.warning(
+                "AIL-223: generate_designed_preview returned empty; using _generate_fallback_preview"
+            )
+            image_bytes = _generate_fallback_preview(title, domain, blueprint or {})
         
         # AI-powered quality improvement: detect and fix banding/blur issues
         # REMOVED: Execution of duplicate quality pass since generative pipelines
@@ -2206,7 +2240,10 @@ def generate_and_upload_preview_image(
         filename = f"previews/demo/{uuid4()}.png"
         image_url = upload_file_to_r2(image_bytes, filename, "image/png")
         
-        logger.info(f"Designed preview uploaded: {image_url}")
+        logger.info(
+            f"Designed preview uploaded: {image_url} path={path_used or 'classic'} "
+            f"title={title[:50] if title else '(none)'}"
+        )
         return image_url
         
     except Exception as e:
