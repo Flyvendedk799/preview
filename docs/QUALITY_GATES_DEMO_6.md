@@ -49,6 +49,14 @@ PYTHONPATH=. python backend/scripts/benchmark_demo_throughput.py --base-url http
 
 In CI (no live API): `DEMO_BENCHMARK_SKIP_LIVE=1` or `--dry-run` skips live calls and validates logic only.
 
+## Gradient-only preview regression (6.5 / AIL-223)
+
+Demo previews must include visible headline text (and typical card layout), not a bare gradient.
+
+- **Cause (fixed):** Empty or whitespace `title` plus DOM extraction without a usable H1 caused the hero template to skip the headline block, so the composited image was background-only.
+- **Mitigation:** `generate_designed_preview` and `generate_and_upload_preview_image` normalize titles to a non-empty display string; hero layout replaces empty DOM headlines; `generate_and_upload_preview_image` falls back to `_generate_fallback_preview` if no bytes are produced.
+- **Logging:** Use existing `AIL-210` / `AIL-223` log lines in `preview_engine`, `preview_image_generator`, and `adaptive_template_engine` to see DNA vs classic path and fallback usage.
+
 ## Regression Test Coverage
 
 - `test_demo_flow.py` — Demo preview schema, job output, URL validation
