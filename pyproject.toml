@@ -1,0 +1,10 @@
+[tool.pytest.ini_options]
+# Lock the import root so pytest never auto-inserts the ``backend/`` directory
+# onto ``sys.path``. Without this, the local ``backend/queue`` package shadows
+# the stdlib ``queue`` module and breaks ``concurrent.futures.ThreadPoolExecutor``.
+testpaths = ["backend/tests", "tests"]
+pythonpath = ["."]
+addopts = "-rN --strict-markers"
+markers = [
+    "integration: requires network or external services",
+]
