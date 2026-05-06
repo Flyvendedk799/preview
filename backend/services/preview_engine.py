@@ -57,6 +57,33 @@ from backend.services.preview_tracer import PreviewTracer
 # Framework-based quality system
 from backend.services.multi_modal_fusion import MultiModalFusionEngine
 
+# Demo Preview Engine Final Plan integration
+from backend.services.preview.observability import (
+    JobTrace,
+    JobTraceStore,
+    StageTiming,
+    new_job_trace,
+)
+from backend.services.preview.observability.reason_codes import (
+    FailureReason,
+    PaletteSource,
+    PreviewLane,
+)
+from backend.services.preview.reliability import (
+    record_fallback,
+    validate_blueprint,
+)
+from backend.services.preview.lanes import (
+    budget_for,
+    select_lane,
+)
+from backend.services.preview.extraction.validators import (
+    fallback_title_chain,
+    is_low_information_hook,
+)
+from backend.services.preview.extraction.palette import enforce_palette_distance
+from backend.services.preview.extraction.social_proof import extract_social_proof
+
 # Pipeline layers - context, hooks, normalization
 from backend.services.pipeline_context import PipelineContext
 from backend.services.pipeline_hooks import (
@@ -290,6 +317,32 @@ try:
 except ImportError as e:
     AGENT_EXECUTOR_AVAILABLE = False
     logger.warning(f"AI Agent Executor not available: {e}")
+
+
+def _classify_failure_reason(error_msg: str) -> FailureReason:
+    """Best-effort mapping from error string to plan reason code."""
+    msg = (error_msg or "").lower()
+    if "rate limit" in msg or "429" in msg:
+        return FailureReason.EXTRACTION_AI_RATE_LIMIT
+    if "auth" in msg and ("openai" in msg or "401" in msg or "api key" in msg):
+        return FailureReason.EXTRACTION_AI_AUTH
+    if "timed out" in msg or "timeout" in msg:
+        if "screenshot" in msg or "capture" in msg or "playwright" in msg:
+            return FailureReason.CAPTURE_TIMEOUT
+        return FailureReason.EXTRACTION_AI_TIMEOUT
+    if "blocked" in msg or "forbidden" in msg or "403" in msg:
+        return FailureReason.CAPTURE_BLOCKED
+    if "404" in msg or "not found" in msg:
+        return FailureReason.CAPTURE_HTTP_ERROR
+    if "screenshot" in msg or "capture" in msg or "playwright" in msg:
+        return FailureReason.CAPTURE_NETWORK_ERROR
+    if "json" in msg or "parse" in msg or "invalid" in msg:
+        return FailureReason.EXTRACTION_INVALID_PAYLOAD
+    if "quality" in msg and "gate" in msg:
+        return FailureReason.QUALITY_GATE_FAILED
+    if "budget" in msg:
+        return FailureReason.QUALITY_BUDGET_EXCEEDED
+    return FailureReason.UNKNOWN
 
 
 @dataclass
@@ -547,6 +600,10 @@ class PreviewEngine:
             progress_callback=self.config.progress_callback,
         )
 
+        # Phase 2: structured per-job trace, persisted on every terminal exit
+        job_trace: JobTrace = new_job_trace(url=url_str, is_demo=self.config.is_demo,
+                                            job_id=ctx.request_id)
+
         # Input validation layer
         try:
             url_str = InputValidator.validate_for_pipeline(ctx)
@@ -579,6 +636,7 @@ class PreviewEngine:
             with ctx.stage("capture") as s:
                 screenshot_bytes, html_content, dom_data = self._capture_page(url_str)
                 self._last_screenshot_bytes = screenshot_bytes
+                self._last_html_content = html_content
                 ctx.shared["screenshot_bytes"] = screenshot_bytes
                 ctx.shared["html_content"] = html_content
                 s.set_output("html_len", len(html_content))
@@ -602,6 +660,34 @@ class PreviewEngine:
                 f"(confidence: {page_classification.confidence:.2f})"
             )
             
+            # FINAL PLAN — Phase 6: lane decision + budget annotation
+            try:
+                lane_decision = select_lane(
+                    has_rich_og_metadata=self._has_rich_og_metadata(html_content),
+                    html_size_bytes=len(html_content or ""),
+                    is_demo=self.config.is_demo,
+                    is_ecommerce=(
+                        page_classification.primary_category.value
+                        in {"ecommerce", "product"}
+                    ) if page_classification else False,
+                    page_classification_confidence=(
+                        page_classification.confidence if page_classification else None
+                    ),
+                )
+                job_trace.lane = lane_decision.lane
+                job_trace.notes.append(f"lane:{lane_decision.lane.value}:{lane_decision.reason}")
+                lane_budget = budget_for(lane_decision.lane)
+                ctx.shared["lane_decision"] = lane_decision
+                ctx.shared["lane_budget"] = lane_budget
+                self.logger.info(
+                    f"[{ctx.request_id}] Lane={lane_decision.lane.value} "
+                    f"reason={lane_decision.reason} "
+                    f"budget={lane_budget.max_total_seconds:.0f}s "
+                    f"tokens={lane_budget.max_ai_tokens}"
+                )
+            except Exception as lane_err:  # noqa: BLE001
+                self.logger.debug(f"Lane selection failed (non-fatal): {lane_err}")
+
             # Stage 3: Parallel extraction (brand + upload + AI + UI)
             # Check circuit breaker before committing to AI work
             if not ctx.ai_available():
@@ -1159,6 +1245,11 @@ class PreviewEngine:
             if isinstance(result.quality_scores.get("debug"), dict):
                 result.quality_scores["debug"]["request_id"] = ctx.request_id
 
+            # Phase 2: persist structured JobTrace for diagnosis utility
+            self._populate_job_trace_from_ctx(job_trace, ctx, result)
+            job_trace.finalize_success()
+            JobTraceStore.get_instance().save(job_trace)
+
             # Log telemetry summary
             self.logger.info(f"[{ctx.request_id}] Telemetry: {ctx.telemetry_summary()}")
 
@@ -1174,6 +1265,14 @@ class PreviewEngine:
 
             # Log pipeline telemetry even on failure
             self.logger.info(f"[{ctx.request_id}] Failed telemetry: {ctx.telemetry_summary()}")
+
+            # Phase 2: persist failure trace before returning
+            self._populate_job_trace_from_ctx(job_trace, ctx, None)
+            job_trace.finalize_failure(
+                _classify_failure_reason(error_msg),
+                detail=error_msg,
+            )
+            JobTraceStore.get_instance().save(job_trace)
 
             # Try graceful degradation with stage recovery
             if 'screenshot_bytes' in locals() and 'html_content' in locals():
@@ -2760,34 +2859,99 @@ class PreviewEngine:
         parsed = urlparse(url)
         domain = parsed.netloc.replace('www.', '')
 
-        # === TITLE VALIDATION ===
-        generic_titles = [
-            "home", "welcome", "untitled", "about", "404", "error",
-            "loading", "please wait", "document", "page", "index",
-            "sign in", "log in", "register", "sign up",
-        ]
-        # Also catch "Welcome to X" pattern
-        title_lower = (result.title or "").lower().strip()
-        title_is_weak = (
-            not result.title or
-            len(result.title.strip()) < 5 or
-            title_lower in generic_titles or
-            title_lower == domain.lower() or
-            title_lower.startswith("welcome to") or
-            title_lower.startswith("about us")
-        )
+        # === TITLE VALIDATION (Phase 4.2 — deterministic fallback chain) ===
+        if is_low_information_hook(result.title or ""):
+            previous_title = result.title or ""
+            result.warnings.append(f"Weak title detected: '{previous_title}'")
+            try:
+                metadata = extract_metadata_from_html(
+                    self._last_screenshot_bytes  # type: ignore[arg-type]
+                ) if False else {}  # avoid heavy refetch here
+            except Exception:
+                metadata = {}
+            og_title = result.subtitle if result.subtitle else None
+            replacement = fallback_title_chain(
+                extracted_hook=previous_title,
+                og_title=og_title,
+                h1_candidates=None,
+                url=url,
+            )
+            if replacement and replacement.strip():
+                result.title = replacement
+                if previous_title and result.subtitle == replacement:
+                    result.subtitle = None
 
+        title_lower = (result.title or "").lower().strip()
+        title_is_weak = is_low_information_hook(result.title or "")
         if title_is_weak:
             result.warnings.append(f"Weak title detected: '{result.title}'")
-            # Fallback priority: subtitle > og:title from metadata > domain
+            # Fallback priority: subtitle > domain
             if result.subtitle and len(result.subtitle) > len(result.title or ""):
                 result.title = result.subtitle
                 result.subtitle = None
-            elif not result.title or title_lower in generic_titles:
+            elif not result.title:
                 result.title = domain.replace('.', ' ').title()
 
-        # === SOCIAL PROOF ENRICHMENT ===
-        # If we have no credibility items, scan for numeric proof patterns
+        # === PALETTE QUALITY (Phase 4.3 — minimum perceptual distance) ===
+        try:
+            blueprint = result.blueprint or {}
+            primary = blueprint.get("primary_color")
+            if isinstance(primary, str):
+                palette_result = enforce_palette_distance(
+                    primary=primary,
+                    secondary=blueprint.get("secondary_color"),
+                    accent=blueprint.get("accent_color"),
+                    sampled=True,
+                )
+                blueprint["primary_color"] = palette_result.primary_hex
+                blueprint["secondary_color"] = palette_result.secondary_hex
+                blueprint["accent_color"] = palette_result.accent_hex
+                result.blueprint = blueprint
+                if palette_result.fallbacks_applied:
+                    result.warnings.extend(
+                        f"palette:{rule}" for rule in palette_result.fallbacks_applied
+                    )
+                # Persist palette source in quality_scores so JobTrace can capture it.
+                result.quality_scores = result.quality_scores or {}
+                result.quality_scores["palette_source"] = palette_result.source.value
+        except Exception as palette_err:  # noqa: BLE001
+            self.logger.debug(f"Palette enforcement skipped: {palette_err}")
+
+        # === BLUEPRINT SCHEMA VALIDATION (Phase 1.3 — strict, repairing) ===
+        try:
+            validation = validate_blueprint(result.blueprint or {})
+            if validation.is_valid:
+                result.blueprint = validation.repaired
+            else:
+                # Don't reject: log and let downstream cope. The repair path
+                # already coerced colors when possible.
+                result.warnings.extend(
+                    f"blueprint_validation:{err}" for err in validation.errors[:5]
+                )
+                result.blueprint = validation.repaired
+        except Exception as bp_err:  # noqa: BLE001
+            self.logger.debug(f"Blueprint validation skipped: {bp_err}")
+
+        # === SOCIAL PROOF ENRICHMENT (Phase 4.4) ===
+        # Run the deterministic regex+DOM pass over BOTH the description AND
+        # any captured HTML before falling back to the AI-derived value.
+        if not result.credibility_items:
+            search_corpus = result.description or ""
+            html_corpus = ""
+            try:
+                html_corpus = self._last_html_content  # type: ignore[attr-defined]
+            except AttributeError:
+                html_corpus = ""
+            combined = f"{search_corpus}\n{html_corpus}"
+            try:
+                proofs = extract_social_proof(combined)
+                if proofs:
+                    result.credibility_items = [
+                        {"type": p.label, "value": p.value} for p in proofs[:3]
+                    ]
+            except Exception as proof_err:  # noqa: BLE001
+                self.logger.debug(f"Social proof extraction skipped: {proof_err}")
+
         if not result.credibility_items and result.description:
             proof_patterns = [
                 r'(\d[\d,]*\+?\s*(?:reviews|users|customers|downloads|ratings))',
@@ -2989,10 +3153,60 @@ class PreviewEngine:
             self.logger.warning(f"Visual quality validation error: {e}")
             return None
     
+    # =========================================================================
+    # FINAL PLAN — Phase 2 trace integration helpers
+    # =========================================================================
+
+    def _populate_job_trace_from_ctx(
+        self,
+        trace: JobTrace,
+        ctx: PipelineContext,
+        result: Optional[PreviewEngineResult],
+    ) -> None:
+        """Mirror PipelineContext + result data into the structured JobTrace."""
+        try:
+            for stage in ctx.stages:
+                trace.add_stage(StageTiming(
+                    name=stage.name,
+                    started_at=stage.started_at,
+                    finished_at=stage.finished_at,
+                    duration_ms=stage.duration_ms,
+                    success=stage.success,
+                    skipped=stage.skipped,
+                    error=stage.error,
+                    outputs=dict(stage.outputs),
+                ))
+
+            for warning in ctx.warnings:
+                trace.warnings.append(warning[:200])
+
+            if result is not None:
+                trace.extraction_confidence = float(result.reasoning_confidence or 0.0)
+                quality_scores = result.quality_scores or {}
+                for key in ("overall", "design_fidelity", "extraction", "visual",
+                            "contrast_score", "composition_score"):
+                    value = quality_scores.get(key)
+                    if isinstance(value, (int, float)):
+                        trace.quality_subscores[key] = float(value)
+                blueprint = result.blueprint or {}
+                trace.template_selected = blueprint.get("template_type")
+                trace.template_rationale = blueprint.get("layout_reasoning")
+                # Palette source: preview_engine populates from extraction palette
+                # rules (Phase 4.3). Default to ``derived`` so absent data
+                # cannot masquerade as ``sampled``.
+                palette_source_str = quality_scores.get("palette_source")
+                if palette_source_str:
+                    try:
+                        trace.palette_source = PaletteSource(palette_source_str)
+                    except ValueError:
+                        trace.palette_source = PaletteSource.DEFAULT
+        except Exception as exc:  # noqa: BLE001
+            self.logger.debug(f"JobTrace population partial failure: {exc}")
+
     def _update_progress(self, progress: float, message: str):
         """
         Update progress if callback is provided.
-        
+
         Ensures progress only increases monotonically to prevent jumping backwards.
         """
         if self.config.progress_callback:

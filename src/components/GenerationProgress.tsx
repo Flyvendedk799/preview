@@ -93,6 +93,70 @@ const DEFAULT_STAGES: GenerationStage[] = [
   },
 ]
 
+/**
+ * Failure reason codes from the backend (Phase 2 reason taxonomy).
+ *
+ * Keep this list in sync with
+ * ``backend/services/preview/observability/reason_codes.py``.
+ */
+export type PreviewFailureReason =
+  | 'capture_timeout'
+  | 'capture_blocked'
+  | 'capture_http_error'
+  | 'capture_network_error'
+  | 'extraction_low_confidence'
+  | 'extraction_invalid_payload'
+  | 'extraction_ai_rate_limit'
+  | 'extraction_ai_auth'
+  | 'extraction_ai_timeout'
+  | 'render_font_fallback'
+  | 'render_palette_fallback'
+  | 'render_contrast_failed'
+  | 'render_layout_overflow'
+  | 'render_image_pipeline_error'
+  | 'quality_gate_failed'
+  | 'quality_budget_exceeded'
+  | 'status_check_transient'
+  | 'unknown'
+
+/**
+ * Frontend-facing reason copy. Mirrors the backend `user_message` map but
+ * exposed at the component layer so designers can A/B test wording without
+ * touching backend code.
+ */
+export const FAILURE_REASON_COPY: Record<PreviewFailureReason, string> = {
+  capture_timeout:
+    "The page took too long to load. We'll retry with a simpler capture.",
+  capture_blocked:
+    'The site blocked our preview crawler. Try a public URL or contact us.',
+  capture_http_error:
+    'The page responded with an error. Double-check the URL and try again.',
+  capture_network_error:
+    "We couldn't reach the page. Check the URL and try again.",
+  extraction_low_confidence:
+    "We couldn't read enough from the page to build a preview.",
+  extraction_invalid_payload:
+    "The page returned content we couldn't parse. We'll try a fallback.",
+  extraction_ai_rate_limit:
+    'Our AI provider rate-limited us. Please retry in a moment.',
+  extraction_ai_auth:
+    'Authentication issue with the AI provider — engineering is on it.',
+  extraction_ai_timeout:
+    "AI analysis timed out. We'll show a structured fallback.",
+  render_font_fallback: 'We rendered the preview with a fallback font.',
+  render_palette_fallback: 'We rendered the preview with a fallback palette.',
+  render_contrast_failed: 'We adjusted text contrast to keep the preview readable.',
+  render_layout_overflow: 'We trimmed text that would have overflowed the preview.',
+  render_image_pipeline_error:
+    "Image rendering hit an error — we used the screenshot as a fallback.",
+  quality_gate_failed:
+    "Quality didn't meet our bar so we shipped a safe fallback.",
+  quality_budget_exceeded:
+    'We hit our time budget and shipped the best result we had.',
+  status_check_transient: 'Status check hiccup — refresh in a moment.',
+  unknown: 'Something went wrong generating your preview.',
+}
+
 interface GenerationProgressProps {
   isGenerating: boolean
   currentStage?: number
@@ -100,6 +164,22 @@ interface GenerationProgressProps {
   overallProgress?: number
   statusMessage?: string
   estimatedTimeRemaining?: number
+  /**
+   * Phase 5 — explicit finalization state.
+   * When the backend has crossed the 95% threshold but is still running
+   * post-processing (palette enforcement, visual quality fix-ups, cache
+   * write), pass `isFinalizing` so the UI shows a labelled "Finalizing…"
+   * stripe instead of plateauing at 95%.
+   */
+  isFinalizing?: boolean
+  /**
+   * Phase 5 — backend reason code for non-success terminal status. When set,
+   * the component shows the matching copy from `FAILURE_REASON_COPY` and a
+   * retry button that fires `onRetry`.
+   */
+  failureReason?: PreviewFailureReason
+  failureDetail?: string
+  onRetry?: () => void
 }
 
 export default function GenerationProgress({
@@ -109,6 +189,10 @@ export default function GenerationProgress({
   overallProgress = 0,
   statusMessage,
   estimatedTimeRemaining,
+  isFinalizing = false,
+  failureReason,
+  failureDetail,
+  onRetry,
 }: GenerationProgressProps) {
   const [stages, setStages] = useState<GenerationStage[]>(customStages || DEFAULT_STAGES)
   const [pulseStage, setPulseStage] = useState<string | null>(null)
@@ -137,10 +221,42 @@ export default function GenerationProgress({
     }
   }, [currentStage, isGenerating])
 
-  if (!isGenerating) return null
+  if (!isGenerating && !failureReason) return null
 
   const completedCount = stages.filter(s => s.status === 'completed').length
-  const progressPercent = Math.max(overallProgress, (completedCount / stages.length) * 100)
+  const baseProgress = Math.max(overallProgress, (completedCount / stages.length) * 100)
+  // Phase 5 — Trust UX. While we are in the explicit finalizing state,
+  // animate progress between 95 and 99 instead of plateauing at 95.
+  const progressPercent = isFinalizing
+    ? Math.max(baseProgress, 95) + Math.min(4, (Date.now() % 4000) / 1000)
+    : baseProgress
+
+  if (failureReason) {
+    return (
+      <div className="w-full max-w-lg mx-auto">
+        <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-5 text-rose-900">
+          <h3 className="text-base font-semibold mb-1">
+            We couldn't finish your preview
+          </h3>
+          <p className="text-sm">{FAILURE_REASON_COPY[failureReason]}</p>
+          {failureDetail ? (
+            <p className="text-xs text-rose-700/80 mt-2 break-words">
+              {failureDetail}
+            </p>
+          ) : null}
+          {onRetry ? (
+            <button
+              type="button"
+              onClick={onRetry}
+              className="mt-3 inline-flex items-center px-3 py-1.5 rounded-lg bg-rose-600 text-white text-sm font-medium hover:bg-rose-700"
+            >
+              Try again
+            </button>
+          ) : null}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="w-full max-w-lg mx-auto">
@@ -164,10 +280,12 @@ export default function GenerationProgress({
             </div>
             <div className="text-right">
               <div className="text-white font-bold text-2xl">{Math.round(progressPercent)}%</div>
-              {estimatedTimeRemaining && estimatedTimeRemaining > 0 && progressPercent < 92 ? (
+              {isFinalizing ? (
+                <div className="text-white/85 text-xs font-semibold">Finalizing…</div>
+              ) : estimatedTimeRemaining && estimatedTimeRemaining > 0 && progressPercent < 92 ? (
                 <div className="text-white/70 text-xs">~{Math.ceil(estimatedTimeRemaining)}s left</div>
               ) : progressPercent >= 92 && progressPercent < 100 ? (
-                <div className="text-white/70 text-xs">Almost done...</div>
+                <div className="text-white/70 text-xs">Finalizing…</div>
               ) : null}
             </div>
           </div>
